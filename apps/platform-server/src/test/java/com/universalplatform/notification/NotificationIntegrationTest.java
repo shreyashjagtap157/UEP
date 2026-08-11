@@ -98,11 +98,14 @@ class NotificationIntegrationTest {
 
         UUID ownOutbox = jdbc.queryForObject("SELECT id FROM notification_outbox WHERE tenant_id = ? AND deduplication_key = ?", UUID.class, TENANT, key);
         processor.processOne(ownOutbox);
+        jdbc.update("UPDATE notification_delivery SET status = 'DEAD_LETTERED', attempt_count = 8 WHERE tenant_id = ?", TENANT);
 
         mvc.perform(get("/api/v1/notifications/operations")
                         .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT.toString()))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.pendingOutboxEvents").value(0));
+                .andExpect(jsonPath("$.pendingOutboxEvents").value(0))
+                .andExpect(jsonPath("$.pendingOrFailedEmailDeliveries").value(0))
+                .andExpect(jsonPath("$.deadLetteredEmailDeliveries").value(1));
     }
 
     @Test

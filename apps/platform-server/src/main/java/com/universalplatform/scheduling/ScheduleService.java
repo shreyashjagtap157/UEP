@@ -116,6 +116,12 @@ class ScheduleService {
             add(unique, occurrenceRepository.findRangeForTeacher(tenantId, current.membershipId(), from, to));
             Set<UUID> batchIds = enrollment.activeBatchIdsForMembership(current.membershipId());
             if (!batchIds.isEmpty()) add(unique, occurrenceRepository.findRangeForBatches(tenantId, batchIds, from, to));
+            Set<UUID> courseIds = enrollment.activeCourseIdsForMembership(current.membershipId());
+            if (!courseIds.isEmpty()) add(unique, occurrenceRepository.findRangeForCourses(tenantId, courseIds, from, to));
+            Set<UUID> subjectIds = enrollment.activeSubjectIdsForMembership(current.membershipId());
+            if (!subjectIds.isEmpty()) add(unique, occurrenceRepository.findRangeForSubjects(tenantId, subjectIds, from, to));
+            Set<UUID> moduleIds = enrollment.activeModuleIdsForMembership(current.membershipId());
+            if (!moduleIds.isEmpty()) add(unique, occurrenceRepository.findRangeForModules(tenantId, moduleIds, from, to));
             add(unique, occurrenceRepository.findPublicRange(tenantId, current.primaryBranchId(), from, to));
             visible = unique.values().stream().sorted(Comparator.comparing(ScheduleOccurrence::startsAt)).toList();
         }
@@ -269,8 +275,15 @@ class ScheduleService {
         if (courseId != null && curriculum.requireCourse(courseId).status() != CurriculumStatus.ACTIVE) {
             throw new IllegalArgumentException("Inactive courses cannot receive new schedules");
         }
-        if (moduleId != null && curriculum.requireModule(moduleId).status() != CurriculumStatus.ACTIVE) {
-            throw new IllegalArgumentException("Inactive modules cannot receive new schedules");
+        if (moduleId != null) {
+            CurriculumDirectory.ModuleReference module = curriculum.requireModule(moduleId);
+            if (module.status() != CurriculumStatus.ACTIVE) throw new IllegalArgumentException("Inactive modules cannot receive new schedules");
+            subjectId = merge(subjectId, module.subjectId(), "Subject does not match the selected module");
+            courseId = merge(courseId, module.courseId(), "Course does not match the selected module");
+            if (module.subjectId() != null) {
+                CurriculumDirectory.SubjectReference parentSubject = curriculum.requireSubject(module.subjectId());
+                courseId = merge(courseId, parentSubject.courseId(), "Course does not match the selected module subject");
+            }
         }
         String timezone = command.timezone();
         if (branchId != null) {
@@ -434,6 +447,27 @@ class ScheduleService {
 
     private static ScheduleConflictDetector.ConflictSubject subject(ResolvedCommand command, UUID teacher, String room) {
         return new ScheduleConflictDetector.ConflictSubject(command.kind(), command.branchId(), command.batchId(), teacher, room);
+    }
+
+    private static NotificationEventType eventType(ScheduleKind kind, String action) {
+        return switch (action) {
+            case "SCHEDULED" -> switch (kind) {
+                case CLASS -> NotificationEventType.CLASS_SCHEDULED;
+                case EXAM -> NotificationEventType.EXAM_SCHEDULED;
+                default -> NotificationEventType.SCHEDULED;
+            };
+            case "RESCHEDULED" -> switch (kind) {
+                case CLASS -> NotificationEventType.CLASS_RESCHEDULED;
+                case EXAM -> NotificationEventType.EXAM_RESCHEDULED;
+                default -> NotificationEventType.SCHEDULE_RESCHEDULED;
+            };
+            case "CANCELLED" -> switch (kind) {
+                case CLASS -> NotificationEventType.CLASS_CANCELLED;
+                case EXAM -> NotificationEventType.EXAM_CANCELLED;
+                default -> NotificationEventType.SCHEDULE_CANCELLED;
+            };
+            default -> throw new IllegalArgumentException("Unsupported schedule notification action: " + action);
+        };
     }
 
     private static String required(String value, String label, int max) {

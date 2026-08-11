@@ -105,7 +105,8 @@ class NotificationService {
         UUID tenantId = tenantContext.requireTenantId();
         return new OperationsView(outbox.countByTenantIdAndProcessedAtIsNullAndDeadLetteredAtIsNull(tenantId),
                 outbox.countByTenantIdAndDeadLetteredAtIsNotNull(tenantId),
-                deliveries.countByTenantIdAndStatusIn(tenantId, List.of(NotificationDeliveryStatus.PENDING, NotificationDeliveryStatus.FAILED)));
+                deliveries.countByTenantIdAndStatusIn(tenantId, List.of(NotificationDeliveryStatus.PENDING, NotificationDeliveryStatus.FAILED)),
+                deliveries.countByTenantIdAndStatusIn(tenantId, List.of(NotificationDeliveryStatus.DEAD_LETTERED)));
     }
 
     private static NotificationView view(PlatformNotification notification) {
@@ -122,5 +123,5 @@ class NotificationService {
                             java.time.Instant createdAt, java.time.Instant readAt, long version) {}
     record UnreadCount(long count) {}
     record PreferenceView(NotificationEventType eventType, boolean inAppEnabled, boolean emailEnabled, long version) {}
-    record OperationsView(long pendingOutboxEvents, long deadLetteredOutboxEvents, long pendingOrFailedEmailDeliveries) {}
+    record OperationsView(long pendingOutboxEvents, long deadLetteredOutboxEvents, long pendingOrFailedEmailDeliveries, long deadLetteredEmailDeliveries) {}
 }

@@ -65,8 +65,8 @@ The source implementation for the 0.4 milestone is integrated across the backend
 - explicit `SKIPPED` email state when email delivery is disabled;
 - per-event in-app/email preferences with optimistic versions;
 - bounded outbox retries and dead-letter state after repeated processing failure;
-- bounded email retries and idempotent delivery keys;
-- tenant-scoped notification operations counters protected by `NOTIFICATION_OPERATIONS_VIEW`.
+- bounded email retries, explicit email dead-letter state, and idempotent delivery keys;
+- tenant-scoped notification operations counters, including separate outbox/email dead-letter counts, protected by `NOTIFICATION_OPERATIONS_VIEW`.
 
 ### Today dashboard and web application
 
@@ -84,9 +84,9 @@ The source implementation for the 0.4 milestone is integrated across the backend
 
 - OpenAPI 3.1 synchronized with all 0.4 endpoints and permission keys;
 - recurrence unit tests for deterministic weekly materialization and DST-gap rejection;
-- PostgreSQL integration tests for schedule conflicts, persisted overrides, and branch administration;
+- PostgreSQL integration tests for schedule conflicts, persisted overrides, branch administration, and teaching-assignment personal-calendar visibility;
 - integration tests proving scheduled announcements resolve recipients at publication time;
-- notification tests for outbox idempotency, in-app materialization, recipient read state, tenant-scoped deduplication, and tenant-scoped operations;
+- notification tests for outbox idempotency, in-app materialization, recipient read state, tenant-scoped deduplication, and tenant-scoped operations/dead-letter reporting;
 - existing tenancy, licensing, identity, organization, academic, enrollment, and teaching tests remain part of Maven verification.
 
 ## Verification available in this runtime

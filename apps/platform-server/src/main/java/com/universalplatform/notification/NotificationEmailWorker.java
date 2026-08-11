@@ -54,7 +54,7 @@ class NotificationEmailWorker {
         } catch (RuntimeException exception) {
             int exponent = Math.min(delivery.attemptCount(), 8);
             long seconds = Math.min(3600, 10L << exponent);
-            delivery.failed(exception.getMessage(), now.plusSeconds(seconds));
+            delivery.failed(exception.getMessage(), now, now.plusSeconds(seconds));
         }
     }
 }

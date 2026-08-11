@@ -3245,6 +3245,7 @@ components:
       - pendingOutboxEvents
       - deadLetteredOutboxEvents
       - pendingOrFailedEmailDeliveries
+      - deadLetteredEmailDeliveries
       properties:
         pendingOutboxEvents:
           type: integer
@@ -3255,6 +3256,10 @@ components:
           format: int64
           minimum: 0
         pendingOrFailedEmailDeliveries:
+          type: integer
+          format: int64
+          minimum: 0
+        deadLetteredEmailDeliveries:
           type: integer
           format: int64
           minimum: 0

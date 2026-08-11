@@ -40,7 +40,6 @@ class ClassSession {
     }
 
     UUID id() { return id; }
-    UUID id() { return id; }
     UUID scheduleOccurrenceId() { return scheduleOccurrenceId; }
     void cancel() { this.status = ClassSessionStatus.CANCELLED; }
 }

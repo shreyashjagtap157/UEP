@@ -41,7 +41,7 @@ Conflict detection currently covers:
 
 Conflict overrides require `SCHEDULE_CONFLICT_OVERRIDE`, a non-empty reason, and a first-class `schedule_conflict_override` record containing the actor and conflict evidence. A generic audit event is also emitted.
 
-Calendar authorization is scope-aware. Tenant administrators can manage the tenant calendar; branch administrators can manage only branches explicitly assigned through RBAC; teachers and learners consume self-scoped calendars derived from teaching assignments/enrollments.
+Calendar authorization is scope-aware. Tenant administrators can manage the tenant calendar; branch administrators can manage only branches explicitly assigned through RBAC; teachers and learners consume self-scoped calendars derived from active enrollments and teaching assignments. Personal visibility is expanded through batch/course/subject/module identifiers rather than tenant-wide catalog access, so direct-course learners and assigned teachers receive the schedules relevant to them without broadening authorization.
 
 ## Announcements
 
@@ -61,7 +61,7 @@ Business modules do not send email or create inbox rows synchronously. They writ
 
 A scheduled processor materializes per-recipient notifications and delivery records. Processing is idempotent through tenant-scoped outbox deduplication and per-delivery idempotency keys.
 
-Outbox failures use bounded exponential retry. After 12 processing failures an outbox record becomes dead-lettered instead of retrying forever. Email delivery uses a separate bounded retry worker. Deployments with email disabled explicitly record email delivery as `SKIPPED`; in-app delivery remains operational.
+Outbox failures use bounded exponential retry. After 12 processing failures an outbox record becomes dead-lettered instead of retrying forever. Email delivery uses a separate bounded retry worker. After eight failed SMTP attempts the delivery becomes `DEAD_LETTERED`; deployments with email disabled explicitly record it as `SKIPPED`, while in-app delivery remains operational. SMTP is treated as at-least-once transport: a remote server can accept a message immediately before a local transaction failure, so the platform does not claim impossible database-to-SMTP exactly-once semantics.
 
 Tenant ownership is enforced through composite tenant/outbox and tenant/notification foreign keys. Operational backlog counters are tenant-scoped and require `NOTIFICATION_OPERATIONS_VIEW`.
 
@@ -81,7 +81,7 @@ The browser composes Today as the primary application surface, but date range, t
 
 ## Degradation model
 
-- SMTP unavailable: outbox/business transaction succeeds; email retries independently.
+- SMTP unavailable: outbox/business transaction succeeds; email retries independently and dead-letters after the bounded attempt budget.
 - Email disabled: in-app notification remains available and email is recorded as skipped.
 - Announcement publisher restarts: scheduled announcements remain persisted and are retried by the poller.
 - Notification materializer repeatedly fails: the event becomes dead-lettered and visible to notification operations.

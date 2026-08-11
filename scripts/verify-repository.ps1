@@ -7,6 +7,11 @@ if (-not (Select-String -Path apps/platform-server/pom.xml -SimpleMatch "<versio
 if (-not (Select-String -Path docs/api/openapi.yaml -SimpleMatch "version: $Version" -Quiet)) { throw "OpenAPI version mismatch" }
 if (-not (Select-String -Path apps/platform-server/src/main/resources/application.yaml -SimpleMatch "version: $Version" -Quiet)) { throw "application version mismatch" }
 
+python scripts/verify-source-structure.py
+if ($LASTEXITCODE -ne 0) { throw "Java source structure verification failed" }
+python scripts/verify-contract-parity.py
+if ($LASTEXITCODE -ne 0) { throw "Cross-layer contract parity verification failed" }
+
 $Diff = git diff --check
 if ($LASTEXITCODE -ne 0) { throw $Diff }
 Write-Host "repository policy checks passed for $Version"

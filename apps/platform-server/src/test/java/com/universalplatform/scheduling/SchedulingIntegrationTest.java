@@ -36,6 +36,7 @@ class SchedulingIntegrationTest {
     private static final UUID TEACHER_MEMBER = UUID.fromString("01901234-7000-7000-8000-000000000011");
     private static final UUID ADMIN_ROLE = UUID.fromString("01901234-7000-7000-8000-000000000012");
     private static final UUID BRANCH_ROLE = UUID.fromString("01901234-7000-7000-8000-000000000013");
+    private static final UUID TEACHER_ROLE = UUID.fromString("01901234-7000-7000-8000-000000000015");
     private static final String ADMIN_SUBJECT = "schedule-admin";
     private static final String BRANCH_SUBJECT = "branch-admin";
 
@@ -55,12 +56,16 @@ class SchedulingIntegrationTest {
         seedUser(TEACHER_USER, TEACHER_MEMBER, "schedule-teacher", "Teacher", BRANCH_A);
         jdbc.update("INSERT INTO role_definition(id, tenant_id, name, system_managed) VALUES (?, ?, 'Schedule Admin', false)", ADMIN_ROLE, TENANT);
         jdbc.update("INSERT INTO role_definition(id, tenant_id, name, system_managed) VALUES (?, ?, 'Branch Schedule Admin', false)", BRANCH_ROLE, TENANT);
+        jdbc.update("INSERT INTO role_definition(id, tenant_id, name, system_managed) VALUES (?, ?, 'Teacher Schedule Viewer', false)", TEACHER_ROLE, TENANT);
+        jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'SCHEDULE_VIEW')", TEACHER_ROLE);
         for (String permission : new String[]{"SCHEDULE_VIEW", "SCHEDULE_MANAGE", "SCHEDULE_CONFLICT_OVERRIDE"}) {
             jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, ?)", ADMIN_ROLE, permission);
             jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, ?)", BRANCH_ROLE, permission);
         }
         jdbc.update("INSERT INTO role_assignment(id, tenant_id, membership_id, role_id, scope_kind, assigned_by_subject) VALUES (uuidv7(), ?, ?, ?, 'TENANT', ?)", TENANT, ADMIN_MEMBER, ADMIN_ROLE, ADMIN_SUBJECT);
         jdbc.update("INSERT INTO role_assignment(id, tenant_id, membership_id, role_id, scope_kind, scope_id, assigned_by_subject) VALUES (uuidv7(), ?, ?, ?, 'BRANCH', ?, ?)", TENANT, BRANCH_MEMBER, BRANCH_ROLE, BRANCH_A, ADMIN_SUBJECT);
+        jdbc.update("INSERT INTO role_assignment(id, tenant_id, membership_id, role_id, scope_kind, assigned_by_subject) VALUES (uuidv7(), ?, ?, ?, 'TENANT', ?)", TENANT, TEACHER_MEMBER, TEACHER_ROLE, ADMIN_SUBJECT);
+        jdbc.update("INSERT INTO teacher_assignment(id, tenant_id, membership_id, batch_id, assignment_role, status, assigned_by_subject) VALUES (uuidv7(), ?, ?, ?, 'TEACHER', 'ACTIVE', ?)", TENANT, TEACHER_MEMBER, BATCH_A, ADMIN_SUBJECT);
     }
 
     @Test
@@ -108,6 +113,31 @@ class SchedulingIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.items[0].branchId").value(BRANCH_A.toString()));
+    }
+
+    @Test
+    void teacherCalendarIncludesBatchAssignmentWithoutExplicitPrimaryTeacher() throws Exception {
+        String body = "{" +
+                "\"kind\":\"CLASS\"," +
+                "\"title\":\"Assigned Batch Class\"," +
+                "\"deliveryMode\":\"OFFLINE\"," +
+                "\"branchId\":\"" + BRANCH_A + "\"," +
+                "\"batchId\":\"" + BATCH_A + "\"," +
+                "\"roomCode\":\"A-102\"," +
+                "\"startLocal\":\"2026-09-02T10:00:00\"," +
+                "\"durationMinutes\":60," +
+                "\"recurrenceFrequency\":\"NONE\"," +
+                "\"allowConflicts\":false}";
+
+        mvc.perform(post("/api/v1/schedule/series").contentType(MediaType.APPLICATION_JSON).content(body)
+                        .with(jwt().jwt(token -> token.subject(ADMIN_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/schedule/occurrences?from=2026-09-02T00:00:00Z&to=2026-09-03T00:00:00Z")
+                        .with(jwt().jwt(token -> token.subject("schedule-teacher").claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].title").value("Assigned Batch Class"));
     }
 
     private String seriesJson(UUID branchId, UUID batchId, boolean allow, String reason, String title) {

@@ -20,6 +20,22 @@ interface EnrollmentRepository extends JpaRepository<Enrollment, UUID> {
             """)
     java.util.List<UUID> findActiveBatchIdsByMembership(@Param("tenantId") UUID tenantId, @Param("membershipId") UUID membershipId);
 
+
+    @Query("""
+            select distinct e.courseId from Enrollment e
+            where e.tenantId = :tenantId and e.membershipId = :membershipId
+              and e.status = com.universalplatform.enrollment.EnrollmentStatus.ENROLLED and e.courseId is not null
+            """)
+    java.util.List<UUID> findActiveDirectCourseIdsByMembership(@Param("tenantId") UUID tenantId, @Param("membershipId") UUID membershipId);
+
+    @Query("""
+            select distinct b.courseId from Enrollment e, Batch b
+            where e.tenantId = :tenantId and e.membershipId = :membershipId
+              and e.status = com.universalplatform.enrollment.EnrollmentStatus.ENROLLED
+              and e.batchId = b.id and b.tenantId = :tenantId and b.courseId is not null
+            """)
+    java.util.List<UUID> findActiveBatchCourseIdsByMembership(@Param("tenantId") UUID tenantId, @Param("membershipId") UUID membershipId);
+
     @Query("""
             select count(e) > 0 from Enrollment e
             where e.tenantId = :tenantId and e.membershipId = :membershipId

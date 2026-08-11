@@ -18,5 +18,8 @@ if grep -RInE --exclude-dir=target --exclude-dir=node_modules '(PASSWORD|TOKEN|S
   exit 1
 fi
 
+python3 scripts/verify-source-structure.py
+python3 scripts/verify-contract-parity.py
+
 git diff --check
 printf 'repository policy checks passed for %s\n' "$version"

@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 
 interface BatchRepository extends JpaRepository<Batch, UUID> {
     Optional<Batch> findByTenantIdAndId(UUID tenantId, UUID id);
+    java.util.List<Batch> findAllByTenantIdAndIdIn(UUID tenantId, java.util.Collection<UUID> ids);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select b from Batch b where b.tenantId = :tenantId and b.id = :id")

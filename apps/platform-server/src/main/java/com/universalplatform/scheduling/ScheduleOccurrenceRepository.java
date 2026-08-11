@@ -46,6 +46,36 @@ interface ScheduleOccurrenceRepository extends JpaRepository<ScheduleOccurrence,
             select o from ScheduleOccurrence o, ScheduleSeries s
             where o.tenantId = :tenantId and s.tenantId = :tenantId and o.seriesId = s.id
               and o.status = com.universalplatform.scheduling.ScheduleOccurrenceStatus.SCHEDULED
+              and o.startsAt < :to and o.endsAt > :from and s.courseId in :courseIds
+            order by o.startsAt asc, o.id asc
+            """)
+    List<ScheduleOccurrence> findRangeForCourses(@Param("tenantId") UUID tenantId, @Param("courseIds") Collection<UUID> courseIds,
+                                                  @Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("""
+            select o from ScheduleOccurrence o, ScheduleSeries s
+            where o.tenantId = :tenantId and s.tenantId = :tenantId and o.seriesId = s.id
+              and o.status = com.universalplatform.scheduling.ScheduleOccurrenceStatus.SCHEDULED
+              and o.startsAt < :to and o.endsAt > :from and s.subjectId in :subjectIds
+            order by o.startsAt asc, o.id asc
+            """)
+    List<ScheduleOccurrence> findRangeForSubjects(@Param("tenantId") UUID tenantId, @Param("subjectIds") Collection<UUID> subjectIds,
+                                                   @Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("""
+            select o from ScheduleOccurrence o, ScheduleSeries s
+            where o.tenantId = :tenantId and s.tenantId = :tenantId and o.seriesId = s.id
+              and o.status = com.universalplatform.scheduling.ScheduleOccurrenceStatus.SCHEDULED
+              and o.startsAt < :to and o.endsAt > :from and s.moduleId in :moduleIds
+            order by o.startsAt asc, o.id asc
+            """)
+    List<ScheduleOccurrence> findRangeForModules(@Param("tenantId") UUID tenantId, @Param("moduleIds") Collection<UUID> moduleIds,
+                                                  @Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("""
+            select o from ScheduleOccurrence o, ScheduleSeries s
+            where o.tenantId = :tenantId and s.tenantId = :tenantId and o.seriesId = s.id
+              and o.status = com.universalplatform.scheduling.ScheduleOccurrenceStatus.SCHEDULED
               and o.startsAt < :to and o.endsAt > :from
               and s.kind in (com.universalplatform.scheduling.ScheduleKind.HOLIDAY, com.universalplatform.scheduling.ScheduleKind.EVENT)
               and (s.branchId is null or s.branchId = :branchId)

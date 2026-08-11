@@ -47,10 +47,10 @@ class NotificationDelivery {
     NotificationDeliveryStatus status() { return status; }
     int attemptCount() { return attemptCount; }
     void sent(Instant now) { this.status = NotificationDeliveryStatus.SENT; this.sentAt = now; this.lastError = null; }
-    void failed(String error, Instant retryAt) {
+    void failed(String error, Instant failedAt, Instant retryAt) {
         this.attemptCount++;
-        this.status = NotificationDeliveryStatus.FAILED;
-        this.nextAttemptAt = retryAt;
+        this.status = this.attemptCount >= 8 ? NotificationDeliveryStatus.DEAD_LETTERED : NotificationDeliveryStatus.FAILED;
+        this.nextAttemptAt = this.status == NotificationDeliveryStatus.DEAD_LETTERED ? failedAt : retryAt;
         this.lastError = error == null ? "Email delivery failed" : (error.length() <= 1000 ? error : error.substring(0, 1000));
     }
 }
