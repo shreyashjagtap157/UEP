@@ -2,6 +2,9 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { enrollOtp, enrollPasskey, logout, openAccountManagement } from '../auth/keycloak'
+import { AcademicOverview } from '../academic/AcademicOverview'
+import { AcademicWorkspace } from '../academic/AcademicWorkspace'
+import { EnrollmentWorkspace } from '../academic/EnrollmentWorkspace'
 import {
   createBranch,
   createRole,
@@ -18,18 +21,21 @@ import {
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
 
-type Section = 'overview' | 'people' | 'roles' | 'organization' | 'security'
+type Section = 'overview' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
 
 const permissionOptions: PermissionKey[] = [
   'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
   'USERS_VIEW', 'USERS_MANAGE', 'ROLES_VIEW', 'ROLES_MANAGE', 'ROLES_ASSIGN',
-  'SESSIONS_VIEW', 'SESSIONS_MANAGE', 'AUDIT_VIEW',
+  'SESSIONS_VIEW', 'SESSIONS_MANAGE',
+  'ACADEMICS_VIEW', 'ACADEMICS_MANAGE', 'CURRICULUM_VIEW', 'CURRICULUM_MANAGE',
+  'ENROLLMENTS_VIEW', 'ENROLLMENTS_MANAGE', 'TEACHING_ASSIGNMENTS_VIEW', 'TEACHING_ASSIGNMENTS_MANAGE',
+  'AUDIT_VIEW',
 ]
 
 export function App() {
   const [section, setSection] = useState<Section>('overview')
   const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity })
-  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }) => fetchPlatformVersion(signal), staleTime: 300_000 })
+  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000 })
 
   if (identity.isPending) return <CenteredStatus title="Loading your workspace" detail="Resolving tenant identity and permissions…" />
   if (identity.isError) return <CenteredStatus title="Access unavailable" detail={identity.error.message} />
@@ -37,6 +43,8 @@ export function App() {
   const me = identity.data
   const nav: Array<{ id: Section; label: string; visible: boolean }> = [
     { id: 'overview', label: 'Overview', visible: true },
+    { id: 'academics', label: 'Academics', visible: has(me, 'ACADEMICS_VIEW') || has(me, 'CURRICULUM_VIEW') },
+    { id: 'enrollment', label: 'Enrollment', visible: has(me, 'ENROLLMENTS_VIEW') || has(me, 'TEACHING_ASSIGNMENTS_VIEW') },
     { id: 'people', label: 'People', visible: has(me, 'USERS_VIEW') },
     { id: 'roles', label: 'Roles', visible: has(me, 'ROLES_VIEW') },
     { id: 'organization', label: 'Organization', visible: has(me, 'ORGANIZATION_VIEW') || has(me, 'BRANCHES_VIEW') },
@@ -74,6 +82,8 @@ export function App() {
         </header>
 
         {section === 'overview' && <Overview me={me} />}
+        {section === 'academics' && <AcademicWorkspace me={me} />}
+        {section === 'enrollment' && <EnrollmentWorkspace me={me} />}
         {section === 'people' && <People me={me} />}
         {section === 'roles' && <Roles me={me} />}
         {section === 'organization' && <Organization me={me} />}
@@ -87,7 +97,7 @@ function Overview({ me }: { me: CurrentIdentity }) {
   return (
     <div className="content-stack">
       <section className="hero-card">
-        <p className="eyebrow">Identity & organization milestone</p>
+        <p className="eyebrow">Academic core milestone</p>
         <h3>Welcome, {me.displayName}</h3>
         <p>Your account can carry multiple academic and administrative roles without forcing a single user type.</p>
       </section>
@@ -103,6 +113,7 @@ function Overview({ me }: { me: CurrentIdentity }) {
           {me.roles.length ? me.roles.map(role => <span className="chip" key={role}>{role}</span>) : <span className="muted">No roles assigned.</span>}
         </div>
       </section>
+      <AcademicOverview me={me} />
     </div>
   )
 }
@@ -259,4 +270,4 @@ function CenteredStatus({ title, detail }: { title: string; detail: string }) { 
 function has(me: CurrentIdentity, permission: PermissionKey) { return me.permissions.includes(permission) }
 function shortId(value: string) { return value.slice(0, 8) }
 function humanize(value: string) { return value.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()) }
-function sectionTitle(section: Section) { return ({ overview: 'Overview', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }
+function sectionTitle(section: Section) { return ({ overview: 'Overview', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }

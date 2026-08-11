@@ -4,6 +4,12 @@
   background: #f4f6fa;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  --border: #e2e8f0;
+  --surface: #ffffff;
+  --surface-strong: #f1f5f9;
+  --muted: #64748b;
+  --text: #172033;
+  --accent: #2563eb;
 }
 
 * { box-sizing: border-box; }
@@ -110,3 +116,11 @@ td span { color: #64748b; margin-top: .2rem; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+.tab-row { display: flex; gap: .55rem; flex-wrap: wrap; }
+.tab-button { border: 1px solid var(--border); background: var(--surface); color: var(--muted); border-radius: .75rem; padding: .65rem .85rem; display: inline-flex; align-items: center; gap: .6rem; cursor: pointer; font-weight: 700; }
+.tab-button span { min-width: 1.7rem; padding: .08rem .42rem; border-radius: 999px; background: var(--surface-strong); color: var(--text); font-size: .78rem; }
+.tab-button.active { color: var(--text); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.tab-button:focus-visible { outline: 3px solid rgb(37 99 235 / .22); outline-offset: 2px; }
+.compact-form { padding-bottom: 1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.catalog-grid { margin-top: .4rem; }
