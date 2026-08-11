@@ -21,6 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 class TenantIsolationIntegrationTest {
     private static final UUID TENANT_A = UUID.fromString("018f6f58-3d8c-7c6f-9e1b-eef81d4af111");
     private static final UUID TENANT_B = UUID.fromString("018f6f58-3d8c-7c6f-9e1b-eef81d4af222");
+    private static final UUID USER = UUID.fromString("018f6f58-3d8c-7c6f-9e1b-eef81d4af333");
+    private static final UUID MEMBERSHIP_A = UUID.fromString("018f6f58-3d8c-7c6f-9e1b-eef81d4af444");
+    private static final UUID MEMBERSHIP_B = UUID.fromString("018f6f58-3d8c-7c6f-9e1b-eef81d4af555");
+    private static final String SUBJECT = "tenant-isolation-user";
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
@@ -33,18 +37,21 @@ class TenantIsolationIntegrationTest {
         jdbc.update("INSERT INTO subscription(id, tenant_id, status, starts_at) VALUES (uuidv7(), ?, 'ACTIVE', CURRENT_TIMESTAMP) ON CONFLICT (tenant_id) DO NOTHING", TENANT_B);
         jdbc.update("INSERT INTO entitlement_grant(id, tenant_id, feature_key, enabled) VALUES (uuidv7(), ?, 'ASSESSMENTS', true) ON CONFLICT (tenant_id, feature_key) DO UPDATE SET enabled = EXCLUDED.enabled", TENANT_A);
         jdbc.update("INSERT INTO entitlement_grant(id, tenant_id, feature_key, enabled) VALUES (uuidv7(), ?, 'ASSESSMENTS', false) ON CONFLICT (tenant_id, feature_key) DO UPDATE SET enabled = EXCLUDED.enabled", TENANT_B);
+        jdbc.update("INSERT INTO user_account(id, oidc_subject, display_name, status) VALUES (?, ?, 'Tenant User', 'ACTIVE') ON CONFLICT (id) DO NOTHING", USER, SUBJECT);
+        jdbc.update("INSERT INTO tenant_membership(id, tenant_id, user_id, status) VALUES (?, ?, ?, 'ACTIVE') ON CONFLICT (tenant_id, user_id) DO NOTHING", MEMBERSHIP_A, TENANT_A, USER);
+        jdbc.update("INSERT INTO tenant_membership(id, tenant_id, user_id, status) VALUES (?, ?, ?, 'ACTIVE') ON CONFLICT (tenant_id, user_id) DO NOTHING", MEMBERSHIP_B, TENANT_B, USER);
     }
 
     @Test
     void entitlementDecisionUsesAuthenticatedTenantNotClientSelectedTenant() throws Exception {
         mvc.perform(get("/api/v1/licensing/entitlements/ASSESSMENTS/decision")
-                        .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_A.toString()))))
+                        .with(jwt().jwt(jwt -> jwt.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.allowed").value(true));
 
         mvc.perform(get("/api/v1/licensing/entitlements/ASSESSMENTS/decision")
                         .header("X-Tenant-Id", TENANT_A.toString())
-                        .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_B.toString()))))
+                        .with(jwt().jwt(jwt -> jwt.subject(SUBJECT).claim("tenant_id", TENANT_B.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.allowed").value(false));
     }
