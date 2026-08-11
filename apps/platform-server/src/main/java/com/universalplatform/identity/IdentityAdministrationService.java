@@ -134,7 +134,7 @@ class IdentityAdministrationService {
         ActiveIdentity identity = identitySecurity.requireCurrentIdentity();
         UUID tenantId = tenantContext.requireTenantId();
         List<RoleDefinition> assignedRoles = rolesForMembership(tenantId, identity.membershipId());
-        Set<PermissionKey> permissions = authorization.currentPermissions(identity.membership().primaryBranchId());
+        Set<PermissionKey> permissions = authorization.currentPermissions(null);
         return new CurrentIdentityView(
                 identity.userId(), identity.membershipId(), identity.user().oidcSubject(), identity.user().email(),
                 identity.user().displayName(), tenantId, identity.membership().status(), identity.membership().primaryBranchId(),

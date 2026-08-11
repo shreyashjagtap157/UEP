@@ -1,24 +1,21 @@
-# 0.1.0.0 Engineering Foundation Status
+# Platform Foundation Status
 
-## Implemented in source
+## Implemented through 0.2.0.0-SNAPSHOT
 
-- monorepo/repository structure
-- Java 25 / Spring Boot 4.1.0 build definition
-- Spring Modulith 2.1.0 application boundary
-- PostgreSQL 18 schema + Flyway migration
-- tenant model and trusted request tenant context
-- OIDC resource-server security foundation
-- entitlement-driven commercial licensing model
-- subscription lifecycle and feature/limit keys
-- append-oriented audit foundation
-- OpenAPI 3.1 contract seed
-- React 19 / TypeScript 6 / Vite 8 web foundation
-- reference PostgreSQL / Keycloak / optional Valkey Compose services
-- CI definitions and repository policy checks
-- proprietary source/license notice and commercial licensing ADR/docs
+The engineering foundation now includes tenant-scoped identity and organization primitives required by later academic modules:
+
+- Java 25 / Spring Boot / Spring Modulith application boundary;
+- PostgreSQL 18 + Flyway schema evolution;
+- OIDC authentication with trusted JWT tenant context;
+- tenant membership, RBAC, custom roles, permission grants, and branch scoping;
+- revocable platform session observations;
+- organization branches/settings with optimistic concurrency;
+- entitlement-driven commercial licensing and signed offline-license preparation;
+- append-oriented audit foundation;
+- React/TypeScript authenticated administrator workspace;
+- reference Keycloak/PostgreSQL/optional Valkey deployment;
+- CI, security scanning, repository policy, and proprietary commercial licensing controls.
 
 ## Release-gate state
 
-The source is intentionally `0.1.0.0-SNAPSHOT` until all gates are executed on a
-machine with JDK 25, Maven, Docker/Podman, and dependency-network access.
-Do not create the `v0.1.0.0` release tag before those gates pass.
+The repository remains a snapshot until JDK 25 + Maven + PostgreSQL 18 and the web dependency toolchain execute all integration, build, migration, lint, vulnerability, and policy gates successfully. Do not create `v0.2.0.0` merely from static inspection.

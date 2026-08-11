@@ -4,7 +4,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -52,8 +51,9 @@ class RoleAdminController {
     }
 
     @GetMapping("/memberships/{membershipId}")
-    List<RoleManagementService.AssignmentView> assignments(@PathVariable UUID membershipId) {
-        return roles.assignmentsForMember(membershipId);
+    IdentityPage<RoleManagementService.AssignmentView> assignments(@PathVariable UUID membershipId,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "25") int size) {
+        return roles.assignmentsForMember(membershipId, page, size);
     }
 
     @PostMapping("/assignments")

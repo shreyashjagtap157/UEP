@@ -5,10 +5,19 @@ The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION
 
 ## Current milestone
 
-`0.1.0.0-SNAPSHOT` — Engineering Foundation.
+`0.2.0.0-SNAPSHOT` — Identity and Organization.
 
-The milestone is intentionally kept as a snapshot until its release gates are
-verified with the production toolchain and services.
+The identity/organization milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
+
+
+## Implemented identity and organization capabilities
+
+- OIDC-backed users and tenant memberships with simultaneous multi-role identity.
+- Persisted system/custom RBAC roles, permission grants, and branch-scoped assignments.
+- Last-owner lockout protection and tenant-aware database foreign keys.
+- Revocable platform session observations and authentication-assurance reporting.
+- Tenant branches and organization defaults with optimistic concurrency.
+- Authenticated web administration for people, roles, organization, passkeys/OTP, and sessions.
 
 ## Repository layout
 

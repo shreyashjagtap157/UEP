@@ -2,92 +2,80 @@
 
 ## Current development version
 
-`0.1.0.0-SNAPSHOT` — Engineering Foundation
+`0.2.0.0-SNAPSHOT` — Identity and Organization.
 
-No `v0.1.0.0` release tag exists yet. The milestone remains a snapshot until all
-release gates in the master implementation plan are actually executed.
+The source implementation for the 0.2 milestone is present and committed. It remains a snapshot because this execution environment cannot run the complete JDK 25 / Maven / PostgreSQL 18 / dependency-backed web qualification gate.
 
-## Implemented
+## Implemented through 0.1 foundation
 
-### Repository/product foundation
+- modular Java/Spring server foundation, PostgreSQL/Flyway, OIDC resource-server security;
+- trusted tenant context and tenant-scoped commercial entitlement/limit/usage model;
+- signed-offline-license verification primitives and audit foundation;
+- React/TypeScript/Vite client foundation, reference infrastructure, CI, dependency scanning, and proprietary commercial repository controls.
 
-- Git repository on `main` with focused implementation commits.
-- Four-part product versioning and cross-platform version update tooling.
-- Proprietary first-party license notice and commercial architecture documents.
-- Master implementation plan preserved in-repository.
-- GitHub CI and automated dependency update configuration.
+## Implemented for 0.2 Identity and Organization
 
-### Backend foundation
+### Identity
 
-- Java 25 / Spring Boot 4.1.0 build definition.
-- Spring Modulith 2.1.0 root application and explicit initial module boundaries.
-- PostgreSQL 18 + Flyway migration foundation.
-- Tenant entity/directory and trusted JWT-derived request tenant context.
-- Stateless OAuth2 resource-server security foundation.
-- Commercial subscription/entitlement/limit/usage schema.
-- Entitlement decision service with no plan-name conditionals.
-- Platform-managed and signed-offline licensing authority model.
-- Ed25519 signed-license verification primitive and anti-tamper test.
-- Audit event persistence foundation.
-- Actuator/Prometheus/Spring Modulith insight observability foundation.
-- OpenAPI 3.1 contract seed.
+- global external-identity-backed user accounts;
+- tenant memberships with active/suspended/ended lifecycle;
+- a person can hold multiple simultaneous roles;
+- persisted built-in role catalog and custom roles;
+- persisted permission grants and tenant/branch role assignment scopes;
+- permission-based authorization service with no commercial plan-name checks;
+- platform-super-admin controlled first-owner bootstrap;
+- last-active-organization-owner lockout protection;
+- paginated membership, role, role-assignment, and session APIs;
+- current identity/permission endpoint;
+- observed OIDC sessions with self/admin revocation and audit events;
+- authentication-assurance extraction from signed `acr`/`amr` claims.
 
-### Web foundation
+### Organization
 
-- React 19.2.8, TypeScript 6.0.2 and Vite 8.1.5 source baseline.
-- TanStack Query server-state foundation.
-- Responsive, accessible initial shell and platform health/version request.
-- No academic or licensing rules are implemented in the browser.
+- tenant branches with unique tenant-local code, lifecycle, timezone, and optimistic concurrency;
+- organization defaults for timezone, locale, first weekday, and support contact;
+- tenant-scoped branch queries and database constraints preventing foreign-tenant relationships.
 
-### Deployment foundation
+### Strong authentication and web administration
 
-- PostgreSQL 18.4 development service.
-- Keycloak 26.7.0 reference identity service.
-- Optional Valkey 9.1.1 cache profile.
-- Environment template with no production secret material.
+- reference Keycloak realm configured for Authorization Code + PKCE, TOTP, WebAuthn/passwordless passkeys, and tenant claim mapping;
+- authenticated React administration workspace for people, custom roles, branches, organization settings, passkey/OTP enrollment, identity account management, and platform-session revocation;
+- bearer tokens remain in the Keycloak adapter's runtime lifecycle and business authorization remains server authoritative.
 
-### Verification committed to CI
+### Verification encoded in the repository
 
-- Spring application-context boot test.
-- Spring Modulith architecture verification.
-- Tenant-authentication boundary integration tests.
-- Licensing lifecycle/unit tests.
-- Repository policy checks.
-- Web lint/build gates.
-- OSV dependency vulnerability scan.
+- identity/RBAC integration tests;
+- multi-role teacher+student identity test;
+- unprivileged custom-role denial test;
+- session-revocation integration test;
+- organization cross-tenant isolation test;
+- existing tenant/licensing isolation tests updated for active membership enforcement;
+- Spring Modulith, repository policy, web lint/build, PostgreSQL-backed Maven verification, and OSV dependency scan in CI.
 
-## Verification executed in this environment
+## Verification executed here
 
-Passed:
+Passed or inspected locally:
 
-- repository policy/version consistency;
+- repository version/policy consistency;
 - `git diff --check`;
-- JSON syntax checks;
-- XML/POM syntax check;
-- YAML syntax checks;
-- no implementation TODO/FIXME/HACK/XXX markers outside the source master plan;
-- dependency-free licensing/security primitives compiled with the locally
-  available JDK 21;
-- Git working tree clean after each committed cycle.
+- JSON, XML, and YAML syntax checks;
+- Java source syntax scan to the extent possible without Spring/JPA dependencies;
+- TypeScript strict compiler invocation, which identified and led to correction of a local `RequestInit.signal` exact-optional-property issue;
+- Git object integrity and clean committed-history checks at packaging time.
 
-## Environment-limited gates not falsely claimed as passed
+## Environment-limited qualification
 
-This execution environment currently provides JDK 21 and Node.js but does not
-provide JDK 25, Maven, Docker/Podman, or dependency-network access. Consequently,
-these gates could not be executed locally here:
+This runtime has JDK 21 and Node.js but no Maven, Docker/Podman, installed project dependencies, or usable dependency-network access. Therefore it cannot truthfully claim:
 
-- full Maven/Spring compilation on JDK 25;
-- Spring application boot against PostgreSQL 18;
-- Flyway migration integration execution/rollback validation;
-- npm dependency installation and Vite production build;
-- OSV online dependency scan;
-- full CI run.
+- JDK 25 Maven compilation/test success;
+- Flyway execution against PostgreSQL 18;
+- Spring application boot against the production database engine;
+- dependency-backed React/Keycloak/TanStack TypeScript/Vite build;
+- online OSV vulnerability resolution;
+- complete CI success.
 
-The repository therefore correctly remains `0.1.0.0-SNAPSHOT` and untagged.
+For that reason no `v0.2.0.0` release tag is created here. The repository stays `0.2.0.0-SNAPSHOT` until those gates pass on the required toolchain.
 
-## Next implementation step
+## Next roadmap milestone after qualification
 
-First execute/fix the complete 0.1.0.0 gate on a JDK 25 + Maven + PostgreSQL 18 +
-Node environment with dependency access. Once clean, create the `v0.1.0.0` tag.
-Then proceed to 0.2.0.0 identity/organization while retaining the entitlement,
-tenant, audit, and module-boundary invariants established here.
+`0.3.0.0` — Academic Core: academic periods, programs, courses, subjects, modules, batches, enrollments, teacher assignments, and role-specific dashboards.

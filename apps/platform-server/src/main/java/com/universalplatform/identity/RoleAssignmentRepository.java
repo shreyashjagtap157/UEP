@@ -4,12 +4,15 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 interface RoleAssignmentRepository extends JpaRepository<RoleAssignment, UUID> {
     List<RoleAssignment> findAllByTenantIdAndMembershipId(UUID tenantId, UUID membershipId);
+    Page<RoleAssignment> findPageByTenantIdAndMembershipId(UUID tenantId, UUID membershipId, Pageable pageable);
     List<RoleAssignment> findAllByTenantIdAndMembershipIdIn(UUID tenantId, Collection<UUID> membershipIds);
     long countByRoleId(UUID roleId);
     boolean existsByTenantIdAndMembershipIdAndRoleId(UUID tenantId, UUID membershipId, UUID roleId);

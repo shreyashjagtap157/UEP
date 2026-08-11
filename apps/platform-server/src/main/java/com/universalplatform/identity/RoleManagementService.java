@@ -146,16 +146,20 @@ class RoleManagementService {
     }
 
     @Transactional(readOnly = true)
-    List<AssignmentView> assignmentsForMember(UUID membershipId) {
+    IdentityPage<AssignmentView> assignmentsForMember(UUID membershipId, int page, int size) {
         authorization.require(PermissionKey.ROLES_VIEW);
         UUID tenantId = tenantContext.requireTenantId();
         memberships.findByTenantIdAndId(tenantId, membershipId)
                 .orElseThrow(() -> new IdentityNotFoundException("Membership not found"));
-        List<RoleAssignment> rows = assignments.findAllByTenantIdAndMembershipId(tenantId, membershipId);
-        return rows.stream().map(row -> {
+        int safePage = Math.max(0, page);
+        int safeSize = size < 1 ? 25 : Math.min(size, 100);
+        Page<RoleAssignment> result = assignments.findPageByTenantIdAndMembershipId(tenantId, membershipId,
+                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "assignedAt")));
+        List<AssignmentView> views = result.getContent().stream().map(row -> {
             RoleDefinition role = role(tenantId, row.roleId());
             return new AssignmentView(row.id(), row.membershipId(), role.id(), role.name(), row.scopeKind(), row.scopeId());
-        }).sorted(Comparator.comparing(AssignmentView::roleName)).toList();
+        }).toList();
+        return new IdentityPage<>(views, result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
     }
 
     private RoleView toView(RoleDefinition role) {

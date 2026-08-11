@@ -3,6 +3,7 @@ package com.universalplatform.identity;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -67,6 +68,16 @@ class IdentityAuthorizationIntegrationTest {
                 .andExpect(jsonPath("$.roles", hasItem("Teacher")))
                 .andExpect(jsonPath("$.roles", hasItem("Student")))
                 .andExpect(jsonPath("$.authenticationAssurance.multiFactorEvidence").value(true));
+    }
+
+    @Test
+    void finalActiveOrganizationOwnerCannotBeSuspended() throws Exception {
+        mvc.perform(patch("/api/v1/identity/memberships/{membershipId}", OWNER_MEMBERSHIP)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"SUSPENDED\",\"expectedVersion\":0}")
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDENTITY_CONFLICT"));
     }
 
     @Test
