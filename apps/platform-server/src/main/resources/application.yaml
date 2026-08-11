@@ -1,0 +1,46 @@
+server:
+  shutdown: graceful
+  error:
+    include-message: never
+
+spring:
+  application:
+    name: universal-education-platform
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/education_platform}
+    username: ${DATABASE_USERNAME:education}
+    password: ${DATABASE_PASSWORD:education}
+    hikari:
+      maximum-pool-size: ${DATABASE_POOL_SIZE:10}
+      minimum-idle: 1
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/education}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  observations:
+    key-values:
+      application: ${spring.application.name}
+
+platform:
+  version: 0.1.0.0-SNAPSHOT
