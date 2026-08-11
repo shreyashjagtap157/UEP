@@ -29,6 +29,16 @@ class Subscription {
     private Instant graceEndsAt;
     private Instant expiresAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private LicenseAuthorityKind authorityKind;
+
+    @Column(length = 120)
+    private String externalLicenseId;
+
+    @Column(nullable = false)
+    private long licenseRevision;
+
     @Version
     private long version;
 
@@ -39,10 +49,15 @@ class Subscription {
         this.tenantId = tenantId;
         this.status = status;
         this.startsAt = startsAt;
+        this.authorityKind = LicenseAuthorityKind.PLATFORM_MANAGED;
+        this.licenseRevision = 0;
     }
 
     UUID tenantId() { return tenantId; }
     SubscriptionStatus status() { return status; }
     Instant graceEndsAt() { return graceEndsAt; }
     Instant expiresAt() { return expiresAt; }
+    LicenseAuthorityKind authorityKind() { return authorityKind; }
+    String externalLicenseId() { return externalLicenseId; }
+    long licenseRevision() { return licenseRevision; }
 }
