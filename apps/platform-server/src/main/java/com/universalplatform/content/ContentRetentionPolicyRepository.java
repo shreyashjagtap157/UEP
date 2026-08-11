@@ -1,0 +1,1 @@
+package com.universalplatform.content; import java.util.UUID; import org.springframework.data.jpa.repository.JpaRepository; interface ContentRetentionPolicyRepository extends JpaRepository<ContentRetentionPolicy,UUID>{}

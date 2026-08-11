@@ -10,8 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ScheduleDirectory {
     private final ScheduleService service;
+    private final ClassSessionRepository classSessions;
+    private final com.universalplatform.security.TenantContext tenantContext;
 
-    ScheduleDirectory(ScheduleService service) { this.service = service; }
+    ScheduleDirectory(ScheduleService service, ClassSessionRepository classSessions, com.universalplatform.security.TenantContext tenantContext) { this.service = service; this.classSessions = classSessions; this.tenantContext = tenantContext; }
 
     @Transactional(readOnly = true)
     public List<ScheduleItem> range(Instant from, Instant to) {
@@ -20,6 +22,16 @@ public class ScheduleDirectory {
                 item.subjectId(), item.moduleId(), item.effectiveTeacherMembershipId(), item.roomCode(), item.startsAt(), item.endsAt(),
                 item.status())).toList();
     }
+
+
+    @Transactional(readOnly = true)
+    public ClassSessionReference requireClassSession(UUID id) {
+        ClassSession session = classSessions.findByTenantIdAndId(tenantContext.requireTenantId(), id)
+                .orElseThrow(() -> new IllegalArgumentException("Class session not found"));
+        return new ClassSessionReference(session.id(), session.scheduleOccurrenceId());
+    }
+
+    public record ClassSessionReference(UUID id, UUID occurrenceId) {}
 
     public record ScheduleItem(UUID occurrenceId, UUID seriesId, UUID classSessionId, ScheduleKind kind, String title,
                                String timezone, DeliveryMode deliveryMode, UUID branchId, UUID batchId, UUID courseId,

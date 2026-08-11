@@ -52,7 +52,7 @@ management:
       application: ${spring.application.name}
 
 platform:
-  version: 0.4.0.0-SNAPSHOT
+  version: 0.5.0.0-SNAPSHOT
   notifications:
     outbox-poll-ms: ${NOTIFICATION_OUTBOX_POLL_MS:1000}
     email:
@@ -62,3 +62,27 @@ platform:
   announcements:
     publish-poll-ms: ${ANNOUNCEMENT_PUBLISH_POLL_MS:1000}
     expiry-poll-ms: ${ANNOUNCEMENT_EXPIRY_POLL_MS:60000}
+  storage:
+    upload-cleanup-poll-ms: ${PLATFORM_UPLOAD_CLEANUP_POLL_MS:3600000}
+    retention-poll-ms: ${PLATFORM_CONTENT_RETENTION_POLL_MS:3600000}
+    staging:
+      root: ${PLATFORM_UPLOAD_STAGING:./var/uploads}
+    local:
+      root: ${PLATFORM_LOCAL_STORAGE:./var/storage}
+    s3:
+      enabled: ${PLATFORM_S3_ENABLED:false}
+      endpoint: ${PLATFORM_S3_ENDPOINT:http://localhost:9000}
+      region: ${PLATFORM_S3_REGION:us-east-1}
+      access-key: ${PLATFORM_S3_ACCESS_KEY:}
+      secret-key: ${PLATFORM_S3_SECRET_KEY:}
+      bucket: ${PLATFORM_S3_BUCKET:learning-content}
+    google-drive:
+      enabled: ${PLATFORM_GOOGLE_DRIVE_ENABLED:false}
+      access-token: ${PLATFORM_GOOGLE_DRIVE_ACCESS_TOKEN:}
+      folder-id: ${PLATFORM_GOOGLE_DRIVE_FOLDER_ID:}
+      shared-drive-id: ${PLATFORM_GOOGLE_SHARED_DRIVE_ID:}
+    malware-scan:
+      clamav:
+        enabled: ${PLATFORM_CLAMAV_ENABLED:false}
+        host: ${PLATFORM_CLAMAV_HOST:localhost}
+        port: ${PLATFORM_CLAMAV_PORT:3310}
