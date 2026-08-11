@@ -25,4 +25,19 @@ interface RolePermissionRepository extends JpaRepository<RolePermission, RolePer
             @Param("tenantId") UUID tenantId,
             @Param("membershipId") UUID membershipId,
             @Param("branchId") UUID branchId);
+    @Query("""
+            select distinct ra.scopeId
+            from RolePermission rp, RoleAssignment ra
+            where ra.tenantId = :tenantId
+              and ra.membershipId = :membershipId
+              and ra.roleId = rp.id.roleId
+              and rp.id.permissionKey = :permissionKey
+              and ra.scopeKind = com.universalplatform.identity.AssignmentScopeKind.BRANCH
+              and ra.scopeId is not null
+            """)
+    List<UUID> findBranchScopeIdsForMembershipPermission(
+            @Param("tenantId") UUID tenantId,
+            @Param("membershipId") UUID membershipId,
+            @Param("permissionKey") String permissionKey);
+
 }

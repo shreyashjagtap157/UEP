@@ -10,10 +10,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class OrganizationDirectory {
     private final TenantContext tenantContext;
     private final BranchRepository branches;
+    private final OrganizationSettingsRepository settings;
 
-    OrganizationDirectory(TenantContext tenantContext, BranchRepository branches) {
+    OrganizationDirectory(TenantContext tenantContext, BranchRepository branches, OrganizationSettingsRepository settings) {
         this.tenantContext = tenantContext;
         this.branches = branches;
+        this.settings = settings;
     }
 
     @Transactional(readOnly = true)
@@ -21,6 +23,13 @@ public class OrganizationDirectory {
         Branch branch = branches.findByTenantIdAndId(tenantContext.requireTenantId(), branchId)
                 .orElseThrow(() -> new IllegalArgumentException("Branch not found"));
         return new BranchReference(branch.id(), branch.code(), branch.displayName(), branch.timezone(), branch.status());
+    }
+
+
+    @Transactional(readOnly = true)
+    public String defaultTimezone() {
+        UUID tenantId = tenantContext.requireTenantId();
+        return settings.findById(tenantId).map(OrganizationSettings::defaultTimezone).orElse("UTC");
     }
 
     public record BranchReference(UUID id, String code, String displayName, String timezone, BranchStatus status) {}

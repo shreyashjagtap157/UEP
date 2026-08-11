@@ -135,10 +135,12 @@ class IdentityAdministrationService {
         UUID tenantId = tenantContext.requireTenantId();
         List<RoleDefinition> assignedRoles = rolesForMembership(tenantId, identity.membershipId());
         Set<PermissionKey> permissions = authorization.currentPermissions(null);
+        Set<PermissionKey> primaryBranchPermissions = identity.membership().primaryBranchId() == null
+                ? Set.of() : authorization.currentPermissions(identity.membership().primaryBranchId());
         return new CurrentIdentityView(
                 identity.userId(), identity.membershipId(), identity.user().oidcSubject(), identity.user().email(),
                 identity.user().displayName(), tenantId, identity.membership().status(), identity.membership().primaryBranchId(),
-                assignedRoles.stream().map(RoleDefinition::name).sorted().toList(), permissions,
+                assignedRoles.stream().map(RoleDefinition::name).sorted().toList(), permissions, primaryBranchPermissions,
                 actorContext.authenticationAssurance());
     }
 
@@ -251,6 +253,6 @@ class IdentityAdministrationService {
                       String externalReference, Instant joinedAt, List<RoleRef> roles, long version) {}
     record CurrentIdentityView(UUID userId, UUID membershipId, String oidcSubject, String email, String displayName,
                                UUID tenantId, MembershipStatus membershipStatus, UUID primaryBranchId,
-                               List<String> roles, Set<PermissionKey> permissions,
+                               List<String> roles, Set<PermissionKey> permissions, Set<PermissionKey> primaryBranchPermissions,
                                com.universalplatform.security.AuthenticationAssurance authenticationAssurance) {}
 }

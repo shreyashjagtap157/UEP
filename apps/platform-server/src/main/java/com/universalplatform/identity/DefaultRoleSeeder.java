@@ -54,32 +54,42 @@ class DefaultRoleSeeder {
         Set<PermissionKey> branchAdministrator = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
                 PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW,
-                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW);
+                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
+                PermissionKey.SCHEDULE_VIEW, PermissionKey.SCHEDULE_MANAGE,
+                PermissionKey.ANNOUNCEMENTS_VIEW, PermissionKey.ANNOUNCEMENTS_MANAGE);
         Set<PermissionKey> academicAdministrator = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.USERS_VIEW,
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.ACADEMICS_MANAGE,
                 PermissionKey.CURRICULUM_VIEW, PermissionKey.CURRICULUM_MANAGE,
                 PermissionKey.ENROLLMENTS_VIEW, PermissionKey.ENROLLMENTS_MANAGE,
-                PermissionKey.TEACHING_ASSIGNMENTS_VIEW, PermissionKey.TEACHING_ASSIGNMENTS_MANAGE);
+                PermissionKey.TEACHING_ASSIGNMENTS_VIEW, PermissionKey.TEACHING_ASSIGNMENTS_MANAGE,
+                PermissionKey.SCHEDULE_VIEW, PermissionKey.SCHEDULE_MANAGE,
+                PermissionKey.ANNOUNCEMENTS_VIEW, PermissionKey.ANNOUNCEMENTS_MANAGE);
         Set<PermissionKey> academicReadOnly = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
-                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW);
+                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
+                PermissionKey.SCHEDULE_VIEW, PermissionKey.ANNOUNCEMENTS_VIEW);
         Set<PermissionKey> teacher = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
-                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW);
+                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
+                PermissionKey.SCHEDULE_VIEW, PermissionKey.ANNOUNCEMENTS_VIEW);
         Set<PermissionKey> learner = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
-                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW);
+                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
+                PermissionKey.SCHEDULE_VIEW, PermissionKey.ANNOUNCEMENTS_VIEW);
         Set<PermissionKey> support = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
                 PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW,
-                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW);
+                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
+                PermissionKey.SCHEDULE_VIEW, PermissionKey.ANNOUNCEMENTS_VIEW,
+                PermissionKey.NOTIFICATION_OPERATIONS_VIEW);
         Set<PermissionKey> auditor = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
                 PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW,
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
                 PermissionKey.ENROLLMENTS_VIEW, PermissionKey.TEACHING_ASSIGNMENTS_VIEW,
-                PermissionKey.AUDIT_VIEW);
+                PermissionKey.SCHEDULE_VIEW, PermissionKey.ANNOUNCEMENTS_VIEW,
+                PermissionKey.NOTIFICATION_OPERATIONS_VIEW, PermissionKey.AUDIT_VIEW);
 
         map.put(SystemRoleKey.ORGANIZATION_OWNER, role("Organization Owner", "Full tenant administrative authority.", all));
         map.put(SystemRoleKey.ORGANIZATION_ADMINISTRATOR, role("Organization Administrator", "Tenant-wide administrative authority.", tenantAdministrator));

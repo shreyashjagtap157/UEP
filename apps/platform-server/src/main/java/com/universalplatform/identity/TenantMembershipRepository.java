@@ -18,6 +18,19 @@ interface TenantMembershipRepository extends JpaRepository<TenantMembership, UUI
     long countByTenantId(UUID tenantId);
 
     @Query("""
+            select m.id from TenantMembership m
+            where m.tenantId = :tenantId and m.status = com.universalplatform.identity.MembershipStatus.ACTIVE
+            """)
+    List<UUID> findActiveIds(@Param("tenantId") UUID tenantId);
+
+    @Query("""
+            select m.id from TenantMembership m
+            where m.tenantId = :tenantId and m.primaryBranchId = :branchId
+              and m.status = com.universalplatform.identity.MembershipStatus.ACTIVE
+            """)
+    List<UUID> findActiveIdsByBranch(@Param("tenantId") UUID tenantId, @Param("branchId") UUID branchId);
+
+    @Query("""
             select m from TenantMembership m, UserAccount u
             where m.tenantId = :tenantId and m.userId = u.id and u.oidcSubject = :subject
             """)

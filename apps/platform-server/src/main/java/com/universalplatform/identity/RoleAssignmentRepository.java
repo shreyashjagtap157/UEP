@@ -26,4 +26,12 @@ interface RoleAssignmentRepository extends JpaRepository<RoleAssignment, UUID> {
             """)
     long countActiveTenantAssignments(@Param("tenantId") UUID tenantId, @Param("roleId") UUID roleId);
     Optional<RoleAssignment> findByTenantIdAndId(UUID tenantId, UUID id);
+
+    @Query("""
+            select distinct ra.membershipId from RoleAssignment ra, TenantMembership m
+            where ra.tenantId = :tenantId and ra.roleId = :roleId
+              and m.id = ra.membershipId and m.tenantId = :tenantId
+              and m.status = com.universalplatform.identity.MembershipStatus.ACTIVE
+            """)
+    List<UUID> findActiveMembershipIdsByRole(@Param("tenantId") UUID tenantId, @Param("roleId") UUID roleId);
 }

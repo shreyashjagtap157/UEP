@@ -17,13 +17,18 @@ public class MembershipDirectory {
     private final IdentitySecurityService identitySecurity;
     private final TenantMembershipRepository memberships;
     private final UserAccountRepository users;
+    private final RoleAssignmentRepository roleAssignments;
+    private final RoleDefinitionRepository roles;
 
     MembershipDirectory(TenantContext tenantContext, IdentitySecurityService identitySecurity,
-                        TenantMembershipRepository memberships, UserAccountRepository users) {
+                        TenantMembershipRepository memberships, UserAccountRepository users,
+                        RoleAssignmentRepository roleAssignments, RoleDefinitionRepository roles) {
         this.tenantContext = tenantContext;
         this.identitySecurity = identitySecurity;
         this.memberships = memberships;
         this.users = users;
+        this.roleAssignments = roleAssignments;
+        this.roles = roles;
     }
 
     @Transactional(readOnly = true)
@@ -63,6 +68,31 @@ public class MembershipDirectory {
         return Map.copyOf(result);
     }
 
+
+    @Transactional(readOnly = true)
+    public java.util.Set<UUID> activeMembershipIds() {
+        return java.util.Set.copyOf(memberships.findActiveIds(tenantContext.requireTenantId()));
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Set<UUID> activeMembershipIdsForBranch(UUID branchId) {
+        return java.util.Set.copyOf(memberships.findActiveIdsByBranch(tenantContext.requireTenantId(), branchId));
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Set<UUID> activeMembershipIdsForRole(UUID roleId) {
+        return java.util.Set.copyOf(roleAssignments.findActiveMembershipIdsByRole(tenantContext.requireTenantId(), roleId));
+    }
+
+
+    @Transactional(readOnly = true)
+    public RoleReference requireRole(UUID roleId) {
+        UUID tenantId = tenantContext.requireTenantId();
+        RoleDefinition role = roles.findByTenantIdAndId(tenantId, roleId)
+                .orElseThrow(() -> new IdentityNotFoundException("Role not found"));
+        return new RoleReference(role.id(), role.name(), role.systemManaged());
+    }
+
     private static MembershipReference reference(ActiveIdentity identity) {
         return reference(identity.membership(), identity.user());
     }
@@ -71,6 +101,8 @@ public class MembershipDirectory {
         return new MembershipReference(membership.id(), user.id(), user.oidcSubject(), user.email(), user.displayName(),
                 membership.primaryBranchId(), membership.status());
     }
+
+    public record RoleReference(UUID id, String name, boolean systemManaged) {}
 
     public record MembershipReference(
             UUID membershipId, UUID userId, String oidcSubject, String email, String displayName,
