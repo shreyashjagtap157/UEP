@@ -14,6 +14,7 @@ if len(sys.argv) != 2 or not PATTERN.fullmatch(sys.argv[1]):
 
 version = sys.argv[1]
 numeric = version.removesuffix("-SNAPSHOT")
+npm_version = ".".join(numeric.split(".")[:3])
 
 (ROOT / "VERSION").write_text(version + "\n", encoding="utf-8")
 
@@ -41,6 +42,7 @@ for path, (pattern, replacement) in replacements.items():
 
 package_path = ROOT / "apps/web/package.json"
 package = json.loads(package_path.read_text(encoding="utf-8"))
-package["version"] = numeric
+package["version"] = npm_version
+package["productVersion"] = version
 package_path.write_text(json.dumps(package, indent=2) + "\n", encoding="utf-8")
 print(f"set product version to {version}")
