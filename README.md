@@ -5,12 +5,12 @@ The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION
 
 ## Current milestone
 
-`0.3.0.0-SNAPSHOT` — Academic Core.
+`0.4.0.0-SNAPSHOT` — Scheduling and Communication.
 
-The academic-core milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
+The scheduling-and-communication milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
 
 
-## Implemented through Academic Core
+## Implemented through Scheduling and Communication
 
 - OIDC-backed multi-tenant identity, memberships, RBAC, branches, organization settings, session revocation, and strong-authentication integration.
 - Flexible academic periods and programs without forcing every organization into one fixed hierarchy.
@@ -20,6 +20,10 @@ The academic-core milestone is implemented in source and intentionally remains a
 - Teacher/evaluator assignments with exactly-one-scope integrity and self-scoped teaching APIs.
 - Role-aware web dashboards plus academic, curriculum, enrollment, and teaching-administration workspaces.
 - PostgreSQL tenant-aware composite foreign keys across academic relationships and optimistic concurrency on editable records.
+- Finite IANA-timezone recurrence, materialized schedule occurrences, stable class-session anchors, conflict detection, audited overrides, rescheduling, cancellation, and substitutes.
+- Organization/branch/course/batch/subject/role/member announcements with scheduled publication, acknowledgement, and publication-time audience snapshots.
+- Transactional notification outbox with in-app inbox, optional SMTP delivery, per-event preferences, bounded retries, dead-letter visibility, and tenant-scoped operations.
+- Universal Today dashboard that remains self-scoped for learners/teachers and scope-aware for administrators.
 
 ## Repository layout
 
