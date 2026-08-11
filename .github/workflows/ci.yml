@@ -37,6 +37,7 @@ jobs:
           DATABASE_USERNAME: education
           DATABASE_PASSWORD: education
           OIDC_ISSUER_URI: http://localhost:18081/realms/education
+          OIDC_JWK_SET_URI: http://localhost:18081/realms/education/protocol/openid-connect/certs
         run: mvn -B -f apps/platform-server/pom.xml verify
 
   web:
@@ -49,7 +50,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - name: Install
-        run: npm --prefix apps/web ci
+        run: npm --prefix apps/web install --ignore-scripts
       - name: Lint
         run: npm --prefix apps/web run lint
       - name: Build
