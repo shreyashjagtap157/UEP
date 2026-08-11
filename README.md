@@ -5,12 +5,12 @@ The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION
 
 ## Current milestone
 
-`0.4.0.0-SNAPSHOT` — Scheduling and Communication.
+`0.5.0.0-SNAPSHOT` — Learning Content.
 
-The scheduling-and-communication milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
+The learning-content milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
 
 
-## Implemented through Scheduling and Communication
+## Implemented through Learning Content
 
 - OIDC-backed multi-tenant identity, memberships, RBAC, branches, organization settings, session revocation, and strong-authentication integration.
 - Flexible academic periods and programs without forcing every organization into one fixed hierarchy.
@@ -24,6 +24,11 @@ The scheduling-and-communication milestone is implemented in source and intentio
 - Organization/branch/course/batch/subject/role/member announcements with scheduled publication, acknowledgement, and publication-time audience snapshots.
 - Transactional notification outbox with in-app inbox, optional SMTP delivery, per-event preferences, bounded retries, dead-letter visibility, and tenant-scoped operations.
 - Universal Today dashboard that remains self-scoped for learners/teachers and scope-aware for administrators.
+- Provider-independent versioned learning resources with textual notes and file-backed content.
+- Streamed/resumable offset-based uploads with exact-length and optional SHA-256 verification.
+- Local, S3-compatible, Google Drive and Shared Drive storage adapters with server-owned provider locators.
+- Server-side visibility/download policies, release/expiry windows, and tenant retention configuration.
+- Authenticated Learning Content workspace for authoring, uploading and browsing resources.
 
 ## Repository layout
 

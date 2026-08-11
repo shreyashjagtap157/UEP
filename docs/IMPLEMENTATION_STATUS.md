@@ -2,9 +2,9 @@
 
 ## Current development version
 
-`0.4.0.0-SNAPSHOT` — Scheduling and Communication.
+`0.5.0.0-SNAPSHOT` — Learning Content.
 
-The source implementation for the 0.4 milestone is integrated across the backend and web application. It remains a snapshot because this execution environment cannot run the complete JDK 25 / Maven / PostgreSQL 18 / dependency-backed web release gate.
+The source implementation through the 0.5 milestone is integrated across the backend and web application. It remains a snapshot because this execution environment cannot run the complete JDK 25 / Maven / PostgreSQL 18 / dependency-backed web release gate.
 
 ## Implemented through 0.3 Academic Core
 
@@ -105,8 +105,12 @@ This runtime currently has JDK 21 and Node.js but no Maven, Docker/Podman, local
 - online OSV dependency resolution;
 - complete CI success.
 
-For that reason no `v0.4.0.0` release tag is created here. The repository remains `0.4.0.0-SNAPSHOT` until those gates pass on the required toolchain.
+For that reason no `v0.5.0.0` release tag is created here. The repository remains `0.5.0.0-SNAPSHOT` until those gates pass on the required toolchain.
 
 ## Next roadmap milestone after qualification
 
-`0.5.0.0` — Learning Content: textual notes/resources, streamed/resumable upload pipeline, versions, download permissions, storage abstraction, local/S3-compatible/Google Drive and Shared Drive providers, and retention.
+`0.6.0.0` — Assessment Core: question bank, immutable question versions, exam construction, attempts, autosave/submission, objective grading, result policy, and assessment administration.
+
+## 0.5 learning-content additions
+
+Implemented provider-independent learning resources, immutable resource versions, text notes, streamed resumable file uploads with byte-offset and SHA-256 validation, download policies, release/expiry windows, local/S3-compatible/Google Drive/Shared Drive storage adapters, tenant retention policy, and the authenticated Learning Content web workspace.

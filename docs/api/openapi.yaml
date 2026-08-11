@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Universal Education Platform API
-  version: 0.4.0.0-SNAPSHOT
+  version: 0.5.0.0-SNAPSHOT
   description: Web-first, tenant-authoritative platform API.
 servers:
 - url: /api/v1
@@ -1384,6 +1384,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TodayView'
+  /api/v1/uploads:
+    post:
+      summary: Initiate a resumable content upload
+      responses:
+        '200': {description: Upload session created}
+  /api/v1/uploads/{id}/content:
+    put:
+      summary: Append the next upload chunk at an explicit offset
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: Upload-Offset, in: header, required: true, schema: {type: integer, format: int64}}
+      responses:
+        '200': {description: Chunk accepted}
+  /api/v1/uploads/{id}/complete:
+    post:
+      summary: Verify and finalize an upload into configured storage
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Storage object created}
+  /api/v1/resources:
+    get:
+      summary: List visible learning resources
+      responses:
+        '200': {description: Resource page}
+  /api/v1/resources/text:
+    post:
+      summary: Create a versioned textual learning resource
+      responses:
+        '200': {description: Resource created}
+  /api/v1/resources/file:
+    post:
+      summary: Create a versioned file-backed learning resource
+      responses:
+        '200': {description: Resource created}
+  /api/v1/resources/{id}/versions:
+    get:
+      summary: List immutable resource versions
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Version history}
+  /api/v1/resources/{id}/download:
+    get:
+      summary: Stream an authorized file resource
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: File stream}
+  /api/v1/content-retention:
+    put:
+      summary: Update tenant learning-content retention policy
+      responses:
+        '200': {description: Retention policy updated}
 components:
   securitySchemes:
     bearerAuth:
@@ -1467,6 +1521,8 @@ components:
       - ANNOUNCEMENTS_VIEW
       - ANNOUNCEMENTS_MANAGE
       - NOTIFICATION_OPERATIONS_VIEW
+      - CONTENT_VIEW
+      - CONTENT_MANAGE
     MembershipStatus:
       type: string
       enum:

@@ -9,6 +9,7 @@ import { AnnouncementWorkspace } from '../communication/AnnouncementWorkspace'
 import { TodayOverview } from '../dashboard/TodayOverview'
 import { NotificationWorkspace } from '../notifications/NotificationWorkspace'
 import { ScheduleWorkspace } from '../scheduling/ScheduleWorkspace'
+import { ContentWorkspace } from '../content/ContentWorkspace'
 import {
   createBranch,
   createRole,
@@ -25,7 +26,7 @@ import {
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
 
-type Section = 'overview' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
+type Section = 'overview' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
 
 const permissionOptions: PermissionKey[] = [
   'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
@@ -34,7 +35,7 @@ const permissionOptions: PermissionKey[] = [
   'ACADEMICS_VIEW', 'ACADEMICS_MANAGE', 'CURRICULUM_VIEW', 'CURRICULUM_MANAGE',
   'ENROLLMENTS_VIEW', 'ENROLLMENTS_MANAGE', 'TEACHING_ASSIGNMENTS_VIEW', 'TEACHING_ASSIGNMENTS_MANAGE',
   'SCHEDULE_VIEW', 'SCHEDULE_MANAGE', 'SCHEDULE_CONFLICT_OVERRIDE',
-  'ANNOUNCEMENTS_VIEW', 'ANNOUNCEMENTS_MANAGE', 'NOTIFICATION_OPERATIONS_VIEW',
+  'ANNOUNCEMENTS_VIEW', 'ANNOUNCEMENTS_MANAGE', 'NOTIFICATION_OPERATIONS_VIEW', 'CONTENT_VIEW', 'CONTENT_MANAGE',
   'AUDIT_VIEW',
 ]
 
@@ -52,6 +53,7 @@ export function App() {
     { id: 'schedule', label: 'Schedule', visible: hasScoped(me, 'SCHEDULE_VIEW') },
     { id: 'announcements', label: 'Announcements', visible: hasScoped(me, 'ANNOUNCEMENTS_VIEW') },
     { id: 'notifications', label: 'Notifications', visible: true },
+    { id: 'content', label: 'Learning Content', visible: has(me, 'CONTENT_VIEW') },
     { id: 'academics', label: 'Academics', visible: has(me, 'ACADEMICS_VIEW') || has(me, 'CURRICULUM_VIEW') },
     { id: 'enrollment', label: 'Enrollment', visible: has(me, 'ENROLLMENTS_VIEW') || has(me, 'TEACHING_ASSIGNMENTS_VIEW') },
     { id: 'people', label: 'People', visible: has(me, 'USERS_VIEW') },
@@ -94,6 +96,7 @@ export function App() {
         {section === 'schedule' && <ScheduleWorkspace me={me} />}
         {section === 'announcements' && <AnnouncementWorkspace me={me} />}
         {section === 'notifications' && <NotificationWorkspace />}
+        {section === 'content' && <ContentWorkspace me={me} />}
         {section === 'academics' && <AcademicWorkspace me={me} />}
         {section === 'enrollment' && <EnrollmentWorkspace me={me} />}
         {section === 'people' && <People me={me} />}
@@ -284,4 +287,4 @@ function has(me: CurrentIdentity, permission: PermissionKey) { return me.permiss
 function hasScoped(me: CurrentIdentity, permission: PermissionKey) { return me.permissions.includes(permission) || me.primaryBranchPermissions.includes(permission) }
 function shortId(value: string) { return value.slice(0, 8) }
 function humanize(value: string) { return value.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()) }
-function sectionTitle(section: Section) { return ({ overview: 'Today', schedule: 'Schedule', announcements: 'Announcements', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }
+function sectionTitle(section: Section) { return ({ overview: 'Today', content: 'Learning Content', schedule: 'Schedule', announcements: 'Announcements', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }

@@ -1,6 +1,6 @@
 # Platform Foundation Status
 
-## Implemented through 0.4.0.0-SNAPSHOT
+## Implemented through 0.5.0.0-SNAPSHOT
 
 The engineering foundation now includes the tenant, identity, academic, scheduling, and communication primitives required by later learning, assessment, media, attendance, and finance modules:
 
@@ -23,4 +23,4 @@ The engineering foundation now includes the tenant, identity, academic, scheduli
 
 ## Release-gate state
 
-The repository remains a snapshot until JDK 25 + Maven + PostgreSQL 18 and the web dependency toolchain execute all integration, build, migration, lint, vulnerability, and policy gates successfully. Do not create `v0.4.0.0` merely from static inspection.
+The repository remains a snapshot until JDK 25 + Maven + PostgreSQL 18 and the web dependency toolchain execute all integration, build, migration, lint, vulnerability, and policy gates successfully. Do not create `v0.5.0.0` merely from static inspection.

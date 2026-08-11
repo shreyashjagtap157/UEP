@@ -31,6 +31,8 @@ export type PermissionKey =
   | 'ANNOUNCEMENTS_VIEW'
   | 'ANNOUNCEMENTS_MANAGE'
   | 'NOTIFICATION_OPERATIONS_VIEW'
+  | 'CONTENT_VIEW'
+  | 'CONTENT_MANAGE'
   | 'AUDIT_VIEW'
 
 export interface AuthenticationAssurance {
@@ -614,3 +616,16 @@ export interface TodayView {
 }
 
 export const fetchToday = () => request<TodayView>('/api/v1/today')
+
+export type ResourceVisibility = 'PRIVATE' | 'STAFF' | 'ENROLLED_LEARNERS' | 'TENANT'
+export type DownloadPolicy = 'DOWNLOAD_ALLOWED' | 'STREAM_ONLY' | 'NO_DOWNLOAD'
+export type ResourceKind = 'TEXT_NOTE' | 'DOCUMENT' | 'PRESENTATION' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'ARCHIVE' | 'OTHER'
+export interface LearningResourceView { id:string; stableKey:string; title:string; description?:string; kind:ResourceKind; courseId?:string; moduleId?:string; classSessionId?:string; language?:string; visibility:ResourceVisibility; downloadPolicy:DownloadPolicy; releaseAt?:string; expiresAt?:string; currentVersion:number; createdAt:string; version:number }
+export interface UploadView { id:string; fileName:string; contentType:string; expectedBytes:number; receivedBytes:number; provider:'LOCAL'|'S3_COMPATIBLE'|'GOOGLE_DRIVE'|'GOOGLE_SHARED_DRIVE'; status:string; expiresAt:string }
+export interface StorageView { id:string; provider:string; contentType:string; sizeBytes:number; sha256:string; scanStatus:string }
+export const fetchResources = () => request<PageResult<LearningResourceView>>('/api/v1/resources?size=100')
+export const createTextResource = (input: {title:string;description?:string;text:string;changeNote?:string;courseId?:string;language?:string;visibility:ResourceVisibility;downloadPolicy:DownloadPolicy}) => request<LearningResourceView>('/api/v1/resources/text',{method:'POST',body:JSON.stringify(input)})
+export const initiateUpload = (input:{fileName:string;contentType:string;expectedBytes:number;sha256?:string;provider:UploadView['provider']}) => request<UploadView>('/api/v1/uploads',{method:'POST',body:JSON.stringify(input)})
+export async function uploadChunk(id:string, offset:number, bytes:Blob):Promise<UploadView>{ const token=await accessToken(); const response=await fetch(`/api/v1/uploads/${id}/content`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/octet-stream','Content-Length':String(bytes.size),'Upload-Offset':String(offset)},body:bytes}); if(!response.ok)throw new Error(`Upload failed (${response.status})`); return response.json() as Promise<UploadView> }
+export const completeUpload = (id:string) => request<StorageView>(`/api/v1/uploads/${id}/complete`,{method:'POST'})
+export const createFileResource = (input:{title:string;description?:string;kind:ResourceKind;storageObjectId:string;changeNote?:string;courseId?:string;language?:string;visibility:ResourceVisibility;downloadPolicy:DownloadPolicy}) => request<LearningResourceView>('/api/v1/resources/file',{method:'POST',body:JSON.stringify(input)})
