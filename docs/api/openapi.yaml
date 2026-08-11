@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
   title: Universal Education Platform API
-  version: 0.2.0.0-SNAPSHOT
+  version: 0.3.0.0-SNAPSHOT
   description: Web-first, tenant-authoritative platform API.
 servers:
-  - url: /api/v1
+- url: /api/v1
 security:
-  - bearerAuth: []
+- bearerAuth: []
 paths:
   /platform/version:
     get:
@@ -14,426 +14,2137 @@ paths:
       summary: Read platform build/version information
       operationId: getPlatformVersion
       responses:
-        '200': { description: Platform version, content: { application/json: { schema: { $ref: '#/components/schemas/PlatformVersion' } } } }
+        '200':
+          description: Platform version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformVersion'
   /me:
     get:
       summary: Read current tenant identity, roles, permissions, and authentication assurance
       operationId: getCurrentIdentity
       responses:
-        '200': { description: Current identity, content: { application/json: { schema: { $ref: '#/components/schemas/CurrentIdentity' } } } }
-        '401': { description: Unauthenticated }
-        '403': { description: Missing/inactive tenant membership or revoked session }
+        '200':
+          description: Current identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentIdentity'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Missing/inactive tenant membership or revoked session
   /identity/bootstrap-owner:
     post:
       summary: Bootstrap the first tenant owner; platform-super-administrator only
       operationId: bootstrapOwner
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProvisionMembershipRequest' } } } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisionMembershipRequest'
       responses:
-        '200': { description: Created owner membership, content: { application/json: { schema: { $ref: '#/components/schemas/MemberView' } } } }
-        '403': { description: Platform super administrator required }
-        '409': { description: Tenant is already bootstrapped }
+        '200':
+          description: Created owner membership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberView'
+        '403':
+          description: Platform super administrator required
+        '409':
+          description: Tenant is already bootstrapped
   /identity/memberships:
     get:
       summary: List tenant memberships
       operationId: listMemberships
       parameters:
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
       responses:
-        '200': { description: Membership page, content: { application/json: { schema: { $ref: '#/components/schemas/MemberPage' } } } }
+        '200':
+          description: Membership page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberPage'
     post:
       summary: Provision a tenant membership
       operationId: provisionMembership
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProvisionMembershipRequest' } } } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProvisionMembershipRequest'
       responses:
-        '200': { description: Membership, content: { application/json: { schema: { $ref: '#/components/schemas/MemberView' } } } }
+        '200':
+          description: Membership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberView'
   /identity/memberships/{membershipId}:
     parameters:
-      - { $ref: '#/components/parameters/MembershipId' }
+    - $ref: '#/components/parameters/MembershipId'
     get:
       summary: Read a tenant membership
       operationId: getMembership
       responses:
-        '200': { description: Membership, content: { application/json: { schema: { $ref: '#/components/schemas/MemberView' } } } }
-        '404': { description: Membership not found in current tenant }
+        '200':
+          description: Membership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberView'
+        '404':
+          description: Membership not found in current tenant
     patch:
       summary: Update membership state and tenant-local metadata
       operationId: updateMembership
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateMembershipRequest' } } } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMembershipRequest'
       responses:
-        '200': { description: Membership, content: { application/json: { schema: { $ref: '#/components/schemas/MemberView' } } } }
-        '409': { description: Concurrent modification or last-owner invariant }
+        '200':
+          description: Membership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberView'
+        '409':
+          description: Concurrent modification or last-owner invariant
   /identity/roles:
     get:
       summary: List tenant roles
       operationId: listRoles
       parameters:
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
       responses:
-        '200': { description: Role page, content: { application/json: { schema: { $ref: '#/components/schemas/RolePage' } } } }
+        '200':
+          description: Role page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolePage'
     post:
       summary: Create a custom role
       operationId: createCustomRole
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RoleRequest' } } } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
       responses:
-        '200': { description: Role, content: { application/json: { schema: { $ref: '#/components/schemas/RoleView' } } } }
-        '409': { description: Duplicate role }
+        '200':
+          description: Role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleView'
+        '409':
+          description: Duplicate role
   /identity/roles/{roleId}:
     parameters:
-      - { name: roleId, in: path, required: true, schema: { type: string, format: uuid } }
+    - name: roleId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     put:
       summary: Update a custom role
       operationId: updateCustomRole
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RoleRequest' } } } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
       responses:
-        '200': { description: Role, content: { application/json: { schema: { $ref: '#/components/schemas/RoleView' } } } }
-        '409': { description: System role, duplicate role, or concurrent modification }
+        '200':
+          description: Role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleView'
+        '409':
+          description: System role
+          duplicate role: null
+          or concurrent modification: null
     delete:
       summary: Delete an unassigned custom role
       operationId: deleteCustomRole
       responses:
-        '204': { description: Deleted }
-        '409': { description: System-managed or assigned role }
+        '204':
+          description: Deleted
+        '409':
+          description: System-managed or assigned role
   /identity/roles/memberships/{membershipId}:
     get:
       summary: List role assignments for a membership
       operationId: listRoleAssignments
       parameters:
-        - { $ref: '#/components/parameters/MembershipId' }
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
+      - $ref: '#/components/parameters/MembershipId'
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
       responses:
-        '200': { description: Assignment page, content: { application/json: { schema: { $ref: '#/components/schemas/AssignmentPage' } } } }
+        '200':
+          description: Assignment page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentPage'
   /identity/roles/assignments:
     post:
       summary: Assign a tenant or branch-scoped role
       operationId: assignRole
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AssignmentRequest' } } } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentRequest'
       responses:
-        '200': { description: Assignment, content: { application/json: { schema: { $ref: '#/components/schemas/AssignmentView' } } } }
+        '200':
+          description: Assignment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentView'
   /identity/roles/assignments/{assignmentId}:
     delete:
       summary: Remove a role assignment
       operationId: unassignRole
       parameters:
-        - { name: assignmentId, in: path, required: true, schema: { type: string, format: uuid } }
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
-        '204': { description: Removed }
-        '409': { description: Last active organization owner cannot be removed }
+        '204':
+          description: Removed
+        '409':
+          description: Last active organization owner cannot be removed
   /identity/sessions/me:
     get:
       summary: List current member's observed platform sessions
       operationId: listOwnSessions
       parameters:
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
       responses:
-        '200': { description: Session page, content: { application/json: { schema: { $ref: '#/components/schemas/SessionPage' } } } }
+        '200':
+          description: Session page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionPage'
   /identity/sessions/me/{sessionId}:
     delete:
       summary: Revoke one of the current member's platform sessions
       operationId: revokeOwnSession
       parameters:
-        - { $ref: '#/components/parameters/SessionId' }
-      requestBody: { required: false, content: { application/json: { schema: { $ref: '#/components/schemas/RevokeSessionRequest' } } } }
+      - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeSessionRequest'
       responses:
-        '204': { description: Revoked }
+        '204':
+          description: Revoked
   /identity/sessions/memberships/{membershipId}:
     get:
       summary: List observed sessions for a tenant membership
       operationId: listMemberSessions
       parameters:
-        - { $ref: '#/components/parameters/MembershipId' }
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
+      - $ref: '#/components/parameters/MembershipId'
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
       responses:
-        '200': { description: Session page, content: { application/json: { schema: { $ref: '#/components/schemas/SessionPage' } } } }
+        '200':
+          description: Session page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionPage'
   /identity/sessions/{sessionId}:
     delete:
       summary: Administratively revoke a tenant member's platform session
       operationId: revokeMemberSession
       parameters:
-        - { $ref: '#/components/parameters/SessionId' }
-      requestBody: { required: false, content: { application/json: { schema: { $ref: '#/components/schemas/RevokeSessionRequest' } } } }
+      - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeSessionRequest'
       responses:
-        '204': { description: Revoked }
+        '204':
+          description: Revoked
   /organization/branches:
     get:
       summary: List tenant branches
       operationId: listBranches
       parameters:
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
       responses:
-        '200': { description: Branch page, content: { application/json: { schema: { $ref: '#/components/schemas/BranchPage' } } } }
+        '200':
+          description: Branch page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchPage'
     post:
       summary: Create a tenant branch
       operationId: createBranch
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/BranchRequest' } } } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BranchRequest'
       responses:
-        '200': { description: Branch, content: { application/json: { schema: { $ref: '#/components/schemas/BranchView' } } } }
+        '200':
+          description: Branch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchView'
   /organization/branches/{branchId}:
     parameters:
-      - { name: branchId, in: path, required: true, schema: { type: string, format: uuid } }
+    - name: branchId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     get:
       summary: Read a tenant branch
       operationId: getBranch
       responses:
-        '200': { description: Branch, content: { application/json: { schema: { $ref: '#/components/schemas/BranchView' } } } }
-        '404': { description: Branch not found in current tenant }
+        '200':
+          description: Branch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchView'
+        '404':
+          description: Branch not found in current tenant
     put:
       summary: Update a tenant branch with optimistic concurrency
       operationId: updateBranch
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/BranchRequest' } } } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BranchRequest'
       responses:
-        '200': { description: Branch, content: { application/json: { schema: { $ref: '#/components/schemas/BranchView' } } } }
-        '409': { description: Concurrent modification or duplicate branch code }
+        '200':
+          description: Branch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchView'
+        '409':
+          description: Concurrent modification or duplicate branch code
   /organization/settings:
     get:
       summary: Read tenant organization defaults
       operationId: getOrganizationSettings
       responses:
-        '200': { description: Settings, content: { application/json: { schema: { $ref: '#/components/schemas/OrganizationSettings' } } } }
+        '200':
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationSettings'
     put:
       summary: Update tenant organization defaults with optimistic concurrency
       operationId: updateOrganizationSettings
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OrganizationSettingsUpdate' } } } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationSettingsUpdate'
       responses:
-        '200': { description: Settings, content: { application/json: { schema: { $ref: '#/components/schemas/OrganizationSettings' } } } }
-        '409': { description: Concurrent modification }
+        '200':
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationSettings'
+        '409':
+          description: Concurrent modification
   /licensing/entitlements/{feature}/decision:
     get:
       summary: Resolve the current tenant entitlement decision
       operationId: getEntitlementDecision
       parameters:
-        - in: path
-          name: feature
-          required: true
-          schema: { $ref: '#/components/schemas/FeatureKey' }
+      - in: path
+        name: feature
+        required: true
+        schema:
+          $ref: '#/components/schemas/FeatureKey'
       responses:
-        '200': { description: Current decision, content: { application/json: { schema: { $ref: '#/components/schemas/EntitlementDecision' } } } }
-        '401': { description: Unauthenticated }
-        '403': { description: Missing tenant context, inactive membership, or forbidden }
+        '200':
+          description: Current decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntitlementDecision'
+        '401':
+          description: Unauthenticated
+        '403':
+          description: Missing tenant context
+          inactive membership: null
+          or forbidden: null
+  /academic-periods:
+    get:
+      summary: List tenant academic periods
+      operationId: listAcademicPeriods
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Academic period page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcademicPeriodPage'
+    post:
+      summary: Create academic period
+      operationId: createAcademicPeriod
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcademicPeriodRequest'
+      responses:
+        '200':
+          description: Academic period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcademicPeriodView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+  /academic-periods/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    put:
+      summary: Update academic period with optimistic concurrency
+      operationId: updateAcademicPeriod
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcademicPeriodRequest'
+      responses:
+        '200':
+          description: Academic Period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcademicPeriodView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+        '404':
+          description: Academic Period not found in current tenant
+  /programs:
+    get:
+      summary: List tenant programs
+      operationId: listPrograms
+      parameters:
+      - name: academicPeriodId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Program page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgramPage'
+    post:
+      summary: Create program
+      operationId: createProgram
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgramRequest'
+      responses:
+        '200':
+          description: Program
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgramView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+  /programs/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    put:
+      summary: Update program with optimistic concurrency
+      operationId: updateProgram
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgramRequest'
+      responses:
+        '200':
+          description: Program
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgramView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+        '404':
+          description: Program not found in current tenant
+  /courses:
+    get:
+      summary: List tenant courses
+      operationId: listCourses
+      parameters:
+      - name: programId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Course page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursePage'
+    post:
+      summary: Create course
+      operationId: createCourse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseRequest'
+      responses:
+        '200':
+          description: Course
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+  /courses/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    put:
+      summary: Update course with optimistic concurrency
+      operationId: updateCourse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseRequest'
+      responses:
+        '200':
+          description: Course
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+        '404':
+          description: Course not found in current tenant
+  /subjects:
+    get:
+      summary: List tenant subjects
+      operationId: listSubjects
+      parameters:
+      - name: courseId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Subject page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubjectPage'
+    post:
+      summary: Create subject
+      operationId: createSubject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubjectRequest'
+      responses:
+        '200':
+          description: Subject
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubjectView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+  /subjects/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    put:
+      summary: Update subject with optimistic concurrency
+      operationId: updateSubject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubjectRequest'
+      responses:
+        '200':
+          description: Subject
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubjectView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+        '404':
+          description: Subject not found in current tenant
+  /modules:
+    get:
+      summary: List tenant curriculum modules
+      operationId: listCurriculumModules
+      parameters:
+      - name: programId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: courseId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: subjectId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Curriculum module page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurriculumModulePage'
+    post:
+      summary: Create curriculum module
+      operationId: createCurriculumModule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurriculumModuleRequest'
+      responses:
+        '200':
+          description: Curriculum module
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurriculumModuleView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+  /modules/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    put:
+      summary: Update curriculum module with optimistic concurrency
+      operationId: updateCurriculumModule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurriculumModuleRequest'
+      responses:
+        '200':
+          description: Curriculum Module
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurriculumModuleView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+        '404':
+          description: Curriculum Module not found in current tenant
+  /batches:
+    get:
+      summary: List tenant batches/cohorts for authorized academic operators
+      operationId: listBatches
+      parameters:
+      - name: academicPeriodId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: programId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: courseId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: branchId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Batch page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchPage'
+        '403':
+          description: Enrollment-view authority required
+    post:
+      summary: Create batch/cohort
+      operationId: createBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchRequest'
+      responses:
+        '200':
+          description: Batch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+  /batches/{id}:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    put:
+      summary: Update batch with optimistic concurrency
+      operationId: updateBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchRequest'
+      responses:
+        '200':
+          description: Batch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+        '404':
+          description: Batch not found in current tenant
+  /enrollments:
+    get:
+      summary: List tenant enrollments for authorized academic operators
+      operationId: listEnrollments
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Enrollment page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentPage'
+        '403':
+          description: Enrollment-view authority required
+    post:
+      summary: Enroll a learner in exactly one program, course, or batch
+      operationId: createEnrollment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollmentRequest'
+      responses:
+        '200':
+          description: Enrollment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+  /enrollments/me:
+    get:
+      summary: List the current member's own enrollments
+      operationId: listMyEnrollments
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Self-scoped enrollment page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentPage'
+  /enrollments/{id}/status:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    put:
+      summary: Change enrollment lifecycle state with optimistic concurrency
+      operationId: changeEnrollmentStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollmentStatusRequest'
+      responses:
+        '200':
+          description: Enrollment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+        '404':
+          description: Enrollment not found in current tenant
+  /teacher-assignments:
+    get:
+      summary: List tenant teaching assignments for authorized academic operators
+      operationId: listTeacherAssignments
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Teaching assignment page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherAssignmentPage'
+        '403':
+          description: Teaching-assignment-view authority required
+    post:
+      summary: Assign a teacher/evaluator to exactly one academic scope
+      operationId: createTeacherAssignment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeacherAssignmentRequest'
+      responses:
+        '200':
+          description: Teaching assignment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherAssignmentView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+  /teacher-assignments/me:
+    get:
+      summary: List the current member's own teaching assignments
+      operationId: listMyTeacherAssignments
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Self-scoped teaching assignment page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherAssignmentPage'
+  /teacher-assignments/{id}/end:
+    parameters:
+    - $ref: '#/components/parameters/Id'
+    post:
+      summary: End a teaching assignment with optimistic concurrency
+      operationId: endTeacherAssignment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EndTeacherAssignmentRequest'
+      responses:
+        '200':
+          description: Teaching assignment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherAssignmentView'
+        '400':
+          description: Invalid academic request
+        '409':
+          description: Conflict or concurrent modification
+        '404':
+          description: Teaching assignment not found in current tenant
 components:
   securitySchemes:
-    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   parameters:
-    Page: { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
-    Size: { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
-    MembershipId: { name: membershipId, in: path, required: true, schema: { type: string, format: uuid } }
-    SessionId: { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    MembershipId:
+      name: membershipId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   schemas:
     PlatformVersion:
       type: object
-      required: [version, releaseStatus]
-      properties: { version: { type: string }, releaseStatus: { type: string } }
+      required:
+      - version
+      - releaseStatus
+      properties:
+        version:
+          type: string
+        releaseStatus:
+          type: string
     PermissionKey:
       type: string
-      enum: [ORGANIZATION_VIEW, ORGANIZATION_MANAGE, BRANCHES_VIEW, BRANCHES_MANAGE, USERS_VIEW, USERS_MANAGE, ROLES_VIEW, ROLES_MANAGE, ROLES_ASSIGN, SESSIONS_VIEW, SESSIONS_MANAGE, AUDIT_VIEW]
-    MembershipStatus: { type: string, enum: [ACTIVE, SUSPENDED, ENDED] }
-    UserStatus: { type: string, enum: [ACTIVE, DISABLED] }
-    AssignmentScopeKind: { type: string, enum: [TENANT, BRANCH] }
+      enum:
+      - ORGANIZATION_VIEW
+      - ORGANIZATION_MANAGE
+      - BRANCHES_VIEW
+      - BRANCHES_MANAGE
+      - USERS_VIEW
+      - USERS_MANAGE
+      - ROLES_VIEW
+      - ROLES_MANAGE
+      - ROLES_ASSIGN
+      - SESSIONS_VIEW
+      - SESSIONS_MANAGE
+      - ACADEMICS_VIEW
+      - ACADEMICS_MANAGE
+      - CURRICULUM_VIEW
+      - CURRICULUM_MANAGE
+      - ENROLLMENTS_VIEW
+      - ENROLLMENTS_MANAGE
+      - TEACHING_ASSIGNMENTS_VIEW
+      - TEACHING_ASSIGNMENTS_MANAGE
+      - AUDIT_VIEW
+    MembershipStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - SUSPENDED
+      - ENDED
+    UserStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - DISABLED
+    AssignmentScopeKind:
+      type: string
+      enum:
+      - TENANT
+      - BRANCH
     AuthenticationAssurance:
       type: object
-      required: [acr, methods, otpEvidence, webAuthnEvidence, multiFactorEvidence]
+      required:
+      - acr
+      - methods
+      - otpEvidence
+      - webAuthnEvidence
+      - multiFactorEvidence
       properties:
-        acr: { type: string }
-        methods: { type: array, items: { type: string } }
-        otpEvidence: { type: boolean }
-        webAuthnEvidence: { type: boolean }
-        multiFactorEvidence: { type: boolean }
+        acr:
+          type: string
+        methods:
+          type: array
+          items:
+            type: string
+        otpEvidence:
+          type: boolean
+        webAuthnEvidence:
+          type: boolean
+        multiFactorEvidence:
+          type: boolean
     CurrentIdentity:
       type: object
-      required: [userId, membershipId, oidcSubject, displayName, tenantId, membershipStatus, roles, permissions, authenticationAssurance]
+      required:
+      - userId
+      - membershipId
+      - oidcSubject
+      - displayName
+      - tenantId
+      - membershipStatus
+      - roles
+      - permissions
+      - authenticationAssurance
       properties:
-        userId: { type: string, format: uuid }
-        membershipId: { type: string, format: uuid }
-        oidcSubject: { type: string }
-        email: { type: [string, 'null'], format: email }
-        displayName: { type: string }
-        tenantId: { type: string, format: uuid }
-        membershipStatus: { $ref: '#/components/schemas/MembershipStatus' }
-        primaryBranchId: { type: [string, 'null'], format: uuid }
-        roles: { type: array, items: { type: string } }
-        permissions: { type: array, items: { $ref: '#/components/schemas/PermissionKey' } }
-        authenticationAssurance: { $ref: '#/components/schemas/AuthenticationAssurance' }
+        userId:
+          type: string
+          format: uuid
+        membershipId:
+          type: string
+          format: uuid
+        oidcSubject:
+          type: string
+        email:
+          type:
+          - string
+          - 'null'
+          format: email
+        displayName:
+          type: string
+        tenantId:
+          type: string
+          format: uuid
+        membershipStatus:
+          $ref: '#/components/schemas/MembershipStatus'
+        primaryBranchId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        roles:
+          type: array
+          items:
+            type: string
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionKey'
+        authenticationAssurance:
+          $ref: '#/components/schemas/AuthenticationAssurance'
     ProvisionMembershipRequest:
       type: object
-      required: [subject, displayName]
+      required:
+      - subject
+      - displayName
       properties:
-        subject: { type: string, maxLength: 160 }
-        email: { type: string, format: email, maxLength: 320 }
-        displayName: { type: string, maxLength: 200 }
-        primaryBranchId: { type: string, format: uuid }
-        externalReference: { type: string, maxLength: 160 }
-        roleIds: { type: array, items: { type: string, format: uuid } }
+        subject:
+          type: string
+          maxLength: 160
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        displayName:
+          type: string
+          maxLength: 200
+        primaryBranchId:
+          type: string
+          format: uuid
+        externalReference:
+          type: string
+          maxLength: 160
+        roleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
     UpdateMembershipRequest:
       type: object
-      required: [status, expectedVersion]
+      required:
+      - status
+      - expectedVersion
       properties:
-        status: { $ref: '#/components/schemas/MembershipStatus' }
-        primaryBranchId: { type: [string, 'null'], format: uuid }
-        externalReference: { type: [string, 'null'], maxLength: 160 }
-        expectedVersion: { type: integer, format: int64 }
+        status:
+          $ref: '#/components/schemas/MembershipStatus'
+        primaryBranchId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        externalReference:
+          type:
+          - string
+          - 'null'
+          maxLength: 160
+        expectedVersion:
+          type: integer
+          format: int64
     RoleReference:
       type: object
-      required: [id, name, systemManaged]
+      required:
+      - id
+      - name
+      - systemManaged
       properties:
-        id: { type: string, format: uuid }
-        systemKey: { type: [string, 'null'] }
-        name: { type: string }
-        systemManaged: { type: boolean }
+        id:
+          type: string
+          format: uuid
+        systemKey:
+          type:
+          - string
+          - 'null'
+        name:
+          type: string
+        systemManaged:
+          type: boolean
     MemberView:
       type: object
-      required: [membershipId, userId, oidcSubject, displayName, userStatus, membershipStatus, joinedAt, roles, version]
+      required:
+      - membershipId
+      - userId
+      - oidcSubject
+      - displayName
+      - userStatus
+      - membershipStatus
+      - joinedAt
+      - roles
+      - version
       properties:
-        membershipId: { type: string, format: uuid }
-        userId: { type: string, format: uuid }
-        oidcSubject: { type: string }
-        email: { type: [string, 'null'], format: email }
-        displayName: { type: string }
-        userStatus: { $ref: '#/components/schemas/UserStatus' }
-        membershipStatus: { $ref: '#/components/schemas/MembershipStatus' }
-        primaryBranchId: { type: [string, 'null'], format: uuid }
-        externalReference: { type: [string, 'null'] }
-        joinedAt: { type: string, format: date-time }
-        roles: { type: array, items: { $ref: '#/components/schemas/RoleReference' } }
-        version: { type: integer, format: int64 }
+        membershipId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        oidcSubject:
+          type: string
+        email:
+          type:
+          - string
+          - 'null'
+          format: email
+        displayName:
+          type: string
+        userStatus:
+          $ref: '#/components/schemas/UserStatus'
+        membershipStatus:
+          $ref: '#/components/schemas/MembershipStatus'
+        primaryBranchId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        externalReference:
+          type:
+          - string
+          - 'null'
+        joinedAt:
+          type: string
+          format: date-time
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoleReference'
+        version:
+          type: integer
+          format: int64
     RoleRequest:
       type: object
-      required: [name, expectedVersion]
+      required:
+      - name
+      - expectedVersion
       properties:
-        name: { type: string, maxLength: 120 }
-        description: { type: [string, 'null'], maxLength: 500 }
-        permissions: { type: array, items: { $ref: '#/components/schemas/PermissionKey' } }
-        expectedVersion: { type: integer, format: int64 }
+        name:
+          type: string
+          maxLength: 120
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 500
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionKey'
+        expectedVersion:
+          type: integer
+          format: int64
     RoleView:
       type: object
-      required: [id, name, systemManaged, permissions, version]
+      required:
+      - id
+      - name
+      - systemManaged
+      - permissions
+      - version
       properties:
-        id: { type: string, format: uuid }
-        systemKey: { type: [string, 'null'] }
-        name: { type: string }
-        description: { type: [string, 'null'] }
-        systemManaged: { type: boolean }
-        permissions: { type: array, items: { $ref: '#/components/schemas/PermissionKey' } }
-        version: { type: integer, format: int64 }
+        id:
+          type: string
+          format: uuid
+        systemKey:
+          type:
+          - string
+          - 'null'
+        name:
+          type: string
+        description:
+          type:
+          - string
+          - 'null'
+        systemManaged:
+          type: boolean
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PermissionKey'
+        version:
+          type: integer
+          format: int64
     AssignmentRequest:
       type: object
-      required: [membershipId, roleId, scopeKind]
+      required:
+      - membershipId
+      - roleId
+      - scopeKind
       properties:
-        membershipId: { type: string, format: uuid }
-        roleId: { type: string, format: uuid }
-        scopeKind: { $ref: '#/components/schemas/AssignmentScopeKind' }
-        scopeId: { type: [string, 'null'], format: uuid }
+        membershipId:
+          type: string
+          format: uuid
+        roleId:
+          type: string
+          format: uuid
+        scopeKind:
+          $ref: '#/components/schemas/AssignmentScopeKind'
+        scopeId:
+          type:
+          - string
+          - 'null'
+          format: uuid
     AssignmentView:
       type: object
-      required: [id, membershipId, roleId, roleName, scopeKind]
+      required:
+      - id
+      - membershipId
+      - roleId
+      - roleName
+      - scopeKind
       properties:
-        id: { type: string, format: uuid }
-        membershipId: { type: string, format: uuid }
-        roleId: { type: string, format: uuid }
-        roleName: { type: string }
-        scopeKind: { $ref: '#/components/schemas/AssignmentScopeKind' }
-        scopeId: { type: [string, 'null'], format: uuid }
+        id:
+          type: string
+          format: uuid
+        membershipId:
+          type: string
+          format: uuid
+        roleId:
+          type: string
+          format: uuid
+        roleName:
+          type: string
+        scopeKind:
+          $ref: '#/components/schemas/AssignmentScopeKind'
+        scopeId:
+          type:
+          - string
+          - 'null'
+          format: uuid
     SessionView:
       type: object
-      required: [id, startedAt, lastSeenAt, current]
+      required:
+      - id
+      - startedAt
+      - lastSeenAt
+      - current
       properties:
-        id: { type: string, format: uuid }
-        startedAt: { type: string, format: date-time }
-        lastSeenAt: { type: string, format: date-time }
-        expiresAt: { type: [string, 'null'], format: date-time }
-        revokedAt: { type: [string, 'null'], format: date-time }
-        revocationReason: { type: [string, 'null'] }
-        current: { type: boolean }
+        id:
+          type: string
+          format: uuid
+        startedAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        revokedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        revocationReason:
+          type:
+          - string
+          - 'null'
+        current:
+          type: boolean
     RevokeSessionRequest:
       type: object
-      properties: { reason: { type: string, maxLength: 500 } }
-    BranchStatus: { type: string, enum: [ACTIVE, INACTIVE, CLOSED] }
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+    BranchStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - INACTIVE
+      - CLOSED
     BranchRequest:
       type: object
-      required: [code, displayName, timezone]
+      required:
+      - code
+      - displayName
+      - timezone
       properties:
-        code: { type: string, maxLength: 64 }
-        displayName: { type: string, maxLength: 200 }
-        timezone: { type: string, maxLength: 80 }
-        status: { $ref: '#/components/schemas/BranchStatus' }
-        expectedVersion: { type: integer, format: int64, default: 0 }
+        code:
+          type: string
+          maxLength: 64
+        displayName:
+          type: string
+          maxLength: 200
+        timezone:
+          type: string
+          maxLength: 80
+        status:
+          $ref: '#/components/schemas/BranchStatus'
+        expectedVersion:
+          type: integer
+          format: int64
+          default: 0
     BranchView:
       type: object
-      required: [id, code, displayName, timezone, status, createdAt, version]
+      required:
+      - id
+      - code
+      - displayName
+      - timezone
+      - status
+      - createdAt
+      - version
       properties:
-        id: { type: string, format: uuid }
-        code: { type: string }
-        displayName: { type: string }
-        timezone: { type: string }
-        status: { $ref: '#/components/schemas/BranchStatus' }
-        createdAt: { type: string, format: date-time }
-        version: { type: integer, format: int64 }
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        displayName:
+          type: string
+        timezone:
+          type: string
+        status:
+          $ref: '#/components/schemas/BranchStatus'
+        createdAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
     OrganizationSettings:
       type: object
-      required: [tenantId, defaultTimezone, defaultLocale, weekStartsOn, version]
+      required:
+      - tenantId
+      - defaultTimezone
+      - defaultLocale
+      - weekStartsOn
+      - version
       properties:
-        tenantId: { type: string, format: uuid }
-        defaultTimezone: { type: string }
-        defaultLocale: { type: string }
-        weekStartsOn: { type: integer, minimum: 1, maximum: 7 }
-        supportEmail: { type: [string, 'null'], format: email }
-        supportUrl: { type: [string, 'null'], format: uri }
-        version: { type: integer, format: int64 }
+        tenantId:
+          type: string
+          format: uuid
+        defaultTimezone:
+          type: string
+        defaultLocale:
+          type: string
+        weekStartsOn:
+          type: integer
+          minimum: 1
+          maximum: 7
+        supportEmail:
+          type:
+          - string
+          - 'null'
+          format: email
+        supportUrl:
+          type:
+          - string
+          - 'null'
+          format: uri
+        version:
+          type: integer
+          format: int64
     OrganizationSettingsUpdate:
       type: object
-      required: [defaultTimezone, defaultLocale, weekStartsOn, expectedVersion]
+      required:
+      - defaultTimezone
+      - defaultLocale
+      - weekStartsOn
+      - expectedVersion
       properties:
-        defaultTimezone: { type: string, maxLength: 80 }
-        defaultLocale: { type: string, maxLength: 35 }
-        weekStartsOn: { type: integer, minimum: 1, maximum: 7 }
-        supportEmail: { type: [string, 'null'], format: email, maxLength: 320 }
-        supportUrl: { type: [string, 'null'], format: uri, maxLength: 1000 }
-        expectedVersion: { type: integer, format: int64 }
+        defaultTimezone:
+          type: string
+          maxLength: 80
+        defaultLocale:
+          type: string
+          maxLength: 35
+        weekStartsOn:
+          type: integer
+          minimum: 1
+          maximum: 7
+        supportEmail:
+          type:
+          - string
+          - 'null'
+          format: email
+          maxLength: 320
+        supportUrl:
+          type:
+          - string
+          - 'null'
+          format: uri
+          maxLength: 1000
+        expectedVersion:
+          type: integer
+          format: int64
     MemberPage:
       allOf:
-        - { $ref: '#/components/schemas/PageMetadata' }
-        - type: object
-          properties: { items: { type: array, items: { $ref: '#/components/schemas/MemberView' } } }
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/MemberView'
     RolePage:
       allOf:
-        - { $ref: '#/components/schemas/PageMetadata' }
-        - type: object
-          properties: { items: { type: array, items: { $ref: '#/components/schemas/RoleView' } } }
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/RoleView'
     AssignmentPage:
       allOf:
-        - { $ref: '#/components/schemas/PageMetadata' }
-        - type: object
-          properties: { items: { type: array, items: { $ref: '#/components/schemas/AssignmentView' } } }
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/AssignmentView'
     SessionPage:
       allOf:
-        - { $ref: '#/components/schemas/PageMetadata' }
-        - type: object
-          properties: { items: { type: array, items: { $ref: '#/components/schemas/SessionView' } } }
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/SessionView'
     BranchPage:
       allOf:
-        - { $ref: '#/components/schemas/PageMetadata' }
-        - type: object
-          properties: { items: { type: array, items: { $ref: '#/components/schemas/BranchView' } } }
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/BranchView'
     PageMetadata:
       type: object
-      required: [items, page, size, totalElements, totalPages]
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
       properties:
-        items: { type: array, items: {} }
-        page: { type: integer }
-        size: { type: integer }
-        totalElements: { type: integer, format: int64 }
-        totalPages: { type: integer }
+        items:
+          type: array
+          items: {}
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
     FeatureKey:
       type: string
-      enum: [LIVE_CLASS, RECORDING, ASSESSMENTS, AUTO_GRADING, ADVANCED_REVIEW, ASSIGNMENTS, PAYMENTS, CERTIFICATES, API, WHITE_LABEL, SSO, AI]
+      enum:
+      - LIVE_CLASS
+      - RECORDING
+      - ASSESSMENTS
+      - AUTO_GRADING
+      - ADVANCED_REVIEW
+      - ASSIGNMENTS
+      - PAYMENTS
+      - CERTIFICATES
+      - API
+      - WHITE_LABEL
+      - SSO
+      - AI
     EntitlementDecision:
       type: object
-      required: [feature, allowed, reason]
+      required:
+      - feature
+      - allowed
+      - reason
       properties:
-        feature: { $ref: '#/components/schemas/FeatureKey' }
-        allowed: { type: boolean }
-        reason: { type: string }
+        feature:
+          $ref: '#/components/schemas/FeatureKey'
+        allowed:
+          type: boolean
+        reason:
+          type: string
+    AcademicPeriodStatus:
+      type: string
+      enum:
+      - PLANNED
+      - ACTIVE
+      - CLOSED
+      - ARCHIVED
+    ProgramStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - INACTIVE
+      - ARCHIVED
+    CurriculumStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - INACTIVE
+      - ARCHIVED
+    BatchStatus:
+      type: string
+      enum:
+      - PLANNED
+      - ACTIVE
+      - CLOSED
+      - ARCHIVED
+    EnrollmentStatus:
+      type: string
+      enum:
+      - ENROLLED
+      - COMPLETED
+      - WITHDRAWN
+      - CANCELLED
+    TeacherAssignmentRole:
+      type: string
+      enum:
+      - LEAD_TEACHER
+      - TEACHER
+      - TEACHING_ASSISTANT
+      - MENTOR
+      - EVALUATOR
+    TeacherAssignmentStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - ENDED
+    AcademicPeriodRequest:
+      type: object
+      required:
+      - code
+      - displayName
+      - startsOn
+      - endsOn
+      properties:
+        code:
+          type: string
+          maxLength: 64
+        displayName:
+          type: string
+          maxLength: 200
+        startsOn: &id001
+          type: string
+          format: date
+        endsOn: *id001
+        status:
+          $ref: '#/components/schemas/AcademicPeriodStatus'
+        expectedVersion: &id002
+          type: integer
+          format: int64
+    AcademicPeriodView:
+      type: object
+      required:
+      - id
+      - code
+      - displayName
+      - startsOn
+      - endsOn
+      - status
+      - createdAt
+      - version
+      properties:
+        id: &id003
+          type: string
+          format: uuid
+        code:
+          type: string
+        displayName:
+          type: string
+        startsOn: *id001
+        endsOn: *id001
+        status:
+          $ref: '#/components/schemas/AcademicPeriodStatus'
+        createdAt: &id005
+          type: string
+          format: date-time
+        version: *id002
+    ProgramRequest:
+      type: object
+      required:
+      - code
+      - displayName
+      properties:
+        academicPeriodId: &id004
+          type:
+          - string
+          - 'null'
+          format: uuid
+        code:
+          type: string
+          maxLength: 64
+        displayName:
+          type: string
+          maxLength: 200
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+        status:
+          $ref: '#/components/schemas/ProgramStatus'
+        expectedVersion: *id002
+    ProgramView:
+      type: object
+      required:
+      - id
+      - code
+      - displayName
+      - status
+      - createdAt
+      - version
+      properties:
+        id: *id003
+        academicPeriodId: *id004
+        code:
+          type: string
+        displayName:
+          type: string
+        description: &id006
+          type:
+          - string
+          - 'null'
+        status:
+          $ref: '#/components/schemas/ProgramStatus'
+        createdAt: *id005
+        version: *id002
+    CourseRequest:
+      type: object
+      required:
+      - code
+      - displayName
+      properties:
+        programId: *id004
+        code:
+          type: string
+          maxLength: 64
+        displayName:
+          type: string
+          maxLength: 200
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 4000
+        status:
+          $ref: '#/components/schemas/CurriculumStatus'
+        expectedVersion: *id002
+    CourseView:
+      type: object
+      required:
+      - id
+      - code
+      - displayName
+      - status
+      - createdAt
+      - version
+      properties:
+        id: *id003
+        programId: *id004
+        code:
+          type: string
+        displayName:
+          type: string
+        description: *id006
+        status:
+          $ref: '#/components/schemas/CurriculumStatus'
+        createdAt: *id005
+        version: *id002
+    SubjectRequest:
+      type: object
+      required:
+      - code
+      - displayName
+      properties:
+        courseId: *id004
+        code:
+          type: string
+          maxLength: 64
+        displayName:
+          type: string
+          maxLength: 200
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 4000
+        status:
+          $ref: '#/components/schemas/CurriculumStatus'
+        expectedVersion: *id002
+    SubjectView:
+      type: object
+      required:
+      - id
+      - code
+      - displayName
+      - status
+      - createdAt
+      - version
+      properties:
+        id: *id003
+        courseId: *id004
+        code:
+          type: string
+        displayName:
+          type: string
+        description: *id006
+        status:
+          $ref: '#/components/schemas/CurriculumStatus'
+        createdAt: *id005
+        version: *id002
+    CurriculumModuleRequest:
+      type: object
+      required:
+      - code
+      - displayName
+      properties:
+        programId: *id004
+        courseId: *id004
+        subjectId: *id004
+        code:
+          type: string
+          maxLength: 64
+        displayName:
+          type: string
+          maxLength: 200
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 4000
+        sequenceNumber:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+        status:
+          $ref: '#/components/schemas/CurriculumStatus'
+        expectedVersion: *id002
+    CurriculumModuleView:
+      type: object
+      required:
+      - id
+      - code
+      - displayName
+      - status
+      - createdAt
+      - version
+      properties:
+        id: *id003
+        programId: *id004
+        courseId: *id004
+        subjectId: *id004
+        code:
+          type: string
+        displayName:
+          type: string
+        description: *id006
+        sequenceNumber:
+          type:
+          - integer
+          - 'null'
+        status:
+          $ref: '#/components/schemas/CurriculumStatus'
+        createdAt: *id005
+        version: *id002
+    BatchRequest:
+      type: object
+      required:
+      - code
+      - displayName
+      properties:
+        academicPeriodId: *id004
+        programId: *id004
+        courseId: *id004
+        branchId: *id004
+        code:
+          type: string
+          maxLength: 64
+        displayName:
+          type: string
+          maxLength: 200
+        sectionCode:
+          type:
+          - string
+          - 'null'
+          maxLength: 64
+        startsOn:
+          type:
+          - string
+          - 'null'
+          format: date
+        endsOn:
+          type:
+          - string
+          - 'null'
+          format: date
+        capacity:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+        status:
+          $ref: '#/components/schemas/BatchStatus'
+        expectedVersion: *id002
+    BatchView:
+      type: object
+      required:
+      - id
+      - code
+      - displayName
+      - status
+      - createdAt
+      - version
+      properties:
+        id: *id003
+        academicPeriodId: *id004
+        programId: *id004
+        courseId: *id004
+        branchId: *id004
+        code:
+          type: string
+        displayName:
+          type: string
+        sectionCode: *id006
+        startsOn:
+          type:
+          - string
+          - 'null'
+          format: date
+        endsOn:
+          type:
+          - string
+          - 'null'
+          format: date
+        capacity:
+          type:
+          - integer
+          - 'null'
+        status:
+          $ref: '#/components/schemas/BatchStatus'
+        createdAt: *id005
+        version: *id002
+    EnrollmentRequest:
+      type: object
+      required:
+      - membershipId
+      properties:
+        membershipId: *id003
+        programId: *id004
+        courseId: *id004
+        batchId: *id004
+        externalReference:
+          type:
+          - string
+          - 'null'
+          maxLength: 160
+    EnrollmentStatusRequest:
+      type: object
+      required:
+      - status
+      - expectedVersion
+      properties:
+        status:
+          $ref: '#/components/schemas/EnrollmentStatus'
+        expectedVersion: *id002
+    EnrollmentView:
+      type: object
+      required:
+      - id
+      - membershipId
+      - status
+      - enrolledAt
+      - version
+      properties:
+        id: *id003
+        membershipId: *id003
+        displayName: *id006
+        programId: *id004
+        courseId: *id004
+        batchId: *id004
+        status:
+          $ref: '#/components/schemas/EnrollmentStatus'
+        enrolledAt: *id005
+        endedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        externalReference: *id006
+        version: *id002
+    TeacherAssignmentRequest:
+      type: object
+      required:
+      - membershipId
+      - assignmentRole
+      properties:
+        membershipId: *id003
+        programId: *id004
+        courseId: *id004
+        subjectId: *id004
+        moduleId: *id004
+        batchId: *id004
+        assignmentRole:
+          $ref: '#/components/schemas/TeacherAssignmentRole'
+        startsOn:
+          type:
+          - string
+          - 'null'
+          format: date
+    EndTeacherAssignmentRequest:
+      type: object
+      required:
+      - expectedVersion
+      properties:
+        endsOn:
+          type:
+          - string
+          - 'null'
+          format: date
+        expectedVersion: *id002
+    TeacherAssignmentView:
+      type: object
+      required:
+      - id
+      - membershipId
+      - assignmentRole
+      - status
+      - assignedAt
+      - version
+      properties:
+        id: *id003
+        membershipId: *id003
+        displayName: *id006
+        programId: *id004
+        courseId: *id004
+        subjectId: *id004
+        moduleId: *id004
+        batchId: *id004
+        assignmentRole:
+          $ref: '#/components/schemas/TeacherAssignmentRole'
+        startsOn:
+          type:
+          - string
+          - 'null'
+          format: date
+        endsOn:
+          type:
+          - string
+          - 'null'
+          format: date
+        status:
+          $ref: '#/components/schemas/TeacherAssignmentStatus'
+        assignedAt: *id005
+        version: *id002
+    AcademicPeriodPage:
+      allOf:
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/AcademicPeriodView'
+    ProgramPage:
+      allOf:
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/ProgramView'
+    CoursePage:
+      allOf:
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/CourseView'
+    SubjectPage:
+      allOf:
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/SubjectView'
+    CurriculumModulePage:
+      allOf:
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/CurriculumModuleView'
+    BatchPage:
+      allOf:
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/BatchView'
+    EnrollmentPage:
+      allOf:
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/EnrollmentView'
+    TeacherAssignmentPage:
+      allOf:
+      - $ref: '#/components/schemas/PageMetadata'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/TeacherAssignmentView'

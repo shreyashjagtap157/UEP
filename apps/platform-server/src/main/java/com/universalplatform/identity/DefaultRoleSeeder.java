@@ -53,32 +53,48 @@ class DefaultRoleSeeder {
         Set<PermissionKey> tenantAdministrator = EnumSet.allOf(PermissionKey.class);
         Set<PermissionKey> branchAdministrator = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
-                PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW);
-        Set<PermissionKey> academicStaff = EnumSet.of(
-                PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.USERS_VIEW);
-        Set<PermissionKey> learner = EnumSet.of(PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW);
+                PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW,
+                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW);
+        Set<PermissionKey> academicAdministrator = EnumSet.of(
+                PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.USERS_VIEW,
+                PermissionKey.ACADEMICS_VIEW, PermissionKey.ACADEMICS_MANAGE,
+                PermissionKey.CURRICULUM_VIEW, PermissionKey.CURRICULUM_MANAGE,
+                PermissionKey.ENROLLMENTS_VIEW, PermissionKey.ENROLLMENTS_MANAGE,
+                PermissionKey.TEACHING_ASSIGNMENTS_VIEW, PermissionKey.TEACHING_ASSIGNMENTS_MANAGE);
+        Set<PermissionKey> academicReadOnly = EnumSet.of(
+                PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
+                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW);
+        Set<PermissionKey> teacher = EnumSet.of(
+                PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
+                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW);
+        Set<PermissionKey> learner = EnumSet.of(
+                PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
+                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW);
         Set<PermissionKey> support = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
-                PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW);
+                PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW,
+                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW);
         Set<PermissionKey> auditor = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
-                PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW,
-                PermissionKey.SESSIONS_VIEW, PermissionKey.AUDIT_VIEW);
+                PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW,
+                PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
+                PermissionKey.ENROLLMENTS_VIEW, PermissionKey.TEACHING_ASSIGNMENTS_VIEW,
+                PermissionKey.AUDIT_VIEW);
 
         map.put(SystemRoleKey.ORGANIZATION_OWNER, role("Organization Owner", "Full tenant administrative authority.", all));
         map.put(SystemRoleKey.ORGANIZATION_ADMINISTRATOR, role("Organization Administrator", "Tenant-wide administrative authority.", tenantAdministrator));
         map.put(SystemRoleKey.BRANCH_ADMINISTRATOR, role("Branch Administrator", "Branch-oriented administrative visibility; contextual write scopes are enforced by resource policies.", branchAdministrator));
-        map.put(SystemRoleKey.ACADEMIC_ADMINISTRATOR, role("Academic Administrator", "Academic administration identity.", academicStaff));
-        map.put(SystemRoleKey.EXAM_CONTROLLER, role("Exam Controller", "Assessment governance identity.", academicStaff));
-        map.put(SystemRoleKey.FINANCE_ADMINISTRATOR, role("Finance Administrator", "Finance administration identity.", academicStaff));
-        map.put(SystemRoleKey.TEACHER, role("Teacher", "Teaching identity.", academicStaff));
-        map.put(SystemRoleKey.EVALUATOR, role("Evaluator", "Assessment evaluator identity.", academicStaff));
-        map.put(SystemRoleKey.TEACHING_ASSISTANT, role("Teaching Assistant", "Teaching assistant identity.", academicStaff));
-        map.put(SystemRoleKey.MENTOR, role("Mentor", "Mentor identity.", academicStaff));
-        map.put(SystemRoleKey.STUDENT, role("Student", "Learner identity.", learner));
-        map.put(SystemRoleKey.GUARDIAN, role("Guardian", "Guardian identity.", learner));
-        map.put(SystemRoleKey.SUPPORT_OPERATOR, role("Support Operator", "Tenant support visibility without mutation privileges.", support));
-        map.put(SystemRoleKey.AUDITOR, role("Auditor", "Read-only audit and governance visibility.", auditor));
+        map.put(SystemRoleKey.ACADEMIC_ADMINISTRATOR, role("Academic Administrator", "Academic structure, curriculum, enrollment, and teaching assignment administration.", academicAdministrator));
+        map.put(SystemRoleKey.EXAM_CONTROLLER, role("Exam Controller", "Assessment governance identity with academic catalog visibility.", academicReadOnly));
+        map.put(SystemRoleKey.FINANCE_ADMINISTRATOR, role("Finance Administrator", "Finance administration identity with academic catalog visibility.", academicReadOnly));
+        map.put(SystemRoleKey.TEACHER, role("Teacher", "Teaching identity with academic catalog visibility; roster access is assignment-scoped.", teacher));
+        map.put(SystemRoleKey.EVALUATOR, role("Evaluator", "Assessment evaluator identity with academic catalog visibility.", academicReadOnly));
+        map.put(SystemRoleKey.TEACHING_ASSISTANT, role("Teaching Assistant", "Teaching assistant identity with academic catalog visibility.", teacher));
+        map.put(SystemRoleKey.MENTOR, role("Mentor", "Mentor identity with academic catalog visibility.", teacher));
+        map.put(SystemRoleKey.STUDENT, role("Student", "Learner identity with academic catalog visibility and self-scoped enrollment access.", learner));
+        map.put(SystemRoleKey.GUARDIAN, role("Guardian", "Guardian identity with academic catalog visibility; learner data remains relationship-scoped.", learner));
+        map.put(SystemRoleKey.SUPPORT_OPERATOR, role("Support Operator", "Tenant support visibility without academic mutation privileges.", support));
+        map.put(SystemRoleKey.AUDITOR, role("Auditor", "Read-only governance visibility across identity and academic records.", auditor));
         return Map.copyOf(map);
     }
 

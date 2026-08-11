@@ -1,5 +1,7 @@
 package com.universalplatform.identity;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -12,6 +14,7 @@ interface TenantMembershipRepository extends JpaRepository<TenantMembership, UUI
     Optional<TenantMembership> findByTenantIdAndUserId(UUID tenantId, UUID userId);
     Optional<TenantMembership> findByTenantIdAndId(UUID tenantId, UUID id);
     Page<TenantMembership> findAllByTenantId(UUID tenantId, Pageable pageable);
+    List<TenantMembership> findAllByTenantIdAndIdIn(UUID tenantId, Collection<UUID> ids);
     long countByTenantId(UUID tenantId);
 
     @Query("""
