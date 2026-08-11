@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -25,9 +26,9 @@ class S3StorageAdapter implements StorageAdapter {
                      @Value("${platform.storage.s3.secret-key}") String secretKey,
                      @Value("${platform.storage.s3.bucket}") String bucket) {
         this.bucket=bucket;
-        this.client=S3Client.builder().endpointOverride(endpoint).region(Region.of(region))
-            .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
-            .forcePathStyle(true).build();
+        var builder=S3Client.builder().endpointOverride(endpoint).region(Region.of(region)).forcePathStyle(true);
+        builder.credentialsProvider(accessKey.isBlank() || secretKey.isBlank() ? DefaultCredentialsProvider.create() : StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)));
+        this.client=builder.build();
     }
     public StorageProviderType type(){return StorageProviderType.S3_COMPATIBLE;}
     public String put(String key, InputStream source, long length, String contentType) {
