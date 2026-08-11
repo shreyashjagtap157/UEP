@@ -1,0 +1,37 @@
+name: universal-education-platform
+services:
+  postgres:
+    image: postgres:18.4
+    environment:
+      POSTGRES_DB: education_platform
+      POSTGRES_USER: education
+      POSTGRES_PASSWORD: education
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U education -d education_platform"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./keycloak/education-realm.json:/opt/keycloak/data/import/education-realm.json:ro
+
+  valkey:
+    image: valkey/valkey:9.1.1-alpine
+    profiles: ["cache"]
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres-data:
