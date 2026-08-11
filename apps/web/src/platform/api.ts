@@ -25,6 +25,12 @@ export type PermissionKey =
   | 'ENROLLMENTS_MANAGE'
   | 'TEACHING_ASSIGNMENTS_VIEW'
   | 'TEACHING_ASSIGNMENTS_MANAGE'
+  | 'SCHEDULE_VIEW'
+  | 'SCHEDULE_MANAGE'
+  | 'SCHEDULE_CONFLICT_OVERRIDE'
+  | 'ANNOUNCEMENTS_VIEW'
+  | 'ANNOUNCEMENTS_MANAGE'
+  | 'NOTIFICATION_OPERATIONS_VIEW'
   | 'AUDIT_VIEW'
 
 export interface AuthenticationAssurance {
@@ -46,6 +52,7 @@ export interface CurrentIdentity {
   primaryBranchId?: string
   roles: string[]
   permissions: PermissionKey[]
+  primaryBranchPermissions: PermissionKey[]
   authenticationAssurance: AuthenticationAssurance
 }
 
@@ -373,3 +380,237 @@ export function createTeacherAssignment(input: {
 }): Promise<TeacherAssignmentView> {
   return request('/api/v1/teacher-assignments', { method: 'POST', body: JSON.stringify(input) })
 }
+
+export type ScheduleKind = 'CLASS' | 'EXAM' | 'ASSIGNMENT' | 'MEETING' | 'EVENT' | 'HOLIDAY' | 'APPOINTMENT'
+export type DeliveryMode = 'OFFLINE' | 'ONLINE' | 'HYBRID' | 'NOT_APPLICABLE'
+export type RecurrenceFrequency = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
+export type ScheduleOccurrenceStatus = 'SCHEDULED' | 'CANCELLED' | 'COMPLETED'
+export type ScheduleConflictType = 'TEACHER' | 'BATCH' | 'ROOM' | 'EXAM' | 'HOLIDAY'
+
+export interface ScheduleConflict {
+  type: ScheduleConflictType
+  existingSeriesId: string
+  existingOccurrenceId: string
+  existingTitle: string
+  startsAt: string
+  endsAt: string
+  message: string
+}
+
+export interface ScheduleSeriesView {
+  id: string
+  kind: ScheduleKind
+  title: string
+  description?: string
+  timezone: string
+  deliveryMode: DeliveryMode
+  branchId?: string
+  batchId?: string
+  courseId?: string
+  subjectId?: string
+  moduleId?: string
+  primaryTeacherMembershipId?: string
+  roomCode?: string
+  startLocal: string
+  durationMinutes: number
+  recurrenceFrequency: RecurrenceFrequency
+  recurrenceInterval: number
+  recurrenceDays: string[]
+  recurrenceDayOfMonth?: number
+  recurrenceUntilLocal?: string
+  recurrenceCount?: number
+  status: 'ACTIVE' | 'CANCELLED'
+  createdAt: string
+  version: number
+}
+
+export interface ScheduleOccurrenceView {
+  id: string
+  seriesId: string
+  classSessionId?: string
+  kind: ScheduleKind
+  title: string
+  description?: string
+  timezone: string
+  deliveryMode: DeliveryMode
+  branchId?: string
+  batchId?: string
+  courseId?: string
+  subjectId?: string
+  moduleId?: string
+  primaryTeacherMembershipId?: string
+  effectiveTeacherMembershipId?: string
+  roomCode?: string
+  originalStartsAt: string
+  startsAt: string
+  endsAt: string
+  status: ScheduleOccurrenceStatus
+  exceptionReason?: string
+  version: number
+}
+
+export interface ScheduleCreateInput {
+  kind: ScheduleKind
+  title: string
+  description?: string
+  timezone?: string
+  deliveryMode?: DeliveryMode
+  branchId?: string
+  batchId?: string
+  courseId?: string
+  subjectId?: string
+  moduleId?: string
+  primaryTeacherMembershipId?: string
+  roomCode?: string
+  startLocal: string
+  durationMinutes: number
+  recurrenceFrequency?: RecurrenceFrequency
+  recurrenceInterval?: number
+  recurrenceDays?: string[]
+  recurrenceDayOfMonth?: number
+  recurrenceUntilLocal?: string
+  recurrenceCount?: number
+  allowConflicts?: boolean
+  conflictOverrideReason?: string
+}
+
+export interface ScheduleCreateResult {
+  series: ScheduleSeriesView
+  occurrences: ScheduleOccurrenceView[]
+  overriddenConflicts: ScheduleConflict[]
+}
+
+export const fetchScheduleOccurrences = (from: string, to: string) =>
+  request<ScheduleOccurrenceView[]>(`/api/v1/schedule/occurrences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+export const fetchScheduleSeries = () => request<PageResult<ScheduleSeriesView>>('/api/v1/schedule/series?size=100')
+export const checkScheduleConflicts = (input: ScheduleCreateInput) =>
+  request<ScheduleConflict[]>('/api/v1/schedule/conflicts', { method: 'POST', body: JSON.stringify(input) })
+export const createScheduleSeries = (input: ScheduleCreateInput) =>
+  request<ScheduleCreateResult>('/api/v1/schedule/series', { method: 'POST', body: JSON.stringify(input) })
+export const rescheduleOccurrence = (id: string, input: {
+  startLocal: string
+  durationMinutes?: number
+  substituteTeacherMembershipId?: string
+  roomCode?: string
+  reason: string
+  allowConflicts?: boolean
+  conflictOverrideReason?: string
+  expectedVersion: number
+}) => request<ScheduleOccurrenceView>(`/api/v1/schedule/occurrences/${id}/reschedule`, { method: 'POST', body: JSON.stringify(input) })
+export const cancelScheduleOccurrence = (id: string, input: { reason: string; expectedVersion: number }) =>
+  request<ScheduleOccurrenceView>(`/api/v1/schedule/occurrences/${id}/cancel`, { method: 'POST', body: JSON.stringify(input) })
+export const cancelScheduleSeries = (id: string, input: { reason: string; expectedVersion: number }) =>
+  request<ScheduleSeriesView>(`/api/v1/schedule/series/${id}/cancel`, { method: 'POST', body: JSON.stringify(input) })
+
+export type AnnouncementPriority = 'NORMAL' | 'IMPORTANT' | 'URGENT' | 'EMERGENCY'
+export type AnnouncementStatus = 'DRAFT' | 'SCHEDULED' | 'PUBLISHED' | 'EXPIRED' | 'CANCELLED'
+export type AnnouncementTargetKind = 'ORGANIZATION' | 'BRANCH' | 'COURSE' | 'BATCH' | 'SUBJECT' | 'ROLE' | 'MEMBERSHIP'
+
+export interface AnnouncementTarget {
+  kind: AnnouncementTargetKind
+  id?: string
+}
+
+export interface AnnouncementView {
+  id: string
+  title: string
+  body: string
+  priority: AnnouncementPriority
+  status: AnnouncementStatus
+  publishAt?: string
+  expiresAt?: string
+  acknowledgementRequired: boolean
+  publishedAt?: string
+  createdAt: string
+  version: number
+  targets: AnnouncementTarget[]
+  acknowledgedAt?: string
+}
+
+export interface AnnouncementInput {
+  title: string
+  body: string
+  priority?: AnnouncementPriority
+  publishAt?: string
+  expiresAt?: string
+  acknowledgementRequired: boolean
+  publishNow: boolean
+  targets: AnnouncementTarget[]
+}
+
+export const fetchMyAnnouncements = () => request<PageResult<AnnouncementView>>('/api/v1/announcements/me?size=100')
+export const fetchAnnouncements = () => request<PageResult<AnnouncementView>>('/api/v1/announcements?size=100')
+export const createAnnouncement = (input: AnnouncementInput) => request<AnnouncementView>('/api/v1/announcements', { method: 'POST', body: JSON.stringify(input) })
+export const publishAnnouncement = (id: string, expectedVersion: number) => request<AnnouncementView>(`/api/v1/announcements/${id}/publish`, { method: 'POST', body: JSON.stringify({ expectedVersion }) })
+export const cancelAnnouncement = (id: string, reason: string, expectedVersion: number) => request<AnnouncementView>(`/api/v1/announcements/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason, expectedVersion }) })
+export const acknowledgeAnnouncement = (id: string) => request<AnnouncementView>(`/api/v1/announcements/${id}/acknowledge`, { method: 'POST' })
+
+export type NotificationEventType =
+  | 'CLASS_SCHEDULED' | 'CLASS_RESCHEDULED' | 'CLASS_CANCELLED' | 'CLASS_STARTING'
+  | 'EXAM_SCHEDULED' | 'EXAM_RESCHEDULED' | 'EXAM_CANCELLED' | 'EXAM_STARTING'
+  | 'SCHEDULED' | 'SCHEDULE_RESCHEDULED' | 'SCHEDULE_CANCELLED' | 'ANNOUNCEMENT_PUBLISHED'
+  | 'RESOURCE_RELEASED' | 'ASSIGNMENT_DUE' | 'RESULT_PUBLISHED' | 'RECORDING_READY'
+  | 'PAYMENT_DUE' | 'CHALLENGE_UPDATED'
+
+export interface NotificationView {
+  id: string
+  eventType: NotificationEventType
+  title: string
+  body: string
+  resourceType?: string
+  resourceId?: string
+  priority: AnnouncementPriority
+  createdAt: string
+  readAt?: string
+  version: number
+}
+
+export interface NotificationPreferenceView {
+  eventType: NotificationEventType
+  inAppEnabled: boolean
+  emailEnabled: boolean
+  version: number
+}
+
+export const fetchNotifications = () => request<PageResult<NotificationView>>('/api/v1/notifications?size=100')
+export const fetchUnreadNotificationCount = () => request<{ count: number }>('/api/v1/notifications/unread-count')
+export const markNotificationRead = (id: string) => request<NotificationView>(`/api/v1/notifications/${id}/read`, { method: 'POST' })
+export const fetchNotificationPreferences = () => request<NotificationPreferenceView[]>('/api/v1/notifications/preferences')
+export const updateNotificationPreference = (eventType: NotificationEventType, input: { inAppEnabled: boolean; emailEnabled: boolean; expectedVersion: number }) =>
+  request<NotificationPreferenceView>(`/api/v1/notifications/preferences/${eventType}`, { method: 'PUT', body: JSON.stringify(input) })
+
+export interface TodayScheduleItem {
+  occurrenceId: string
+  seriesId: string
+  classSessionId?: string
+  kind: ScheduleKind
+  title: string
+  timezone: string
+  deliveryMode: DeliveryMode
+  branchId?: string
+  batchId?: string
+  courseId?: string
+  subjectId?: string
+  moduleId?: string
+  effectiveTeacherMembershipId?: string
+  roomCode?: string
+  startsAt: string
+  endsAt: string
+  status: ScheduleOccurrenceStatus
+}
+
+export interface TodayView {
+  date: string
+  timezone: string
+  generatedAt: string
+  mode: 'ADMINISTRATIVE' | 'PERSONAL'
+  schedule: TodayScheduleItem[]
+  summary: {
+    classes: number
+    exams: number
+    scheduledLearners: number
+    unreadNotifications: number
+  }
+}
+
+export const fetchToday = () => request<TodayView>('/api/v1/today')

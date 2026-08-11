@@ -124,3 +124,32 @@ td span { color: #64748b; margin-top: .2rem; }
 .tab-button:focus-visible { outline: 3px solid rgb(37 99 235 / .22); outline-offset: 2px; }
 .compact-form { padding-bottom: 1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
 .catalog-grid { margin-top: .4rem; }
+
+.range-row { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
+.range-row label { display: grid; gap: .35rem; color: var(--muted); font-size: .8rem; font-weight: 700; }
+.range-row input { border: 1px solid #cbd5e1; border-radius: .65rem; padding: .55rem .65rem; background: white; }
+.timeline-list { display: grid; gap: .65rem; }
+.timeline-item { display: grid; grid-template-columns: minmax(110px, 150px) minmax(0, 1fr); gap: 1rem; padding: .85rem 0; border-bottom: 1px solid var(--border); }
+.timeline-item:last-child { border-bottom: 0; }
+.timeline-item time { color: var(--muted); font-size: .8rem; font-weight: 700; }
+.timeline-item p { margin: .35rem 0 0; color: var(--muted); font-size: .85rem; }
+.conflict-box { margin-top: 1rem; border: 1px solid #fecaca; border-radius: .8rem; background: #fff7f7; color: #991b1b; padding: 1rem; }
+.conflict-box ul { margin-bottom: 0; padding-left: 1.25rem; }
+.success-text { color: #166534; font-weight: 700; }
+.danger-action { color: #b91c1c; border-color: #fecaca; }
+.announcement-list, .notification-list, .preference-list { display: grid; gap: .75rem; }
+.announcement-card, .notification-card { border: 1px solid var(--border); border-radius: .85rem; padding: 1rem; background: white; }
+.announcement-card p, .notification-card p { white-space: pre-wrap; color: #475569; line-height: 1.55; }
+.announcement-card.priority-important { border-left: 4px solid #d97706; }
+.announcement-card.priority-urgent { border-left: 4px solid #dc2626; }
+.announcement-card.priority-emergency { border-left: 4px solid #7f1d1d; }
+.announcement-meta { display: flex; flex-wrap: wrap; gap: .45rem .8rem; color: var(--muted); font-size: .75rem; }
+.notification-card.read { background: #f8fafc; }
+.preference-row { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto; align-items: center; gap: 1rem; border-bottom: 1px solid var(--border); padding: .65rem 0; }
+.preference-row:last-child { border-bottom: 0; }
+
+@media (max-width: 620px) {
+  .timeline-item { grid-template-columns: 1fr; gap: .35rem; }
+  .preference-row { grid-template-columns: 1fr 1fr; }
+  .preference-row strong { grid-column: 1 / -1; }
+}

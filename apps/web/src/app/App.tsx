@@ -5,6 +5,10 @@ import { enrollOtp, enrollPasskey, logout, openAccountManagement } from '../auth
 import { AcademicOverview } from '../academic/AcademicOverview'
 import { AcademicWorkspace } from '../academic/AcademicWorkspace'
 import { EnrollmentWorkspace } from '../academic/EnrollmentWorkspace'
+import { AnnouncementWorkspace } from '../communication/AnnouncementWorkspace'
+import { TodayOverview } from '../dashboard/TodayOverview'
+import { NotificationWorkspace } from '../notifications/NotificationWorkspace'
+import { ScheduleWorkspace } from '../scheduling/ScheduleWorkspace'
 import {
   createBranch,
   createRole,
@@ -21,7 +25,7 @@ import {
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
 
-type Section = 'overview' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
+type Section = 'overview' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
 
 const permissionOptions: PermissionKey[] = [
   'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
@@ -29,6 +33,8 @@ const permissionOptions: PermissionKey[] = [
   'SESSIONS_VIEW', 'SESSIONS_MANAGE',
   'ACADEMICS_VIEW', 'ACADEMICS_MANAGE', 'CURRICULUM_VIEW', 'CURRICULUM_MANAGE',
   'ENROLLMENTS_VIEW', 'ENROLLMENTS_MANAGE', 'TEACHING_ASSIGNMENTS_VIEW', 'TEACHING_ASSIGNMENTS_MANAGE',
+  'SCHEDULE_VIEW', 'SCHEDULE_MANAGE', 'SCHEDULE_CONFLICT_OVERRIDE',
+  'ANNOUNCEMENTS_VIEW', 'ANNOUNCEMENTS_MANAGE', 'NOTIFICATION_OPERATIONS_VIEW',
   'AUDIT_VIEW',
 ]
 
@@ -42,7 +48,10 @@ export function App() {
 
   const me = identity.data
   const nav: Array<{ id: Section; label: string; visible: boolean }> = [
-    { id: 'overview', label: 'Overview', visible: true },
+    { id: 'overview', label: 'Today', visible: true },
+    { id: 'schedule', label: 'Schedule', visible: hasScoped(me, 'SCHEDULE_VIEW') },
+    { id: 'announcements', label: 'Announcements', visible: hasScoped(me, 'ANNOUNCEMENTS_VIEW') },
+    { id: 'notifications', label: 'Notifications', visible: true },
     { id: 'academics', label: 'Academics', visible: has(me, 'ACADEMICS_VIEW') || has(me, 'CURRICULUM_VIEW') },
     { id: 'enrollment', label: 'Enrollment', visible: has(me, 'ENROLLMENTS_VIEW') || has(me, 'TEACHING_ASSIGNMENTS_VIEW') },
     { id: 'people', label: 'People', visible: has(me, 'USERS_VIEW') },
@@ -82,6 +91,9 @@ export function App() {
         </header>
 
         {section === 'overview' && <Overview me={me} />}
+        {section === 'schedule' && <ScheduleWorkspace me={me} />}
+        {section === 'announcements' && <AnnouncementWorkspace me={me} />}
+        {section === 'notifications' && <NotificationWorkspace />}
         {section === 'academics' && <AcademicWorkspace me={me} />}
         {section === 'enrollment' && <EnrollmentWorkspace me={me} />}
         {section === 'people' && <People me={me} />}
@@ -97,10 +109,11 @@ function Overview({ me }: { me: CurrentIdentity }) {
   return (
     <div className="content-stack">
       <section className="hero-card">
-        <p className="eyebrow">Academic core milestone</p>
+        <p className="eyebrow">Today</p>
         <h3>Welcome, {me.displayName}</h3>
-        <p>Your account can carry multiple academic and administrative roles without forcing a single user type.</p>
+        <p>Your classes, examinations, institutional operations, announcements, and unread work are brought together here.</p>
       </section>
+      <TodayOverview />
       <section className="metric-grid" aria-label="Identity overview">
         <Metric label="Membership" value={me.membershipStatus} />
         <Metric label="Roles" value={String(me.roles.length)} />
@@ -268,6 +281,7 @@ function LoadingLine() { return <p className="muted" aria-live="polite">Loadingâ
 function ErrorLine({ error }: { error: Error }) { return <p className="error-text" role="alert">{error.message}</p> }
 function CenteredStatus({ title, detail }: { title: string; detail: string }) { return <main className="centered-status"><section className="hero-card"><p className="eyebrow">Universal Education Platform</p><h1>{title}</h1><p>{detail}</p></section></main> }
 function has(me: CurrentIdentity, permission: PermissionKey) { return me.permissions.includes(permission) }
+function hasScoped(me: CurrentIdentity, permission: PermissionKey) { return me.permissions.includes(permission) || me.primaryBranchPermissions.includes(permission) }
 function shortId(value: string) { return value.slice(0, 8) }
 function humanize(value: string) { return value.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()) }
-function sectionTitle(section: Section) { return ({ overview: 'Overview', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }
+function sectionTitle(section: Section) { return ({ overview: 'Today', schedule: 'Schedule', announcements: 'Announcements', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }
