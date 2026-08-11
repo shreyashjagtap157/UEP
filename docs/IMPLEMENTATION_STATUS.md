@@ -2,80 +2,94 @@
 
 ## Current development version
 
-`0.2.0.0-SNAPSHOT` — Identity and Organization.
+`0.3.0.0-SNAPSHOT` — Academic Core.
 
-The source implementation for the 0.2 milestone is present and committed. It remains a snapshot because this execution environment cannot run the complete JDK 25 / Maven / PostgreSQL 18 / dependency-backed web qualification gate.
+The source implementation for the 0.3 milestone is committed across the backend and web application. It remains a snapshot because this execution environment cannot run the complete JDK 25 / Maven / PostgreSQL 18 / dependency-backed web release gate.
 
-## Implemented through 0.1 foundation
+## Implemented through 0.2 Identity and Organization
 
 - modular Java/Spring server foundation, PostgreSQL/Flyway, OIDC resource-server security;
 - trusted tenant context and tenant-scoped commercial entitlement/limit/usage model;
 - signed-offline-license verification primitives and audit foundation;
-- React/TypeScript/Vite client foundation, reference infrastructure, CI, dependency scanning, and proprietary commercial repository controls.
+- global external-identity-backed users and tenant memberships;
+- persisted system/custom RBAC, tenant/branch assignments, last-owner protection, and current-identity authorization;
+- revocable platform sessions and authentication-assurance reporting;
+- tenant branches and organization defaults;
+- authenticated React administration for identity, roles, organization, passkeys/OTP, and sessions;
+- CI, dependency scanning, proprietary commercial repository controls, and reference deployment infrastructure.
 
-## Implemented for 0.2 Identity and Organization
+## Implemented for 0.3 Academic Core
 
-### Identity
+### Academics
 
-- global external-identity-backed user accounts;
-- tenant memberships with active/suspended/ended lifecycle;
-- a person can hold multiple simultaneous roles;
-- persisted built-in role catalog and custom roles;
-- persisted permission grants and tenant/branch role assignment scopes;
-- permission-based authorization service with no commercial plan-name checks;
-- platform-super-admin controlled first-owner bootstrap;
-- last-active-organization-owner lockout protection;
-- paginated membership, role, role-assignment, and session APIs;
-- current identity/permission endpoint;
-- observed OIDC sessions with self/admin revocation and audit events;
-- authentication-assurance extraction from signed `acr`/`amr` claims.
+- tenant-owned academic periods with planned/active/closed/archived lifecycle;
+- optional period-bound academic programs with active/inactive/archived lifecycle;
+- code uniqueness, date validation, optimistic concurrency, and audit events;
+- explicit public read-only academic directory for other modules.
 
-### Organization
+### Curriculum
 
-- tenant branches with unique tenant-local code, lifecycle, timezone, and optimistic concurrency;
-- organization defaults for timezone, locale, first weekday, and support contact;
-- tenant-scoped branch queries and database constraints preventing foreign-tenant relationships.
+- courses that may belong to a program or stand alone;
+- subjects that may belong to a course or stand alone;
+- curriculum modules that may attach to one program, course, or subject, or stand alone;
+- database and service constraints preventing multiple simultaneous direct module parents;
+- tenant-scoped list/filter/create/update APIs with optimistic concurrency;
+- explicit public read-only curriculum directory rather than cross-module repository access.
 
-### Strong authentication and web administration
+### Enrollment and teaching
 
-- reference Keycloak realm configured for Authorization Code + PKCE, TOTP, WebAuthn/passwordless passkeys, and tenant claim mapping;
-- authenticated React administration workspace for people, custom roles, branches, organization settings, passkey/OTP enrollment, identity account management, and platform-session revocation;
-- bearer tokens remain in the Keycloak adapter's runtime lifecycle and business authorization remains server authoritative.
+- batches/cohorts with optional academic-period, program, course, branch, section, date, capacity, and lifecycle metadata;
+- parent-consistency and active-parent validation for batch scheduling;
+- administrative batch visibility separated from general learner curriculum visibility;
+- learner enrollment in exactly one program, course, or batch;
+- active duplicate enrollment prevention and enrollment lifecycle history;
+- pessimistic batch locking around capacity checks so concurrent enrollment cannot oversubscribe the final seat;
+- teacher/evaluator assignment to exactly one program, course, subject, module, or batch;
+- assignment roles for lead teacher, teacher, teaching assistant, mentor, and evaluator;
+- administrative enrollment/assignment views protected by explicit permissions;
+- `/enrollments/me` and `/teacher-assignments/me` self-scope derived from trusted current membership and requiring no tenant-wide roster permission.
+
+### Tenant and database integrity
+
+- composite `(tenant_id, id)` foreign keys across academic period, program, course, subject, module, batch, enrollment, teacher assignment, branch, and membership relationships;
+- database checks for single-target enrollment and single-scope teaching assignment;
+- partial unique indexes that reject active duplicate participation records;
+- append-compatible historical lifecycle rather than destructive record replacement.
+
+### Web product surface
+
+- academic structure workspace for periods, programs, courses, subjects, modules, and authorized batch administration;
+- enrollment and teaching administration workspace;
+- administrator academic-core metrics;
+- learner dashboard backed only by current-member enrollment APIs;
+- teacher/mentor/evaluator dashboard backed only by current-member teaching APIs;
+- OpenAPI 3.1 contract updated for all implemented 0.3 endpoints and permission keys.
 
 ### Verification encoded in the repository
 
-- identity/RBAC integration tests;
-- multi-role teacher+student identity test;
-- unprivileged custom-role denial test;
-- session-revocation integration test;
-- organization cross-tenant isolation test;
-- existing tenant/licensing isolation tests updated for active membership enforcement;
-- Spring Modulith, repository policy, web lint/build, PostgreSQL-backed Maven verification, and OSV dependency scan in CI.
+- academic hierarchy integration tests including cross-tenant parent rejection;
+- enrollment self-scope and batch-capacity integration tests;
+- teacher-assignment self-scope integration tests;
+- existing identity, authorization, organization, tenancy, licensing, and session tests remain part of Maven verification;
+- Spring Modulith, PostgreSQL 18 service CI, web lint/build, repository policy, and OSV dependency gates remain enabled.
 
-## Verification executed here
+## Verification available in this runtime
 
-Passed or inspected locally:
-
-- repository version/policy consistency;
-- `git diff --check`;
-- JSON, XML, and YAML syntax checks;
-- Java source syntax scan to the extent possible without Spring/JPA dependencies;
-- TypeScript strict compiler invocation, which identified and led to correction of a local `RequestInit.signal` exact-optional-property issue;
-- Git object integrity and clean committed-history checks at packaging time.
+The local consolidation pass includes repository version/policy checks, whitespace checks, JSON/XML/YAML parsing, source-level Java syntax diagnostics, TypeScript diagnostics to the extent possible without installed dependencies, Git object integrity, and clean-history checks.
 
 ## Environment-limited qualification
 
-This runtime has JDK 21 and Node.js but no Maven, Docker/Podman, installed project dependencies, or usable dependency-network access. Therefore it cannot truthfully claim:
+This runtime currently has JDK 21 and Node.js but no Maven, Docker/Podman, locally installed project dependencies, or usable dependency-network path for the complete build. Therefore it cannot truthfully claim:
 
 - JDK 25 Maven compilation/test success;
 - Flyway execution against PostgreSQL 18;
-- Spring application boot against the production database engine;
-- dependency-backed React/Keycloak/TanStack TypeScript/Vite build;
-- online OSV vulnerability resolution;
+- Spring application boot against PostgreSQL 18;
+- dependency-backed React/Keycloak/TanStack lint and Vite production build;
+- online OSV dependency resolution;
 - complete CI success.
 
-For that reason no `v0.2.0.0` release tag is created here. The repository stays `0.2.0.0-SNAPSHOT` until those gates pass on the required toolchain.
+For that reason no `v0.3.0.0` release tag is created here. The repository remains `0.3.0.0-SNAPSHOT` until those gates pass on the required toolchain.
 
 ## Next roadmap milestone after qualification
 
-`0.3.0.0` — Academic Core: academic periods, programs, courses, subjects, modules, batches, enrollments, teacher assignments, and role-specific dashboards.
+`0.4.0.0` — Scheduling and Communication: calendar, recurrence, classes, conflicts, announcements, in-app notifications, email, notification preferences, and the universal Today dashboard.

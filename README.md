@@ -5,19 +5,21 @@ The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION
 
 ## Current milestone
 
-`0.2.0.0-SNAPSHOT` — Identity and Organization.
+`0.3.0.0-SNAPSHOT` — Academic Core.
 
-The identity/organization milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
+The academic-core milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
 
 
-## Implemented identity and organization capabilities
+## Implemented through Academic Core
 
-- OIDC-backed users and tenant memberships with simultaneous multi-role identity.
-- Persisted system/custom RBAC roles, permission grants, and branch-scoped assignments.
-- Last-owner lockout protection and tenant-aware database foreign keys.
-- Revocable platform session observations and authentication-assurance reporting.
-- Tenant branches and organization defaults with optimistic concurrency.
-- Authenticated web administration for people, roles, organization, passkeys/OTP, and sessions.
+- OIDC-backed multi-tenant identity, memberships, RBAC, branches, organization settings, session revocation, and strong-authentication integration.
+- Flexible academic periods and programs without forcing every organization into one fixed hierarchy.
+- Courses, subjects, and modules with explicit domain boundaries and optional parent relationships.
+- Batches/cohorts with branch and academic references, lifecycle, capacity, and concurrency-safe seat allocation.
+- Learner enrollments with exactly-one-target integrity, lifecycle history, duplicate prevention, and self-scoped learner APIs.
+- Teacher/evaluator assignments with exactly-one-scope integrity and self-scoped teaching APIs.
+- Role-aware web dashboards plus academic, curriculum, enrollment, and teaching-administration workspaces.
+- PostgreSQL tenant-aware composite foreign keys across academic relationships and optimistic concurrency on editable records.
 
 ## Repository layout
 
@@ -53,7 +55,7 @@ The identity/organization milestone is implemented in source and intentionally r
 
 ```bash
 mvn -f apps/platform-server/pom.xml verify
-npm --prefix apps/web ci
+npm --prefix apps/web install --ignore-scripts
 npm --prefix apps/web run build
 ```
 
