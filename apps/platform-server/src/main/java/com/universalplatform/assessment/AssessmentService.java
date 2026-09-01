@@ -12,7 +12,7 @@ import java.time.Clock; import java.time.Instant; import java.util.*;
 import org.springframework.data.domain.PageRequest; import org.springframework.data.domain.Sort; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class AssessmentService {
+public class AssessmentService implements AssessmentReadDirectory {
  private final TenantContext tenantContext; private final ActorContext actorContext; private final AuthorizationService auth; private final MembershipDirectory memberships; private final EnrollmentDirectory enrollment; private final QuestionBankDirectory questionBank; private final AssessmentRepository assessments; private final AssessmentVersionRepository versions; private final AssessmentQuestionRepository questions; private final AssessmentBatchRepository batches; private final AttemptRepository attempts; private final AnswerRepository answers; private final AuditService audit; private final Clock clock=Clock.systemUTC();
  AssessmentService(TenantContext tenantContext,ActorContext actorContext,AuthorizationService auth,MembershipDirectory memberships,EnrollmentDirectory enrollment,QuestionBankDirectory questionBank,AssessmentRepository assessments,AssessmentVersionRepository versions,AssessmentQuestionRepository questions,AssessmentBatchRepository batches,AttemptRepository attempts,AnswerRepository answers,AuditService audit){this.tenantContext=tenantContext;this.actorContext=actorContext;this.auth=auth;this.memberships=memberships;this.enrollment=enrollment;this.questionBank=questionBank;this.assessments=assessments;this.versions=versions;this.questions=questions;this.batches=batches;this.attempts=attempts;this.answers=answers;this.audit=audit;}
  @Transactional(readOnly=true) public PageResult<AssessmentView> list(int page,int size){auth.require(PermissionKey.ASSESSMENTS_VIEW);var p=assessments.findAllByTenantId(tenantContext.requireTenantId(),PageRequest.of(Math.max(0,page),Math.min(Math.max(1,size),100),Sort.by(Sort.Direction.DESC,"createdAt","id")));return new PageResult<>(p.getContent().stream().map(this::view).toList(),p.getNumber(),p.getSize(),p.getTotalElements(),p.getTotalPages());}
@@ -30,6 +30,39 @@ public class AssessmentService {
  private Assessment requireAssessment(UUID t,UUID id){return assessments.findByTenantIdAndId(t,id).orElseThrow(()->new IllegalArgumentException("Assessment not found"));} private Attempt requireAttempt(UUID t,UUID id){Attempt a=attempts.findByTenantIdAndId(t,id).orElseThrow(()->new IllegalArgumentException("Attempt not found"));if(!a.membershipId().equals(memberships.current().membershipId())&&!auth.has(PermissionKey.ASSESSMENTS_MANAGE))throw new SecurityException("Attempt is not visible to the current user");return a;}
  private void ensureAttemptOpen(Attempt a){Instant now=clock.instant();if(a.status()!=AttemptStatus.IN_PROGRESS)throw new IllegalStateException("Attempt is no longer writable");if(now.isAfter(a.expiresAt())){a.submit(now,AttemptStatus.EXPIRED);throw new IllegalStateException("Assessment attempt has expired");}}
  private AssessmentView view(Assessment a){return new AssessmentView(a.id(),a.title(),a.status(),a.version());} private AssessmentVersionView versionView(AssessmentVersion v){return new AssessmentVersionView(v.id(),v.assessmentId(),v.versionNumber(),v.durationSeconds(),v.maxAttempts(),v.totalMarks(),v.passMarks(),v.shuffleQuestions(),v.allowBacktracking(),v.availableFrom(),v.availableUntil());} private AttemptView attemptView(Attempt a,AssessmentVersion v){return new AttemptView(a.id(),a.assessmentVersionId(),a.attemptNumber(),a.status(),a.startedAt(),a.expiresAt(),a.submittedAt(),v.durationSeconds(),v.allowBacktracking());} private AnswerView answerView(Answer a){return new AnswerView(a.id(),a.assessmentQuestionId(),a.serverSequence(),a.savedAt());}
+ @Override
+ @Transactional(readOnly=true)
+ public AssessmentReadDirectory.SubmittedAttempt requireSubmittedAttempt(UUID tenantId, UUID attemptId) {
+  var a=attempts.findByTenantIdAndId(tenantId,attemptId).orElseThrow(()->new IllegalArgumentException("Attempt not found"));
+  var v=versions.findByTenantIdAndId(tenantId,a.assessmentVersionId()).orElseThrow(()->new IllegalArgumentException("Assessment version not found"));
+  boolean submitted=a.status()==AttemptStatus.SUBMITTED||a.status()==AttemptStatus.EXPIRED;
+  return new AssessmentReadDirectory.SubmittedAttempt(a.id(),a.membershipId(),v.totalMarks(),v.passMarks(),submitted);
+ }
+ @Override
+ @Transactional(readOnly=true)
+ public boolean attemptBelongsToMembership(UUID tenantId, UUID attemptId, UUID membershipId) { return attempts.findByTenantIdAndId(tenantId,attemptId).map(a->a.membershipId().equals(membershipId)).orElse(false); }
+ @Override
+ @Transactional(readOnly=true)
+ public AssessmentReadDirectory.AnswerSnapshot answerById(UUID tenantId, UUID answerId) {
+  var x=answers.findByTenantIdAndId(tenantId,answerId).orElseThrow(()->new IllegalArgumentException("Answer not found"));
+  var a=attempts.findByTenantIdAndId(tenantId,x.attemptId()).orElseThrow(()->new IllegalArgumentException("Attempt not found"));
+  var q=questions.findByTenantIdAndId(tenantId,x.assessmentQuestionId()).orElseThrow(()->new IllegalArgumentException("Assessment question not found"));
+  var ref=questionBank.requireQuestionVersion(q.questionVersionId());
+  return new AssessmentReadDirectory.AnswerSnapshot(x.id(),a.id(),q.id(),ref.type(),x.payloadJson(),ref.payloadJson(),q.marks(),ref.negativeMarks());
+ }
+ @Override
+ @Transactional(readOnly=true)
+ public List<AssessmentReadDirectory.AnswerSnapshot> answersForAttempt(UUID tenantId, UUID attemptId) {
+  attempts.findByTenantIdAndId(tenantId,attemptId).orElseThrow(()->new IllegalArgumentException("Attempt not found"));
+  return answers.findAllByTenantIdAndAttemptIdOrderByServerSequenceAsc(tenantId,attemptId).stream().map(x->answerById(tenantId,x.id())).toList();
+ }
+
  private static void validateWindow(Instant from,Instant until){if(from==null||until==null||!from.isBefore(until))throw new IllegalArgumentException("Assessment availability window is invalid");}
+ @Transactional(readOnly=true)
+ public PageResult<AttemptAdminView> listAttempts(UUID assessmentVersionId,int page,int size){auth.require(PermissionKey.ASSESSMENTS_MANAGE);UUID tid=tenantContext.requireTenantId();versions.findByTenantIdAndId(tid,assessmentVersionId).orElseThrow(()->new IllegalArgumentException("Assessment version not found"));var p=attempts.findAllByTenantIdAndAssessmentVersionId(tid,assessmentVersionId,PageRequest.of(Math.max(0,page),Math.min(Math.max(1,size),100),Sort.by(Sort.Direction.DESC,"startedAt","id")));return new PageResult<>(p.getContent().stream().map(this::adminAttemptView).toList(),p.getNumber(),p.getSize(),p.getTotalElements(),p.getTotalPages());}
+ @Transactional(readOnly=true)
+ public PageResult<AttemptAdminView> listMyAttempts(int page,int size){auth.require(PermissionKey.ASSESSMENTS_TAKE);UUID tid=tenantContext.requireTenantId();var m=memberships.current();var p=attempts.findAllByTenantIdAndMembershipId(tid,m.membershipId(),PageRequest.of(Math.max(0,page),Math.min(Math.max(1,size),100),Sort.by(Sort.Direction.DESC,"startedAt","id")));return new PageResult<>(p.getContent().stream().map(this::adminAttemptView).toList(),p.getNumber(),p.getSize(),p.getTotalElements(),p.getTotalPages());}
+ private AttemptAdminView adminAttemptView(Attempt a){return new AttemptAdminView(a.id(),a.assessmentVersionId(),a.membershipId(),a.attemptNumber(),a.status(),a.startedAt(),a.expiresAt(),a.submittedAt());}
+ public record AttemptAdminView(UUID id,UUID assessmentVersionId,UUID membershipId,int attemptNumber,AttemptStatus status,Instant startedAt,Instant expiresAt,Instant submittedAt){}
  public record PageResult<T>(List<T> items,int page,int size,long totalElements,int totalPages){} public record AssessmentView(UUID id,String title,AssessmentStatus status,long version){} public record AssessmentVersionView(UUID id,UUID assessmentId,int versionNumber,Integer durationSeconds,Integer maxAttempts,Integer totalMarks,Integer passMarks,boolean shuffleQuestions,boolean allowBacktracking,Instant availableFrom,Instant availableUntil){} public record AssignmentView(UUID assessmentVersionId,UUID batchId){} public record AttemptView(UUID id,UUID assessmentVersionId,int attemptNumber,AttemptStatus status,Instant startedAt,Instant expiresAt,Instant submittedAt,Integer durationSeconds,boolean allowBacktracking){} public record AnswerView(UUID id,UUID assessmentQuestionId,long serverSequence,Instant savedAt){} public record PacketQuestion(UUID id,int ordinal,int marks,UUID questionVersionId,com.universalplatform.questionbank.QuestionType type,String title,String difficulty,String payloadJson){} public record AssessmentPacket(AssessmentVersionView version,List<PacketQuestion> questions){} public record VersionCommand(Integer durationSeconds,int maxAttempts,int totalMarks,int passMarks,boolean shuffleQuestions,boolean allowBacktracking,Instant availableFrom,Instant availableUntil,String settingsJson){}
 }

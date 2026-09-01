@@ -105,11 +105,11 @@ This runtime currently has JDK 21 and Node.js but no Maven, Docker/Podman, local
 - online OSV dependency resolution;
 - complete CI success.
 
-For that reason no `v0.5.0.0` release tag is created here. The repository remains `0.5.0.0-SNAPSHOT` until those gates pass on the required toolchain.
+For that reason no stable `v0.7.0.0` release tag is created here. The repository remains `0.7.0.0-SNAPSHOT` until those gates pass on the required toolchain.
 
 ## Next roadmap milestone after qualification
 
-`0.6.0.0-SNAPSHOT` — Assessment Core: question bank, immutable question versions, exam construction, batch assignment, server-timed attempts, idempotent autosave/submission, assessment packet API, and the first web assessment workspace. Objective grading and academic review remain in 0.7.0.0.
+`0.7.0.0-SNAPSHOT` — Grading and Academic Review: immutable grade revisions, objective grading, teacher overrides, result publication, academic challenge/review cases, discussion, answer revisions, impact analysis, review-driven regrading, and learner/grader web workflows.
 
 ## 0.5 learning-content additions
 

@@ -5,12 +5,12 @@ The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION
 
 ## Current milestone
 
-`0.5.0.0-SNAPSHOT` — Learning Content.
+`0.7.0.0-SNAPSHOT` — Grading and Academic Review.
 
 The learning-content milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
 
 
-## Implemented through Learning Content
+## Implemented through Grading and Academic Review
 
 - OIDC-backed multi-tenant identity, memberships, RBAC, branches, organization settings, session revocation, and strong-authentication integration.
 - Flexible academic periods and programs without forcing every organization into one fixed hierarchy.
@@ -29,6 +29,10 @@ The learning-content milestone is implemented in source and intentionally remain
 - Local, S3-compatible, Google Drive and Shared Drive storage adapters with server-owned provider locators.
 - Server-side visibility/download policies, release/expiry windows, and tenant retention configuration.
 - Authenticated Learning Content workspace for authoring, uploading and browsing resources.
+- Immutable system/teacher/reconciliation grade revisions, result publication, objective grading, and bounded teacher overrides.
+- Academic review cases with discussion, answer-revision proposals/decisions, impact analysis, and review-driven regrading.
+- Learner results/review and teacher/evaluator grading/reconciliation workspaces in the first-class web application.
+- Stable grading/review APIs kept independent of the web client for future native applications.
 
 ## Repository layout
 

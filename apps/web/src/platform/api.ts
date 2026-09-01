@@ -36,6 +36,11 @@ export type PermissionKey =
   | 'ASSESSMENTS_VIEW'
   | 'ASSESSMENTS_MANAGE'
   | 'ASSESSMENTS_TAKE'
+  | 'GRADING_VIEW'
+  | 'GRADING_MANAGE'
+  | 'REVIEW_VIEW'
+  | 'REVIEW_SUBMIT'
+  | 'REVIEW_MANAGE'
   | 'AUDIT_VIEW'
 
 export interface AuthenticationAssurance {
@@ -657,3 +662,34 @@ export function startAttempt(versionId: string): Promise<AttemptView> { return r
 export function getAttempt(attemptId: string): Promise<AttemptView> { return request(`/api/v1/attempts/${attemptId}`) }
 export function autosaveAnswer(attemptId: string, questionId: string, payloadJson: string, idempotencyKey: string, clientSequence: number): Promise<AnswerView> { return request(`/api/v1/attempts/${attemptId}/answers/${questionId}`, { method: 'PUT', body: JSON.stringify({ payloadJson, idempotencyKey, clientSequence }) }) }
 export function submitAttempt(attemptId: string): Promise<AttemptView> { return request(`/api/v1/attempts/${attemptId}/submit`, { method: 'POST' }) }
+
+export interface AttemptAdminView { id:string; assessmentVersionId:string; membershipId:string; attemptNumber:number; status:AttemptStatus; startedAt:string; expiresAt:string; submittedAt?:string }
+export interface AttemptGrade { attemptId:string; gradeRevisionId:string; revisionNumber:number; awardedMarks:number; maxMarks:number; passMarks:number; passed:boolean }
+export type GradeRevisionStatus = 'GENERATED'|'PUBLISHED'|'SUPERSEDED'
+export type GradeSource = 'SYSTEM'|'TEACHER'|'RECONCILIATION'|'REGRADE'
+export interface GradeRevisionView { id:string; revisionNumber:number; status:GradeRevisionStatus; source:GradeSource; awardedMarks:number; maxMarks:number; createdAt:string; actorSubject:string }
+export interface GradeItemView { id:string; answerId:string; assessmentQuestionId:string; maxMarks:number; negativeMarks:number; systemScore:number; teacherScore?:number; finalScore:number; explanationJson:string; rubricJson:string; createdAt:string }
+export type ReviewType = 'GRADE_CHALLENGE'|'ANSWER_REVISION'
+export type ReviewStatus = 'OPEN'|'UNDER_REVIEW'|'RESOLVED'|'REJECTED'|'WITHDRAWN'
+export type AnswerRevisionStatus = 'PROPOSED'|'ACCEPTED'|'REJECTED'
+export interface ReviewView { id:string; attemptId:string; membershipId:string; targetAnswerId?:string; type:ReviewType; status:ReviewStatus; subject:string; openingArgument:string; version:number; createdAt:string; updatedAt:string }
+export interface CommentView { id:string; actorSubject:string; body:string; createdAt:string }
+export interface ImpactView { id:string; previousScore:number; projectedScore:number; affectedRule:string; analysisJson:string; createdAt:string }
+export interface AnswerRevisionView { id:string; answerId:string; revisionNumber:number; status:AnswerRevisionStatus; proposedPayloadJson:string; actorSubject:string; createdAt:string }
+export const fetchMyAttempts = () => request<PageResult<AttemptAdminView>>('/api/v1/attempts/me?size=100')
+export const fetchAssessmentAttempts = (versionId:string) => request<PageResult<AttemptAdminView>>(`/api/v1/assessment-versions/${versionId}/attempts?size=100`)
+export const fetchAttemptGrade = (attemptId:string) => request<AttemptGrade>(`/api/v1/attempts/${attemptId}/grade`)
+export const fetchGradeItems = (attemptId:string) => request<GradeItemView[]>(`/api/v1/attempts/${attemptId}/grade-items`)
+export const fetchGradeHistory = (attemptId:string) => request<GradeRevisionView[]>(`/api/v1/attempts/${attemptId}/grade-history`)
+export const gradeAttempt = (attemptId:string,publish=true) => request<AttemptGrade>(`/api/v1/attempts/${attemptId}/grade?publish=${publish}`,{method:'POST'})
+export const overrideGradeItem = (attemptId:string,answerId:string,input:{finalScore:number;explanationJson:string;rubricJson?:string;publish:boolean}) => request<GradeItemView>(`/api/v1/attempts/${attemptId}/grade-items/${answerId}/override`,{method:'POST',body:JSON.stringify(input)})
+export const fetchReviews = (attemptId:string) => request<ReviewView[]>(`/api/v1/attempts/${attemptId}/reviews`)
+export const openReview = (attemptId:string,input:{answerId?:string;type:ReviewType;subject:string;openingArgument:string}) => request<ReviewView>(`/api/v1/attempts/${attemptId}/reviews`,{method:'POST',body:JSON.stringify(input)})
+export const fetchDiscussion = (reviewId:string) => request<CommentView[]>(`/api/v1/reviews/${reviewId}/discussion`)
+export const commentReview = (reviewId:string,body:string) => request<CommentView>(`/api/v1/reviews/${reviewId}/comments`,{method:'POST',body:JSON.stringify({body})})
+export const analyzeReviewImpact = (reviewId:string) => request<ImpactView>(`/api/v1/reviews/${reviewId}/impact-analysis`,{method:'POST'})
+export const fetchAnswerRevisions = (reviewId:string) => request<AnswerRevisionView[]>(`/api/v1/reviews/${reviewId}/answer-revisions`)
+export const proposeAnswerRevision = (reviewId:string,answerId:string,payloadJson:string) => request<AnswerRevisionView>(`/api/v1/reviews/${reviewId}/answer-revisions`,{method:'POST',body:JSON.stringify({answerId,payloadJson})})
+export const decideAnswerRevision = (revisionId:string,status:AnswerRevisionStatus) => request<AnswerRevisionView>(`/api/v1/answer-revisions/${revisionId}/decide`,{method:'POST',body:JSON.stringify({status})})
+export const resolveReview = (reviewId:string,status:ReviewStatus) => request<ReviewView>(`/api/v1/reviews/${reviewId}/resolve`,{method:'POST',body:JSON.stringify({status})})
+export const regradeReview = (reviewId:string,publish=true) => request<AttemptGrade>(`/api/v1/reviews/${reviewId}/regrade?publish=${publish}`,{method:'POST'})

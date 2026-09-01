@@ -1,0 +1,6 @@
+package com.universalplatform.academicreview;
+import jakarta.persistence.*; import java.time.Instant; import java.util.UUID;
+@Entity @Table(name="review_impact") class ReviewImpact { @Id private UUID id; @Column(nullable=false) private UUID tenantId; @Column(nullable=false) private UUID reviewCaseId; @Column(nullable=false) private int previousScore; @Column(nullable=false) private int projectedScore; @Column(nullable=false) private String affectedRule; @Column(nullable=false,columnDefinition="text") private String analysisJson; @Column(nullable=false) private Instant createdAt;
+ protected ReviewImpact(){} ReviewImpact(UUID id,UUID tenantId,UUID reviewCaseId,int previousScore,int projectedScore,String affectedRule,String analysisJson,Instant createdAt){this.id=id;this.tenantId=tenantId;this.reviewCaseId=reviewCaseId;this.previousScore=previousScore;this.projectedScore=projectedScore;this.affectedRule=affectedRule;this.analysisJson=analysisJson;this.createdAt=createdAt;}
+ UUID id(){return id;} UUID reviewCaseId(){return reviewCaseId;} int previousScore(){return previousScore;} int projectedScore(){return projectedScore;} String affectedRule(){return affectedRule;} String analysisJson(){return analysisJson;} Instant createdAt(){return createdAt;}
+}

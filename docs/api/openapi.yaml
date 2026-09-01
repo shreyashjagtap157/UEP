@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Universal Education Platform API
-  version: 0.6.0.0-SNAPSHOT
+  version: 0.7.0.0-SNAPSHOT
   description: Web-first, tenant-authoritative platform API.
 servers:
 - url: /api/v1
@@ -1530,6 +1530,242 @@ paths:
       operationId: submitAssessmentAttempt
       responses:
         '200': {description: Attempt}
+  /attempts/{attemptId}/grade:
+    post:
+      summary: Generate or publish objective/manual grade for a submitted attempt
+      operationId: gradeAttempt
+      parameters:
+      - $ref: '#/components/parameters/AttemptId'
+      - in: query
+        name: publish
+        schema:
+          type: boolean
+          default: true
+      responses:
+        '200':
+          description: Grade result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptGrade'
+    get:
+      summary: Read the current published grade or grading workspace grade
+      operationId: getAttemptGrade
+      parameters:
+      - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: Grade result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptGrade'
+  /attempts/{attemptId}/grade-history:
+    get:
+      summary: Read immutable grade revision history
+      operationId: getGradeHistory
+      parameters:
+      - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: Grade revision history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GradeRevisionView'
+  /attempts/{attemptId}/grade-revisions/publish:
+    post:
+      summary: Publish the latest grade revision
+      operationId: publishLatestGrade
+      parameters:
+      - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: Published grade
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptGrade'
+  /attempts/{attemptId}/grade-items/{answerId}/override:
+    post:
+      summary: Create an immutable teacher score override revision
+      operationId: overrideGradeItem
+      parameters:
+      - $ref: '#/components/parameters/AttemptId'
+      - $ref: '#/components/parameters/AnswerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GradeOverrideRequest'
+      responses:
+        '200':
+          description: Grade item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GradeItemView'
+  /attempts/{attemptId}/reviews:
+    post:
+      summary: Open an academic review challenge
+      operationId: openReview
+      parameters:
+      - $ref: '#/components/parameters/AttemptId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenReviewRequest'
+      responses:
+        '200':
+          description: Review case
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewView'
+    get:
+      summary: List academic reviews for an attempt
+      operationId: listReviews
+      parameters:
+      - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: Reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReviewView'
+  /reviews/{reviewId}/comments:
+    post:
+      summary: Add a review discussion comment
+      operationId: commentReview
+      parameters:
+      - $ref: '#/components/parameters/ReviewId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentRequest'
+      responses:
+        '200':
+          description: Comment
+  /reviews/{reviewId}/discussion:
+    get:
+      summary: Read review discussion
+      operationId: getReviewDiscussion
+      parameters:
+      - $ref: '#/components/parameters/ReviewId'
+      responses:
+        '200':
+          description: Discussion
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommentView'
+  /reviews/{reviewId}/impact-analysis:
+    post:
+      summary: Project score impact of a proposed answer revision
+      operationId: analyzeReviewImpact
+      parameters:
+      - $ref: '#/components/parameters/ReviewId'
+      responses:
+        '200':
+          description: Impact analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImpactView'
+  /reviews/{reviewId}/answer-revisions:
+    post:
+      summary: Propose an immutable answer revision
+      operationId: proposeAnswerRevision
+      parameters:
+      - $ref: '#/components/parameters/ReviewId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevisionRequest'
+      responses:
+        '200':
+          description: Answer revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerRevisionView'
+    get:
+      summary: List proposed answer revisions
+      operationId: listAnswerRevisions
+      parameters:
+      - $ref: '#/components/parameters/ReviewId'
+      responses:
+        '200':
+          description: Answer revisions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AnswerRevisionView'
+  /answer-revisions/{revisionId}/decide:
+    post:
+      summary: Accept or reject a proposed answer revision
+      operationId: decideAnswerRevision
+      parameters:
+      - $ref: '#/components/parameters/RevisionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevisionDecisionRequest'
+      responses:
+        '200':
+          description: Answer revision
+  /reviews/{reviewId}/resolve:
+    post:
+      summary: Resolve an academic review
+      operationId: resolveReview
+      parameters:
+      - $ref: '#/components/parameters/ReviewId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveReviewRequest'
+      responses:
+        '200':
+          description: Review case
+  /reviews/{reviewId}/regrade:
+    post:
+      summary: Regrade an attempt using accepted answer revisions
+      operationId: regradeReview
+      parameters:
+      - $ref: '#/components/parameters/ReviewId'
+      - in: query
+        name: publish
+        schema:
+          type: boolean
+          default: true
+      responses:
+        '200':
+          description: Regraded result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptGrade'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1561,6 +1797,34 @@ components:
         format: uuid
     SessionId:
       name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AttemptId:
+      name: attemptId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AnswerId:
+      name: answerId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ReviewId:
+      name: reviewId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RevisionId:
+      name: revisionId
       in: path
       required: true
       schema:
@@ -1618,6 +1882,11 @@ components:
       - ASSESSMENTS_VIEW
       - ASSESSMENTS_MANAGE
       - ASSESSMENTS_TAKE
+      - GRADING_VIEW
+      - GRADING_MANAGE
+      - REVIEW_VIEW
+      - REVIEW_SUBMIT
+      - REVIEW_MANAGE
     MembershipStatus:
       type: string
       enum:
@@ -3503,3 +3772,139 @@ components:
             $ref: '#/components/schemas/TodayScheduleItem'
         summary:
           $ref: '#/components/schemas/TodaySummary'
+
+    AttemptGrade:
+      type: object
+      required: [attemptId, gradeRevisionId, revisionNumber, awardedMarks, maxMarks, passMarks, passed]
+      properties:
+        attemptId: *id002
+        gradeRevisionId: *id002
+        revisionNumber:
+          type: integer
+          minimum: 1
+        awardedMarks:
+          type: integer
+        maxMarks:
+          type: integer
+          minimum: 1
+        passMarks:
+          type: integer
+          minimum: 0
+        passed:
+          type: boolean
+    GradeRevisionView:
+      type: object
+      required: [id, revisionNumber, status, source, awardedMarks, maxMarks, createdAt, actorSubject]
+      properties:
+        id: *id002
+        revisionNumber: {type: integer, minimum: 1}
+        status: {type: string, enum: [GENERATED, PUBLISHED, SUPERSEDED]}
+        source: {type: string, enum: [SYSTEM, TEACHER, RECONCILIATION, REGRADE]}
+        awardedMarks: {type: integer}
+        maxMarks: {type: integer, minimum: 1}
+        createdAt: *id001
+        actorSubject: {type: string}
+    GradeItemView:
+      type: object
+      required: [id, assessmentQuestionId, maxMarks, negativeMarks, systemScore, finalScore, explanationJson, rubricJson, createdAt]
+      properties:
+        id: *id002
+        assessmentQuestionId: *id002
+        maxMarks: {type: integer, minimum: 1}
+        negativeMarks: {type: integer, minimum: 0}
+        systemScore: {type: integer}
+        teacherScore: {type: [integer, 'null']}
+        finalScore: {type: integer}
+        explanationJson: {type: string}
+        rubricJson: {type: string}
+        createdAt: *id001
+    GradeOverrideRequest:
+      type: object
+      required: [finalScore, explanationJson, publish]
+      properties:
+        finalScore: {type: integer}
+        explanationJson: {type: string}
+        rubricJson: {type: [string, 'null']}
+        publish: {type: boolean}
+    ReviewType:
+      type: string
+      enum: [GRADE_CHALLENGE, ANSWER_REVISION]
+    ReviewStatus:
+      type: string
+      enum: [OPEN, UNDER_REVIEW, RESOLVED, REJECTED, WITHDRAWN]
+    AnswerRevisionStatus:
+      type: string
+      enum: [PROPOSED, ACCEPTED, REJECTED]
+    ReviewView:
+      type: object
+      required: [id, attemptId, membershipId, type, status, subject, openingArgument, version, createdAt, updatedAt]
+      properties:
+        id: *id002
+        attemptId: *id002
+        membershipId: *id002
+        targetAnswerId: *id010
+        type: {$ref: '#/components/schemas/ReviewType'}
+        status: {$ref: '#/components/schemas/ReviewStatus'}
+        subject: {type: string}
+        openingArgument: {type: string}
+        version: {type: integer, minimum: 0}
+        createdAt: *id001
+        updatedAt: *id001
+    OpenReviewRequest:
+      type: object
+      required: [type, subject, openingArgument]
+      properties:
+        answerId: *id010
+        type: {$ref: '#/components/schemas/ReviewType'}
+        subject: {type: string}
+        openingArgument: {type: string}
+    CommentRequest:
+      type: object
+      required: [body]
+      properties:
+        body: {type: string}
+    CommentView:
+      type: object
+      required: [id, actorSubject, body, createdAt]
+      properties:
+        id: *id002
+        actorSubject: {type: string}
+        body: {type: string}
+        createdAt: *id001
+    ImpactView:
+      type: object
+      required: [id, previousScore, projectedScore, affectedRule, analysisJson, createdAt]
+      properties:
+        id: *id002
+        previousScore: {type: integer}
+        projectedScore: {type: integer}
+        affectedRule: {type: string}
+        analysisJson: {type: string}
+        createdAt: *id001
+    RevisionRequest:
+      type: object
+      required: [answerId, payloadJson]
+      properties:
+        answerId: *id002
+        payloadJson: {type: string}
+    RevisionDecisionRequest:
+      type: object
+      required: [status]
+      properties:
+        status: {$ref: '#/components/schemas/AnswerRevisionStatus'}
+    AnswerRevisionView:
+      type: object
+      required: [id, answerId, revisionNumber, status, proposedPayloadJson, actorSubject, createdAt]
+      properties:
+        id: *id002
+        answerId: *id002
+        revisionNumber: {type: integer, minimum: 1}
+        status: {$ref: '#/components/schemas/AnswerRevisionStatus'}
+        proposedPayloadJson: {type: string}
+        actorSubject: {type: string}
+        createdAt: *id001
+    ResolveReviewRequest:
+      type: object
+      required: [status]
+      properties:
+        status: {$ref: '#/components/schemas/ReviewStatus'}

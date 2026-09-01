@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CurrentIdentity, PermissionKey, QuestionType } from '../platform/api'
 import { autosaveAnswer, createAssessment, createQuestion, fetchAssessmentPacket, fetchAssessmentVersions, fetchAssessments, fetchQuestions, startAttempt, submitAttempt } from '../platform/api'
+import { GradingReviewWorkspace } from './GradingReviewWorkspace'
 
 function has(me: CurrentIdentity, permission: PermissionKey) { return me.permissions.includes(permission) }
 const questionTypes: QuestionType[] = ['SINGLE_MCQ','MULTIPLE_SELECTION','TRUE_FALSE','NUMERIC','FILL_BLANK','SHORT_ANSWER','LONG_ANSWER','ESSAY','MATCHING','ORDERING','FILE_SUBMISSION']
@@ -38,6 +39,8 @@ export function AssessmentWorkspace({ me }: { me: CurrentIdentity }) {
     <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Assessments</p><h3>Examinations</h3></div><span className="count-badge">{assessments.data?.totalElements ?? 0}</span></div>{assessments.isPending ? <p className="muted">Loading…</p> : assessments.isError ? <p className="error-text" role="alert">{assessments.error.message}</p> : <div className="table-wrap"><table><thead><tr><th>Title</th><th>Status</th><th>Version</th><th>Action</th></tr></thead><tbody>{assessments.data?.items.map(a => <AssessmentRow key={a.id} title={a.title} status={a.status} version={a.version} assessmentId={a.id} selectedVersion={selectedVersion} onSelect={setSelectedVersion} />)}</tbody></table></div>}</section>
 
     {selectedVersion && packet.data && <ExamPanel version={packet.data.version} questions={packet.data.questions} activeAttempt={activeAttempt} setActiveAttempt={setActiveAttempt} attemptMutation={attemptMutation} submitMutation={submitMutation} />}
+
+    <GradingReviewWorkspace me={me} />
 
     {selectedVersion && versions.data && <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Version history</p><h3>Assessment versions</h3></div></div><div className="chip-row">{versions.data.map(v => <button key={v.id} className={v.id === selectedVersion ? 'chip active' : 'chip'} onClick={() => setSelectedVersion(v.id)}>v{v.versionNumber} · {v.maxAttempts} attempts · {v.totalMarks} marks</button>)}</div></section>}
   </div>

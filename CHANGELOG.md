@@ -1,6 +1,17 @@
 # Changelog
 
-## 0.6.0.0 — Assessment Core
+## 0.7.0.0-SNAPSHOT — Grading and Academic Review
+
+- Added immutable grade revisions with system, teacher, reconciliation, and regrade sources.
+- Added objective grading for supported question types with explicit negative-mark handling and unanswered-answer neutrality.
+- Added teacher grading overrides with preserved system/final score history, explanations, and rubric metadata.
+- Added result publication and revision history without destructive grade mutation.
+- Added academic review cases for grade challenges and answer revisions.
+- Added discussion/comments, answer-revision decisions, impact analysis, and review-driven regrading.
+- Added tenant-safe grading/review APIs, permissions, database constraints, and audit events.
+- Added learner results/review and teacher/evaluator grading/reconciliation workflows to the web client.
+- Kept assessment rules server-authoritative so future native clients can reuse the same APIs.
+
 
 - Added tenant-scoped question bank with immutable question versions.
 - Added initial 11-question-type model and versioned JSON payloads.
