@@ -11,6 +11,7 @@ import { NotificationWorkspace } from '../notifications/NotificationWorkspace'
 import { ScheduleWorkspace } from '../scheduling/ScheduleWorkspace'
 import { ContentWorkspace } from '../content/ContentWorkspace'
 import { AssessmentWorkspace } from '../assessment/AssessmentWorkspace'
+import { AssignmentWorkspace } from '../assignment/AssignmentWorkspace'
 import {
   createBranch,
   createRole,
@@ -27,7 +28,7 @@ import {
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
 
-type Section = 'overview' | 'assessment' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
+type Section = 'overview' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
 
 const permissionOptions: PermissionKey[] = [
   'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
@@ -38,7 +39,7 @@ const permissionOptions: PermissionKey[] = [
   'SCHEDULE_VIEW', 'SCHEDULE_MANAGE', 'SCHEDULE_CONFLICT_OVERRIDE',
   'ANNOUNCEMENTS_VIEW', 'ANNOUNCEMENTS_MANAGE', 'NOTIFICATION_OPERATIONS_VIEW', 'CONTENT_VIEW', 'CONTENT_MANAGE',
   'ASSESSMENTS_VIEW', 'ASSESSMENTS_MANAGE', 'ASSESSMENTS_TAKE', 'GRADING_VIEW', 'GRADING_MANAGE', 'REVIEW_VIEW', 'REVIEW_SUBMIT', 'REVIEW_MANAGE',
-  'AUDIT_VIEW',
+  'ASSIGNMENTS_VIEW', 'ASSIGNMENTS_MANAGE', 'ASSIGNMENTS_TAKE', 'GRADEBOOK_VIEW', 'GRADEBOOK_MANAGE', 'AUDIT_VIEW',
 ]
 
 export function App() {
@@ -56,6 +57,7 @@ export function App() {
     { id: 'announcements', label: 'Announcements', visible: hasScoped(me, 'ANNOUNCEMENTS_VIEW') },
     { id: 'notifications', label: 'Notifications', visible: true },
     { id: 'assessment', label: 'Assessments', visible: has(me, 'ASSESSMENTS_VIEW') || has(me, 'ASSESSMENTS_TAKE') },
+    { id: 'assignments', label: 'Assignments', visible: has(me, 'ASSIGNMENTS_VIEW') || has(me, 'ASSIGNMENTS_TAKE') || has(me, 'GRADEBOOK_VIEW') },
     { id: 'content', label: 'Learning Content', visible: has(me, 'CONTENT_VIEW') },
     { id: 'academics', label: 'Academics', visible: has(me, 'ACADEMICS_VIEW') || has(me, 'CURRICULUM_VIEW') },
     { id: 'enrollment', label: 'Enrollment', visible: has(me, 'ENROLLMENTS_VIEW') || has(me, 'TEACHING_ASSIGNMENTS_VIEW') },
@@ -100,6 +102,7 @@ export function App() {
         {section === 'announcements' && <AnnouncementWorkspace me={me} />}
         {section === 'notifications' && <NotificationWorkspace />}
         {section === 'assessment' && <AssessmentWorkspace me={me} />}
+        {section === 'assignments' && <AssignmentWorkspace me={me} />}
         {section === 'content' && <ContentWorkspace me={me} />}
         {section === 'academics' && <AcademicWorkspace me={me} />}
         {section === 'enrollment' && <EnrollmentWorkspace me={me} />}

@@ -1,0 +1,3 @@
+package com.universalplatform.assignment;
+import jakarta.persistence.*; import java.time.Instant; import java.util.UUID;
+@Entity @Table(name="assignment_batch") class AssignmentBatch { @Id UUID id; @Column(nullable=false) UUID tenantId; @Column(nullable=false) UUID assignmentId; @Column(nullable=false) UUID batchId; @Column(nullable=false) Instant assignedAt; protected AssignmentBatch(){} AssignmentBatch(UUID id,UUID tenantId,UUID assignmentId,UUID batchId,Instant assignedAt){this.id=id;this.tenantId=tenantId;this.assignmentId=assignmentId;this.batchId=batchId;this.assignedAt=assignedAt;} UUID id(){return id;} UUID tenantId(){return tenantId;} UUID assignmentId(){return assignmentId;} UUID batchId(){return batchId;} }

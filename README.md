@@ -5,7 +5,7 @@ The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION
 
 ## Current milestone
 
-`0.7.0.0-SNAPSHOT` — Grading and Academic Review.
+`0.8.0.0-SNAPSHOT` — Assignments and Gradebook.
 
 The learning-content milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
 

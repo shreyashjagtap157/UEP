@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Universal Education Platform API
-  version: 0.7.0.0-SNAPSHOT
-  description: Web-first, tenant-authoritative platform API.
+  version: 0.8.0.0-SNAPSHOT
+  description: Web-first, tenant-authoritative platform API with assignments and gradebook.
 servers:
 - url: /api/v1
 security:
@@ -1887,6 +1887,11 @@ components:
       - REVIEW_VIEW
       - REVIEW_SUBMIT
       - REVIEW_MANAGE
+      - ASSIGNMENTS_VIEW
+      - ASSIGNMENTS_MANAGE
+      - ASSIGNMENTS_TAKE
+      - GRADEBOOK_VIEW
+      - GRADEBOOK_MANAGE
     MembershipStatus:
       type: string
       enum:

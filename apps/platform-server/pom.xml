@@ -11,7 +11,7 @@
 
   <groupId>com.universalplatform</groupId>
   <artifactId>platform-server</artifactId>
-  <version>0.7.0.0-SNAPSHOT</version>
+  <version>0.8.0.0-SNAPSHOT</version>
   <name>platform-server</name>
   <description>Control plane for the Universal Education Platform</description>
 

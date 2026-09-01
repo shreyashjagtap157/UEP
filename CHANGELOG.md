@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0.0-SNAPSHOT — Assignments and Gradebook
+
+- Added tenant-scoped assignments with lifecycle, due dates, weighted grading and batch assignment.
+- Added draft, submitted, resubmitted and withdrawn assignment submission states with explicit late-submission tracking.
+- Added rubric storage and rubric score payloads on graded submissions.
+- Added optimistic concurrency and immutable submitted work semantics.
+- Added weighted Gradebook projections and learner progress APIs.
+- Added web-first assignment authoring, submission, grading and gradebook workflows.
+- Added assignment/gradebook permission contracts, migration hardening and architecture documentation.
+
 ## 0.7.0.0-SNAPSHOT — Grading and Academic Review
 
 - Added immutable grade revisions with system, teacher, reconciliation, and regrade sources.
