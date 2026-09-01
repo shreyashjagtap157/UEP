@@ -33,6 +33,9 @@ export type PermissionKey =
   | 'NOTIFICATION_OPERATIONS_VIEW'
   | 'CONTENT_VIEW'
   | 'CONTENT_MANAGE'
+  | 'ASSESSMENTS_VIEW'
+  | 'ASSESSMENTS_MANAGE'
+  | 'ASSESSMENTS_TAKE'
   | 'AUDIT_VIEW'
 
 export interface AuthenticationAssurance {
@@ -629,3 +632,28 @@ export const initiateUpload = (input:{fileName:string;contentType:string;expecte
 export async function uploadChunk(id:string, offset:number, bytes:Blob):Promise<UploadView>{ const token=await accessToken(); const response=await fetch(`/api/v1/uploads/${id}/content`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/octet-stream','Content-Length':String(bytes.size),'Upload-Offset':String(offset)},body:bytes}); if(!response.ok)throw new Error(`Upload failed (${response.status})`); return response.json() as Promise<UploadView> }
 export const completeUpload = (id:string) => request<StorageView>(`/api/v1/uploads/${id}/complete`,{method:'POST'})
 export const createFileResource = (input:{title:string;description?:string;kind:ResourceKind;storageObjectId:string;changeNote?:string;courseId?:string;language?:string;visibility:ResourceVisibility;downloadPolicy:DownloadPolicy}) => request<LearningResourceView>('/api/v1/resources/file',{method:'POST',body:JSON.stringify(input)})
+
+export type QuestionType = 'SINGLE_MCQ' | 'MULTIPLE_SELECTION' | 'TRUE_FALSE' | 'NUMERIC' | 'FILL_BLANK' | 'SHORT_ANSWER' | 'LONG_ANSWER' | 'ESSAY' | 'MATCHING' | 'ORDERING' | 'FILE_SUBMISSION'
+export type AssessmentStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED'
+export type AttemptStatus = 'IN_PROGRESS' | 'SUBMITTED' | 'EXPIRED' | 'CANCELLED'
+export interface QuestionVersionView { id: string; versionNumber: number; type: QuestionType; difficulty: string; language?: string; payloadJson: string; positiveMarks: number; negativeMarks: number; createdAt: string }
+export interface QuestionView { id: string; title: string; status: 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'RETIRED'; version: number; latestVersion: QuestionVersionView }
+export interface AssessmentView { id: string; title: string; status: AssessmentStatus; version: number }
+export interface AssessmentVersionView { id: string; assessmentId: string; versionNumber: number; durationSeconds?: number; maxAttempts: number; totalMarks: number; passMarks: number; shuffleQuestions: boolean; allowBacktracking: boolean; availableFrom: string; availableUntil: string }
+export interface AttemptView { id: string; assessmentVersionId: string; attemptNumber: number; status: AttemptStatus; startedAt: string; expiresAt: string; submittedAt?: string; durationSeconds?: number; allowBacktracking: boolean }
+export interface AnswerView { id: string; assessmentQuestionId: string; serverSequence: number; savedAt: string }
+export interface PacketQuestion { id: string; ordinal: number; marks: number; questionVersionId: string; type: QuestionType; title: string; difficulty: string; payloadJson: string }
+export interface AssessmentPacket { version: AssessmentVersionView; questions: PacketQuestion[] }
+
+export const fetchQuestions = () => request<PageResult<QuestionView>>('/api/v1/questions?size=100')
+export const fetchAssessments = () => request<PageResult<AssessmentView>>('/api/v1/assessments?size=100')
+export const fetchAssessmentVersions = (assessmentId: string) => request<AssessmentVersionView[]>(`/api/v1/assessments/${assessmentId}/versions`)
+export const fetchAssessmentPacket = (versionId: string) => request<AssessmentPacket>(`/api/v1/assessment-versions/${versionId}/packet`)
+export function createQuestion(input: { title: string; type: QuestionType; difficulty?: string; language?: string; payloadJson: string; positiveMarks: number; negativeMarks: number }): Promise<QuestionView> { return request('/api/v1/questions', { method: 'POST', body: JSON.stringify(input) }) }
+export function createAssessment(input: { title: string }): Promise<AssessmentView> { return request('/api/v1/assessments', { method: 'POST', body: JSON.stringify(input) }) }
+export function createAssessmentVersion(assessmentId: string, input: { durationSeconds?: number; maxAttempts: number; totalMarks: number; passMarks: number; shuffleQuestions: boolean; allowBacktracking: boolean; availableFrom: string; availableUntil: string; settingsJson?: string }): Promise<AssessmentVersionView> { return request(`/api/v1/assessments/${assessmentId}/versions`, { method: 'POST', body: JSON.stringify(input) }) }
+export function assignAssessmentVersion(versionId: string, batchId: string) { return request(`/api/v1/assessment-versions/${versionId}/batches/${batchId}`, { method: 'POST' }) }
+export function startAttempt(versionId: string): Promise<AttemptView> { return request(`/api/v1/assessment-versions/${versionId}/attempts`, { method: 'POST' }) }
+export function getAttempt(attemptId: string): Promise<AttemptView> { return request(`/api/v1/attempts/${attemptId}`) }
+export function autosaveAnswer(attemptId: string, questionId: string, payloadJson: string, idempotencyKey: string, clientSequence: number): Promise<AnswerView> { return request(`/api/v1/attempts/${attemptId}/answers/${questionId}`, { method: 'PUT', body: JSON.stringify({ payloadJson, idempotencyKey, clientSequence }) }) }
+export function submitAttempt(attemptId: string): Promise<AttemptView> { return request(`/api/v1/attempts/${attemptId}/submit`, { method: 'POST' }) }

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Universal Education Platform API
-  version: 0.5.0.0-SNAPSHOT
+  version: 0.6.0.0-SNAPSHOT
   description: Web-first, tenant-authoritative platform API.
 servers:
 - url: /api/v1
@@ -1438,6 +1438,98 @@ paths:
       summary: Update tenant learning-content retention policy
       responses:
         '200': {description: Retention policy updated}
+  /questions:
+    get:
+      summary: List tenant question-bank entries
+      operationId: listQuestions
+      responses:
+        '200': {description: Question page}
+    post:
+      summary: Create a versioned question
+      operationId: createQuestion
+      responses:
+        '200': {description: Question}
+  /questions/{id}/versions:
+    get:
+      summary: List immutable question versions
+      operationId: listQuestionVersions
+      responses:
+        '200': {description: Question versions}
+    post:
+      summary: Create a new immutable question version
+      operationId: createQuestionVersion
+      responses:
+        '200': {description: Question}
+  /assessments:
+    get:
+      summary: List tenant assessments
+      operationId: listAssessments
+      responses:
+        '200': {description: Assessment page}
+    post:
+      summary: Create an assessment
+      operationId: createAssessment
+      responses:
+        '200': {description: Assessment}
+  /assessments/{id}/versions:
+    get:
+      summary: List assessment versions
+      operationId: listAssessmentVersions
+      responses:
+        '200': {description: Assessment versions}
+    post:
+      summary: Create an assessment version
+      operationId: createAssessmentVersion
+      responses:
+        '200': {description: Assessment version}
+  /assessment-versions/{id}/packet:
+    get:
+      summary: Read the immutable candidate assessment packet
+      operationId: getAssessmentPacket
+      responses:
+        '200': {description: Assessment packet}
+  /assessment-versions/{id}/questions:
+    post:
+      summary: Attach an immutable question version to an assessment version
+      operationId: attachAssessmentQuestion
+      responses:
+        '200': {description: Assessment version}
+  /assessments/{id}/publish:
+    post:
+      summary: Publish the latest assessment version
+      operationId: publishAssessment
+      responses:
+        '200': {description: Published assessment}
+  /assessment-versions/{id}/batches/{batchId}:
+    post:
+      summary: Assign an assessment version to a batch
+      operationId: assignAssessmentToBatch
+      responses:
+        '200': {description: Assignment}
+  /assessment-versions/{id}/attempts:
+    post:
+      summary: Start an assigned server-timed assessment attempt
+      operationId: startAssessmentAttempt
+      responses:
+        '200': {description: Attempt}
+  /attempts/{id}:
+    get:
+      summary: Read the current user's assessment attempt
+      operationId: getAssessmentAttempt
+      responses:
+        '200': {description: Attempt}
+  /attempts/{attemptId}/answers/{assessmentQuestionId}:
+    put:
+      summary: Idempotently autosave an assessment answer
+      operationId: autosaveAssessmentAnswer
+      responses:
+        '200': {description: Answer receipt}
+  /attempts/{id}/submit:
+    post:
+      summary: Submit an assessment attempt
+      operationId: submitAssessmentAttempt
+      responses:
+        '200': {description: Attempt}
 components:
   securitySchemes:
     bearerAuth:
@@ -1523,6 +1615,9 @@ components:
       - NOTIFICATION_OPERATIONS_VIEW
       - CONTENT_VIEW
       - CONTENT_MANAGE
+      - ASSESSMENTS_VIEW
+      - ASSESSMENTS_MANAGE
+      - ASSESSMENTS_TAKE
     MembershipStatus:
       type: string
       enum:

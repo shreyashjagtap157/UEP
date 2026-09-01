@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0.0 — Assessment Core
+
+- Added tenant-scoped question bank with immutable question versions.
+- Added initial 11-question-type model and versioned JSON payloads.
+- Added assessment construction, immutable assessment versions, availability windows and batch assignment.
+- Added server-authoritative attempt timing, attempt limits, idempotent answer autosave and submission.
+- Added tenant-aware assessment integrity constraints and web assessment workspace.
+- Preserved web-first architecture so future native clients consume the same APIs.
+
+
 The project uses `stable.major.minor.patch` product versioning. Snapshot entries describe committed implementation milestones that have not yet passed the full production release qualification gate.
 
 ## 0.5.0.0-SNAPSHOT — Learning Content

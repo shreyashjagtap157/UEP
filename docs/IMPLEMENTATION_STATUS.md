@@ -109,7 +109,7 @@ For that reason no `v0.5.0.0` release tag is created here. The repository remain
 
 ## Next roadmap milestone after qualification
 
-`0.6.0.0` — Assessment Core: question bank, immutable question versions, exam construction, attempts, autosave/submission, objective grading, result policy, and assessment administration.
+`0.6.0.0-SNAPSHOT` — Assessment Core: question bank, immutable question versions, exam construction, batch assignment, server-timed attempts, idempotent autosave/submission, assessment packet API, and the first web assessment workspace. Objective grading and academic review remain in 0.7.0.0.
 
 ## 0.5 learning-content additions
 
