@@ -1,3 +1,13 @@
+# Changelog
+
+## 0.13.0.0-SNAPSHOT - 2026-09-02
+
+### Added
+- learning outcomes, competencies, mappings, learning paths, mastery evidence, and progress tracking;
+- credential templates, issuance, revocation, canonical verification/QR payloads, and public verification;
+- mentoring relationships, first-class survey questions/responses, anonymous response support, and auditable feedback;
+- advanced-academic RBAC permissions, tenant-safe migration V021, web-first administration, and OpenAPI contracts.
+
 ## 0.12.0.0-SNAPSHOT - 2026-09-02
 
 ### Added
@@ -18,8 +28,6 @@
 - quota usage service backed by entitlement limits and daily usage periods;
 - tenant white-label settings and commercial administration APIs;
 - finance and commercialization RBAC permissions and migration V019.
-
-# Changelog
 
 ## 0.10.0.0 — Recording Platform
 

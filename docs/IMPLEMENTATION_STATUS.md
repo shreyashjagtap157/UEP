@@ -134,5 +134,9 @@ Implemented provider-neutral live classrooms, LiveKit token/media integration, s
 Implemented tenant-scoped institution fees, invoice and installment lifecycle, receipt-producing payment capture behind a provider-neutral adapter, SaaS subscription plan/trial/grace controls, quota/usage metering, white-label settings, explicit finance/commercial permissions, tenant-safe foreign keys, and web-ready REST boundaries. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.
 
 
+## 0.13.0.0-SNAPSHOT
+
+Advanced Academic Platform implemented: learning outcomes, competencies, mappings, learning paths, mastery evidence, credential issuance/revocation/public verification, mentoring, survey questions/responses, feedback, web-first administration, tenant-safe migration V021, and synchronized API/RBAC contracts.
+
 ## 0.12.0.0-SNAPSHOT — Analytics and Operations
 Implemented tenant-scoped attendance, assessment, question, recording, finance, usage, and operational analytics; bounded administrative exports; recording/storage forecasting; optimized query indexes; and web-first analytics workspace/API contracts. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.

@@ -67,6 +67,17 @@ export type PermissionKey =
   | 'OPERATIONS_VIEW'
   | 'OPERATIONS_MANAGE'
   | 'AUDIT_VIEW'
+  | 'LEARNING_OUTCOMES_VIEW'
+  | 'LEARNING_OUTCOMES_MANAGE'
+  | 'CREDENTIALS_VIEW'
+  | 'CREDENTIALS_MANAGE'
+  | 'CREDENTIALS_VERIFY'
+  | 'MENTORING_VIEW'
+  | 'MENTORING_MANAGE'
+  | 'SURVEYS_VIEW'
+  | 'SURVEYS_MANAGE'
+  | 'FEEDBACK_VIEW'
+  | 'FEEDBACK_MANAGE'
 
 export interface AuthenticationAssurance {
   acr: string
@@ -827,3 +838,23 @@ async function apiGetText(path: string): Promise<string> {
   if (!response.ok) throw new Error(await response.text())
   return response.text()
 }
+
+
+export interface LearningOutcomeView { id: string; code: string; name: string; description?: string; status: string; version: number }
+export interface LearningPathView { id: string; code: string; name: string; description?: string; status: string; version: number }
+export interface CredentialTemplateView { id: string; code: string; name: string; description?: string; credentialType: string; version: number }
+export interface CredentialView { id: string; templateId: string; membershipId: string; verificationCode: string; verificationUrl: string; issuedAt: string; status: string; issuerSubject: string; reason: string; qrPayload: string; version: number }
+export interface CredentialVerification { verificationCode: string; templateName: string; recipientName: string; issuedAt: string; status: string; issuerSubject: string; reason: string }
+export interface MentorshipView { id: string; mentorMembershipId: string; menteeMembershipId: string; goal: string; status: string; createdAt: string; updatedAt?: string; version: number }
+export interface SurveyView { id: string; title: string; description?: string; anonymous: boolean; opensAt?: string; closesAt?: string; status: string; version: number }
+export interface FeedbackView { id: string; targetType: string; targetId: string; authorMembershipId: string; rating: number; comments: string; createdAt: string; status: string }
+export const fetchLearningOutcomes = () => request<LearningOutcomeView[]>('/api/v1/learning/outcomes')
+export const createLearningOutcome = (input: { code: string; name: string; description?: string }) => request<LearningOutcomeView>('/api/v1/learning/outcomes', { method: 'POST', body: JSON.stringify(input) })
+export const fetchCredentialTemplates = () => request<CredentialTemplateView[]>('/api/v1/credentials/templates')
+export const createCredentialTemplate = (input: { code: string; name: string; description?: string; credentialType: string }) => request<CredentialTemplateView>('/api/v1/credentials/templates', { method: 'POST', body: JSON.stringify(input) })
+export const issueCredential = (input: { templateId: string; membershipId: string; reason: string; sourceId?: string }) => request<CredentialView>('/api/v1/credentials', { method: 'POST', body: JSON.stringify(input) })
+export const fetchMentoring = () => request<MentorshipView[]>('/api/v1/engagement/mentoring')
+export const createMentorship = (input: { mentorMembershipId: string; menteeMembershipId: string; goal: string }) => request<MentorshipView>('/api/v1/engagement/mentoring', { method: 'POST', body: JSON.stringify(input) })
+export const fetchSurveys = () => request<SurveyView[]>('/api/v1/engagement/surveys')
+export const createSurvey = (input: { title: string; description?: string; anonymous: boolean; opensAt?: string; closesAt?: string }) => request<SurveyView>('/api/v1/engagement/surveys', { method: 'POST', body: JSON.stringify(input) })
+export const submitFeedback = (input: { targetId: string; targetType: string; rating: number; comments: string }) => request<void>('/api/v1/engagement/feedback', { method: 'POST', body: JSON.stringify(input) })

@@ -16,6 +16,7 @@ import { LiveLearningWorkspace } from '../live/LiveLearningWorkspace'
 import { RecordingWorkspace } from '../recording/RecordingWorkspace'
 import { FinanceWorkspace } from '../finance/FinanceWorkspace'
 import { AnalyticsWorkspace } from '../analytics/AnalyticsWorkspace'
+import { AdvancedAcademicWorkspace } from '../advanced/AdvancedAcademicWorkspace'
 import {
   createBranch,
   createRole,
@@ -32,7 +33,7 @@ import {
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
 
-type Section = 'overview' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
+type Section = 'overview' | 'advanced' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
 
 const permissionOptions: PermissionKey[] = [
   'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
@@ -106,6 +107,7 @@ export function App() {
         </header>
 
         {section === 'overview' && <Overview me={me} />}
+        {section === 'advanced' && <AdvancedAcademicWorkspace me={me} />}
         {section === 'analytics' && <AnalyticsWorkspace me={me} />}
         {section === 'schedule' && <ScheduleWorkspace me={me} />}
           {section === 'live' && <LiveLearningWorkspace me={me} />}
