@@ -54,6 +54,8 @@ export type PermissionKey =
   | 'PRESENCE_MANAGE'
   | 'ATTENDANCE_VIEW'
   | 'ATTENDANCE_MANAGE'
+  | 'RECORDINGS_VIEW'
+  | 'RECORDINGS_MANAGE'
   | 'AUDIT_VIEW'
 
 export interface AuthenticationAssurance {
@@ -743,3 +745,17 @@ export const kickLiveParticipant = (id:string,membershipId:string,reason?:string
 export const fetchAttendance = (id:string) => request<AttendanceView[]>(`/api/v1/live-classes/${id}/attendance`)
 export const finalizeAttendance = (id:string) => request<void>(`/api/v1/live-classes/${id}/attendance/finalize`,{method:'POST'})
 export const setAttendance = (id:string,membershipId:string,status:AttendanceView['status'],notes?:string) => request<void>(`/api/v1/live-classes/${id}/attendance/${membershipId}`,{method:'POST',body:JSON.stringify({status,notes})})
+
+export type RecordingQualityPreset = 'ECONOMY' | 'BALANCED' | 'HIGH_QUALITY' | 'SOURCE_ARCHIVE'
+export type RecordingProcessingStatus = 'REQUESTED' | 'STARTING' | 'RECORDING' | 'FINALIZING' | 'READY' | 'ARCHIVING' | 'ARCHIVED' | 'FAILED' | 'DELETED'
+export type RecordingStorageTier = 'HOT' | 'CACHE' | 'ARCHIVE'
+export interface RecordingView { id:string; liveClassId:string; classSessionId:string; qualityPreset:RecordingQualityPreset; status:RecordingProcessingStatus; storageTier:RecordingStorageTier; storageProvider:'LOCAL'|'S3_COMPATIBLE'|'GOOGLE_DRIVE'|'GOOGLE_SHARED_DRIVE'; sizeBytes?:number; durationSeconds?:number; requestedAt:string; startedAt?:string; endedAt?:string; readyAt?:string; archivedAt?:string; failureReason?:string; version:number }
+export interface PlaybackView { streamUrl:string; expiresAt:string; watermarkName:string; watermarkId:string; issuedAt:string }
+export interface RecordingStoragePolicyView { hotCacheDays:number; cacheDays:number; retentionDays?:number; hotProvider:string; cacheProvider:string; archiveProvider:string; deletedObjectGraceDays:number; version:number }
+export const fetchRecordings = () => request<PageResult<RecordingView>>('/api/v1/recordings?size=100')
+export const requestRecording = (liveClassId:string,qualityPreset:RecordingQualityPreset='BALANCED') => request<RecordingView>(`/api/v1/live-classes/${liveClassId}/recordings`,{method:'POST',body:JSON.stringify({qualityPreset})})
+export const fetchRecording = (id:string) => request<RecordingView>(`/api/v1/recordings/${id}`)
+export const stopRecording = (id:string) => request<void>(`/api/v1/recordings/${id}/stop`,{method:'POST'})
+export const issueRecordingPlayback = (id:string) => request<PlaybackView>(`/api/v1/recordings/${id}/playback`,{method:'POST'})
+export const fetchRecordingStoragePolicy = () => request<RecordingStoragePolicyView>('/api/v1/recording-storage-policy')
+export const updateRecordingStoragePolicy = (input:{hotCacheDays:number;cacheDays:number;retentionDays?:number;hotProvider:string;cacheProvider:string;archiveProvider:string;deletedObjectGraceDays:number;expectedVersion:number}) => request<RecordingStoragePolicyView>('/api/v1/recording-storage-policy',{method:'PUT',body:JSON.stringify(input)})

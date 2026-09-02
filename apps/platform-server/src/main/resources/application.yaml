@@ -52,7 +52,7 @@ management:
       application: ${spring.application.name}
 
 platform:
-  version: 0.9.0.0-SNAPSHOT
+  version: 0.10.0.0-SNAPSHOT
   notifications:
     outbox-poll-ms: ${NOTIFICATION_OUTBOX_POLL_MS:1000}
     email:
@@ -90,6 +90,15 @@ platform:
   live-learning:
     livekit:
       url: ${LIVEKIT_URL:ws://localhost:7880}
+      api-url: ${LIVEKIT_API_URL:http://localhost:7880}
       api-key: ${LIVEKIT_API_KEY:devkey}
       api-secret: ${LIVEKIT_API_SECRET:secret}
     heartbeat-timeout-seconds: ${LIVE_CLASS_HEARTBEAT_TIMEOUT_SECONDS:90}
+
+  recording:
+    worker-poll-ms: ${RECORDING_WORKER_POLL_MS:2000}
+    archive-poll-ms: ${RECORDING_ARCHIVE_POLL_MS:60000}
+    retention-poll-ms: ${RECORDING_RETENTION_POLL_MS:3600000}
+    processing-root: ${PLATFORM_RECORDING_PROCESSING_ROOT:./var/recordings}
+    playback-secret: ${PLATFORM_RECORDING_PLAYBACK_SECRET:change-me-in-production}
+    ffmpeg-command: ${PLATFORM_RECORDING_FFMPEG:ffmpeg}

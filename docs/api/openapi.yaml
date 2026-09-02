@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Universal Education Platform API
-  version: 0.9.0.0-SNAPSHOT
-  description: Web-first, tenant-authoritative platform API with live learning, presence, attendance, assignments and gradebook.
+  version: 0.10.0.0-SNAPSHOT
+  description: Web-first, tenant-authoritative platform API with live learning, attendance, recordings, assignments and gradebook.
 servers:
 - url: /api/v1
 security:
@@ -1931,6 +1931,133 @@ paths:
       responses:
         '200': {description: Attendance updated}
 
+  /recordings:
+    get:
+      summary: List recordings visible to the current tenant member
+      operationId: listRecordings
+      parameters:
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Recording page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingPage'
+  /live-classes/{liveClassId}/recordings:
+    post:
+      summary: Request recording of a live classroom
+      operationId: requestRecording
+      parameters:
+      - name: liveClassId
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordingRequest'
+      responses:
+        '200':
+          description: Recording request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingView'
+  /recordings/{id}:
+    get:
+      summary: Read recording processing state
+      operationId: getRecording
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Recording
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingView'
+  /recordings/{id}/stop:
+    post:
+      summary: Stop an active recording
+      operationId: stopRecording
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '202':
+          description: Stop requested
+  /recordings/{id}/playback:
+    post:
+      summary: Issue a short-lived authorized playback URL with dynamic watermark identity
+      operationId: issueRecordingPlayback
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Playback authorization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaybackView'
+  /recordings/{id}/stream:
+    get:
+      summary: Stream an authorized recording asset
+      operationId: streamRecording
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      - name: token
+        in: query
+        required: true
+        schema: {type: string}
+      responses:
+        '200':
+          description: Recording media
+          content:
+            video/mp4:
+              schema: {type: string, format: binary}
+  /recording-storage-policy:
+    get:
+      summary: Read tenant recording storage policy
+      operationId: getRecordingStoragePolicy
+      responses:
+        '200':
+          description: Current recording storage policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingStoragePolicyView'
+    put:
+      summary: Configure recording hot, cache and archive destinations
+      operationId: updateRecordingStoragePolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordingStoragePolicy'
+      responses:
+        '200':
+          description: Updated recording storage policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingStoragePolicyView'
 components:
   securitySchemes:
     bearerAuth:
@@ -2065,6 +2192,85 @@ components:
       - PRESENCE_MANAGE
       - ATTENDANCE_VIEW
       - ATTENDANCE_MANAGE
+      - RECORDINGS_VIEW
+      - RECORDINGS_MANAGE
+    RecordingQualityPreset:
+      type: string
+      enum: [ECONOMY, BALANCED, HIGH_QUALITY, SOURCE_ARCHIVE]
+    RecordingProcessingStatus:
+      type: string
+      enum: [REQUESTED, STARTING, RECORDING, FINALIZING, READY, ARCHIVING, ARCHIVED, FAILED, DELETED]
+    RecordingStorageTier:
+      type: string
+      enum: [HOT, CACHE, ARCHIVE]
+    RecordingView:
+      type: object
+      required: [id, liveClassId, classSessionId, qualityPreset, status, storageTier, storageProvider, requestedAt, version]
+      properties:
+        id: {type: string, format: uuid}
+        liveClassId: {type: string, format: uuid}
+        classSessionId: {type: string, format: uuid}
+        qualityPreset: {$ref: '#/components/schemas/RecordingQualityPreset'}
+        status: {$ref: '#/components/schemas/RecordingProcessingStatus'}
+        storageTier: {$ref: '#/components/schemas/RecordingStorageTier'}
+        storageProvider: {type: string, enum: [LOCAL, S3_COMPATIBLE, GOOGLE_DRIVE, GOOGLE_SHARED_DRIVE]}
+        sizeBytes: {type: integer, format: int64}
+        durationSeconds: {type: integer, format: int64}
+        requestedAt: {type: string, format: date-time}
+        startedAt: {type: string, format: date-time}
+        endedAt: {type: string, format: date-time}
+        readyAt: {type: string, format: date-time}
+        archivedAt: {type: string, format: date-time}
+        failureReason: {type: string}
+        version: {type: integer, format: int64}
+    RecordingPage:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/RecordingView'}}
+        page: {type: integer}
+        size: {type: integer}
+        totalElements: {type: integer, format: int64}
+        totalPages: {type: integer}
+    RecordingRequest:
+      type: object
+      required: [qualityPreset]
+      properties:
+        qualityPreset: {$ref: '#/components/schemas/RecordingQualityPreset'}
+    PlaybackView:
+      type: object
+      required: [streamUrl, expiresAt, watermarkName, watermarkId, issuedAt]
+      properties:
+        streamUrl: {type: string}
+        expiresAt: {type: string, format: date-time}
+        watermarkName: {type: string}
+        watermarkId: {type: string}
+        issuedAt: {type: string, format: date-time}
+    RecordingStoragePolicy:
+      type: object
+      required: [hotCacheDays, cacheDays, hotProvider, cacheProvider, archiveProvider, deletedObjectGraceDays, expectedVersion]
+      properties:
+        hotCacheDays: {type: integer, minimum: 0}
+        cacheDays: {type: integer, minimum: 0}
+        retentionDays: {type: integer, minimum: 1}
+        hotProvider: {type: string, enum: [LOCAL, S3_COMPATIBLE, GOOGLE_DRIVE, GOOGLE_SHARED_DRIVE]}
+        cacheProvider: {type: string, enum: [LOCAL, S3_COMPATIBLE, GOOGLE_DRIVE, GOOGLE_SHARED_DRIVE]}
+        archiveProvider: {type: string, enum: [LOCAL, S3_COMPATIBLE, GOOGLE_DRIVE, GOOGLE_SHARED_DRIVE]}
+        deletedObjectGraceDays: {type: integer, minimum: 0}
+        expectedVersion: {type: integer, format: int64}
+    RecordingStoragePolicyView:
+      type: object
+      required: [hotCacheDays, cacheDays, hotProvider, cacheProvider, archiveProvider, deletedObjectGraceDays, version]
+      properties:
+        hotCacheDays: {type: integer, minimum: 0}
+        cacheDays: {type: integer, minimum: 0}
+        retentionDays: {type: integer, minimum: 1}
+        hotProvider: {type: string, enum: [LOCAL, S3_COMPATIBLE, GOOGLE_DRIVE, GOOGLE_SHARED_DRIVE]}
+        cacheProvider: {type: string, enum: [LOCAL, S3_COMPATIBLE, GOOGLE_DRIVE, GOOGLE_SHARED_DRIVE]}
+        archiveProvider: {type: string, enum: [LOCAL, S3_COMPATIBLE, GOOGLE_DRIVE, GOOGLE_SHARED_DRIVE]}
+        deletedObjectGraceDays: {type: integer, minimum: 0}
+        version: {type: integer, format: int64}
+
     LiveClassView:
       type: object
       required: [id, classSessionId, batchId, roomName, status, attendancePolicy, minimumAttendanceSeconds, attendanceThresholdBasisPoints, lowBandwidth, chatEnabled, version]

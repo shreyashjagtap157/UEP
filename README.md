@@ -5,7 +5,7 @@ The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION
 
 ## Current milestone
 
-`0.9.0.0-SNAPSHOT` — Live Learning and Attendance.
+`0.10.0.0-SNAPSHOT` — Recording Platform.
 
 The learning-content milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
 
@@ -33,6 +33,8 @@ The learning-content milestone is implemented in source and intentionally remain
 - Academic review cases with discussion, answer-revision proposals/decisions, impact analysis, and review-driven regrading.
 - Learner results/review and teacher/evaluator grading/reconciliation workspaces in the first-class web application.
 - Stable grading/review APIs kept independent of the web client for future native applications.
+- Live classrooms with provider-independent media boundaries, LiveKit integration, presence, attendance policies, moderation state, screen sharing, low-bandwidth profiles, and chat.
+- Recording platform with asynchronous LiveKit Egress capture, processing states, quality presets, local/S3/Google storage adapters, hot/cache/archive transitions, retention, signed playback authorization, audit trails, and dynamic web playback watermarks.
 
 ## Repository layout
 
@@ -45,7 +47,7 @@ The learning-content milestone is implemented in source and intentionally remain
 ## Architecture rules
 
 1. The server is authoritative for authorization, tenancy, licensing, grading,
-   academic state, payments, recording access, and audit history.
+   academic state, payments, recording access, storage policy, and audit history.
 2. Modules communicate through explicit APIs/events; repositories are not shared
    across domain-module boundaries.
 3. Commercial capabilities are controlled through entitlements and limits, never

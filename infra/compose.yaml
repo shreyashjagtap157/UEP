@@ -37,9 +37,20 @@ services:
 
   valkey:
     image: valkey/valkey:9.1.1-alpine
-    profiles: ["cache"]
     ports:
       - "6379:6379"
+
+  livekit-egress:
+    image: livekit/egress:v1.13.0
+    depends_on:
+      - livekit
+      - valkey
+    environment:
+      EGRESS_CONFIG: /etc/livekit/egress.yaml
+    command: ["/livekit/egress", "--config", "/etc/livekit/egress.yaml"]
+    volumes:
+      - ./livekit/egress.yaml:/etc/livekit/egress.yaml:ro
+      - ./var/recordings:/recordings
 
 volumes:
   postgres-data:

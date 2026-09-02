@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.0.0 — Recording Platform
+
+- Added asynchronous recording orchestration backed by LiveKit Egress with explicit requested, starting, recording, finalizing, ready, archiving, archived, failed, and deleted states.
+- Added Economy, Balanced, High Quality, and Source Archive recording presets with a provider-neutral media boundary.
+- Added storage lifecycle management across hot, cache, and archive tiers using the existing local, S3-compatible, Google Drive, and Shared Drive adapters.
+- Added recording metadata/assets, SHA-256 integrity values, thumbnails, retention cleanup, storage-policy versioning, audit events, and ready notifications.
+- Added short-lived membership-bound playback authorization and a visible moving identity watermark in the web player.
+- Added recording management/read APIs, tenant storage-policy APIs, web recording workspace, and deployment support for LiveKit Egress plus Valkey.
+
 ## 0.9.0.0 — Live Learning
 
 - Added provider-neutral live-class domain with LiveKit participant token integration.

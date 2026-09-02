@@ -161,3 +161,5 @@ td span { color: #64748b; margin-top: .2rem; }
 .live-chat-log { min-height: 110px; max-height: 240px; overflow: auto; padding: 10px 12px; border: 1px solid var(--border, #d1d5db); border-radius: 12px; }
 .live-chat-log p { margin: 6px 0; }
 .interactive-card { width: 100%; text-align: left; cursor: pointer; }
+
+.recording-player{position:relative;margin-top:1rem}.recording-player video{width:100%;max-height:70vh;background:#000;border-radius:12px}.recording-watermark{position:absolute;padding:.35rem .55rem;border:1px solid rgba(255,255,255,.45);border-radius:6px;background:rgba(0,0,0,.4);color:white;font-size:.78rem;pointer-events:none;text-shadow:0 1px 2px #000}

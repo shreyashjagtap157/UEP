@@ -16,6 +16,8 @@ import {
   leaveLiveClass,
   startLiveClass,
   type LiveClassToken,
+  requestRecording,
+  stopRecording,
 } from '../platform/api'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -69,6 +71,9 @@ function LiveRoom({ me, liveClass, onClose }: { me: CurrentIdentity; liveClass: 
   const [token, setToken] = useState<LiveClassToken | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
+  const [recording, setRecording] = useState<'ECONOMY'|'BALANCED'|'HIGH_QUALITY'|'SOURCE_ARCHIVE'>('BALANCED')
+  const record = useMutation({ mutationFn: () => requestRecording(liveClass.id, recording) })
+  const stopRecordingMutation = useMutation({ mutationFn: stopRecording })
 
   useEffect(() => {
     if (liveClass.status !== 'LIVE') return
@@ -85,6 +90,10 @@ function LiveRoom({ me, liveClass, onClose }: { me: CurrentIdentity; liveClass: 
     <div className="button-row">
       {admin && liveClass.status === 'SCHEDULED' && <button className="primary-button" disabled={start.isPending} onClick={() => start.mutate(liveClass.id)}>Start class</button>}
       {admin && liveClass.status === 'LIVE' && <button className="secondary-button" disabled={end.isPending} onClick={() => end.mutate(liveClass.id)}>End class</button>}
+      {admin && liveClass.status === 'LIVE' && <select aria-label="Recording quality" value={recording} onChange={event => setRecording(event.target.value as typeof recording)}><option value="ECONOMY">Record · Economy</option><option value="BALANCED">Record · Balanced</option><option value="HIGH_QUALITY">Record · High Quality</option><option value="SOURCE_ARCHIVE">Record · Source Archive</option></select>}
+      {admin && liveClass.status === 'LIVE' && <button className="secondary-button" disabled={record.isPending} onClick={() => record.mutate()}>Start recording</button>}
+      {record.isSuccess && <span className="chip">Recording queued</span>}
+      {record.isError && <span className="error-text">{record.error.message}</span>}
     </div>
     {error && <p className="error-text" role="alert">{error}</p>}
     {liveClass.status === 'LIVE' && joining && <p className="muted">Authorizing classroom access…</p>}

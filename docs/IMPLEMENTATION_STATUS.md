@@ -2,9 +2,18 @@
 
 ## Current development version
 
-`0.5.0.0-SNAPSHOT` — Learning Content.
+`0.10.0.0-SNAPSHOT` — Recording Platform.
 
 The source implementation through the 0.5 milestone is integrated across the backend and web application. It remains a snapshot because this execution environment cannot run the complete JDK 25 / Maven / PostgreSQL 18 / dependency-backed web release gate.
+
+## Current milestone — 0.10 Recording Platform
+
+- LiveKit Egress-backed asynchronous recording orchestration with durable processing states and reconciliation.
+- Quality presets: Economy 720p, Balanced 720p, High Quality 1080p, and Source Archive 1080p composite.
+- Provider-independent recording storage using the existing local, S3-compatible, Google Drive, and Shared Drive adapters.
+- Hot/cache/archive lifecycle policy, retention cleanup, recording assets, SHA-256 integrity, thumbnails, and tenant-scoped audit events.
+- Membership-bound five-minute playback authorization with server-side access checks and visible dynamic web watermarking.
+- Recording APIs, storage-policy APIs, web recording workspace, Live Learning recording controls, and LiveKit Egress reference infrastructure.
 
 ## Implemented through 0.3 Academic Core
 

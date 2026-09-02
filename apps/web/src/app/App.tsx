@@ -13,6 +13,7 @@ import { ContentWorkspace } from '../content/ContentWorkspace'
 import { AssessmentWorkspace } from '../assessment/AssessmentWorkspace'
 import { AssignmentWorkspace } from '../assignment/AssignmentWorkspace'
 import { LiveLearningWorkspace } from '../live/LiveLearningWorkspace'
+import { RecordingWorkspace } from '../recording/RecordingWorkspace'
 import {
   createBranch,
   createRole,
@@ -29,7 +30,7 @@ import {
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
 
-type Section = 'overview' | 'live' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
+type Section = 'overview' | 'live' | 'recordings' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
 
 const permissionOptions: PermissionKey[] = [
   'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
@@ -55,6 +56,8 @@ export function App() {
   const nav: Array<{ id: Section; label: string; visible: boolean }> = [
     { id: 'overview', label: 'Today', visible: true },
     { id: 'live', label: 'Live Learning', visible: has(me, 'LIVE_CLASS_VIEW') || has(me, 'LIVE_CLASS_MANAGE') },
+    { id: 'recordings', label: 'Recordings', visible: has(me, 'RECORDINGS_VIEW') || has(me, 'RECORDINGS_MANAGE') },
+    { id: 'recordings', label: 'Recordings', visible: has(me, 'RECORDINGS_VIEW') || has(me, 'RECORDINGS_MANAGE') },
     { id: 'schedule', label: 'Schedule', visible: hasScoped(me, 'SCHEDULE_VIEW') },
     { id: 'announcements', label: 'Announcements', visible: hasScoped(me, 'ANNOUNCEMENTS_VIEW') },
     { id: 'notifications', label: 'Notifications', visible: true },
@@ -102,6 +105,8 @@ export function App() {
         {section === 'overview' && <Overview me={me} />}
         {section === 'schedule' && <ScheduleWorkspace me={me} />}
           {section === 'live' && <LiveLearningWorkspace me={me} />}
+        {section === 'recordings' && <RecordingWorkspace me={me} />}
+        {section === 'recordings' && <RecordingWorkspace me={me} />}
         {section === 'announcements' && <AnnouncementWorkspace me={me} />}
         {section === 'notifications' && <NotificationWorkspace />}
         {section === 'assessment' && <AssessmentWorkspace me={me} />}
