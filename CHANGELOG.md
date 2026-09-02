@@ -1,3 +1,13 @@
+## 0.12.0.0-SNAPSHOT - 2026-09-02
+
+### Added
+- tenant-scoped analytics for attendance, assessments, questions, recordings, finance, usage, and operations;
+- bounded 366-day analytics windows with server-side permission enforcement;
+- recording/storage growth forecasting based on recent authoritative recording data;
+- administrative CSV exports for attendance, assessments, recordings, and finance;
+- optimized analytics indexes in migration V020;
+- analytics/operations RBAC permissions and synchronized web/API contracts.
+
 ## 0.11.0.0-SNAPSHOT - 2026-09-02
 
 ### Added

@@ -61,6 +61,11 @@ export type PermissionKey =
   | 'COMMERCIAL_VIEW'
   | 'COMMERCIAL_MANAGE'
   | 'PAYMENTS_MANAGE'
+  | 'ANALYTICS_VIEW'
+  | 'ANALYTICS_MANAGE'
+  | 'REPORTS_EXPORT'
+  | 'OPERATIONS_VIEW'
+  | 'OPERATIONS_MANAGE'
   | 'AUDIT_VIEW'
 
 export interface AuthenticationAssurance {
@@ -775,3 +780,50 @@ export const fetchFinanceInvoices = () => request<FinanceInvoicePage>('/api/v1/f
 export const createFinanceInvoice = (input:{membershipId:string;totalAmount:number;currency:string;dueOn:string}) => request<FinanceInvoice>('/api/v1/finance/invoices',{method:'POST',body:JSON.stringify(input)})
 export const issueFinanceInvoice = (id:string,expectedVersion:number) => request<FinanceInvoice>(`/api/v1/finance/invoices/${id}/issue`,{method:'POST',body:JSON.stringify({expectedVersion})})
 export const recordFinancePayment = (id:string,input:{amount:number;currency:string}) => request('/api/v1/finance/invoices/'+id+'/payments',{method:'POST',body:JSON.stringify(input)})
+
+
+export interface AnalyticsOverview {
+  from: string
+  to: string
+  activeMemberships: number
+  enrollments: number
+  attendance: { present: number; partial: number; absent: number; excused: number; presentSeconds: number; presentRatePercent: number }
+  assessment: { attempts: number; submitted: number; published: number; passed: number; averagePercent: number }
+  recording: { count: number; totalSeconds: number; totalBytes: number; ready: number; archived: number; failed: number }
+  finance: { invoiced: number; paid: number; outstanding: number; paymentCount: number }
+  usage: { items: { limitKey: string; hardLimit: number; consumed: number }[] }
+}
+
+export interface AnalyticsForecast {
+  generatedAt: string
+  historyDays: number
+  recentBytes: number
+  recentSeconds: number
+  dailyBytes: number
+  dailyMinutes: number
+  projected30DayBytes: number
+  projected365DayBytes: number
+}
+
+export async function getAnalyticsOverview(from?: string, to?: string) {
+  return request<AnalyticsOverview>(`/api/v1/analytics/overview${rangeQuery(from,to)}`)
+}
+export async function getAnalyticsForecast() {
+  return request<AnalyticsForecast>('/api/v1/analytics/forecast')
+}
+export async function exportAnalytics(report: string, from?: string, to?: string) {
+  return apiGetText(`/analytics/exports/${encodeURIComponent(report)}${rangeQuery(from,to)}`)
+}
+function rangeQuery(from?: string, to?: string) {
+  const p = new URLSearchParams()
+  if (from) p.set('from', from)
+  if (to) p.set('to', to)
+  const q=p.toString()
+  return q ? `?${q}` : ''
+}
+async function apiGetText(path: string): Promise<string> {
+  const token = await accessToken()
+  const response = await fetch(`/api/v1${path}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!response.ok) throw new Error(await response.text())
+  return response.text()
+}

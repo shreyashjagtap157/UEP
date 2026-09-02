@@ -57,7 +57,7 @@ class DefaultRoleSeeder {
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
                 PermissionKey.SCHEDULE_VIEW, PermissionKey.SCHEDULE_MANAGE,
                 PermissionKey.ANNOUNCEMENTS_VIEW, PermissionKey.ANNOUNCEMENTS_MANAGE,
-                PermissionKey.CONTENT_VIEW, PermissionKey.ASSESSMENTS_VIEW, PermissionKey.ASSESSMENTS_MANAGE, PermissionKey.ASSIGNMENTS_VIEW, PermissionKey.ASSIGNMENTS_MANAGE, PermissionKey.GRADEBOOK_VIEW, PermissionKey.GRADING_VIEW, PermissionKey.GRADING_MANAGE, PermissionKey.REVIEW_VIEW, PermissionKey.REVIEW_MANAGE, PermissionKey.RECORDINGS_VIEW, PermissionKey.RECORDINGS_MANAGE, PermissionKey.FINANCE_VIEW, PermissionKey.FINANCE_MANAGE, PermissionKey.COMMERCIAL_VIEW, PermissionKey.COMMERCIAL_MANAGE, PermissionKey.PAYMENTS_MANAGE);
+                PermissionKey.CONTENT_VIEW, PermissionKey.ASSESSMENTS_VIEW, PermissionKey.ASSESSMENTS_MANAGE, PermissionKey.ASSIGNMENTS_VIEW, PermissionKey.ASSIGNMENTS_MANAGE, PermissionKey.GRADEBOOK_VIEW, PermissionKey.GRADING_VIEW, PermissionKey.GRADING_MANAGE, PermissionKey.REVIEW_VIEW, PermissionKey.REVIEW_MANAGE, PermissionKey.RECORDINGS_VIEW, PermissionKey.RECORDINGS_MANAGE, PermissionKey.FINANCE_VIEW, PermissionKey.FINANCE_MANAGE, PermissionKey.COMMERCIAL_VIEW, PermissionKey.COMMERCIAL_MANAGE, PermissionKey.PAYMENTS_MANAGE, PermissionKey.OPERATIONS_VIEW);
         Set<PermissionKey> academicAdministrator = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.USERS_VIEW,
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.ACADEMICS_MANAGE,
@@ -80,14 +80,14 @@ class DefaultRoleSeeder {
                 PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW,
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
                 PermissionKey.SCHEDULE_VIEW, PermissionKey.ANNOUNCEMENTS_VIEW, PermissionKey.CONTENT_VIEW,
-                PermissionKey.NOTIFICATION_OPERATIONS_VIEW);
+                PermissionKey.NOTIFICATION_OPERATIONS_VIEW, PermissionKey.OPERATIONS_VIEW);
         Set<PermissionKey> auditor = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
                 PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW,
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
                 PermissionKey.ENROLLMENTS_VIEW, PermissionKey.TEACHING_ASSIGNMENTS_VIEW,
                 PermissionKey.SCHEDULE_VIEW, PermissionKey.ANNOUNCEMENTS_VIEW,
-                PermissionKey.NOTIFICATION_OPERATIONS_VIEW, PermissionKey.CONTENT_VIEW, PermissionKey.AUDIT_VIEW);
+                PermissionKey.NOTIFICATION_OPERATIONS_VIEW, PermissionKey.CONTENT_VIEW, PermissionKey.ANALYTICS_VIEW, PermissionKey.REPORTS_EXPORT, PermissionKey.OPERATIONS_VIEW, PermissionKey.AUDIT_VIEW);
 
         map.put(SystemRoleKey.ORGANIZATION_OWNER, role("Organization Owner", "Full tenant administrative authority.", all));
         map.put(SystemRoleKey.ORGANIZATION_ADMINISTRATOR, role("Organization Administrator", "Tenant-wide administrative authority.", tenantAdministrator));
@@ -96,7 +96,7 @@ class DefaultRoleSeeder {
         map.put(SystemRoleKey.EXAM_CONTROLLER, role("Exam Controller", "Assessment governance identity with assessment construction authority.", EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
                 PermissionKey.ASSESSMENTS_VIEW, PermissionKey.ASSESSMENTS_MANAGE, PermissionKey.ASSIGNMENTS_VIEW, PermissionKey.ASSIGNMENTS_MANAGE, PermissionKey.GRADEBOOK_VIEW, PermissionKey.GRADEBOOK_MANAGE, PermissionKey.GRADING_VIEW, PermissionKey.GRADING_MANAGE, PermissionKey.REVIEW_VIEW, PermissionKey.REVIEW_MANAGE, PermissionKey.SCHEDULE_VIEW, PermissionKey.ANNOUNCEMENTS_VIEW, PermissionKey.CONTENT_VIEW, PermissionKey.LIVE_CLASS_VIEW, PermissionKey.LIVE_CLASS_MANAGE, PermissionKey.LIVE_CLASS_MODERATE, PermissionKey.LIVE_CLASS_CHAT, PermissionKey.PRESENCE_VIEW, PermissionKey.PRESENCE_MANAGE, PermissionKey.ATTENDANCE_VIEW, PermissionKey.ATTENDANCE_MANAGE, PermissionKey.RECORDINGS_VIEW, PermissionKey.RECORDINGS_MANAGE)));
-        map.put(SystemRoleKey.FINANCE_ADMINISTRATOR, role("Finance Administrator", "Finance and tenant commercial administration identity.", EnumSet.of(PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.FINANCE_VIEW, PermissionKey.FINANCE_MANAGE, PermissionKey.PAYMENTS_MANAGE, PermissionKey.COMMERCIAL_VIEW, PermissionKey.COMMERCIAL_MANAGE)));
+        map.put(SystemRoleKey.FINANCE_ADMINISTRATOR, role("Finance Administrator", "Finance and tenant commercial administration identity.", EnumSet.of(PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.FINANCE_VIEW, PermissionKey.FINANCE_MANAGE, PermissionKey.PAYMENTS_MANAGE, PermissionKey.COMMERCIAL_VIEW, PermissionKey.COMMERCIAL_MANAGE, PermissionKey.ANALYTICS_VIEW, PermissionKey.ANALYTICS_MANAGE, PermissionKey.REPORTS_EXPORT, PermissionKey.OPERATIONS_VIEW, PermissionKey.OPERATIONS_MANAGE)));
         map.put(SystemRoleKey.TEACHER, role("Teacher", "Teaching identity with academic catalog visibility; roster access is assignment-scoped.", teacher));
         map.put(SystemRoleKey.EVALUATOR, role("Evaluator", "Assessment evaluator identity with grading and review authority.", EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,

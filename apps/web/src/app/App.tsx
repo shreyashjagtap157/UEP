@@ -15,6 +15,7 @@ import { AssignmentWorkspace } from '../assignment/AssignmentWorkspace'
 import { LiveLearningWorkspace } from '../live/LiveLearningWorkspace'
 import { RecordingWorkspace } from '../recording/RecordingWorkspace'
 import { FinanceWorkspace } from '../finance/FinanceWorkspace'
+import { AnalyticsWorkspace } from '../analytics/AnalyticsWorkspace'
 import {
   createBranch,
   createRole,
@@ -31,7 +32,7 @@ import {
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
 
-type Section = 'overview' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
+type Section = 'overview' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
 
 const permissionOptions: PermissionKey[] = [
   'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
@@ -42,7 +43,7 @@ const permissionOptions: PermissionKey[] = [
   'SCHEDULE_VIEW', 'SCHEDULE_MANAGE', 'SCHEDULE_CONFLICT_OVERRIDE',
   'ANNOUNCEMENTS_VIEW', 'ANNOUNCEMENTS_MANAGE', 'NOTIFICATION_OPERATIONS_VIEW', 'CONTENT_VIEW', 'CONTENT_MANAGE',
   'ASSESSMENTS_VIEW', 'ASSESSMENTS_MANAGE', 'ASSESSMENTS_TAKE', 'GRADING_VIEW', 'GRADING_MANAGE', 'REVIEW_VIEW', 'REVIEW_SUBMIT', 'REVIEW_MANAGE',
-  'ASSIGNMENTS_VIEW', 'ASSIGNMENTS_MANAGE', 'ASSIGNMENTS_TAKE', 'GRADEBOOK_VIEW', 'GRADEBOOK_MANAGE', 'FINANCE_VIEW', 'FINANCE_MANAGE', 'COMMERCIAL_VIEW', 'COMMERCIAL_MANAGE', 'PAYMENTS_MANAGE', 'AUDIT_VIEW',
+  'ASSIGNMENTS_VIEW', 'ASSIGNMENTS_MANAGE', 'ASSIGNMENTS_TAKE', 'GRADEBOOK_VIEW', 'GRADEBOOK_MANAGE', 'FINANCE_VIEW', 'FINANCE_MANAGE', 'COMMERCIAL_VIEW', 'COMMERCIAL_MANAGE', 'PAYMENTS_MANAGE', 'ANALYTICS_VIEW', 'ANALYTICS_MANAGE', 'REPORTS_EXPORT', 'OPERATIONS_VIEW', 'OPERATIONS_MANAGE', 'AUDIT_VIEW',
 ]
 
 export function App() {
@@ -56,6 +57,7 @@ export function App() {
   const me = identity.data
   const nav: Array<{ id: Section; label: string; visible: boolean }> = [
     { id: 'overview', label: 'Today', visible: true },
+    { id: 'analytics', label: 'Analytics & Operations', visible: has(me, 'ANALYTICS_VIEW') },
     { id: 'live', label: 'Live Learning', visible: has(me, 'LIVE_CLASS_VIEW') || has(me, 'LIVE_CLASS_MANAGE') },
     { id: 'recordings', label: 'Recordings', visible: has(me, 'RECORDINGS_VIEW') || has(me, 'RECORDINGS_MANAGE') },
     { id: 'finance', label: 'Finance', visible: has(me, 'FINANCE_VIEW') || has(me, 'FINANCE_MANAGE') },
@@ -104,6 +106,7 @@ export function App() {
         </header>
 
         {section === 'overview' && <Overview me={me} />}
+        {section === 'analytics' && <AnalyticsWorkspace me={me} />}
         {section === 'schedule' && <ScheduleWorkspace me={me} />}
           {section === 'live' && <LiveLearningWorkspace me={me} />}
         {section === 'recordings' && <RecordingWorkspace me={me} />}
@@ -303,4 +306,4 @@ function has(me: CurrentIdentity, permission: PermissionKey) { return me.permiss
 function hasScoped(me: CurrentIdentity, permission: PermissionKey) { return me.permissions.includes(permission) || me.primaryBranchPermissions.includes(permission) }
 function shortId(value: string) { return value.slice(0, 8) }
 function humanize(value: string) { return value.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()) }
-function sectionTitle(section: Section) { return ({ overview: 'Today', live: 'Live Learning', finance: 'Finance', content: 'Learning Content', schedule: 'Schedule', announcements: 'Announcements', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }
+function sectionTitle(section: Section) { return ({ overview: 'Today', analytics: 'Analytics & Operations', live: 'Live Learning', finance: 'Finance', content: 'Learning Content', schedule: 'Schedule', announcements: 'Announcements', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }

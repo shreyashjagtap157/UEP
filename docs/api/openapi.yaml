@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Universal Education Platform API
-  version: 0.11.0.0-SNAPSHOT
-  description: Web-first, tenant-authoritative platform API with live learning, attendance, recordings, finance and commercialization.
+  version: 0.12.0.0-SNAPSHOT
+  description: Web-first, tenant-authoritative platform API with live learning, attendance, recordings, finance, commercialization, analytics and operations.
 servers:
 - url: /api/v1
 security:
@@ -2131,6 +2131,79 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/WhiteLabelRequest'}}}}
       responses: {'200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/WhiteLabelView'}}}}}
 
+  /analytics/overview:
+    get:
+      summary: Tenant operational analytics overview
+      operationId: getAnalyticsOverview
+      parameters:
+      - {$ref: '#/components/parameters/AnalyticsFrom'}
+      - {$ref: '#/components/parameters/AnalyticsTo'}
+      responses:
+        '200': {description: Analytics overview, content: {application/json: {schema: {$ref: '#/components/schemas/AnalyticsOverview'}}}}
+  /analytics/attendance:
+    get:
+      summary: Attendance analytics
+      operationId: getAttendanceAnalytics
+      parameters: [{$ref: '#/components/parameters/AnalyticsFrom'}, {$ref: '#/components/parameters/AnalyticsTo'}]
+      responses:
+        '200': {description: Attendance analytics, content: {application/json: {schema: {$ref: '#/components/schemas/AttendanceAnalytics'}}}}
+  /analytics/assessments:
+    get:
+      summary: Assessment analytics
+      operationId: getAssessmentAnalytics
+      parameters: [{$ref: '#/components/parameters/AnalyticsFrom'}, {$ref: '#/components/parameters/AnalyticsTo'}]
+      responses:
+        '200': {description: Assessment analytics, content: {application/json: {schema: {$ref: '#/components/schemas/AssessmentAnalytics'}}}}
+  /analytics/questions:
+    get:
+      summary: Question-quality analytics
+      operationId: getQuestionAnalytics
+      parameters: [{$ref: '#/components/parameters/AnalyticsFrom'}, {$ref: '#/components/parameters/AnalyticsTo'}]
+      responses:
+        '200': {description: Question analytics, content: {application/json: {schema: {$ref: '#/components/schemas/QuestionAnalytics'}}}}
+  /analytics/operations:
+    get:
+      summary: Operational service metrics
+      operationId: getOperationsAnalytics
+      parameters: [{$ref: '#/components/parameters/AnalyticsFrom'}, {$ref: '#/components/parameters/AnalyticsTo'}]
+      responses:
+        '200': {description: Operations analytics, content: {application/json: {schema: {$ref: '#/components/schemas/OperationsAnalytics'}}}}
+  /analytics/usage:
+    get:
+      summary: Tenant entitlement usage
+      operationId: getUsageAnalytics
+      responses:
+        '200': {description: Usage metrics, content: {application/json: {schema: {$ref: '#/components/schemas/UsageAnalytics'}}}}
+  /analytics/forecast:
+    get:
+      summary: Storage and recording usage forecast
+      operationId: getAnalyticsForecast
+      responses:
+        '200': {description: Forecast, content: {application/json: {schema: {$ref: '#/components/schemas/AnalyticsForecast'}}}}
+  /analytics/recordings:
+    get:
+      summary: Recording usage analytics
+      operationId: getRecordingAnalytics
+      parameters: [{$ref: '#/components/parameters/AnalyticsFrom'}, {$ref: '#/components/parameters/AnalyticsTo'}]
+      responses:
+        '200': {description: Recording analytics, content: {application/json: {schema: {$ref: '#/components/schemas/RecordingAnalytics'}}}}
+  /analytics/finance:
+    get:
+      summary: Finance analytics
+      operationId: getFinanceAnalytics
+      parameters: [{$ref: '#/components/parameters/AnalyticsFrom'}, {$ref: '#/components/parameters/AnalyticsTo'}]
+      responses:
+        '200': {description: Finance analytics, content: {application/json: {schema: {$ref: '#/components/schemas/FinanceAnalytics'}}}}
+  /analytics/exports/{report}:
+    get:
+      summary: Export an administrative analytics report as CSV
+      operationId: exportAnalyticsReport
+      parameters:
+      - {name: report, in: path, required: true, schema: {type: string, enum: [attendance, assessments, recordings, finance]}}
+      - {$ref: '#/components/parameters/AnalyticsFrom'}
+      - {$ref: '#/components/parameters/AnalyticsTo'}
+      responses:
+        '200': {description: CSV report, content: {text/csv: {schema: {type: string}}}}
 components:
   securitySchemes:
     bearerAuth:
@@ -2202,7 +2275,65 @@ components:
       schema:
         type: string
         format: uuid
+    AnalyticsFrom:
+      name: from
+      in: query
+      required: false
+      schema: {type: string, format: date-time}
+    AnalyticsTo:
+      name: to
+      in: query
+      required: false
+      schema: {type: string, format: date-time}
   schemas:
+    AttendanceAnalytics:
+      type: object
+      properties: {from: {type: string, format: date-time}, to: {type: string, format: date-time}, attendance: {$ref: '#/components/schemas/AttendanceSummary'}}
+    AttendanceSummary:
+      type: object
+      properties: {present: {type: integer}, partial: {type: integer}, absent: {type: integer}, excused: {type: integer}, presentSeconds: {type: integer}, presentRatePercent: {type: number}}
+    AssessmentAnalytics:
+      type: object
+      properties: {from: {type: string, format: date-time}, to: {type: string, format: date-time}, assessment: {$ref: '#/components/schemas/AssessmentSummary'}}
+    AssessmentSummary:
+      type: object
+      properties: {attempts: {type: integer}, submitted: {type: integer}, published: {type: integer}, passed: {type: integer}, averagePercent: {type: number}}
+    RecordingAnalytics:
+      type: object
+      properties: {from: {type: string, format: date-time}, to: {type: string, format: date-time}, recording: {$ref: '#/components/schemas/RecordingSummary'}}
+    RecordingSummary:
+      type: object
+      properties: {count: {type: integer}, totalSeconds: {type: integer}, totalBytes: {type: integer}, ready: {type: integer}, archived: {type: integer}, failed: {type: integer}}
+    FinanceAnalytics:
+      type: object
+      properties: {from: {type: string, format: date-time}, to: {type: string, format: date-time}, finance: {$ref: '#/components/schemas/FinanceSummary'}}
+    FinanceSummary:
+      type: object
+      properties: {invoiced: {type: number}, paid: {type: number}, outstanding: {type: number}, paymentCount: {type: integer}}
+    QuestionAnalytics:
+      type: object
+      properties: {from: {type: string, format: date-time}, to: {type: string, format: date-time}, questions: {type: array, items: {$ref: '#/components/schemas/QuestionMetric'}}}
+    QuestionMetric:
+      type: object
+      properties: {questionId: {type: string, format: uuid}, title: {type: string}, difficulty: {type: string}, gradedAttempts: {type: integer}, averageScoreRatio: {type: number}, fullScoreCount: {type: integer}}
+    OperationsAnalytics:
+      type: object
+      properties: {from: {type: string, format: date-time}, to: {type: string, format: date-time}, auditEvents: {type: integer}, notifications: {type: integer}, notificationDeadLetters: {type: integer}, activeSessions: {type: integer}}
+    UsageAnalytics:
+      type: object
+      properties: {usage: {type: object, properties: {items: {type: array, items: {$ref: '#/components/schemas/UsageItem'}}}}}
+    UsageSummary:
+      type: object
+      properties: {items: {type: array, items: {$ref: '#/components/schemas/UsageItem'}}}
+    UsageItem:
+      type: object
+      properties: {limitKey: {type: string}, hardLimit: {type: integer}, consumed: {type: integer}}
+    AnalyticsForecast:
+      type: object
+      properties: {generatedAt: {type: string, format: date-time}, historyDays: {type: integer}, recentBytes: {type: integer}, recentSeconds: {type: integer}, dailyBytes: {type: number}, dailyMinutes: {type: number}, projected30DayBytes: {type: integer}, projected365DayBytes: {type: integer}}
+    AnalyticsOverview:
+      type: object
+      properties: {from: {type: string, format: date-time}, to: {type: string, format: date-time}, activeMemberships: {type: integer}, enrollments: {type: integer}, attendance: {$ref: '#/components/schemas/AttendanceSummary'}, assessment: {$ref: '#/components/schemas/AssessmentSummary'}, recording: {$ref: '#/components/schemas/RecordingSummary'}, finance: {$ref: '#/components/schemas/FinanceSummary'}, usage: {$ref: '#/components/schemas/UsageSummary'}}
     FeeView:
       type: object
       required: [id, name, amount, currency, status, version]
@@ -2325,6 +2456,11 @@ components:
       - COMMERCIAL_VIEW
       - COMMERCIAL_MANAGE
       - PAYMENTS_MANAGE
+      - ANALYTICS_VIEW
+      - ANALYTICS_MANAGE
+      - REPORTS_EXPORT
+      - OPERATIONS_VIEW
+      - OPERATIONS_MANAGE
     RecordingQualityPreset:
       type: string
       enum: [ECONOMY, BALANCED, HIGH_QUALITY, SOURCE_ARCHIVE]

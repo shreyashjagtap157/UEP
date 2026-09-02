@@ -2,7 +2,7 @@
 
 ## Current development version
 
-`0.11.0.0-SNAPSHOT` — Finance and Commercialization.
+`0.12.0.0-SNAPSHOT` — Analytics and Operations.
 
 The source implementation through the 0.5 milestone is integrated across the backend and web application. It remains a snapshot because this execution environment cannot run the complete JDK 25 / Maven / PostgreSQL 18 / dependency-backed web release gate.
 
@@ -132,3 +132,7 @@ Implemented provider-neutral live classrooms, LiveKit token/media integration, s
 ## 0.11.0.0-SNAPSHOT — Finance and Commercialization
 
 Implemented tenant-scoped institution fees, invoice and installment lifecycle, receipt-producing payment capture behind a provider-neutral adapter, SaaS subscription plan/trial/grace controls, quota/usage metering, white-label settings, explicit finance/commercial permissions, tenant-safe foreign keys, and web-ready REST boundaries. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.
+
+
+## 0.12.0.0-SNAPSHOT — Analytics and Operations
+Implemented tenant-scoped attendance, assessment, question, recording, finance, usage, and operational analytics; bounded administrative exports; recording/storage forecasting; optimized query indexes; and web-first analytics workspace/API contracts. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.

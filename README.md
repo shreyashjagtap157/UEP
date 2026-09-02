@@ -5,7 +5,7 @@ The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION
 
 ## Current milestone
 
-`0.11.0.0-SNAPSHOT` — Finance and Commercialization.
+`0.12.0.0-SNAPSHOT` — Analytics and Operations.
 
 The learning-content milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
 
@@ -87,3 +87,7 @@ source-code forks or frontend-only switches.
 
 ## Client strategy
 The web application is the first production client. Native desktop and mobile applications will be built later against the same stable platform APIs; business rules remain server-authoritative.
+
+
+## 0.12 Analytics and Operations
+The current milestone adds tenant-scoped analytics, operational reporting, recording/storage forecasting, and bounded CSV exports. See `docs/architecture/ANALYTICS_AND_OPERATIONS.md`.
