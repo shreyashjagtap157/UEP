@@ -6,7 +6,7 @@
 
 The source implementation through the 0.5 milestone is integrated across the backend and web application. It remains a snapshot because this execution environment cannot run the complete JDK 25 / Maven / PostgreSQL 18 / dependency-backed web release gate.
 
-## Current milestone — 0.10 Recording Platform
+## Current milestone — 0.14 Integration Platform
 
 - LiveKit Egress-backed asynchronous recording orchestration with durable processing states and reconciliation.
 - Quality presets: Economy 720p, Balanced 720p, High Quality 1080p, and Source Archive 1080p composite.
@@ -133,6 +133,9 @@ Implemented provider-neutral live classrooms, LiveKit token/media integration, s
 
 Implemented tenant-scoped institution fees, invoice and installment lifecycle, receipt-producing payment capture behind a provider-neutral adapter, SaaS subscription plan/trial/grace controls, quota/usage metering, white-label settings, explicit finance/commercial permissions, tenant-safe foreign keys, and web-ready REST boundaries. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.
 
+
+## 0.14.0.0-SNAPSHOT
+Integration Platform implemented: scoped API credentials, signed/retried webhooks, OpenID Connect federation configuration and authorization URL generation, OneRoster 1.2 CSV export/validation foundation, QTI 3.0 assessment-item XML foundation, tenant external storage bindings, and HTTP/Slack/Teams notification provider adapters. Full production interoperability certification and end-to-end federated login validation remain qualification work.
 
 ## 0.13.0.0-SNAPSHOT
 

@@ -12,10 +12,13 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 
+
 @Component
 final class JwtActorContext implements ActorContext {
     @Override
     public Optional<String> currentSubject() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication.getPrincipal() instanceof ScopedCredentialPrincipal api) return Optional.of("api:" + api.credentialId());
         return currentJwt().map(Jwt::getSubject).filter(value -> !value.isBlank());
     }
 
@@ -51,6 +54,11 @@ final class JwtActorContext implements ActorContext {
                         jwt.getClaimAsString("acr"),
                         stringSet(jwt.getClaim("amr"))))
                 .orElseGet(() -> new AuthenticationAssurance("", Set.of()));
+    }
+
+    @Override
+    public boolean serviceCredential() {
+        return SecurityContextHolder.getContext().getAuthentication().getPrincipal() instanceof ScopedCredentialPrincipal;
     }
 
     @Override

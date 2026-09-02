@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import com.universalplatform.security.ScopedCredentialPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -20,7 +21,9 @@ final class JwtTenantContextFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         try {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication instanceof JwtAuthenticationToken token) {
+            if (authentication instanceof ScopedCredentialPrincipal api) {
+                RequestTenantContext.set(api.tenantId());
+            } else if (authentication instanceof JwtAuthenticationToken token) {
                 Jwt jwt = token.getToken();
                 String claim = jwt.getClaimAsString("tenant_id");
                 if (claim != null && !claim.isBlank()) {

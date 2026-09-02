@@ -57,7 +57,7 @@ class DefaultRoleSeeder {
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
                 PermissionKey.SCHEDULE_VIEW, PermissionKey.SCHEDULE_MANAGE,
                 PermissionKey.ANNOUNCEMENTS_VIEW, PermissionKey.ANNOUNCEMENTS_MANAGE,
-                PermissionKey.CONTENT_VIEW, PermissionKey.ASSESSMENTS_VIEW, PermissionKey.ASSESSMENTS_MANAGE, PermissionKey.ASSIGNMENTS_VIEW, PermissionKey.ASSIGNMENTS_MANAGE, PermissionKey.GRADEBOOK_VIEW, PermissionKey.GRADING_VIEW, PermissionKey.GRADING_MANAGE, PermissionKey.REVIEW_VIEW, PermissionKey.REVIEW_MANAGE, PermissionKey.RECORDINGS_VIEW, PermissionKey.RECORDINGS_MANAGE, PermissionKey.FINANCE_VIEW, PermissionKey.FINANCE_MANAGE, PermissionKey.COMMERCIAL_VIEW, PermissionKey.COMMERCIAL_MANAGE, PermissionKey.PAYMENTS_MANAGE, PermissionKey.OPERATIONS_VIEW);
+                PermissionKey.CONTENT_VIEW, PermissionKey.ASSESSMENTS_VIEW, PermissionKey.ASSESSMENTS_MANAGE, PermissionKey.ASSIGNMENTS_VIEW, PermissionKey.ASSIGNMENTS_MANAGE, PermissionKey.GRADEBOOK_VIEW, PermissionKey.GRADING_VIEW, PermissionKey.GRADING_MANAGE, PermissionKey.REVIEW_VIEW, PermissionKey.REVIEW_MANAGE, PermissionKey.RECORDINGS_VIEW, PermissionKey.RECORDINGS_MANAGE, PermissionKey.FINANCE_VIEW, PermissionKey.FINANCE_MANAGE, PermissionKey.COMMERCIAL_VIEW, PermissionKey.COMMERCIAL_MANAGE, PermissionKey.PAYMENTS_MANAGE, PermissionKey.OPERATIONS_VIEW, PermissionKey.API_VIEW, PermissionKey.WEBHOOKS_VIEW, PermissionKey.INTEROPERABILITY_VIEW);
         Set<PermissionKey> academicAdministrator = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.USERS_VIEW,
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.ACADEMICS_MANAGE,
@@ -66,7 +66,7 @@ class DefaultRoleSeeder {
                 PermissionKey.TEACHING_ASSIGNMENTS_VIEW, PermissionKey.TEACHING_ASSIGNMENTS_MANAGE,
                 PermissionKey.SCHEDULE_VIEW, PermissionKey.SCHEDULE_MANAGE,
                 PermissionKey.ANNOUNCEMENTS_VIEW, PermissionKey.ANNOUNCEMENTS_MANAGE,
-                PermissionKey.CONTENT_VIEW, PermissionKey.CONTENT_MANAGE, PermissionKey.LEARNING_OUTCOMES_VIEW, PermissionKey.LEARNING_OUTCOMES_MANAGE, PermissionKey.CREDENTIALS_VIEW, PermissionKey.CREDENTIALS_MANAGE, PermissionKey.CREDENTIALS_VERIFY, PermissionKey.MENTORING_VIEW, PermissionKey.MENTORING_MANAGE, PermissionKey.SURVEYS_VIEW, PermissionKey.SURVEYS_MANAGE, PermissionKey.FEEDBACK_VIEW, PermissionKey.FEEDBACK_MANAGE, PermissionKey.ASSESSMENTS_VIEW, PermissionKey.ASSESSMENTS_MANAGE, PermissionKey.ASSIGNMENTS_VIEW, PermissionKey.ASSIGNMENTS_MANAGE, PermissionKey.GRADEBOOK_VIEW, PermissionKey.GRADEBOOK_MANAGE, PermissionKey.GRADING_VIEW, PermissionKey.GRADING_MANAGE, PermissionKey.REVIEW_VIEW, PermissionKey.REVIEW_MANAGE);
+                PermissionKey.CONTENT_VIEW, PermissionKey.CONTENT_MANAGE, PermissionKey.LEARNING_OUTCOMES_VIEW, PermissionKey.LEARNING_OUTCOMES_MANAGE, PermissionKey.CREDENTIALS_VIEW, PermissionKey.CREDENTIALS_MANAGE, PermissionKey.CREDENTIALS_VERIFY, PermissionKey.MENTORING_VIEW, PermissionKey.MENTORING_MANAGE, PermissionKey.SURVEYS_VIEW, PermissionKey.SURVEYS_MANAGE, PermissionKey.FEEDBACK_VIEW, PermissionKey.FEEDBACK_MANAGE, PermissionKey.ASSESSMENTS_VIEW, PermissionKey.ASSESSMENTS_MANAGE, PermissionKey.ASSIGNMENTS_VIEW, PermissionKey.ASSIGNMENTS_MANAGE, PermissionKey.GRADEBOOK_VIEW, PermissionKey.GRADEBOOK_MANAGE, PermissionKey.GRADING_VIEW, PermissionKey.GRADING_MANAGE, PermissionKey.REVIEW_VIEW, PermissionKey.REVIEW_MANAGE, PermissionKey.INTEROPERABILITY_VIEW, PermissionKey.INTEROPERABILITY_MANAGE, PermissionKey.FEDERATION_VIEW);
         Set<PermissionKey> teacher = EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW,
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
@@ -87,7 +87,7 @@ class DefaultRoleSeeder {
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW,
                 PermissionKey.ENROLLMENTS_VIEW, PermissionKey.TEACHING_ASSIGNMENTS_VIEW,
                 PermissionKey.SCHEDULE_VIEW, PermissionKey.ANNOUNCEMENTS_VIEW,
-                PermissionKey.NOTIFICATION_OPERATIONS_VIEW, PermissionKey.CONTENT_VIEW, PermissionKey.ANALYTICS_VIEW, PermissionKey.REPORTS_EXPORT, PermissionKey.OPERATIONS_VIEW, PermissionKey.AUDIT_VIEW);
+                PermissionKey.NOTIFICATION_OPERATIONS_VIEW, PermissionKey.CONTENT_VIEW, PermissionKey.ANALYTICS_VIEW, PermissionKey.REPORTS_EXPORT, PermissionKey.OPERATIONS_VIEW, PermissionKey.AUDIT_VIEW, PermissionKey.API_VIEW, PermissionKey.WEBHOOKS_VIEW, PermissionKey.FEDERATION_VIEW, PermissionKey.INTEROPERABILITY_VIEW);
 
         map.put(SystemRoleKey.ORGANIZATION_OWNER, role("Organization Owner", "Full tenant administrative authority.", all));
         map.put(SystemRoleKey.ORGANIZATION_ADMINISTRATOR, role("Organization Administrator", "Tenant-wide administrative authority.", tenantAdministrator));

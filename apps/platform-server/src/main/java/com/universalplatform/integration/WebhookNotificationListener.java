@@ -1,0 +1,3 @@
+package com.universalplatform.integration;
+import com.universalplatform.notification.NotificationPublishedEvent; import java.util.*; import org.springframework.context.event.EventListener; import org.springframework.stereotype.Component;
+@Component class WebhookNotificationListener { private final WebhookService webhooks; WebhookNotificationListener(WebhookService webhooks){this.webhooks=webhooks;} @EventListener public void onNotification(NotificationPublishedEvent e){try{webhooks.publishForTenant(e.tenantId(),e.sourceOutboxId(),e.eventType(),Map.of("aggregateId",e.aggregateId().toString(),"title",e.title(),"body",e.body(),"occurredAt",e.occurredAt().toString()));}catch(RuntimeException ignored){/* Webhook delivery must never break the source domain transaction. */}} }

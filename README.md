@@ -5,7 +5,7 @@ The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION
 
 ## Current milestone
 
-`0.13.0.0-SNAPSHOT` — Advanced Academic Platform.
+`0.14.0.0-SNAPSHOT` — Integration Platform.
 
 The advanced-academic milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
 
@@ -92,6 +92,9 @@ The web application is the first production client. Native desktop and mobile ap
 ## 0.12 Analytics and Operations
 The current milestone adds tenant-scoped analytics, operational reporting, recording/storage forecasting, and bounded CSV exports. See `docs/architecture/ANALYTICS_AND_OPERATIONS.md`.
 
+
+## 0.14 Integration Platform
+Tenant-scoped API credentials, signed webhooks, OpenID Connect federation configuration, OneRoster 1.2 CSV interoperability, QTI 3.0 assessment-item exchange, external storage binding, and external notification providers are now available behind explicit adapters and RBAC.
 
 ## 0.13 Advanced Academic Platform
 Learning outcomes, competencies, learning paths, credentials, mentoring, surveys, and feedback are exposed through server-authoritative, tenant-scoped APIs and the web-first client.

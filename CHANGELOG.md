@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.14.0.0-SNAPSHOT - 2026-09-02
+
+### Added
+- tenant-scoped API credentials with hashed secrets, expiry, revocation, and permission scopes;
+- durable signed webhooks with idempotent event IDs, retry delivery, and delivery auditability;
+- OpenID Connect / enterprise federation configuration foundation with authorization URL generation;
+- OneRoster 1.2 CSV export/validation foundation for organizations, users, courses, classes, and enrollments;
+- QTI 3.0 assessment-item import/export foundation with hardened XML parsing;
+- tenant-configurable external storage bindings using the existing storage adapter registry;
+- external HTTP JSON, Slack webhook, and Teams webhook notification provider configuration/testing;
+- integration RBAC, tenant-safe migration V022, web-first integration administration, and OpenAPI contracts.
+
 ## 0.13.0.0-SNAPSHOT - 2026-09-02
 
 ### Added

@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 final class RequestTenantContext implements TenantContext {
     private static final ThreadLocal<UUID> CURRENT = new ThreadLocal<>();
 
-    static void set(UUID tenantId) { CURRENT.set(tenantId); }
-    static void clear() { CURRENT.remove(); }
+    public static void set(UUID tenantId) { CURRENT.set(tenantId); }
+    public static void clear() { CURRENT.remove(); }
 
     @Override
     public Optional<UUID> currentTenantId() {

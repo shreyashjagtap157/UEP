@@ -1,0 +1,10 @@
+package com.universalplatform.integration;
+import jakarta.validation.Valid; import jakarta.validation.constraints.*; import java.nio.charset.StandardCharsets; import java.util.*; import org.springframework.http.*; import org.springframework.web.bind.annotation.*; import com.universalplatform.questionbank.QuestionBankService;
+@RestController @RequestMapping("/api/v1/integrations") class InteroperabilityController { private final OneRosterService roster; private final QtiService qti; private final FederationService federation; InteroperabilityController(OneRosterService r,QtiService q,FederationService f){roster=r;qti=q;federation=f;}
+ @GetMapping(value="/oneroster/export/{file}",produces="text/csv") ResponseEntity<byte[]> exportOneRoster(@PathVariable String file){String body=roster.exportCsv().get(file);if(body==null)throw new IllegalArgumentException("Unsupported OneRoster file");return ResponseEntity.ok().contentType(MediaType.valueOf("text/csv")).body(body.getBytes(StandardCharsets.UTF_8));}
+ @GetMapping(value="/qti/items/{questionVersionId}",produces="application/xml") ResponseEntity<String> exportQti(@PathVariable UUID questionVersionId){return ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(qti.exportItem(questionVersionId));}
+ @PostMapping(value="/qti/items",consumes="application/xml",produces="application/json") QuestionBankService.QuestionView importQti(@RequestBody String xml){return qti.importItem(xml);}
+ @PostMapping("/oneroster/validate") OneRosterAdapter.ImportResult validateOneRoster(@Valid @RequestBody OneRosterValidationRequest r){return roster.validateCsv(Map.of("orgs.csv",r.orgsCsv(),"users.csv",r.usersCsv(),"courses.csv",r.coursesCsv(),"classes.csv",r.classesCsv(),"enrollments.csv",r.enrollmentsCsv()));}
+ @GetMapping("/federation/configuration") Map<String,Object> federationMetadata(){return Map.of("protocol","OpenID Connect","supportsDiscovery",true,"openIdFoundation","OpenID Connect / OpenID Federation");}
+ record OneRosterValidationRequest(@NotBlank String orgsCsv,@NotBlank String usersCsv,@NotBlank String coursesCsv,@NotBlank String classesCsv,@NotBlank String enrollmentsCsv){}
+}

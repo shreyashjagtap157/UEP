@@ -21,7 +21,7 @@ class IdentityRequestInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        if (actorContext.currentSubject().isEmpty()) return true;
+        if (actorContext.currentSubject().isEmpty() || actorContext.serviceCredential()) return true;
         if (actorContext.hasRealmRole(AuthorizationService.PLATFORM_SUPER_ADMIN_ROLE)) return true;
         ActiveIdentity identity = identitySecurity.requireCurrentIdentity();
         sessions.observeCurrentSession(identity);

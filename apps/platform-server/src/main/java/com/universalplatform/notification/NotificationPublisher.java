@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Public durable-notification boundary used by domain modules inside their business transaction. */
@@ -15,10 +16,12 @@ public class NotificationPublisher {
     private final NotificationOutboxRepository outbox;
     private final NotificationOutboxRecipientRepository recipients;
     private final Clock clock = Clock.systemUTC();
+    private final ApplicationEventPublisher events;
 
-    NotificationPublisher(NotificationOutboxRepository outbox, NotificationOutboxRecipientRepository recipients) {
+    NotificationPublisher(NotificationOutboxRepository outbox, NotificationOutboxRecipientRepository recipients, ApplicationEventPublisher events) {
         this.outbox = outbox;
         this.recipients = recipients;
+        this.events = events;
     }
 
     @Transactional
@@ -42,6 +45,7 @@ public class NotificationPublisher {
                 .map(recipient -> new NotificationOutboxRecipient(event.id(), recipient.membershipId(), request.tenantId(),
                         nullable(recipient.email(), 320)))
                 .toList());
+        events.publishEvent(new NotificationPublishedEvent(request.tenantId(), event.id(), request.aggregateId(), request.eventType().name(), request.title(), request.body(), now));
     }
 
     @Transactional

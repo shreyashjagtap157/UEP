@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Universal Education Platform API
-  version: 0.13.0.0-SNAPSHOT
+  version: 0.14.0.0-SNAPSHOT
   description: Web-first, tenant-authoritative platform API with live learning, attendance, recordings, finance, commercialization, analytics, advanced academics, credentials, mentoring, surveys, feedback and operations.
 servers:
 - url: /api/v1
@@ -2341,6 +2341,155 @@ paths:
       summary: Submit feedback
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/FeedbackRequest'}}}}
       responses: {'204': {description: Submitted}}
+  /api/v1/integrations/api-credentials:
+    post:
+      operationId: createApiCredential
+      summary: Create a tenant-scoped API credential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ApiCredentialRequest'}
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiCredentialView'}
+    get:
+      operationId: listApiCredentials
+      parameters:
+        - {name: membershipId, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Credentials
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/ApiCredentialView'}}
+  /api/v1/integrations/api-credentials/{id}:
+    delete:
+      operationId: revokeApiCredential
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: expectedVersion, in: query, required: true, schema: {type: integer, format: int64}}
+      responses: {'204': {description: Revoked}}
+  /api/v1/integrations/webhooks:
+    post:
+      operationId: createWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WebhookRequest'}
+      responses: {'200': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/WebhookView'}}}}}
+    get:
+      operationId: listWebhooks
+      responses: {'200': {description: Webhooks, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/WebhookView'}}}}}}
+  /api/v1/integrations/webhooks/{id}:
+    delete:
+      operationId: revokeWebhook
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: expectedVersion, in: query, required: true, schema: {type: integer, format: int64}}
+      responses: {'204': {description: Revoked}}
+  /api/v1/integrations/webhooks/test:
+    post:
+      operationId: testWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/WebhookTestRequest'}
+      responses: {'204': {description: Test queued}}
+  /api/v1/integrations/storage:
+    get:
+      operationId: getStorageBinding
+      responses: {'200': {description: Binding, content: {application/json: {schema: {$ref: '#/components/schemas/StorageBindingView'}}}}}
+    put:
+      operationId: configureStorageBinding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StorageBindingRequest'}
+      responses: {'200': {description: Saved, content: {application/json: {schema: {$ref: '#/components/schemas/StorageBindingView'}}}}}
+  /api/v1/integrations/identity-providers:
+    get:
+      operationId: listIdentityProviders
+      responses: {'200': {description: Providers}}
+    put:
+      operationId: configureIdentityProvider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IdentityProviderRequest'}
+      responses: {'200': {description: Saved}}
+  /api/v1/integrations/identity-providers/{key}/authorize-url:
+    get:
+      operationId: createFederationAuthorizationUrl
+      parameters:
+        - {name: key, in: path, required: true, schema: {type: string}}
+        - {name: state, in: query, required: true, schema: {type: string}}
+        - {name: nonce, in: query, required: true, schema: {type: string}}
+      responses: {'200': {description: Authorization URL, content: {text/plain: {schema: {type: string, format: uri}}}}}
+  /api/v1/integrations/notification-providers:
+    get:
+      operationId: listNotificationProviders
+      responses: {'200': {description: Providers}}
+    put:
+      operationId: configureNotificationProvider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NotificationProviderRequest'}
+      responses: {'200': {description: Saved}}
+  /api/v1/integrations/notification-providers/{key}/test:
+    post:
+      operationId: testNotificationProvider
+      parameters:
+        - {name: key, in: path, required: true, schema: {type: string}}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: {type: string}}
+      responses: {'204': {description: Test sent}}
+  /api/v1/integrations/oneroster/export/{file}:
+    get:
+      operationId: exportOneRosterCsv
+      parameters:
+        - {name: file, in: path, required: true, schema: {type: string, enum: [orgs.csv, users.csv, courses.csv, classes.csv, enrollments.csv]}}
+      responses: {'200': {description: OneRoster 1.2 CSV, content: {text/csv: {schema: {type: string}}}}}
+  /api/v1/integrations/oneroster/validate:
+    post:
+      operationId: validateOneRosterCsv
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OneRosterValidationRequest'}
+      responses: {'200': {description: Validation result, content: {application/json: {schema: {$ref: '#/components/schemas/OneRosterValidationResult'}}}}}
+  /api/v1/integrations/qti/items/{questionVersionId}:
+    get:
+      operationId: exportQtiAssessmentItem
+      parameters:
+        - {name: questionVersionId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses: {'200': {description: QTI assessmentItem, content: {application/xml: {schema: {type: string}}}}}
+  /api/v1/integrations/qti/items:
+    post:
+      operationId: importQtiAssessmentItem
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema: {type: string}
+      responses: {'200': {description: Imported item}}
+  /api/v1/integrations/federation/configuration:
+    get:
+      operationId: federationConfiguration
+      responses: {'200': {description: Federation capability metadata}}
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2679,6 +2828,16 @@ components:
       - SURVEYS_MANAGE
       - FEEDBACK_VIEW
       - FEEDBACK_MANAGE
+      - API_VIEW
+      - API_MANAGE
+      - WEBHOOKS_VIEW
+      - WEBHOOKS_MANAGE
+      - FEDERATION_VIEW
+      - FEDERATION_MANAGE
+      - INTEROPERABILITY_VIEW
+      - INTEROPERABILITY_MANAGE
+      - EXTERNAL_STORAGE_MANAGE
+      - EXTERNAL_NOTIFICATIONS_MANAGE
     RecordingQualityPreset:
       type: string
       enum: [ECONOMY, BALANCED, HIGH_QUALITY, SOURCE_ARCHIVE]
@@ -4872,3 +5031,95 @@ components:
       required: [status]
       properties:
         status: {$ref: '#/components/schemas/ReviewStatus'}
+    ApiCredentialRequest:
+      type: object
+      required: [membershipId, name]
+      properties:
+        membershipId: {type: string, format: uuid}
+        name: {type: string, maxLength: 120}
+        scopes: {type: array, items: {$ref: '#/components/schemas/PermissionKey'}}
+        expiresAt: {type: string, format: date-time}
+    ApiCredentialView:
+      type: object
+      required: [id, name, scopes, version]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        scopes: {type: array, items: {$ref: '#/components/schemas/PermissionKey'}}
+        expiresAt: {type: string, format: date-time}
+        secret: {type: string}
+        version: {type: integer, format: int64}
+    WebhookRequest:
+      type: object
+      required: [callbackUrl]
+      properties:
+        callbackUrl: {type: string, format: uri}
+        eventFilter: {type: string, maxLength: 64}
+    WebhookView:
+      type: object
+      required: [id, callbackUrl, eventFilter, enabled, version]
+      properties:
+        id: {type: string, format: uuid}
+        callbackUrl: {type: string, format: uri}
+        eventFilter: {type: string}
+        enabled: {type: boolean}
+        secret: {type: string}
+        version: {type: integer, format: int64}
+    WebhookTestRequest:
+      type: object
+      required: [eventType]
+      properties:
+        eventType: {type: string, maxLength: 64}
+        message: {type: string, maxLength: 500}
+    StorageBindingRequest:
+      type: object
+      required: [providerType]
+      properties:
+        providerType: {type: string, enum: [LOCAL, S3_COMPATIBLE, GOOGLE_DRIVE, GOOGLE_SHARED_DRIVE]}
+        objectPrefix: {type: string, maxLength: 200}
+        expectedVersion: {type: integer, format: int64}
+    StorageBindingView:
+      type: object
+      required: [providerType, objectPrefix, version]
+      properties:
+        providerType: {type: string}
+        objectPrefix: {type: string}
+        version: {type: integer, format: int64}
+    IdentityProviderRequest:
+      type: object
+      required: [providerKey, issuer, authorizationEndpoint, clientId, redirectUri]
+      properties:
+        providerKey: {type: string, maxLength: 64}
+        issuer: {type: string, format: uri}
+        authorizationEndpoint: {type: string, format: uri}
+        clientId: {type: string, maxLength: 200}
+        clientSecret: {type: string}
+        redirectUri: {type: string, format: uri}
+        scopes: {type: string}
+        expectedVersion: {type: integer, format: int64}
+    NotificationProviderRequest:
+      type: object
+      required: [providerKey, providerType, endpoint]
+      properties:
+        providerKey: {type: string, maxLength: 64}
+        providerType: {type: string, enum: [HTTP_JSON, SLACK_WEBHOOK, TEAMS_WEBHOOK]}
+        endpoint: {type: string, format: uri}
+        credential: {type: string}
+        expectedVersion: {type: integer, format: int64}
+    OneRosterValidationRequest:
+      type: object
+      required: [orgsCsv, usersCsv, coursesCsv, classesCsv, enrollmentsCsv]
+      properties:
+        orgsCsv: {type: string}
+        usersCsv: {type: string}
+        coursesCsv: {type: string}
+        classesCsv: {type: string}
+        enrollmentsCsv: {type: string}
+    OneRosterValidationResult:
+      type: object
+      required: [valid, fileCount, rowCount, message]
+      properties:
+        valid: {type: boolean}
+        fileCount: {type: integer}
+        rowCount: {type: integer}
+        message: {type: string}

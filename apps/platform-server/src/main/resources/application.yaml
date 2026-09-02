@@ -52,7 +52,7 @@ management:
       application: ${spring.application.name}
 
 platform:
-  version: 0.13.0.0-SNAPSHOT
+  version: 0.14.0.0-SNAPSHOT
   notifications:
     outbox-poll-ms: ${NOTIFICATION_OUTBOX_POLL_MS:1000}
     email:
@@ -102,3 +102,8 @@ platform:
     processing-root: ${PLATFORM_RECORDING_PROCESSING_ROOT:./var/recordings}
     playback-secret: ${PLATFORM_RECORDING_PLAYBACK_SECRET:change-me-in-production}
     ffmpeg-command: ${PLATFORM_RECORDING_FFMPEG:ffmpeg}
+
+  integrations:
+    secret-key: ${PLATFORM_INTEGRATION_SECRET_KEY:change-me-in-production}
+    webhooks:
+      poll-ms: ${PLATFORM_WEBHOOK_POLL_MS:2000}

@@ -23,4 +23,6 @@ public interface ActorContext {
     AuthenticationAssurance authenticationAssurance();
 
     boolean hasRealmRole(String role);
+
+    default boolean serviceCredential() { return false; }
 }

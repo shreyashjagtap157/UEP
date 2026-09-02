@@ -1,6 +1,7 @@
 package com.universalplatform.identity;
 
 import com.universalplatform.security.ActorContext;
+import com.universalplatform.security.ScopedCredentialPrincipal;
 import com.universalplatform.security.TenantContext;
 import java.util.EnumSet;
 import java.util.Set;
@@ -55,10 +56,12 @@ public class AuthorizationService {
     public AccessScope currentScope(PermissionKey permission) {
         if (actorContext.hasRealmRole(PLATFORM_SUPER_ADMIN_ROLE)) return new AccessScope(true, Set.of());
         UUID tenantId = tenantContext.requireTenantId();
-        ActiveIdentity identity = identitySecurity.requireCurrentIdentity();
+        var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        UUID membershipId = authentication != null && authentication.getPrincipal() instanceof ScopedCredentialPrincipal api
+                ? api.membershipId() : identitySecurity.requireCurrentIdentity().membershipId();
         if (currentPermissions(null).contains(permission)) return new AccessScope(true, Set.of());
         Set<UUID> branchIds = Set.copyOf(rolePermissions.findBranchScopeIdsForMembershipPermission(
-                tenantId, identity.membershipId(), permission.name()));
+                tenantId, membershipId, permission.name()));
         return new AccessScope(false, branchIds);
     }
 
@@ -68,11 +71,19 @@ public class AuthorizationService {
             return Set.copyOf(EnumSet.allOf(PermissionKey.class));
         }
         UUID tenantId = tenantContext.requireTenantId();
-        ActiveIdentity identity = identitySecurity.requireCurrentIdentity();
-        EnumSet<PermissionKey> result = EnumSet.noneOf(PermissionKey.class);
-        for (String key : rolePermissions.findPermissionKeysForMembership(tenantId, identity.membershipId(), branchId)) {
-            result.add(PermissionKey.valueOf(key));
+        var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        UUID membershipId;
+        Set<String> scopes;
+        if (authentication != null && authentication.getPrincipal() instanceof ScopedCredentialPrincipal api) {
+            membershipId = api.membershipId();
+            scopes = Set.copyOf(api.scopes());
+        } else {
+            membershipId = identitySecurity.requireCurrentIdentity().membershipId();
+            scopes = Set.of();
         }
+        EnumSet<PermissionKey> result = EnumSet.noneOf(PermissionKey.class);
+        for (String key : rolePermissions.findPermissionKeysForMembership(tenantId, membershipId, branchId)) result.add(PermissionKey.valueOf(key));
+        if (!scopes.isEmpty()) result.removeIf(p -> !scopes.contains(p.name()));
         return Set.copyOf(result);
     }
 

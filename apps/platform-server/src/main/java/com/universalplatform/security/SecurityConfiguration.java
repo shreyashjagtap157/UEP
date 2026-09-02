@@ -11,7 +11,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 class SecurityConfiguration {
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtTenantContextFilter tenantFilter) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtTenantContextFilter tenantFilter, ApiCredentialFilter apiCredentialFilter) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -19,6 +19,7 @@ class SecurityConfiguration {
                         .requestMatchers("/actuator/health", "/api/v1/platform/version", "/api/v1/credentials/verify/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()))
+                 .addFilterBefore(apiCredentialFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterAfter(tenantFilter, BearerTokenAuthenticationFilter.class)
                 .build();
     }
