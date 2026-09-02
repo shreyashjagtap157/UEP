@@ -1,3 +1,7 @@
+## 0.15.0.0 — Reliability and Performance Qualification
+
+Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification.
+
 # Universal Education, Training and Learning Operations Platform
 
 A web-first, API-first, multi-tenant education and training operations platform.
@@ -5,9 +9,9 @@ The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION
 
 ## Current milestone
 
-`0.14.0.0-SNAPSHOT` — Integration Platform.
+`0.15.0.0-SNAPSHOT` — Reliability and Performance Qualification.
 
-The advanced-academic milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
+The current hardening milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
 
 
 ## Implemented through Grading and Academic Review

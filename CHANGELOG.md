@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.14.0.0-SNAPSHOT - 2026-09-02
+## 0.15.0.0 — Reliability and Performance Qualification
+
+Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification.
+
+## 0.15.0.0-SNAPSHOT - 2026-09-02
 
 ### Added
 - tenant-scoped API credentials with hashed secrets, expiry, revocation, and permission scopes;

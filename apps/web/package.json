@@ -1,7 +1,7 @@
 {
   "name": "@universal-education/platform-web",
   "private": true,
-  "version": "0.14.0",
+  "version": "0.15.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -28,5 +28,5 @@
   "engines": {
     "node": ">=22.12.0"
   },
-  "productVersion": "0.14.0.0-SNAPSHOT"
+  "productVersion": "0.15.0.0-SNAPSHOT"
 }

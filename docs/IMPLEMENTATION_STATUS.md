@@ -134,8 +134,12 @@ Implemented provider-neutral live classrooms, LiveKit token/media integration, s
 Implemented tenant-scoped institution fees, invoice and installment lifecycle, receipt-producing payment capture behind a provider-neutral adapter, SaaS subscription plan/trial/grace controls, quota/usage metering, white-label settings, explicit finance/commercial permissions, tenant-safe foreign keys, and web-ready REST boundaries. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.
 
 
-## 0.14.0.0-SNAPSHOT
-Integration Platform implemented: scoped API credentials, signed/retried webhooks, OpenID Connect federation configuration and authorization URL generation, OneRoster 1.2 CSV export/validation foundation, QTI 3.0 assessment-item XML foundation, tenant external storage bindings, and HTTP/Slack/Teams notification provider adapters. Full production interoperability certification and end-to-end federated login validation remain qualification work.
+## 0.15.0.0 — Reliability and Performance Qualification
+
+Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification.
+
+## 0.15.0.0-SNAPSHOT
+Reliability and performance qualification implemented: tenant-leading performance indexes, bounded Hikari connection-pool settings, dependency-free load smoke tooling, repeatable k6 load profile, PostgreSQL backup/restore drill tooling, and static tenant-isolation/security qualification gates. Full runtime qualification remains environment-dependent until JDK 25, Maven dependencies, PostgreSQL, Docker/media services, and web dependencies are available.
 
 ## 0.13.0.0-SNAPSHOT
 

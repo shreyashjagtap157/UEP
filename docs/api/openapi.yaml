@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Universal Education Platform API
-  version: 0.14.0.0-SNAPSHOT
+  version: 0.15.0.0-SNAPSHOT
   description: Web-first, tenant-authoritative platform API with live learning, attendance, recordings, finance, commercialization, analytics, advanced academics, credentials, mentoring, surveys, feedback and operations.
 servers:
 - url: /api/v1
