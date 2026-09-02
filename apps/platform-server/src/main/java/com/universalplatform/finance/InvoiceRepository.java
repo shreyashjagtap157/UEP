@@ -1,0 +1,2 @@
+package com.universalplatform.finance; import java.util.*; import org.springframework.data.jpa.repository.JpaRepository; import org.springframework.data.domain.*;
+interface InvoiceRepository extends JpaRepository<Invoice,UUID>{ Optional<Invoice> findByTenantIdAndId(UUID tenantId,UUID id); Page<Invoice> findAllByTenantIdOrderByCreatedAtDesc(UUID tenantId,Pageable pageable); List<Invoice> findAllByTenantIdAndMembershipIdOrderByCreatedAtDesc(UUID tenantId,UUID membershipId); }

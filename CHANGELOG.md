@@ -1,3 +1,14 @@
+## 0.11.0.0-SNAPSHOT - 2026-09-02
+
+### Added
+- institution fee definitions with currency and versioning;
+- invoices, installments, payments, and receipts with tenant-safe foreign keys;
+- provider-neutral payment adapter with reference manual capture flow;
+- commercial subscription plans, trials, grace periods, suspension, and optimistic license revisions;
+- quota usage service backed by entitlement limits and daily usage periods;
+- tenant white-label settings and commercial administration APIs;
+- finance and commercialization RBAC permissions and migration V019.
+
 # Changelog
 
 ## 0.10.0.0 — Recording Platform

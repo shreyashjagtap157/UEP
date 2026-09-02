@@ -1,0 +1,5 @@
+package com.universalplatform.commercial;
+import jakarta.persistence.*; import java.time.Instant; import java.util.UUID;
+@Entity @Table(name="white_label_settings") class WhiteLabelSettings { @Id UUID tenantId; @Column(nullable=false,length=120) String brandName; @Column(length=20) String primaryColor; @Column(length=500) String logoUrl; @Column(length=500) String faviconUrl; @Column(length=120) String customDomain; boolean enabled; Instant updatedAt; @Version long version;
+ protected WhiteLabelSettings(){} WhiteLabelSettings(UUID t,String n,String c,String l,String f,String d,Instant at){tenantId=t;brandName=n;primaryColor=c;logoUrl=l;faviconUrl=f;customDomain=d;enabled=true;updatedAt=at;} UUID tenantId(){return tenantId;} String brandName(){return brandName;} String primaryColor(){return primaryColor;} String logoUrl(){return logoUrl;} String faviconUrl(){return faviconUrl;} String customDomain(){return customDomain;} boolean enabled(){return enabled;} long version(){return version;} void update(String n,String c,String l,String f,String d,boolean e,Instant at){brandName=n;primaryColor=c;logoUrl=l;faviconUrl=f;customDomain=d;enabled=e;updatedAt=at;}
+}

@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "entitlement_limit")
-class EntitlementLimit {
+public class EntitlementLimit {
     @Id
     private UUID id;
 
@@ -25,4 +25,5 @@ class EntitlementLimit {
     private long hardLimit;
 
     protected EntitlementLimit() {}
+    public long hardLimit() { return hardLimit; }
 }

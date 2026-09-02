@@ -1,0 +1,1 @@
+package com.universalplatform.licensing; import java.util.*; import org.springframework.data.jpa.repository.JpaRepository; public interface EntitlementLimitRepository extends JpaRepository<EntitlementLimit,UUID>{Optional<EntitlementLimit> findByTenantIdAndLimitKey(UUID tenantId,LimitKey key);}

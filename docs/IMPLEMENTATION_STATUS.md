@@ -2,7 +2,7 @@
 
 ## Current development version
 
-`0.10.0.0-SNAPSHOT` — Recording Platform.
+`0.11.0.0-SNAPSHOT` — Finance and Commercialization.
 
 The source implementation through the 0.5 milestone is integrated across the backend and web application. It remains a snapshot because this execution environment cannot run the complete JDK 25 / Maven / PostgreSQL 18 / dependency-backed web release gate.
 
@@ -128,3 +128,7 @@ Implemented provider-independent learning resources, immutable resource versions
 ## 0.9.0.0-SNAPSHOT — Live Learning and Attendance
 
 Implemented provider-neutral live classrooms, LiveKit token/media integration, scheduled start/end, tenant-scoped audience access, participant presence heartbeats, moderation state, screen sharing, classroom chat, adaptive/low-bandwidth profiles, configurable attendance policies, manual attendance overrides, finalization, web classroom controls, and web-first API boundaries for future native clients. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.
+
+## 0.11.0.0-SNAPSHOT — Finance and Commercialization
+
+Implemented tenant-scoped institution fees, invoice and installment lifecycle, receipt-producing payment capture behind a provider-neutral adapter, SaaS subscription plan/trial/grace controls, quota/usage metering, white-label settings, explicit finance/commercial permissions, tenant-safe foreign keys, and web-ready REST boundaries. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.

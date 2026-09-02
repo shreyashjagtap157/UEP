@@ -56,6 +56,11 @@ export type PermissionKey =
   | 'ATTENDANCE_MANAGE'
   | 'RECORDINGS_VIEW'
   | 'RECORDINGS_MANAGE'
+  | 'FINANCE_VIEW'
+  | 'FINANCE_MANAGE'
+  | 'COMMERCIAL_VIEW'
+  | 'COMMERCIAL_MANAGE'
+  | 'PAYMENTS_MANAGE'
   | 'AUDIT_VIEW'
 
 export interface AuthenticationAssurance {
@@ -759,3 +764,14 @@ export const stopRecording = (id:string) => request<void>(`/api/v1/recordings/${
 export const issueRecordingPlayback = (id:string) => request<PlaybackView>(`/api/v1/recordings/${id}/playback`,{method:'POST'})
 export const fetchRecordingStoragePolicy = () => request<RecordingStoragePolicyView>('/api/v1/recording-storage-policy')
 export const updateRecordingStoragePolicy = (input:{hotCacheDays:number;cacheDays:number;retentionDays?:number;hotProvider:string;cacheProvider:string;archiveProvider:string;deletedObjectGraceDays:number;expectedVersion:number}) => request<RecordingStoragePolicyView>('/api/v1/recording-storage-policy',{method:'PUT',body:JSON.stringify(input)})
+
+export interface FinanceFee { id: string; name: string; amount: number; currency: string; status: 'ACTIVE' | 'INACTIVE'; version: number }
+export interface FinanceInstallment { id: string; sequenceNo: number; amount: number; dueOn: string; status: string; version: number }
+export interface FinanceInvoice { id: string; membershipId: string; invoiceNumber: string; totalAmount: number; paidAmount: number; currency: string; status: string; issuedOn?: string; dueOn: string; version: number; installments: FinanceInstallment[] }
+export interface FinanceInvoicePage { items: FinanceInvoice[]; page: number; size: number; totalElements: number }
+export const fetchFinanceFees = () => request<FinanceFee[]>('/api/v1/finance/fees')
+export const createFinanceFee = (input:{name:string;amount:number;currency:string;status:'ACTIVE'|'INACTIVE'}) => request<FinanceFee>('/api/v1/finance/fees',{method:'POST',body:JSON.stringify({...input,expectedVersion:0})})
+export const fetchFinanceInvoices = () => request<FinanceInvoicePage>('/api/v1/finance/invoices?size=100')
+export const createFinanceInvoice = (input:{membershipId:string;totalAmount:number;currency:string;dueOn:string}) => request<FinanceInvoice>('/api/v1/finance/invoices',{method:'POST',body:JSON.stringify(input)})
+export const issueFinanceInvoice = (id:string,expectedVersion:number) => request<FinanceInvoice>(`/api/v1/finance/invoices/${id}/issue`,{method:'POST',body:JSON.stringify({expectedVersion})})
+export const recordFinancePayment = (id:string,input:{amount:number;currency:string}) => request('/api/v1/finance/invoices/'+id+'/payments',{method:'POST',body:JSON.stringify(input)})

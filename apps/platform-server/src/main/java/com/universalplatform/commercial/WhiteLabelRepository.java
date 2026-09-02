@@ -1,0 +1,1 @@
+package com.universalplatform.commercial; import java.util.*; import org.springframework.data.jpa.repository.JpaRepository; interface WhiteLabelRepository extends JpaRepository<WhiteLabelSettings,UUID>{}

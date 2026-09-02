@@ -5,7 +5,7 @@ The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION
 
 ## Current milestone
 
-`0.10.0.0-SNAPSHOT` — Recording Platform.
+`0.11.0.0-SNAPSHOT` — Finance and Commercialization.
 
 The learning-content milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
 

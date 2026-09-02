@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Universal Education Platform API
-  version: 0.10.0.0-SNAPSHOT
-  description: Web-first, tenant-authoritative platform API with live learning, attendance, recordings, assignments and gradebook.
+  version: 0.11.0.0-SNAPSHOT
+  description: Web-first, tenant-authoritative platform API with live learning, attendance, recordings, finance and commercialization.
 servers:
 - url: /api/v1
 security:
@@ -2058,6 +2058,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RecordingStoragePolicyView'
+  /finance/fees:
+    get:
+      summary: List institution fees
+      responses:
+        '200':
+          description: Finance fees
+          content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/FeeView'}}}}
+    post:
+      summary: Create institution fee
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/FeeRequest'}}}}
+      responses: {'200': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/FeeView'}}}}}
+  /finance/fees/{id}:
+    put:
+      summary: Update institution fee
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/FeeRequest'}}}}
+      responses: {'200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/FeeView'}}}}}
+  /finance/invoices:
+    get:
+      summary: List invoices
+      responses: {'200': {description: Invoices, content: {application/json: {schema: {$ref: '#/components/schemas/InvoicePage'}}}}}
+    post:
+      summary: Create invoice
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CreateInvoiceRequest'}}}}
+      responses: {'200': {description: Created, content: {application/json: {schema: {$ref: '#/components/schemas/InvoiceView'}}}}}
+  /finance/invoices/{id}:
+    get:
+      summary: Get invoice
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: Invoice, content: {application/json: {schema: {$ref: '#/components/schemas/InvoiceView'}}}}}
+  /finance/invoices/{id}/issue:
+    post:
+      summary: Issue invoice
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/VersionRequest'}}}}
+      responses: {'200': {description: Issued, content: {application/json: {schema: {$ref: '#/components/schemas/InvoiceView'}}}}}
+  /finance/invoices/{id}/payments:
+    post:
+      summary: Capture an invoice payment
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/PayRequest'}}}}
+      responses: {'200': {description: Captured, content: {application/json: {schema: {$ref: '#/components/schemas/PaymentView'}}}}}
+  /commercial/subscription:
+    get:
+      summary: Get tenant subscription
+      responses: {'200': {description: Subscription, content: {application/json: {schema: {$ref: '#/components/schemas/SubscriptionView'}}}}}
+    put:
+      summary: Update subscription plan
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/PlanRequest'}}}}
+      responses: {'200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/SubscriptionView'}}}}}
+  /commercial/subscription/trial:
+    post:
+      summary: Start tenant trial
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/DaysRequest'}}}}
+      responses: {'200': {description: Trial, content: {application/json: {schema: {$ref: '#/components/schemas/SubscriptionView'}}}}}
+  /commercial/subscription/grace:
+    post:
+      summary: Start grace period
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/DaysRequest'}}}}
+      responses: {'200': {description: Grace, content: {application/json: {schema: {$ref: '#/components/schemas/SubscriptionView'}}}}}
+  /commercial/subscription/suspend:
+    post:
+      summary: Suspend subscription
+      responses: {'200': {description: Suspended, content: {application/json: {schema: {$ref: '#/components/schemas/SubscriptionView'}}}}}
+  /commercial/white-label:
+    get:
+      summary: Get white-label settings
+      responses: {'200': {description: Settings, content: {application/json: {schema: {$ref: '#/components/schemas/WhiteLabelView'}}}}}
+    put:
+      summary: Update white-label settings
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/WhiteLabelRequest'}}}}
+      responses: {'200': {description: Updated, content: {application/json: {schema: {$ref: '#/components/schemas/WhiteLabelView'}}}}}
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2130,6 +2203,59 @@ components:
         type: string
         format: uuid
   schemas:
+    FeeView:
+      type: object
+      required: [id, name, amount, currency, status, version]
+      properties: {id: {type: string, format: uuid}, name: {type: string}, amount: {type: number}, currency: {type: string}, status: {type: string}, version: {type: integer, format: int64}}
+    FeeRequest:
+      type: object
+      required: [name, amount, currency, status, expectedVersion]
+      properties: {name: {type: string}, amount: {type: number}, currency: {type: string, minLength: 3, maxLength: 3}, status: {type: string}, expectedVersion: {type: integer, format: int64}}
+    InstallmentView:
+      type: object
+      properties: {id: {type: string, format: uuid}, sequenceNo: {type: integer}, amount: {type: number}, dueOn: {type: string, format: date}, status: {type: string}, version: {type: integer, format: int64}}
+    InvoiceView:
+      type: object
+      properties: {id: {type: string, format: uuid}, membershipId: {type: string, format: uuid}, invoiceNumber: {type: string}, totalAmount: {type: number}, paidAmount: {type: number}, currency: {type: string}, status: {type: string}, issuedOn: {type: string, format: date}, dueOn: {type: string, format: date}, version: {type: integer, format: int64}, installments: {type: array, items: {$ref: '#/components/schemas/InstallmentView'}}}
+    CreateInvoiceRequest:
+      type: object
+      required: [membershipId, totalAmount, currency, dueOn]
+      properties: {membershipId: {type: string, format: uuid}, totalAmount: {type: number}, currency: {type: string}, dueOn: {type: string, format: date}, installments: {type: array, items: {$ref: '#/components/schemas/InstallmentRequest'}}}
+    InstallmentRequest:
+      type: object
+      properties: {amount: {type: number}, dueOn: {type: string, format: date}}
+    PaymentView:
+      type: object
+      properties: {id: {type: string, format: uuid}, invoiceId: {type: string, format: uuid}, amount: {type: number}, currency: {type: string}, provider: {type: string}, providerReference: {type: string}, status: {type: string}, capturedAt: {type: string, format: date-time}, receipt: {type: object}}
+    PayRequest:
+      type: object
+      required: [amount, currency]
+      properties: {amount: {type: number}, currency: {type: string}}
+    VersionRequest:
+      type: object
+      required: [expectedVersion]
+      properties: {expectedVersion: {type: integer, format: int64}}
+    InvoicePage:
+      type: object
+      properties: {items: {type: array, items: {$ref: '#/components/schemas/InvoiceView'}}, page: {type: integer}, size: {type: integer}, totalElements: {type: integer, format: int64}}
+    SubscriptionView:
+      type: object
+      properties: {tenantId: {type: string, format: uuid}, status: {type: string}, planCode: {type: string}, recurringAmount: {type: number}, currency: {type: string}, autoRenew: {type: boolean}, startsAt: {type: string, format: date-time}, graceEndsAt: {type: string, format: date-time}, expiresAt: {type: string, format: date-time}, trialEndsAt: {type: string, format: date-time}, authorityKind: {type: string}, externalLicenseId: {type: string}, licenseRevision: {type: integer, format: int64}}
+    PlanRequest:
+      type: object
+      required: [planCode, recurringAmount, currency, expectedVersion]
+      properties: {planCode: {type: string}, recurringAmount: {type: number}, currency: {type: string}, autoRenew: {type: boolean}, expectedVersion: {type: integer, format: int64}}
+    DaysRequest:
+      type: object
+      required: [days]
+      properties: {days: {type: integer, minimum: 1, maximum: 365}}
+    WhiteLabelView:
+      type: object
+      properties: {tenantId: {type: string, format: uuid}, brandName: {type: string}, primaryColor: {type: string}, logoUrl: {type: string}, faviconUrl: {type: string}, customDomain: {type: string}, enabled: {type: boolean}, version: {type: integer, format: int64}}
+    WhiteLabelRequest:
+      type: object
+      required: [brandName, expectedVersion]
+      properties: {brandName: {type: string}, primaryColor: {type: string}, logoUrl: {type: string}, faviconUrl: {type: string}, customDomain: {type: string}, enabled: {type: boolean}, expectedVersion: {type: integer, format: int64}}
     PlatformVersion:
       type: object
       required:
@@ -2194,6 +2320,11 @@ components:
       - ATTENDANCE_MANAGE
       - RECORDINGS_VIEW
       - RECORDINGS_MANAGE
+      - FINANCE_VIEW
+      - FINANCE_MANAGE
+      - COMMERCIAL_VIEW
+      - COMMERCIAL_MANAGE
+      - PAYMENTS_MANAGE
     RecordingQualityPreset:
       type: string
       enum: [ECONOMY, BALANCED, HIGH_QUALITY, SOURCE_ARCHIVE]

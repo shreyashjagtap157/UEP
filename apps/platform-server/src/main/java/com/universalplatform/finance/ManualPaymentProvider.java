@@ -1,0 +1,3 @@
+package com.universalplatform.finance;
+import java.math.BigDecimal; import java.util.UUID; import org.springframework.stereotype.Component;
+@Component final class ManualPaymentProvider implements PaymentProvider { public String name(){return "MANUAL";} public PaymentResult authorize(UUID id,BigDecimal amount,String currency){return new PaymentResult(true,"MANUAL-"+id,"Manual authorization recorded");} public PaymentResult capture(String ref){return new PaymentResult(true,ref,"Manual capture recorded");} public PaymentResult refund(String ref){return new PaymentResult(true,ref,"Manual refund recorded");} }
