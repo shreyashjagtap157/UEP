@@ -116,6 +116,6 @@ For that reason no stable `v0.7.0.0` release tag is created here. The repository
 Implemented provider-independent learning resources, immutable resource versions, text notes, streamed resumable file uploads with byte-offset and SHA-256 validation, download policies, release/expiry windows, local/S3-compatible/Google Drive/Shared Drive storage adapters, tenant retention policy, and the authenticated Learning Content web workspace.
 
 
-## 0.8.0.0-SNAPSHOT — Assignments and Gradebook
+## 0.9.0.0-SNAPSHOT — Live Learning and Attendance
 
-Implemented assignments, batch assignment, deadlines, resubmission attempts, late tracking, rubric data, teacher grading, weighted gradebook projection, learner progress, web workflows, and tenant/RBAC boundaries. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.
+Implemented provider-neutral live classrooms, LiveKit token/media integration, scheduled start/end, tenant-scoped audience access, participant presence heartbeats, moderation state, screen sharing, classroom chat, adaptive/low-bandwidth profiles, configurable attendance policies, manual attendance overrides, finalization, web classroom controls, and web-first API boundaries for future native clients. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.

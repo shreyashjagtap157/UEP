@@ -41,5 +41,10 @@ class ClassSession {
 
     UUID id() { return id; }
     UUID scheduleOccurrenceId() { return scheduleOccurrenceId; }
+    UUID batchId() { return batchId; }
+    UUID courseId() { return courseId; }
+    UUID subjectId() { return subjectId; }
+    UUID moduleId() { return moduleId; }
+    String lifecycleStatus() { return status.name(); }
     void cancel() { this.status = ClassSessionStatus.CANCELLED; }
 }

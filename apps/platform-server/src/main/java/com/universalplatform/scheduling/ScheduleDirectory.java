@@ -12,8 +12,9 @@ public class ScheduleDirectory {
     private final ScheduleService service;
     private final ClassSessionRepository classSessions;
     private final com.universalplatform.security.TenantContext tenantContext;
+    private final ScheduleOccurrenceRepository occurrenceRepository;
 
-    ScheduleDirectory(ScheduleService service, ClassSessionRepository classSessions, com.universalplatform.security.TenantContext tenantContext) { this.service = service; this.classSessions = classSessions; this.tenantContext = tenantContext; }
+    ScheduleDirectory(ScheduleService service, ClassSessionRepository classSessions, com.universalplatform.security.TenantContext tenantContext, ScheduleOccurrenceRepository occurrenceRepository) { this.service = service; this.classSessions = classSessions; this.tenantContext = tenantContext; this.occurrenceRepository = occurrenceRepository; }
 
     @Transactional(readOnly = true)
     public List<ScheduleItem> range(Instant from, Instant to) {
@@ -28,10 +29,12 @@ public class ScheduleDirectory {
     public ClassSessionReference requireClassSession(UUID id) {
         ClassSession session = classSessions.findByTenantIdAndId(tenantContext.requireTenantId(), id)
                 .orElseThrow(() -> new IllegalArgumentException("Class session not found"));
-        return new ClassSessionReference(session.id(), session.scheduleOccurrenceId());
+        ScheduleOccurrence occurrence = occurrenceRepository.findByTenantIdAndId(tenantContext.requireTenantId(), session.scheduleOccurrenceId()).orElse(null);
+        return new ClassSessionReference(session.id(), session.scheduleOccurrenceId(), session.batchId(), session.courseId(), session.subjectId(), session.moduleId(), session.lifecycleStatus(),
+                occurrence == null ? null : occurrence.startsAt(), occurrence == null ? null : occurrence.endsAt());
     }
 
-    public record ClassSessionReference(UUID id, UUID occurrenceId) {}
+    public record ClassSessionReference(UUID id, UUID occurrenceId, UUID batchId, UUID courseId, UUID subjectId, UUID moduleId, String status, Instant startsAt, Instant endsAt) {}
 
     public record ScheduleItem(UUID occurrenceId, UUID seriesId, UUID classSessionId, ScheduleKind kind, String title,
                                String timezone, DeliveryMode deliveryMode, UUID branchId, UUID batchId, UUID courseId,

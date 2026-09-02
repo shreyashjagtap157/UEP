@@ -27,6 +27,14 @@ services:
     volumes:
       - ./keycloak/education-realm.json:/opt/keycloak/data/import/education-realm.json:ro
 
+  livekit:
+    image: livekit/livekit-server:v1.13.6
+    command: ["--dev", "--bind", "0.0.0.0"]
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+
   valkey:
     image: valkey/valkey:9.1.1-alpine
     profiles: ["cache"]

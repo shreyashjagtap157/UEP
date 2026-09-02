@@ -1,0 +1,2 @@
+package com.universalplatform.presence; import java.util.*; import org.springframework.data.jpa.repository.JpaRepository;
+interface AttendanceRepository extends JpaRepository<AttendanceRecord,UUID>{Optional<AttendanceRecord> findByTenantIdAndLiveClassIdAndMembershipId(UUID tenantId,UUID liveClassId,UUID membershipId); List<AttendanceRecord> findAllByTenantIdAndLiveClassId(UUID tenantId,UUID liveClassId);}

@@ -45,9 +45,10 @@ public class EnrollmentDirectory {
     @Transactional(readOnly = true)
     public java.util.Set<UUID> activeMembershipIdsForBatch(UUID batchId) {
         UUID tenantId = tenantContext.requireTenantId();
-        requireBatch(batchId);
+        BatchReference batch = requireBatch(batchId);
         java.util.LinkedHashSet<UUID> result = new java.util.LinkedHashSet<>(enrollments.findActiveMembershipIdsByBatch(tenantId, batchId));
         result.addAll(teachingAssignments.findActiveMembershipIdsForAudience(tenantId, batchId, null, null));
+        if (batch.courseId() != null) result.addAll(teachingAssignments.findActiveMembershipIdsForAudience(tenantId, null, batch.courseId(), null));
         return java.util.Set.copyOf(result);
     }
 

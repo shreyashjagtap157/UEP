@@ -46,6 +46,14 @@ export type PermissionKey =
   | 'ASSIGNMENTS_TAKE'
   | 'GRADEBOOK_VIEW'
   | 'GRADEBOOK_MANAGE'
+  | 'LIVE_CLASS_VIEW'
+  | 'LIVE_CLASS_MANAGE'
+  | 'LIVE_CLASS_MODERATE'
+  | 'LIVE_CLASS_CHAT'
+  | 'PRESENCE_VIEW'
+  | 'PRESENCE_MANAGE'
+  | 'ATTENDANCE_VIEW'
+  | 'ATTENDANCE_MANAGE'
   | 'AUDIT_VIEW'
 
 export interface AuthenticationAssurance {
@@ -717,3 +725,21 @@ export const submitAssignment = (id: string, textBody?: string, resourceId?: str
 export const fetchAssignmentSubmissions = (id: string) => request<PageResult<AssignmentSubmission>>(`/api/v1/assignments/${id}/submissions?size=100`)
 export const gradeAssignmentSubmission = (id: string, awardedPoints: number, feedback: string, rubricScoresJson: string, expectedVersion: number) => request<AssignmentSubmission>(`/api/v1/assignment-submissions/${id}/grade`, { method: 'PUT', body: JSON.stringify({ awardedPoints, feedback, rubricScoresJson, expectedVersion }) })
 export const fetchMyGradebook = (batchId: string) => request<GradebookView>(`/api/v1/gradebook/me/${batchId}`)
+
+export interface LiveClassView { id: string; classSessionId: string; batchId: string; roomName: string; status: 'SCHEDULED'|'LIVE'|'ENDED'|'CANCELLED'; attendancePolicy: 'MANUAL'|'JOIN_TIME'|'MINIMUM_DURATION'|'PERCENTAGE'; minimumAttendanceSeconds: number; attendanceThresholdBasisPoints: number; lowBandwidth: boolean; chatEnabled: boolean; startedAt?: string; endedAt?: string; version: number }
+export interface LiveClassToken { serverUrl: string; participantToken: string; liveClassId: string; roomName: string; role: 'HOST'|'MODERATOR'|'PRESENTER'|'PARTICIPANT'|'OBSERVER'; lowBandwidth: boolean; chatEnabled: boolean }
+export interface LiveParticipant { membershipId: string; role: string; status: string; joinedAt?: string; leftAt?: string; totalPresentSeconds: number; clientProfile?: string; moderationReason?: string; version: number }
+export interface AttendanceView { membershipId: string; status: 'PRESENT'|'PARTIAL'|'ABSENT'|'EXCUSED'; presentSeconds: number; finalizedAt: string; source: string; notes?: string }
+export const fetchLiveClasses = () => request<PageResult<LiveClassView>>('/api/v1/live-classes?size=100')
+export const createLiveClass = (input: { classSessionId: string; attendancePolicy: LiveClassView['attendancePolicy']; minimumAttendanceSeconds?: number; attendanceThresholdBasisPoints?: number; lowBandwidth?: boolean; chatEnabled?: boolean }) => request<LiveClassView>('/api/v1/live-classes',{method:'POST',body:JSON.stringify(input)})
+export const startLiveClass = (id:string) => request<LiveClassView>(`/api/v1/live-classes/${id}/start`,{method:'POST'})
+export const endLiveClass = (id:string) => request<LiveClassView>(`/api/v1/live-classes/${id}/end`,{method:'POST'})
+export const joinLiveClass = (id:string,clientProfile:'LOW_BANDWIDTH'|'BALANCED'|'HIGH_QUALITY'='BALANCED') => request<LiveClassToken>(`/api/v1/live-classes/${id}/join`,{method:'POST',body:JSON.stringify({clientProfile})})
+export const leaveLiveClass = (id:string) => request<void>(`/api/v1/live-classes/${id}/leave`,{method:'POST'})
+export const heartbeatLiveClass = (id:string,clientProfile='BALANCED') => request<void>(`/api/v1/live-classes/${id}/heartbeat`,{method:'POST',body:JSON.stringify({clientProfile})})
+export const fetchLiveParticipants = (id:string) => request<PageResult<LiveParticipant>>(`/api/v1/live-classes/${id}/participants?size=100`)
+export const muteLiveParticipant = (id:string,membershipId:string) => request<void>(`/api/v1/live-classes/${id}/participants/${membershipId}/mute`,{method:'POST'})
+export const kickLiveParticipant = (id:string,membershipId:string,reason?:string) => request<void>(`/api/v1/live-classes/${id}/participants/${membershipId}/kick`,{method:'POST',body:JSON.stringify({reason})})
+export const fetchAttendance = (id:string) => request<AttendanceView[]>(`/api/v1/live-classes/${id}/attendance`)
+export const finalizeAttendance = (id:string) => request<void>(`/api/v1/live-classes/${id}/attendance/finalize`,{method:'POST'})
+export const setAttendance = (id:string,membershipId:string,status:AttendanceView['status'],notes?:string) => request<void>(`/api/v1/live-classes/${id}/attendance/${membershipId}`,{method:'POST',body:JSON.stringify({status,notes})})

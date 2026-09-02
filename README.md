@@ -5,7 +5,7 @@ The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION
 
 ## Current milestone
 
-`0.8.0.0-SNAPSHOT` — Assignments and Gradebook.
+`0.9.0.0-SNAPSHOT` — Live Learning and Attendance.
 
 The learning-content milestone is implemented in source and intentionally remains a snapshot until its full release gates are verified with the production toolchain and services.
 
@@ -81,3 +81,7 @@ First-party code is proprietary. See `LICENSE` and
 `docs/commercial/LICENSING_ARCHITECTURE.md`. Customer-facing feature access is
 represented by server-side subscriptions, entitlements, limits, and usage—not by
 source-code forks or frontend-only switches.
+
+
+## Client strategy
+The web application is the first production client. Native desktop and mobile applications will be built later against the same stable platform APIs; business rules remain server-authoritative.

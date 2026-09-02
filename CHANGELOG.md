@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0.0 — Live Learning
+
+- Added provider-neutral live-class domain with LiveKit participant token integration.
+- Added web-first live classroom controls, adaptive streaming, low-bandwidth profiles, screen sharing and data-channel chat foundation.
+- Added presence heartbeats, participant moderation state, attendance policies and attendance finalization.
+- Added tenant-scoped live-class permissions and PostgreSQL live/presence/attendance schema.
+
+
 ## 0.8.0.0-SNAPSHOT — Assignments and Gradebook
 
 - Added tenant-scoped assignments with lifecycle, due dates, weighted grading and batch assignment.
