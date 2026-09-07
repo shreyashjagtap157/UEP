@@ -2433,6 +2433,17 @@ paths:
         - {name: state, in: query, required: true, schema: {type: string}}
         - {name: nonce, in: query, required: true, schema: {type: string}}
       responses: {'200': {description: Authorization URL, content: {text/plain: {schema: {type: string, format: uri}}}}}
+  /api/v1/integrations/identity-providers/{key}/synchronize:
+    post:
+      operationId: synchronizeFederatedIdentity
+      parameters:
+        - {name: key, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/FederationSyncRequest'}
+      responses: {'200': {description: Synchronized}}
   /api/v1/integrations/notification-providers:
     get:
       operationId: listNotificationProviders
@@ -5097,6 +5108,18 @@ components:
         redirectUri: {type: string, format: uri}
         scopes: {type: string}
         expectedVersion: {type: integer, format: int64}
+    FederationSyncRequest:
+      type: object
+      required: [subject, displayName, active]
+      properties:
+        subject: {type: string, maxLength: 160}
+        email: {type: string, maxLength: 320}
+        displayName: {type: string, maxLength: 200}
+        primaryBranchId: {type: string, format: uuid}
+        externalReference: {type: string, maxLength: 160}
+        groups: {type: array, items: {type: string, maxLength: 160}}
+        roleMappings: {type: object, additionalProperties: {type: string, maxLength: 64}}
+        active: {type: boolean}
     NotificationProviderRequest:
       type: object
       required: [providerKey, providerType, endpoint]

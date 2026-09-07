@@ -118,3 +118,14 @@ The project uses `stable.major.minor.patch` product versioning. Snapshot entries
 ## 0.1.0.0-SNAPSHOT — Engineering Foundation
 
 - Established the modular monolith, tenancy, audit, commercial entitlement foundation, web shell, CI/security policy, and reference infrastructure.
+
+## Unreleased — Federation claim synchronization and deprovisioning
+
+- Added the public `FederationIdentityDirectory` identity boundary for trusted enterprise federation synchronization.
+- Added durable `RoleAssignmentSource` provenance so federation-managed role assignments can be reconciled without deleting manually assigned roles.
+- Added tenant-scoped synchronization of federated subjects, profile attributes, branch/external references, group-to-system-role mappings, membership activation, and membership deprovisioning.
+- Added removal of previously federated role assignments before applying the current mapped group set, preventing stale external-group permissions.
+- Added `POST /api/v1/integrations/identity-providers/{key}/synchronize` and its OpenAPI contract.
+- Added migration `V034__federated_role_source.sql` for role-assignment provenance and indexing.
+- Preserved the architectural boundary `CLIENTS -> CONTRACTS/APIs -> DOMAIN PLATFORM -> DATA/STORAGE/MEDIA -> INFRASTRUCTURE ADAPTERS`; integration code uses the public identity boundary rather than package-private persistence.
+- Qualification: source structure, permission parity, notification parity, 0.15 qualification, OpenAPI parsing, and whitespace checks pass. Full Maven/JDK 25/PostgreSQL runtime qualification remains environment-dependent.

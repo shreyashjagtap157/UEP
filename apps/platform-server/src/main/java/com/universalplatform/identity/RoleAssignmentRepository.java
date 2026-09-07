@@ -16,6 +16,7 @@ interface RoleAssignmentRepository extends JpaRepository<RoleAssignment, UUID> {
     List<RoleAssignment> findAllByTenantIdAndMembershipIdIn(UUID tenantId, Collection<UUID> membershipIds);
     long countByRoleId(UUID roleId);
     boolean existsByTenantIdAndMembershipIdAndRoleId(UUID tenantId, UUID membershipId, UUID roleId);
+    long deleteAllByTenantIdAndMembershipIdAndSource(UUID tenantId, UUID membershipId, RoleAssignmentSource source);
 
     @Query("""
             select count(ra) from RoleAssignment ra, TenantMembership m

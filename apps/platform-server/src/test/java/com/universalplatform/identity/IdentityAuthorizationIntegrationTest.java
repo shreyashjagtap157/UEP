@@ -48,7 +48,7 @@ class IdentityAuthorizationIntegrationTest {
         insertSystemRole(OWNER_ROLE, "ORGANIZATION_OWNER", "Organization Owner");
         insertSystemRole(TEACHER_ROLE, "TEACHER", "Teacher");
         insertSystemRole(STUDENT_ROLE, "STUDENT", "Student");
-        for (String permission : new String[]{"ROLES_VIEW", "ROLES_MANAGE", "ROLES_ASSIGN", "USERS_VIEW", "USERS_MANAGE"}) {
+        for (String permission : new String[]{"ROLES_VIEW", "ROLES_MANAGE", "ROLES_ASSIGN", "USERS_VIEW", "USERS_MANAGE", "FEDERATION_MANAGE"}) {
             jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, ?)", OWNER_ROLE, permission);
         }
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'ORGANIZATION_VIEW')", TEACHER_ROLE);
