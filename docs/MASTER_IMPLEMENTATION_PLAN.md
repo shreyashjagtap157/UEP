@@ -3647,6 +3647,16 @@ This is the first commercially supported stable product.
 
 ---
 
+# 98. Native clients are first-class product scope
+
+UEP is a multi-client product. The web application is the first Production Web GA client, while Windows, macOS, Linux, Android, iOS/iPadOS, and institutional kiosk clients are also part of the overall product scope. Their production implementation remains sequenced after Web GA so the shared server/API/media/offline/license contracts can stabilize first.
+
+Native clients must reuse the same authoritative server contracts and must not become independent authorities for grades, attendance decisions, credentials, payments, licensing, or access control.
+
+See `docs/architecture/NATIVE_CLIENT_SCOPE.md`.
+
+---
+
 # 99. Post-1.0 native-client roadmap
 
 ## 1.1.x.x
