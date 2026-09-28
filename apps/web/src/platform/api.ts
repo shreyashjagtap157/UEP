@@ -1,4 +1,4 @@
-import { accessToken } from '../auth/keycloak'
+import { accessToken, getActivePersona } from '../auth/keycloak'
 
 export interface PlatformVersion {
   version: string
@@ -196,24 +196,71 @@ const ALL_PERMISSIONS: PermissionKey[] = [
 
 function getMockResponse(path: string): any {
   if (path.includes('/me')) {
+    const persona = getActivePersona()
+    if (persona === 'CLIENT_ADMIN') {
+      const clientAdminPerms: PermissionKey[] = ['ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE', 'USERS_VIEW', 'USERS_MANAGE', 'ROLES_VIEW', 'ROLES_MANAGE', 'ROLES_ASSIGN', 'SESSIONS_VIEW', 'ACADEMICS_VIEW', 'ACADEMICS_MANAGE', 'CURRICULUM_VIEW', 'CURRICULUM_MANAGE', 'ENROLLMENTS_VIEW', 'ENROLLMENTS_MANAGE', 'TEACHING_ASSIGNMENTS_VIEW', 'TEACHING_ASSIGNMENTS_MANAGE', 'SCHEDULE_VIEW', 'SCHEDULE_MANAGE', 'ANNOUNCEMENTS_VIEW', 'ANNOUNCEMENTS_MANAGE', 'NOTIFICATION_OPERATIONS_VIEW', 'CONTENT_VIEW', 'CONTENT_MANAGE', 'FINANCE_VIEW', 'FINANCE_MANAGE', 'ANALYTICS_VIEW', 'OPERATIONS_VIEW']
+      return {
+        userId: 'usr_client_admin_002',
+        membershipId: 'mem_client_admin_002',
+        oidcSubject: 'sub_client_admin_002',
+        email: 'admin@apex-academy.edu',
+        displayName: 'Sarah Connor (Client Org Admin)',
+        tenantId: 'tnt_apex_academy',
+        membershipStatus: 'ACTIVE',
+        primaryBranchId: 'br_main',
+        roles: ['Client Organization Administrator'],
+        permissions: clientAdminPerms,
+        primaryBranchPermissions: clientAdminPerms,
+        authenticationAssurance: { acr: 'gsa-level-2', otpEvidence: true, webAuthnEvidence: false, authenticatedAt: new Date().toISOString() },
+      }
+    }
+    if (persona === 'TEACHER') {
+      const teacherPerms: PermissionKey[] = ['ACADEMICS_VIEW', 'CURRICULUM_VIEW', 'TEACHING_ASSIGNMENTS_VIEW', 'SCHEDULE_VIEW', 'ANNOUNCEMENTS_VIEW', 'CONTENT_VIEW', 'CONTENT_MANAGE', 'ASSESSMENTS_VIEW', 'ASSESSMENTS_MANAGE', 'GRADING_VIEW', 'GRADING_MANAGE', 'REVIEW_VIEW', 'REVIEW_MANAGE', 'ASSIGNMENTS_VIEW', 'ASSIGNMENTS_MANAGE', 'GRADEBOOK_VIEW', 'GRADEBOOK_MANAGE', 'LIVE_CLASS_VIEW', 'LIVE_CLASS_MANAGE', 'LIVE_CLASS_MODERATE', 'LIVE_CLASS_CHAT', 'PRESENCE_VIEW', 'PRESENCE_MANAGE', 'ATTENDANCE_VIEW', 'ATTENDANCE_MANAGE', 'RECORDINGS_VIEW']
+      return {
+        userId: 'usr_teacher_003',
+        membershipId: 'mem_teacher_003',
+        oidcSubject: 'sub_teacher_003',
+        email: 'mbrody@apex-academy.edu',
+        displayName: 'Dr. Marcus Brody (Faculty Member)',
+        tenantId: 'tnt_apex_academy',
+        membershipStatus: 'ACTIVE',
+        primaryBranchId: 'br_main',
+        roles: ['Senior Faculty / Evaluator'],
+        permissions: teacherPerms,
+        primaryBranchPermissions: teacherPerms,
+        authenticationAssurance: { acr: 'gsa-level-2', otpEvidence: true, webAuthnEvidence: false, authenticatedAt: new Date().toISOString() },
+      }
+    }
+    if (persona === 'STUDENT') {
+      const studentPerms: PermissionKey[] = ['SCHEDULE_VIEW', 'ANNOUNCEMENTS_VIEW', 'CONTENT_VIEW', 'ASSESSMENTS_VIEW', 'ASSESSMENTS_TAKE', 'REVIEW_VIEW', 'REVIEW_SUBMIT', 'ASSIGNMENTS_VIEW', 'ASSIGNMENTS_TAKE', 'LIVE_CLASS_VIEW', 'LIVE_CLASS_CHAT', 'RECORDINGS_VIEW']
+      return {
+        userId: 'usr_student_004',
+        membershipId: 'mem_student_004',
+        oidcSubject: 'sub_student_004',
+        email: 'elena.rostova@student.apex-academy.edu',
+        displayName: 'Elena Rostova (Student / Learner)',
+        tenantId: 'tnt_apex_academy',
+        membershipStatus: 'ACTIVE',
+        primaryBranchId: 'br_main',
+        roles: ['Enrolled Student / Learner'],
+        permissions: studentPerms,
+        primaryBranchPermissions: studentPerms,
+        authenticationAssurance: { acr: 'gsa-level-1', otpEvidence: false, webAuthnEvidence: false, authenticatedAt: new Date().toISOString() },
+      }
+    }
     return {
       userId: 'usr_dev_admin_001',
       membershipId: 'mem_dev_admin_001',
       oidcSubject: 'sub_dev_admin_001',
       email: 'admin@universal-education.dev',
-      displayName: 'Platform Administrator (Dev Baseline)',
+      displayName: 'Alex Vance (Developer Admin)',
       tenantId: 'tnt_dev_master',
       membershipStatus: 'ACTIVE',
       primaryBranchId: 'br_main',
-      roles: ['Platform Administrator', 'Academic Director'],
+      roles: ['Developer Platform Administrator', 'Commercial Super Admin'],
       permissions: ALL_PERMISSIONS,
       primaryBranchPermissions: ALL_PERMISSIONS,
-      authenticationAssurance: {
-        acr: 'gsa-level-3',
-        otpEvidence: true,
-        webAuthnEvidence: true,
-        authenticatedAt: new Date().toISOString(),
-      },
+      authenticationAssurance: { acr: 'gsa-level-3', otpEvidence: true, webAuthnEvidence: true, authenticatedAt: new Date().toISOString() },
     }
   }
   if (path.includes('/platform/version')) {

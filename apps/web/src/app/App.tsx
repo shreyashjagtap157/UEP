@@ -34,6 +34,10 @@ import {
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
 
+import { AuthPage } from '../auth/AuthPage'
+import type { PersonaRole } from '../auth/AuthPage'
+import { setPersona } from '../auth/keycloak'
+
 type Section = 'overview' | 'advanced' | 'integrations' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
 
 const permissionOptions: PermissionKey[] = [
@@ -50,8 +54,27 @@ const permissionOptions: PermissionKey[] = [
 
 export function App() {
   const [section, setSection] = useState<Section>('overview')
-  const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity })
-  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000 })
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => localStorage.getItem('uep_authenticated') === 'true')
+  const queryClient = useQueryClient()
+  const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: isAuthenticated })
+  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: isAuthenticated })
+
+  function handleAuthenticate(personaRole: PersonaRole) {
+    setPersona(personaRole)
+    localStorage.setItem('uep_authenticated', 'true')
+    setIsAuthenticated(true)
+    setSection('overview')
+    void queryClient.invalidateQueries({ queryKey: ['me'] })
+  }
+
+  function handleSignOut() {
+    localStorage.removeItem('uep_authenticated')
+    setIsAuthenticated(false)
+  }
+
+  if (!isAuthenticated) {
+    return <AuthPage onAuthenticate={handleAuthenticate} />
+  }
 
   if (identity.isPending) return <CenteredStatus title="Loading your workspace" detail="Resolving tenant identity and permissions…" />
   if (identity.isError) return <CenteredStatus title="Access unavailable" detail={identity.error.message} />
@@ -95,7 +118,7 @@ export function App() {
         <div className="sidebar-footer">
           <p className="signed-in">{me.displayName}</p>
           <p className="muted small">{me.roles.join(' · ') || 'No assigned role'}</p>
-          <button className="text-button" onClick={() => void logout()}>Sign out</button>
+          <button className="text-button" onClick={handleSignOut}>Switch Role / Sign out</button>
         </div>
       </aside>
 

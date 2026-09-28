@@ -7,6 +7,18 @@ let keycloak = new Keycloak({
   clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID ?? 'platform-web',
 })
 
+export type PersonaRole = 'DEV_ADMIN' | 'CLIENT_ADMIN' | 'TEACHER' | 'STUDENT'
+let currentPersona: PersonaRole = (localStorage.getItem('uep_persona') as PersonaRole) || 'DEV_ADMIN'
+
+export function setPersona(persona: PersonaRole) {
+  currentPersona = persona
+  localStorage.setItem('uep_persona', persona)
+}
+
+export function getActivePersona(): PersonaRole {
+  return currentPersona
+}
+
 let isStandaloneDevMode = false
 
 async function findReachableKeycloakUrl(realm: string): Promise<string | null> {
