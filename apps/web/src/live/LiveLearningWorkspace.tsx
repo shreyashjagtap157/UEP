@@ -154,7 +154,7 @@ function ConnectedRoom({ token, liveClass }: { token: LiveClassToken; liveClass:
   async function toggleMic() { if (!room) return; const next = !mic; await room.localParticipant.setMicrophoneEnabled(next); setMic(next) }
   async function toggleCamera() { if (!room) return; const next = !camera; await room.localParticipant.setCameraEnabled(next); setCamera(next) }
   async function toggleScreen() { if (!room) return; const next = !screen; await room.localParticipant.setScreenShareEnabled(next); setScreen(next) }
-  async function sendMessage() { if (!room || !message.trim() || !liveClass.chatEnabled) return; await room.localParticipant.sendText(message.trim(), { topic: 'uep-chat', reliable: true }); setMessages(current => [...current, `You: ${message.trim()}`]); setMessage('') }
+  async function sendMessage() { if (!room || !message.trim() || !liveClass.chatEnabled) return; await room.localParticipant.sendText(message.trim(), { topic: 'uep-chat' }); setMessages(current => [...current, `You: ${message.trim()}`]); setMessage('') }
 
   return <div>
     <div className="live-stage" ref={grid} aria-label="Live classroom media grid"><div className="live-stage-overlay"><strong>Connected</strong><span>{participants} participants</span></div></div>
