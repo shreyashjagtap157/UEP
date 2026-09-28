@@ -7,13 +7,18 @@ const keycloak = new Keycloak({
 })
 
 export async function initializeAuthentication(): Promise<void> {
-  const authenticated = await keycloak.init({
-    onLoad: 'login-required',
-    flow: 'standard',
-    pkceMethod: 'S256',
-    checkLoginIframe: true,
-  })
-  if (!authenticated) await keycloak.login()
+  try {
+    const authenticated = await keycloak.init({
+      onLoad: 'login-required',
+      flow: 'standard',
+      pkceMethod: 'S256',
+      checkLoginIframe: false,
+    })
+    if (!authenticated) await keycloak.login()
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new Error(`Keycloak identity service at ${keycloak.authServerUrl} is unreachable or rejected authentication (${detail}). Ensure Keycloak is running (e.g. via 'docker compose -f infra/compose.yaml up -d').`)
+  }
 }
 
 export async function accessToken(): Promise<string> {
