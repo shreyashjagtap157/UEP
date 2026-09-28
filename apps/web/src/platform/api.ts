@@ -219,6 +219,31 @@ function getMockResponse(path: string): any {
   if (path.includes('/platform/version')) {
     return { version: '0.15.0.0-SNAPSHOT', releaseStatus: 'Reliability and Performance Qualification' }
   }
+  if (path.includes('/today')) {
+    return {
+      generatedAt: new Date().toISOString(),
+      mode: 'ADMINISTRATIVE',
+      timezone: 'UTC',
+      schedule: [
+        {
+          occurrenceId: 'occ_dev_01',
+          classSessionId: 'cs_dev_01',
+          title: 'Advanced System Architecture & Engineering',
+          kind: 'CLASS',
+          deliveryMode: 'ONLINE_LIVE',
+          startsAt: new Date().toISOString(),
+          endsAt: new Date(Date.now() + 3600000).toISOString(),
+          roomCode: 'LIVE-101',
+        },
+      ],
+      summary: {
+        classes: 1,
+        exams: 0,
+        scheduledLearners: 25,
+        unreadNotifications: 2,
+      },
+    }
+  }
   if (path.includes('/branches')) {
     return { items: [{ id: 'br_main', code: 'MAIN', displayName: 'Main Campus', timezone: 'UTC' }], page: 0, size: 100, totalElements: 1, totalPages: 1 }
   }
@@ -234,8 +259,8 @@ function getMockResponse(path: string): any {
   if (path.includes('/sessions')) {
     return { items: [{ id: 'sess_cur', current: true, ipAddress: '127.0.0.1', userAgent: 'Local Web Browser', lastSeenAt: new Date().toISOString(), createdAt: new Date().toISOString() }], page: 0, size: 100, totalElements: 1, totalPages: 1 }
   }
-  if (path.includes('?')) return { items: [], page: 0, size: 100, totalElements: 0, totalPages: 0 }
-  return []
+  if (path.includes('?') || path.endsWith('s')) return { items: [], page: 0, size: 100, totalElements: 0, totalPages: 0 }
+  return {}
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {

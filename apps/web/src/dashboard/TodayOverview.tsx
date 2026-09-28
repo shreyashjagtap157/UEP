@@ -3,7 +3,7 @@ import { fetchToday } from '../platform/api'
 
 export function TodayOverview() {
   const today = useQuery({ queryKey: ['today'], queryFn: fetchToday, refetchInterval: 60_000 })
-  if (today.isPending) return <section className="panel"><p className="muted">Loading today…</p></section>
+  if (today.isPending || !today.data || !today.data.summary) return <section className="panel"><p className="muted">Loading today…</p></section>
   if (today.isError) return <section className="panel"><p className="error-text" role="alert">{today.error.message}</p></section>
   const value = today.data
   return (
