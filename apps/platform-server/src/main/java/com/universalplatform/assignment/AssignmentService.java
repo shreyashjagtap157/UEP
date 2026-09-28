@@ -1,24 +1,329 @@
 package com.universalplatform.assignment;
-import com.universalplatform.audit.AuditService; import com.universalplatform.content.ContentDirectory; import com.universalplatform.enrollment.EnrollmentDirectory; import com.universalplatform.identity.*; import com.universalplatform.security.*; import java.time.*; import java.util.*; import org.springframework.data.domain.*; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
-@Service class AssignmentService implements AssignmentDirectory {
- private final TenantContext tenant; private final ActorContext actor; private final AuthorizationService auth; private final MembershipDirectory memberships; private final EnrollmentDirectory enrollment; private final ContentDirectory content; private final AssignmentRepository assignments; private final AssignmentBatchRepository links; private final AssignmentSubmissionRepository submissions; private final RubricRepository rubrics; private final AuditService audit; private final Clock clock=Clock.systemUTC();
- AssignmentService(TenantContext t,ActorContext a,AuthorizationService auth,MembershipDirectory m,EnrollmentDirectory e,ContentDirectory c,AssignmentRepository ar,AssignmentBatchRepository l,AssignmentSubmissionRepository s,RubricRepository r,AuditService audit){tenant=t;actor=a;this.auth=auth;memberships=m;enrollment=e;content=c;assignments=ar;links=l;submissions=s;rubrics=r;this.audit=audit;}
- @Transactional(readOnly=true) PageResult<AssignmentView> list(int page,int size){auth.require(PermissionKey.ASSIGNMENTS_VIEW);UUID tid=tenant.requireTenantId();int safePage=Math.max(0,page), safeSize=Math.min(100,Math.max(1,size));Pageable pageable=PageRequest.of(safePage,safeSize,Sort.by(Sort.Direction.DESC,"createdAt","id"));UUID mid=memberships.current().membershipId();if(auth.has(PermissionKey.ASSIGNMENTS_MANAGE)){Page<Assignment> p=assignments.findAllByTenantId(tid,pageable);return new PageResult<>(p.getContent().stream().map(this::view).toList(),p.getNumber(),p.getSize(),p.getTotalElements(),p.getTotalPages());}List<UUID> batchIds=enrollment.activeBatchIdsForMembership(mid);if(batchIds.isEmpty())return new PageResult<>(List.of(),safePage,safeSize,0,0);List<UUID> visibleIds=links.findAllByTenantIdAndBatchIdIn(tid,batchIds).stream().map(AssignmentBatch::assignmentId).distinct().toList();if(visibleIds.isEmpty())return new PageResult<>(List.of(),safePage,safeSize,0,0);Page<Assignment> p=assignments.findAllByTenantIdAndIdIn(tid,visibleIds,pageable);return new PageResult<>(p.getContent().stream().map(this::view).toList(),p.getNumber(),p.getSize(),p.getTotalElements(),p.getTotalPages());}
- @Transactional AssignmentView create(CreateCommand c){auth.require(PermissionKey.ASSIGNMENTS_MANAGE);validate(c.title,c.maxPoints,c.weightBasisPoints,c.dueAt);UUID tid=tenant.requireTenantId();Instant now=clock.instant();Assignment a=assignments.save(new Assignment(UUID.randomUUID(),tid,c.title.trim(),c.instructions,AssignmentStatus.DRAFT,c.maxPoints,c.weightBasisPoints,c.dueAt,now));audit.record(tid,actor.requireSubject(),"ASSIGNMENT_CREATED","assignment",a.id().toString());return view(a);}
- @Transactional AssignmentView update(UUID id,UpdateCommand c){auth.require(PermissionKey.ASSIGNMENTS_MANAGE);UUID tid=tenant.requireTenantId();Assignment a=require(id);if(a.version()!=c.expectedVersion())throw new IllegalStateException("Assignment was modified");validate(c.title,c.maxPoints,c.weightBasisPoints,c.dueAt);if(c.status()==AssignmentStatus.PUBLISHED&&links.findAllByTenantIdAndAssignmentId(tid,id).isEmpty())throw new IllegalStateException("Publish requires at least one batch assignment");a.update(c.title.trim(),c.instructions,c.maxPoints,c.weightBasisPoints,c.dueAt,c.status,clock.instant());audit.record(tid,actor.requireSubject(),"ASSIGNMENT_UPDATED","assignment",id.toString());return view(a);}
- @Transactional AssignmentView updateStatus(UUID id,AssignmentStatus status,long expectedVersion){auth.require(PermissionKey.ASSIGNMENTS_MANAGE);Assignment a=require(id);if(a.version()!=expectedVersion)throw new IllegalStateException("Assignment was modified");if(status==null)throw new IllegalArgumentException("Assignment status is required");if(status==AssignmentStatus.PUBLISHED&&links.findAllByTenantIdAndAssignmentId(tenant.requireTenantId(),id).isEmpty())throw new IllegalStateException("Publish requires at least one batch assignment");a.update(a.title(),a.instructions(),a.maxPoints(),a.weightBasisPoints(),a.dueAt(),status,clock.instant());audit.record(tenant.requireTenantId(),actor.requireSubject(),"ASSIGNMENT_STATUS_CHANGED","assignment",id.toString());return view(a);}
- @Transactional AssignmentView assignBatch(UUID id,UUID batchId){auth.require(PermissionKey.ASSIGNMENTS_MANAGE);UUID tid=tenant.requireTenantId();Assignment a=require(id);enrollment.requireBatch(batchId);if(a.status()==AssignmentStatus.ARCHIVED||a.status()==AssignmentStatus.CLOSED)throw new IllegalStateException("Closed or archived assignments cannot be assigned");if(!links.existsByTenantIdAndAssignmentIdAndBatchId(tid,id,batchId)){int totalWeight=links.findAllByTenantIdAndBatchId(tid,batchId).stream().mapToInt(l->assignments.findByTenantIdAndId(tid,l.assignmentId()).map(Assignment::weightBasisPoints).orElse(0)).sum();if(totalWeight+a.weightBasisPoints()>10000)throw new IllegalArgumentException("Assignment weights for a batch cannot exceed 100%");links.save(new AssignmentBatch(UUID.randomUUID(),tid,id,batchId,clock.instant()));audit.record(tid,actor.requireSubject(),"ASSIGNMENT_BATCH_ASSIGNED","assignment",id.toString());}return view(a);}
- @Transactional RubricView upsertRubric(UUID id,RubricCommand c){auth.require(PermissionKey.ASSIGNMENTS_MANAGE);Assignment a=require(id);Rubric r=rubrics.findByTenantIdAndAssignmentId(tenant.requireTenantId(),id).orElseGet(()->new Rubric(UUID.randomUUID(),tenant.requireTenantId(),id,c.title,c.criteriaJson,clock.instant())); if(rubrics.existsById(r.id())&&r.version()!=c.expectedVersion)throw new IllegalStateException("Rubric was modified");rubrics.save(r);return new RubricView(r.id(),r.title(),r.criteriaJson(),r.version());}
- @Transactional SubmissionView submit(UUID id,String textBody,UUID resourceId){auth.require(PermissionKey.ASSIGNMENTS_TAKE);Assignment a=require(id);if(a.status()!=AssignmentStatus.PUBLISHED)throw new IllegalStateException("Assignment is not accepting submissions");if(resourceId!=null)content.requireReadableResource(resourceId);UUID tid=tenant.requireTenantId();UUID mid=memberships.current().membershipId();boolean linked=links.findAllByTenantIdAndAssignmentId(tid,id).stream().anyMatch(l->enrollment.activeLearnerMembershipIdsForBatch(l.batchId()).contains(mid));if(!linked)throw new SecurityException("Assignment is not assigned to this learner");int next=submissions.findAllByTenantIdAndAssignmentIdAndMembershipIdOrderByAttemptNumberDesc(tid,id,mid).stream().mapToInt(AssignmentSubmission::attemptNumber).max().orElse(0)+1;AssignmentSubmission n=new AssignmentSubmission(UUID.randomUUID(),tid,id,mid,next,SubmissionStatus.DRAFT,clock.instant(),textBody,resourceId);n.submit(clock.instant()); n.markLate(!clock.instant().isBefore(a.dueAt())); submissions.save(n);audit.record(tid,actor.requireSubject(),"ASSIGNMENT_SUBMITTED","assignment_submission",n.id().toString());return submissionView(n,a);}
- @Transactional SubmissionView saveDraft(UUID id,String textBody,UUID resourceId){auth.require(PermissionKey.ASSIGNMENTS_TAKE);UUID tid=tenant.requireTenantId();UUID mid=memberships.current().membershipId();Assignment a=require(id);if(resourceId!=null)content.requireReadableResource(resourceId);AssignmentSubmission latest=submissions.findTopByTenantIdAndAssignmentIdAndMembershipIdOrderByAttemptNumberDesc(tid,id,mid).orElse(null);AssignmentSubmission n;if(latest!=null&&(latest.status()==SubmissionStatus.SUBMITTED||latest.status()==SubmissionStatus.RESUBMITTED)){n=new AssignmentSubmission(UUID.randomUUID(),tid,id,mid,latest.attemptNumber()+1,SubmissionStatus.DRAFT,clock.instant(),textBody,resourceId);}else{n=latest!=null?latest:new AssignmentSubmission(UUID.randomUUID(),tid,id,mid,1,SubmissionStatus.DRAFT,clock.instant(),null,null);n.saveDraft(textBody,resourceId,clock.instant());}submissions.save(n);return submissionView(n,a);}
- @Transactional(readOnly=true) PageResult<SubmissionView> listMySubmissions(int page,int size){auth.require(PermissionKey.ASSIGNMENTS_TAKE);UUID tid=tenant.requireTenantId();UUID mid=memberships.current().membershipId();int safePage=Math.max(0,page), safeSize=Math.min(100,Math.max(1,size));Page<AssignmentSubmission> p=submissions.findAllByTenantIdAndMembershipId(tid,mid,PageRequest.of(safePage,safeSize,Sort.by(Sort.Direction.DESC,"createdAt","id")));return new PageResult<>(p.getContent().stream().map(s->submissionView(s,require(s.assignmentId()))).toList(),p.getNumber(),p.getSize(),p.getTotalElements(),p.getTotalPages());}
- @Transactional(readOnly=true) PageResult<SubmissionView> listSubmissions(UUID assignmentId,int page,int size){auth.require(PermissionKey.ASSIGNMENTS_MANAGE);UUID tid=tenant.requireTenantId();require(assignmentId);Page<AssignmentSubmission> p=submissions.findAllByTenantIdAndAssignmentId(tid,assignmentId,PageRequest.of(Math.max(0,page),Math.min(100,Math.max(1,size)),Sort.by(Sort.Direction.DESC,"submittedAt","id")));Assignment a=require(assignmentId);return new PageResult<>(p.getContent().stream().map(s->submissionView(s,a)).toList(),p.getNumber(),p.getSize(),p.getTotalElements(),p.getTotalPages());}
- @Transactional SubmissionView gradeSubmission(UUID submissionId,int awardedPoints,String feedback,String rubricScoresJson,long expectedVersion){auth.require(PermissionKey.ASSIGNMENTS_MANAGE);UUID tid=tenant.requireTenantId();AssignmentSubmission s=submissions.findById(submissionId).filter(x->x.tenantId().equals(tid)).orElseThrow(()->new IllegalArgumentException("Submission not found"));if(s.version()!=expectedVersion)throw new IllegalStateException("Submission was modified");Assignment a=require(s.assignmentId());if(s.status()!=SubmissionStatus.SUBMITTED&&s.status()!=SubmissionStatus.RESUBMITTED)throw new IllegalStateException("Only submitted work can be graded");if(awardedPoints<0||awardedPoints>a.maxPoints())throw new IllegalArgumentException("Points outside assignment bounds");s.grade(awardedPoints,feedback,rubricScoresJson,clock.instant());submissions.save(s);audit.record(tid,actor.requireSubject(),"ASSIGNMENT_SUBMISSION_GRADED","assignment_submission",submissionId.toString());return submissionView(s,a);}
- @Override @Transactional(readOnly=true) public AssignmentReference requireAssignment(UUID assignmentId){Assignment a=require(assignmentId);return new AssignmentReference(a.id(),a.title(),a.maxPoints(),a.status()==AssignmentStatus.PUBLISHED);}
- @Override @Transactional(readOnly=true) public GradebookAssignment gradebookAssignment(UUID assignmentId,UUID batchId,UUID membershipId){UUID tid=tenant.requireTenantId();Assignment a=require(assignmentId);boolean assigned=links.findAllByTenantIdAndAssignmentId(tid,assignmentId).stream().anyMatch(l->l.batchId().equals(batchId));if(!assigned)throw new SecurityException("Assignment is not assigned to batch");var sub=submissions.findTopByTenantIdAndAssignmentIdAndMembershipIdOrderByAttemptNumberDesc(tid,assignmentId,membershipId).orElse(null);return new GradebookAssignment(a.id(),a.title(),a.maxPoints(),a.weightBasisPoints(),sub==null?null:sub.awardedPoints(),a.status());}
- @Override @Transactional(readOnly=true) public List<GradebookAssignment> gradebookAssignments(UUID batchId,UUID membershipId){UUID tid=tenant.requireTenantId();enrollment.requireBatch(batchId);return links.findAllByTenantIdAndBatchId(tid,batchId).stream().map(l->gradebookAssignment(l.assignmentId(),batchId,membershipId)).toList();}
- private Assignment require(UUID id){return assignments.findByTenantIdAndId(tenant.requireTenantId(),id).orElseThrow(()->new IllegalArgumentException("Assignment not found"));}
- private AssignmentView view(Assignment a){return new AssignmentView(a.id(),a.title(),a.instructions(),a.status(),a.maxPoints(),a.weightBasisPoints(),a.dueAt(),a.version());}
- private SubmissionView submissionView(AssignmentSubmission s,Assignment a){return new SubmissionView(s.id(),a.id(),s.attemptNumber(),s.status(),s.gradeStatus(),s.textBody(),s.resourceId(),s.submittedAt(),s.awardedPoints(),s.graderFeedback(),s.rubricScoresJson(),s.late(),s.version());}
- private static void validate(String title,int max,int weight,Instant due){if(title==null||title.isBlank()||title.length()>240)throw new IllegalArgumentException("Assignment title is required");if(max<1)throw new IllegalArgumentException("maxPoints must be positive");if(weight<0||weight>10000)throw new IllegalArgumentException("weightBasisPoints must be 0..10000");if(due==null)throw new IllegalArgumentException("dueAt is required");}
- public record CreateCommand(String title,String instructions,int maxPoints,int weightBasisPoints,Instant dueAt){} public record UpdateCommand(String title,String instructions,int maxPoints,int weightBasisPoints,Instant dueAt,AssignmentStatus status,long expectedVersion){} public record RubricCommand(String title,String criteriaJson,long expectedVersion){} public record AssignmentView(UUID id,String title,String instructions,AssignmentStatus status,int maxPoints,int weightBasisPoints,Instant dueAt,long version){} public record RubricView(UUID id,String title,String criteriaJson,long version){} public record SubmissionView(UUID id,UUID assignmentId,int attemptNumber,SubmissionStatus status,SubmissionGradeStatus gradeStatus,String textBody,UUID resourceId,Instant submittedAt,Integer awardedPoints,String graderFeedback,String rubricScoresJson,boolean late,long version){} public record PageResult<T>(List<T> items,int page,int size,long totalElements,int totalPages){}}
+
+import com.universalplatform.audit.AuditService;
+import com.universalplatform.content.ContentDirectory;
+import com.universalplatform.enrollment.EnrollmentDirectory;
+import com.universalplatform.identity.*;
+import com.universalplatform.security.*;
+import java.time.*;
+import java.util.*;
+import org.springframework.data.domain.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+class AssignmentService implements AssignmentDirectory {
+    private final TenantContext tenant;
+    private final ActorContext actor;
+    private final AuthorizationService auth;
+    private final MembershipDirectory memberships;
+    private final EnrollmentDirectory enrollment;
+    private final ContentDirectory content;
+    private final AssignmentRepository assignments;
+    private final AssignmentBatchRepository links;
+    private final AssignmentSubmissionRepository submissions;
+    private final RubricRepository rubrics;
+    private final AuditService audit;
+    private final Clock clock = Clock.systemUTC();
+
+    AssignmentService(TenantContext t, ActorContext a, AuthorizationService auth, MembershipDirectory m,
+            EnrollmentDirectory e, ContentDirectory c, AssignmentRepository ar, AssignmentBatchRepository l,
+            AssignmentSubmissionRepository s, RubricRepository r, AuditService audit) {
+        tenant = t;
+        actor = a;
+        this.auth = auth;
+        memberships = m;
+        enrollment = e;
+        content = c;
+        assignments = ar;
+        links = l;
+        submissions = s;
+        rubrics = r;
+        this.audit = audit;
+    }
+
+    @Transactional(readOnly = true)
+    PageResult<AssignmentView> list(int page, int size) {
+        auth.require(PermissionKey.ASSIGNMENTS_VIEW);
+        UUID tid = tenant.requireTenantId();
+        int safePage = Math.max(0, page), safeSize = Math.min(100, Math.max(1, size));
+        Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        UUID mid = memberships.current().membershipId();
+        if (auth.has(PermissionKey.ASSIGNMENTS_MANAGE)) {
+            Page<Assignment> p = assignments.findAllByTenantId(tid, pageable);
+            return new PageResult<>(p.getContent().stream().map(this::view).toList(), p.getNumber(), p.getSize(),
+                    p.getTotalElements(), p.getTotalPages());
+        }
+        List<UUID> batchIds = List.copyOf(enrollment.activeBatchIdsForMembership(mid));
+        if (batchIds.isEmpty())
+            return new PageResult<>(List.of(), safePage, safeSize, 0, 0);
+        List<UUID> visibleIds = links.findAllByTenantIdAndBatchIdIn(tid, batchIds).stream()
+                .map(AssignmentBatch::assignmentId).distinct().toList();
+        if (visibleIds.isEmpty())
+            return new PageResult<>(List.of(), safePage, safeSize, 0, 0);
+        List<Assignment> matching = assignments.findAllByTenantIdAndIdIn(tid, visibleIds);
+        int start = Math.min((int) pageable.getOffset(), matching.size());
+        int end = Math.min(start + pageable.getPageSize(), matching.size());
+        List<AssignmentView> pageContent = matching.subList(start, end).stream().map(this::view).toList();
+        int totalPages = (int) Math.ceil((double) matching.size() / safeSize);
+        return new PageResult<>(pageContent, safePage, safeSize, matching.size(), totalPages);
+    }
+
+    @Transactional
+    AssignmentView create(CreateCommand c) {
+        auth.require(PermissionKey.ASSIGNMENTS_MANAGE);
+        validate(c.title, c.maxPoints, c.weightBasisPoints, c.dueAt);
+        UUID tid = tenant.requireTenantId();
+        Instant now = clock.instant();
+        Assignment a = assignments.save(new Assignment(UUID.randomUUID(), tid, c.title.trim(), c.instructions,
+                AssignmentStatus.DRAFT, c.maxPoints, c.weightBasisPoints, c.dueAt, now));
+        audit.record(tid, actor.requireSubject(), "ASSIGNMENT_CREATED", "assignment", a.id().toString());
+        return view(a);
+    }
+
+    @Transactional
+    AssignmentView update(UUID id, UpdateCommand c) {
+        auth.require(PermissionKey.ASSIGNMENTS_MANAGE);
+        UUID tid = tenant.requireTenantId();
+        Assignment a = require(id);
+        if (a.version() != c.expectedVersion())
+            throw new IllegalStateException("Assignment was modified");
+        validate(c.title, c.maxPoints, c.weightBasisPoints, c.dueAt);
+        if (c.status() == AssignmentStatus.PUBLISHED && links.findAllByTenantIdAndAssignmentId(tid, id).isEmpty())
+            throw new IllegalStateException("Publish requires at least one batch assignment");
+        a.update(c.title.trim(), c.instructions, c.maxPoints, c.weightBasisPoints, c.dueAt, c.status, clock.instant());
+        audit.record(tid, actor.requireSubject(), "ASSIGNMENT_UPDATED", "assignment", id.toString());
+        return view(a);
+    }
+
+    @Transactional
+    AssignmentView updateStatus(UUID id, AssignmentStatus status, long expectedVersion) {
+        auth.require(PermissionKey.ASSIGNMENTS_MANAGE);
+        Assignment a = require(id);
+        if (a.version() != expectedVersion)
+            throw new IllegalStateException("Assignment was modified");
+        if (status == null)
+            throw new IllegalArgumentException("Assignment status is required");
+        if (status == AssignmentStatus.PUBLISHED
+                && links.findAllByTenantIdAndAssignmentId(tenant.requireTenantId(), id).isEmpty())
+            throw new IllegalStateException("Publish requires at least one batch assignment");
+        a.update(a.title(), a.instructions(), a.maxPoints(), a.weightBasisPoints(), a.dueAt(), status, clock.instant());
+        audit.record(tenant.requireTenantId(), actor.requireSubject(), "ASSIGNMENT_STATUS_CHANGED", "assignment",
+                id.toString());
+        return view(a);
+    }
+
+    @Transactional
+    AssignmentView assignBatch(UUID id, UUID batchId) {
+        auth.require(PermissionKey.ASSIGNMENTS_MANAGE);
+        UUID tid = tenant.requireTenantId();
+        Assignment a = require(id);
+        enrollment.requireBatch(batchId);
+        if (a.status() == AssignmentStatus.ARCHIVED || a.status() == AssignmentStatus.CLOSED)
+            throw new IllegalStateException("Closed or archived assignments cannot be assigned");
+        if (!links.existsByTenantIdAndAssignmentIdAndBatchId(tid, id, batchId)) {
+            int totalWeight = links
+                    .findAllByTenantIdAndBatchId(tid, batchId).stream().mapToInt(l -> assignments
+                            .findByTenantIdAndId(tid, l.assignmentId()).map(Assignment::weightBasisPoints).orElse(0))
+                    .sum();
+            if (totalWeight + a.weightBasisPoints() > 10000)
+                throw new IllegalArgumentException("Assignment weights for a batch cannot exceed 100%");
+            links.save(new AssignmentBatch(UUID.randomUUID(), tid, id, batchId, clock.instant()));
+            audit.record(tid, actor.requireSubject(), "ASSIGNMENT_BATCH_ASSIGNED", "assignment", id.toString());
+        }
+        return view(a);
+    }
+
+    @Transactional
+    RubricView upsertRubric(UUID id, RubricCommand c) {
+        auth.require(PermissionKey.ASSIGNMENTS_MANAGE);
+        Assignment a = require(id);
+        Rubric r = rubrics.findByTenantIdAndAssignmentId(tenant.requireTenantId(), id)
+                .orElseGet(() -> new Rubric(UUID.randomUUID(), tenant.requireTenantId(), id, c.title, c.criteriaJson,
+                        clock.instant()));
+        if (rubrics.existsById(r.id()) && r.version() != c.expectedVersion)
+            throw new IllegalStateException("Rubric was modified");
+        rubrics.save(r);
+        return new RubricView(r.id(), r.title(), r.criteriaJson(), r.version());
+    }
+
+    @Transactional
+    SubmissionView submit(UUID id, String textBody, UUID resourceId) {
+        auth.require(PermissionKey.ASSIGNMENTS_TAKE);
+        Assignment a = require(id);
+        if (a.status() != AssignmentStatus.PUBLISHED)
+            throw new IllegalStateException("Assignment is not accepting submissions");
+        if (resourceId != null)
+            content.requireReadableResource(resourceId);
+        UUID tid = tenant.requireTenantId();
+        UUID mid = memberships.current().membershipId();
+        boolean linked = links.findAllByTenantIdAndAssignmentId(tid, id).stream()
+                .anyMatch(l -> enrollment.activeLearnerMembershipIdsForBatch(l.batchId()).contains(mid));
+        if (!linked)
+            throw new SecurityException("Assignment is not assigned to this learner");
+        int next = submissions.findAllByTenantIdAndAssignmentIdAndMembershipIdOrderByAttemptNumberDesc(tid, id, mid)
+                .stream().mapToInt(AssignmentSubmission::attemptNumber).max().orElse(0) + 1;
+        AssignmentSubmission n = new AssignmentSubmission(UUID.randomUUID(), tid, id, mid, next, SubmissionStatus.DRAFT,
+                clock.instant(), textBody, resourceId);
+        n.submit(clock.instant());
+        n.markLate(!clock.instant().isBefore(a.dueAt()));
+        submissions.save(n);
+        audit.record(tid, actor.requireSubject(), "ASSIGNMENT_SUBMITTED", "assignment_submission", n.id().toString());
+        return submissionView(n, a);
+    }
+
+    @Transactional
+    SubmissionView saveDraft(UUID id, String textBody, UUID resourceId) {
+        auth.require(PermissionKey.ASSIGNMENTS_TAKE);
+        UUID tid = tenant.requireTenantId();
+        UUID mid = memberships.current().membershipId();
+        Assignment a = require(id);
+        if (resourceId != null)
+            content.requireReadableResource(resourceId);
+        AssignmentSubmission latest = submissions
+                .findTopByTenantIdAndAssignmentIdAndMembershipIdOrderByAttemptNumberDesc(tid, id, mid).orElse(null);
+        AssignmentSubmission n;
+        if (latest != null
+                && (latest.status() == SubmissionStatus.SUBMITTED || latest.status() == SubmissionStatus.RESUBMITTED)) {
+            n = new AssignmentSubmission(UUID.randomUUID(), tid, id, mid, latest.attemptNumber() + 1,
+                    SubmissionStatus.DRAFT, clock.instant(), textBody, resourceId);
+        } else {
+            n = latest != null ? latest
+                    : new AssignmentSubmission(UUID.randomUUID(), tid, id, mid, 1, SubmissionStatus.DRAFT,
+                            clock.instant(), null, null);
+            n.saveDraft(textBody, resourceId, clock.instant());
+        }
+        submissions.save(n);
+        return submissionView(n, a);
+    }
+
+    @Transactional(readOnly = true)
+    PageResult<SubmissionView> listMySubmissions(int page, int size) {
+        auth.require(PermissionKey.ASSIGNMENTS_TAKE);
+        UUID tid = tenant.requireTenantId();
+        UUID mid = memberships.current().membershipId();
+        int safePage = Math.max(0, page), safeSize = Math.min(100, Math.max(1, size));
+        Page<AssignmentSubmission> p = submissions.findAllByTenantIdAndMembershipId(tid, mid,
+                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
+        return new PageResult<>(p.getContent().stream().map(s -> submissionView(s, require(s.assignmentId()))).toList(),
+                p.getNumber(), p.getSize(), p.getTotalElements(), p.getTotalPages());
+    }
+
+    @Transactional(readOnly = true)
+    PageResult<SubmissionView> listSubmissions(UUID assignmentId, int page, int size) {
+        auth.require(PermissionKey.ASSIGNMENTS_MANAGE);
+        UUID tid = tenant.requireTenantId();
+        require(assignmentId);
+        Page<AssignmentSubmission> p = submissions.findAllByTenantIdAndAssignmentId(tid, assignmentId,
+                PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size)),
+                        Sort.by(Sort.Direction.DESC, "submittedAt", "id")));
+        Assignment a = require(assignmentId);
+        return new PageResult<>(p.getContent().stream().map(s -> submissionView(s, a)).toList(), p.getNumber(),
+                p.getSize(), p.getTotalElements(), p.getTotalPages());
+    }
+
+    @Transactional
+    SubmissionView gradeSubmission(UUID submissionId, int awardedPoints, String feedback, String rubricScoresJson,
+            long expectedVersion) {
+        auth.require(PermissionKey.ASSIGNMENTS_MANAGE);
+        UUID tid = tenant.requireTenantId();
+        AssignmentSubmission s = submissions.findById(submissionId).filter(x -> x.tenantId().equals(tid))
+                .orElseThrow(() -> new IllegalArgumentException("Submission not found"));
+        if (s.version() != expectedVersion)
+            throw new IllegalStateException("Submission was modified");
+        Assignment a = require(s.assignmentId());
+        if (s.status() != SubmissionStatus.SUBMITTED && s.status() != SubmissionStatus.RESUBMITTED)
+            throw new IllegalStateException("Only submitted work can be graded");
+        if (awardedPoints < 0 || awardedPoints > a.maxPoints())
+            throw new IllegalArgumentException("Points outside assignment bounds");
+        s.grade(awardedPoints, feedback, rubricScoresJson, clock.instant());
+        submissions.save(s);
+        audit.record(tid, actor.requireSubject(), "ASSIGNMENT_SUBMISSION_GRADED", "assignment_submission",
+                submissionId.toString());
+        return submissionView(s, a);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AssignmentReference requireAssignment(UUID assignmentId) {
+        Assignment a = require(assignmentId);
+        return new AssignmentReference(a.id(), a.title(), a.maxPoints(), a.status() == AssignmentStatus.PUBLISHED);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public GradebookAssignment gradebookAssignment(UUID assignmentId, UUID batchId, UUID membershipId) {
+        UUID tid = tenant.requireTenantId();
+        Assignment a = require(assignmentId);
+        boolean assigned = links.findAllByTenantIdAndAssignmentId(tid, assignmentId).stream()
+                .anyMatch(l -> l.batchId().equals(batchId));
+        if (!assigned)
+            throw new SecurityException("Assignment is not assigned to batch");
+        var sub = submissions.findTopByTenantIdAndAssignmentIdAndMembershipIdOrderByAttemptNumberDesc(tid, assignmentId,
+                membershipId).orElse(null);
+        return new GradebookAssignment(a.id(), a.title(), a.maxPoints(), a.weightBasisPoints(),
+                sub == null ? null : sub.awardedPoints(), a.status());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<GradebookAssignment> gradebookAssignments(UUID batchId, UUID membershipId) {
+        UUID tid = tenant.requireTenantId();
+        enrollment.requireBatch(batchId);
+        return links.findAllByTenantIdAndBatchId(tid, batchId).stream()
+                .map(l -> gradebookAssignment(l.assignmentId(), batchId, membershipId)).toList();
+    }
+
+    private Assignment require(UUID id) {
+        return assignments.findByTenantIdAndId(tenant.requireTenantId(), id)
+                .orElseThrow(() -> new IllegalArgumentException("Assignment not found"));
+    }
+
+    private AssignmentView view(Assignment a) {
+        return new AssignmentView(a.id(), a.title(), a.instructions(), a.status(), a.maxPoints(), a.weightBasisPoints(),
+                a.dueAt(), a.version());
+    }
+
+    private SubmissionView submissionView(AssignmentSubmission s, Assignment a) {
+        return new SubmissionView(s.id(), a.id(), s.attemptNumber(), s.status(), s.gradeStatus(), s.textBody(),
+                s.resourceId(), s.submittedAt(), s.awardedPoints(), s.graderFeedback(), s.rubricScoresJson(), s.late(),
+                s.version());
+    }
+
+    private static void validate(String title, int max, int weight, Instant due) {
+        if (title == null || title.isBlank() || title.length() > 240)
+            throw new IllegalArgumentException("Assignment title is required");
+        if (max < 1)
+            throw new IllegalArgumentException("maxPoints must be positive");
+        if (weight < 0 || weight > 10000)
+            throw new IllegalArgumentException("weightBasisPoints must be 0..10000");
+        if (due == null)
+            throw new IllegalArgumentException("dueAt is required");
+    }
+
+    public record CreateCommand(String title, String instructions, int maxPoints, int weightBasisPoints,
+            Instant dueAt) {
+    }
+
+    public record UpdateCommand(String title, String instructions, int maxPoints, int weightBasisPoints, Instant dueAt,
+            AssignmentStatus status, long expectedVersion) {
+    }
+
+    public record RubricCommand(String title, String criteriaJson, long expectedVersion) {
+    }
+
+    public record AssignmentView(UUID id, String title, String instructions, AssignmentStatus status, int maxPoints,
+            int weightBasisPoints, Instant dueAt, long version) {
+    }
+
+    public record RubricView(UUID id, String title, String criteriaJson, long version) {
+    }
+
+    public record SubmissionView(UUID id, UUID assignmentId, int attemptNumber, SubmissionStatus status,
+            SubmissionGradeStatus gradeStatus, String textBody, UUID resourceId, Instant submittedAt,
+            Integer awardedPoints, String graderFeedback, String rubricScoresJson, boolean late, long version) {
+    }
+
+    public record PageResult<T>(List<T> items, int page, int size, long totalElements, int totalPages) {
+    }
+}

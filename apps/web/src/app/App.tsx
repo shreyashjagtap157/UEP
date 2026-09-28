@@ -136,7 +136,7 @@ export function App() {
         {section === 'integrations' && <IntegrationWorkspace me={me} />}
         {section === 'analytics' && <AnalyticsWorkspace me={me} />}
         {section === 'schedule' && <ScheduleWorkspace me={me} />}
-          {section === 'live' && <LiveLearningWorkspace me={me} />}
+        {section === 'live' && <LiveLearningWorkspace me={me} />}
         {section === 'recordings' && <RecordingWorkspace me={me} />}
         {section === 'finance' && <FinanceWorkspace me={me} />}
         {section === 'announcements' && <AnnouncementWorkspace me={me} />}
@@ -315,7 +315,7 @@ function BranchCards({ branches }: { branches: BranchView[] }) {
 }
 
 function SettingsForm({ settings, editable, onSubmit, pending, error }: { settings: OrganizationSettings; editable: boolean; onSubmit: (event: FormEvent<HTMLFormElement>) => void; pending: boolean; error: Error | null }) {
-  return <form className="form-grid" onSubmit={onSubmit} key={settings.version}><label>Default timezone<input name="defaultTimezone" defaultValue={settings.defaultTimezone} disabled={!editable} /></label><label>Locale<input name="defaultLocale" defaultValue={settings.defaultLocale} disabled={!editable} /></label><label>Week starts on<select name="weekStartsOn" defaultValue={settings.weekStartsOn} disabled={!editable}>{[1,2,3,4,5,6,7].map(day => <option key={day} value={day}>{day}</option>)}</select></label><label>Support email<input name="supportEmail" type="email" defaultValue={settings.supportEmail} disabled={!editable} /></label><label className="wide">Support URL<input name="supportUrl" type="url" defaultValue={settings.supportUrl} disabled={!editable} /></label>{editable && <div className="form-actions"><button className="primary-button" disabled={pending}>Save settings</button></div>}{error && <p className="error-text" role="alert">{error.message}</p>}</form>
+  return <form className="form-grid" onSubmit={onSubmit} key={settings.version}><label>Default timezone<input name="defaultTimezone" defaultValue={settings.defaultTimezone} disabled={!editable} /></label><label>Locale<input name="defaultLocale" defaultValue={settings.defaultLocale} disabled={!editable} /></label><label>Week starts on<select name="weekStartsOn" defaultValue={settings.weekStartsOn} disabled={!editable}>{[1, 2, 3, 4, 5, 6, 7].map(day => <option key={day} value={day}>{day}</option>)}</select></label><label>Support email<input name="supportEmail" type="email" defaultValue={settings.supportEmail} disabled={!editable} /></label><label className="wide">Support URL<input name="supportUrl" type="url" defaultValue={settings.supportUrl} disabled={!editable} /></label>{editable && <div className="form-actions"><button className="primary-button" disabled={pending}>Save settings</button></div>}{error && <p className="error-text" role="alert">{error.message}</p>}</form>
 }
 
 function Security({ me }: { me: CurrentIdentity }) {

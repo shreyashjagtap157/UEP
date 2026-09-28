@@ -1,3 +1,39 @@
 package com.universalplatform.licensing;
-import jakarta.persistence.*; import java.io.Serializable; import java.time.Instant; import java.util.UUID;
-@Embeddable public class UsageCounterId implements Serializable { @Column(nullable=false) UUID tenantId; @Enumerated(EnumType.STRING) @Column(nullable=false,length=64) LimitKey limitKey; @Column(nullable=false) Instant periodStart; protected UsageCounterId(){} UsageCounterId(UUID t,LimitKey k,Instant s){tenantId=t;limitKey=k;periodStart=s;} public boolean equals(Object o){if(this==o)return true;if(!(o instanceof UsageCounterId x))return false;return java.util.Objects.equals(tenantId,x.tenantId)&&limitKey==x.limitKey&&java.util.Objects.equals(periodStart,x.periodStart);} public int hashCode(){return java.util.Objects.hash(tenantId,limitKey,periodStart);} }
+
+import jakarta.persistence.*;
+import java.io.Serializable;
+import java.time.Instant;
+import java.util.UUID;
+
+@Embeddable
+public class UsageCounterId implements Serializable {
+    @Column(nullable = false)
+    UUID tenantId;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 64)
+    LimitKey limitKey;
+    @Column(nullable = false)
+    Instant periodStart;
+
+    protected UsageCounterId() {
+    }
+
+    public UsageCounterId(UUID t, LimitKey k, Instant s) {
+        tenantId = t;
+        limitKey = k;
+        periodStart = s;
+    }
+
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (!(o instanceof UsageCounterId x))
+            return false;
+        return java.util.Objects.equals(tenantId, x.tenantId) && limitKey == x.limitKey
+                && java.util.Objects.equals(periodStart, x.periodStart);
+    }
+
+    public int hashCode() {
+        return java.util.Objects.hash(tenantId, limitKey, periodStart);
+    }
+}

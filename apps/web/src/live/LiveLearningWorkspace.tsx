@@ -71,7 +71,7 @@ function LiveRoom({ me, liveClass, onClose }: { me: CurrentIdentity; liveClass: 
   const [token, setToken] = useState<LiveClassToken | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
-  const [recording, setRecording] = useState<'ECONOMY'|'BALANCED'|'HIGH_QUALITY'|'SOURCE_ARCHIVE'>('BALANCED')
+  const [recording, setRecording] = useState<'ECONOMY' | 'BALANCED' | 'HIGH_QUALITY' | 'SOURCE_ARCHIVE'>('BALANCED')
   const record = useMutation({ mutationFn: () => requestRecording(liveClass.id, recording) })
   const stopRecordingMutation = useMutation({ mutationFn: stopRecording })
 
