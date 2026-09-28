@@ -1,35 +1,52 @@
 import Keycloak from 'keycloak-js'
 
-const keycloak = new Keycloak({
-  url: import.meta.env.VITE_KEYCLOAK_URL ?? 'http://localhost:8081',
+let activeKeycloakUrl = import.meta.env.VITE_KEYCLOAK_URL ?? 'http://localhost:8081'
+let keycloak = new Keycloak({
+  url: activeKeycloakUrl,
   realm: import.meta.env.VITE_KEYCLOAK_REALM ?? 'education',
   clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID ?? 'platform-web',
 })
 
 let isStandaloneDevMode = false
 
-async function isKeycloakServerAvailable(url: string, realm: string): Promise<boolean> {
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 2000)
-    await fetch(`${url}/realms/${realm}`, { method: 'HEAD', signal: controller.signal, mode: 'no-cors' })
-    clearTimeout(timer)
-    return true
-  } catch {
-    return false
+async function findReachableKeycloakUrl(realm: string): Promise<string | null> {
+  const candidates = Array.from(new Set([
+    import.meta.env.VITE_KEYCLOAK_URL,
+    'http://localhost:8081',
+    'http://localhost:8080',
+    'http://localhost:8082',
+  ])).filter(Boolean) as string[]
+
+  for (const url of candidates) {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 1200)
+      await fetch(`${url}/realms/${realm}`, { method: 'HEAD', signal: controller.signal, mode: 'no-cors' })
+      clearTimeout(timer)
+      return url
+    } catch {
+      // Continue checking next candidate
+    }
   }
+  return null
 }
 
 export async function initializeAuthentication(): Promise<void> {
-  const url = import.meta.env.VITE_KEYCLOAK_URL ?? 'http://localhost:8081'
   const realm = import.meta.env.VITE_KEYCLOAK_REALM ?? 'education'
-  const reachable = await isKeycloakServerAvailable(url, realm)
+  const reachableUrl = await findReachableKeycloakUrl(realm)
 
-  if (!reachable) {
-    console.warn(`[Keycloak Auth] Identity service at ${url} is unreachable. Initializing in local development fallback mode.`)
+  if (!reachableUrl) {
+    console.warn(`[Keycloak Auth] No active Keycloak identity service discovered on 8081, 8080, or 8082. Initializing in local development fallback mode.`)
     isStandaloneDevMode = true
     return
   }
+
+  activeKeycloakUrl = reachableUrl
+  keycloak = new Keycloak({
+    url: activeKeycloakUrl,
+    realm,
+    clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID ?? 'platform-web',
+  })
 
   try {
     const authenticated = await keycloak.init({
@@ -40,7 +57,7 @@ export async function initializeAuthentication(): Promise<void> {
     })
     if (!authenticated) await keycloak.login()
   } catch (error) {
-    console.warn('[Keycloak Auth] Keycloak initialization failed, switching to local development fallback mode:', error)
+    console.warn(`[Keycloak Auth] Keycloak initialization at ${activeKeycloakUrl} failed, switching to local development fallback mode:`, error)
     isStandaloneDevMode = true
   }
 }
