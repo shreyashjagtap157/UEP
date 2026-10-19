@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { CurrentIdentity, RecordingQualityPreset, RecordingView } from '../platform/api'
+import type { CurrentIdentity, RecordingView } from '../platform/api'
 import { fetchRecordings, issueRecordingPlayback, stopRecording } from '../platform/api'
 
 export function RecordingWorkspace({ me }: { me: CurrentIdentity }) {
@@ -8,7 +8,6 @@ export function RecordingWorkspace({ me }: { me: CurrentIdentity }) {
   const recordings = useQuery({ queryKey: ['recordings'], queryFn: fetchRecordings, refetchInterval: 5000 })
   const [selected, setSelected] = useState<RecordingView | null>(null)
   const [playback, setPlayback] = useState<{ url: string; expiresAt: string; name: string; id: string } | null>(null)
-  const [quality, setQuality] = useState<RecordingQualityPreset>('BALANCED')
   const play = useMutation({ mutationFn: issueRecordingPlayback, onSuccess: value => setPlayback({ url: value.streamUrl, expiresAt: value.expiresAt, name: value.watermarkName, id: value.watermarkId }) })
   const stop = useMutation({ mutationFn: stopRecording, onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['recordings'] }) })
 
@@ -33,7 +32,7 @@ export function RecordingWorkspace({ me }: { me: CurrentIdentity }) {
       {play.isError && <p className="error-text" role="alert">{play.error.message}</p>}
       {playback && <WatermarkedPlayer playback={playback} />}
     </section>}
-    {me.permissions.includes('RECORDINGS_MANAGE') && <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Quality policy</p><h3>Available recording presets</h3></div></div><label>Default classroom request preset<select value={quality} onChange={event => setQuality(event.target.value as RecordingQualityPreset)}><option value="ECONOMY">Economy · 720p</option><option value="BALANCED">Balanced · 720p</option><option value="HIGH_QUALITY">High Quality · 1080p</option><option value="SOURCE_ARCHIVE">Source Archive · 1080p composite</option></select></label><p className="muted small">This selector controls the request preset used from the Live Learning workspace. Tenant hot-cache/archive destinations are configured server-side.</p></section>}
+    {me.permissions.includes('RECORDINGS_MANAGE') && <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Quality policy</p><h3>Recording presets</h3></div></div><p className="muted">Presets (Economy, Balanced, High Quality, Source Archive) are chosen when a recording is requested from the Live Learning workspace. Tenant hot-cache and archive destinations are configured server-side.</p></section>}
   </div>
 }
 

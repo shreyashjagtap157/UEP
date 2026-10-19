@@ -4,7 +4,7 @@ CREATE INDEX ix_grade_revision_tenant_status_created ON grade_revision(tenant_id
 CREATE INDEX ix_recording_tenant_requested ON recording(tenant_id, requested_at DESC);
 CREATE INDEX ix_invoice_tenant_created ON invoice(tenant_id, created_at DESC);
 CREATE INDEX ix_payment_tenant_created ON payment(tenant_id, created_at DESC);
-CREATE INDEX ix_platform_notification_tenant_created ON platform_notification(tenant_id, created_at DESC);
+CREATE INDEX ix_notification_tenant_created ON notification(tenant_id, created_at DESC);
 
 INSERT INTO role_permission (role_id, permission_key)
 SELECT rd.id, x.permission_key FROM role_definition rd JOIN (VALUES

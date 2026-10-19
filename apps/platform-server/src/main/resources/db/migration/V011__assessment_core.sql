@@ -111,7 +111,7 @@ CREATE TABLE attempt (
     version bigint NOT NULL DEFAULT 0,
     CONSTRAINT uq_attempt_tenant_id UNIQUE (tenant_id, id),
     CONSTRAINT fk_attempt_assessment_version FOREIGN KEY (tenant_id, assessment_version_id) REFERENCES assessment_version(tenant_id, id),
-    CONSTRAINT fk_attempt_membership FOREIGN KEY (tenant_id, membership_id) REFERENCES membership(tenant_id, id),
+    CONSTRAINT fk_attempt_membership FOREIGN KEY (tenant_id, membership_id) REFERENCES tenant_membership(tenant_id, id),
     CONSTRAINT uq_attempt_number UNIQUE (tenant_id, assessment_version_id, membership_id, attempt_number),
     CONSTRAINT ck_attempt_window CHECK (started_at < expires_at),
     CONSTRAINT ck_attempt_number CHECK (attempt_number > 0)

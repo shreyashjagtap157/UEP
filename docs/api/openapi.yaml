@@ -1384,12 +1384,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TodayView'
-  /api/v1/uploads:
+  /uploads:
     post:
       summary: Initiate a resumable content upload
       responses:
         '200': {description: Upload session created}
-  /api/v1/uploads/{id}/content:
+  /uploads/{id}/content:
     put:
       summary: Append the next upload chunk at an explicit offset
       parameters:
@@ -1397,43 +1397,43 @@ paths:
         - {name: Upload-Offset, in: header, required: true, schema: {type: integer, format: int64}}
       responses:
         '200': {description: Chunk accepted}
-  /api/v1/uploads/{id}/complete:
+  /uploads/{id}/complete:
     post:
       summary: Verify and finalize an upload into configured storage
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
         '200': {description: Storage object created}
-  /api/v1/resources:
+  /resources:
     get:
       summary: List visible learning resources
       responses:
         '200': {description: Resource page}
-  /api/v1/resources/text:
+  /resources/text:
     post:
       summary: Create a versioned textual learning resource
       responses:
         '200': {description: Resource created}
-  /api/v1/resources/file:
+  /resources/file:
     post:
       summary: Create a versioned file-backed learning resource
       responses:
         '200': {description: Resource created}
-  /api/v1/resources/{id}/versions:
+  /resources/{id}/versions:
     get:
       summary: List immutable resource versions
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
         '200': {description: Version history}
-  /api/v1/resources/{id}/download:
+  /resources/{id}/download:
     get:
       summary: Stream an authorized file resource
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
         '200': {description: File stream}
-  /api/v1/content-retention:
+  /content-retention:
     put:
       summary: Update tenant learning-content retention policy
       responses:
@@ -1766,7 +1766,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AttemptGrade'
 
-  /api/v1/live-classes:
+  /live-classes:
     get:
       summary: List live classrooms visible to the current tenant member
       operationId: listLiveClasses
@@ -1793,7 +1793,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/LiveClassView'}
-  /api/v1/live-classes/{id}/start:
+  /live-classes/{id}/start:
     post:
       summary: Start a scheduled live classroom
       operationId: startLiveClass
@@ -1805,7 +1805,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/LiveClassView'}
-  /api/v1/live-classes/{id}/end:
+  /live-classes/{id}/end:
     post:
       summary: End a live classroom
       operationId: endLiveClass
@@ -1817,7 +1817,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/LiveClassView'}
-  /api/v1/live-classes/{id}/join:
+  /live-classes/{id}/join:
     post:
       summary: Issue a short-lived media-provider participant token
       operationId: joinLiveClass
@@ -1837,7 +1837,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/LiveClassToken'}
-  /api/v1/live-classes/{id}/leave:
+  /live-classes/{id}/leave:
     post:
       summary: Leave the current live classroom
       operationId: leaveLiveClass
@@ -1845,7 +1845,7 @@ paths:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
         '200': {description: Left classroom}
-  /api/v1/live-classes/{id}/heartbeat:
+  /live-classes/{id}/heartbeat:
     post:
       summary: Update presence heartbeat for the current participant
       operationId: heartbeatLiveClass
@@ -1853,7 +1853,7 @@ paths:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
         '200': {description: Heartbeat accepted}
-  /api/v1/live-classes/{id}/participants:
+  /live-classes/{id}/participants:
     get:
       summary: List live classroom participants for authorized moderators
       operationId: listLiveParticipants
@@ -1867,7 +1867,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ParticipantPage'}
-  /api/v1/live-classes/{id}/participants/{membershipId}/mute:
+  /live-classes/{id}/participants/{membershipId}/mute:
     post:
       summary: Mute a live classroom participant in the control plane
       operationId: muteLiveParticipant
@@ -1876,7 +1876,7 @@ paths:
         - {name: membershipId, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
         '200': {description: Participant muted}
-  /api/v1/live-classes/{id}/participants/{membershipId}/kick:
+  /live-classes/{id}/participants/{membershipId}/kick:
     post:
       summary: Remove a participant from future classroom access
       operationId: kickLiveParticipant
@@ -1893,7 +1893,7 @@ paths:
                 reason: {type: string, maxLength: 500}
       responses:
         '200': {description: Participant moderated}
-  /api/v1/live-classes/{liveClassId}/attendance:
+  /live-classes/{liveClassId}/attendance:
     get:
       summary: List finalized attendance for a live classroom
       operationId: listLiveClassAttendance
@@ -1907,7 +1907,7 @@ paths:
               schema:
                 type: array
                 items: {$ref: '#/components/schemas/AttendanceView'}
-  /api/v1/live-classes/{liveClassId}/attendance/finalize:
+  /live-classes/{liveClassId}/attendance/finalize:
     post:
       summary: Finalize attendance using the configured policy
       operationId: finalizeLiveClassAttendance
@@ -1915,7 +1915,7 @@ paths:
         - {name: liveClassId, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
         '200': {description: Attendance finalized}
-  /api/v1/live-classes/{liveClassId}/attendance/{membershipId}:
+  /live-classes/{liveClassId}/attendance/{membershipId}:
     post:
       summary: Override a participant attendance record manually
       operationId: setLiveClassAttendance
@@ -2341,7 +2341,7 @@ paths:
       summary: Submit feedback
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/FeedbackRequest'}}}}
       responses: {'204': {description: Submitted}}
-  /api/v1/integrations/api-credentials:
+  /integrations/api-credentials:
     post:
       operationId: createApiCredential
       summary: Create a tenant-scoped API credential
@@ -2366,14 +2366,14 @@ paths:
           content:
             application/json:
               schema: {type: array, items: {$ref: '#/components/schemas/ApiCredentialView'}}
-  /api/v1/integrations/api-credentials/{id}:
+  /integrations/api-credentials/{id}:
     delete:
       operationId: revokeApiCredential
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
         - {name: expectedVersion, in: query, required: true, schema: {type: integer, format: int64}}
       responses: {'204': {description: Revoked}}
-  /api/v1/integrations/webhooks:
+  /integrations/webhooks:
     post:
       operationId: createWebhook
       requestBody:
@@ -2385,14 +2385,14 @@ paths:
     get:
       operationId: listWebhooks
       responses: {'200': {description: Webhooks, content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/WebhookView'}}}}}}
-  /api/v1/integrations/webhooks/{id}:
+  /integrations/webhooks/{id}:
     delete:
       operationId: revokeWebhook
       parameters:
         - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
         - {name: expectedVersion, in: query, required: true, schema: {type: integer, format: int64}}
       responses: {'204': {description: Revoked}}
-  /api/v1/integrations/webhooks/test:
+  /integrations/webhooks/test:
     post:
       operationId: testWebhook
       requestBody:
@@ -2401,7 +2401,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/WebhookTestRequest'}
       responses: {'204': {description: Test queued}}
-  /api/v1/integrations/storage:
+  /integrations/storage:
     get:
       operationId: getStorageBinding
       responses: {'200': {description: Binding, content: {application/json: {schema: {$ref: '#/components/schemas/StorageBindingView'}}}}}
@@ -2413,7 +2413,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/StorageBindingRequest'}
       responses: {'200': {description: Saved, content: {application/json: {schema: {$ref: '#/components/schemas/StorageBindingView'}}}}}
-  /api/v1/integrations/identity-providers:
+  /integrations/identity-providers:
     get:
       operationId: listIdentityProviders
       responses: {'200': {description: Providers}}
@@ -2425,7 +2425,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/IdentityProviderRequest'}
       responses: {'200': {description: Saved}}
-  /api/v1/integrations/identity-providers/{key}/authorize-url:
+  /integrations/identity-providers/{key}/authorize-url:
     get:
       operationId: createFederationAuthorizationUrl
       parameters:
@@ -2433,7 +2433,7 @@ paths:
         - {name: state, in: query, required: true, schema: {type: string}}
         - {name: nonce, in: query, required: true, schema: {type: string}}
       responses: {'200': {description: Authorization URL, content: {text/plain: {schema: {type: string, format: uri}}}}}
-  /api/v1/integrations/identity-providers/{key}/synchronize:
+  /integrations/identity-providers/{key}/synchronize:
     post:
       operationId: synchronizeFederatedIdentity
       parameters:
@@ -2444,7 +2444,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/FederationSyncRequest'}
       responses: {'200': {description: Synchronized}}
-  /api/v1/integrations/notification-providers:
+  /integrations/notification-providers:
     get:
       operationId: listNotificationProviders
       responses: {'200': {description: Providers}}
@@ -2456,7 +2456,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/NotificationProviderRequest'}
       responses: {'200': {description: Saved}}
-  /api/v1/integrations/notification-providers/{key}/test:
+  /integrations/notification-providers/{key}/test:
     post:
       operationId: testNotificationProvider
       parameters:
@@ -2466,13 +2466,13 @@ paths:
           application/json:
             schema: {type: object, additionalProperties: {type: string}}
       responses: {'204': {description: Test sent}}
-  /api/v1/integrations/oneroster/export/{file}:
+  /integrations/oneroster/export/{file}:
     get:
       operationId: exportOneRosterCsv
       parameters:
         - {name: file, in: path, required: true, schema: {type: string, enum: [orgs.csv, users.csv, courses.csv, classes.csv, enrollments.csv]}}
       responses: {'200': {description: OneRoster 1.2 CSV, content: {text/csv: {schema: {type: string}}}}}
-  /api/v1/integrations/oneroster/validate:
+  /integrations/oneroster/validate:
     post:
       operationId: validateOneRosterCsv
       requestBody:
@@ -2481,13 +2481,13 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/OneRosterValidationRequest'}
       responses: {'200': {description: Validation result, content: {application/json: {schema: {$ref: '#/components/schemas/OneRosterValidationResult'}}}}}
-  /api/v1/integrations/qti/items/{questionVersionId}:
+  /integrations/qti/items/{questionVersionId}:
     get:
       operationId: exportQtiAssessmentItem
       parameters:
         - {name: questionVersionId, in: path, required: true, schema: {type: string, format: uuid}}
       responses: {'200': {description: QTI assessmentItem, content: {application/xml: {schema: {type: string}}}}}
-  /api/v1/integrations/qti/items:
+  /integrations/qti/items:
     post:
       operationId: importQtiAssessmentItem
       requestBody:
@@ -2496,7 +2496,7 @@ paths:
           application/xml:
             schema: {type: string}
       responses: {'200': {description: Imported item}}
-  /api/v1/integrations/federation/configuration:
+  /integrations/federation/configuration:
     get:
       operationId: federationConfiguration
       responses: {'200': {description: Federation capability metadata}}

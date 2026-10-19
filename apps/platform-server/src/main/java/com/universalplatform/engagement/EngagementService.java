@@ -6,6 +6,7 @@ import com.universalplatform.identity.MembershipDirectory;
 import com.universalplatform.identity.PermissionKey;
 import com.universalplatform.security.ActorContext;
 import com.universalplatform.security.TenantContext;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.*;
@@ -21,16 +22,18 @@ class EngagementService {
     private final AuditService audit;
     private final MembershipDirectory memberships;
     private final JdbcTemplate jdbc;
+    private final ObjectMapper json;
     private final Clock clock = Clock.systemUTC();
 
     EngagementService(TenantContext tenant, ActorContext actor, AuthorizationService auth, AuditService audit,
-            MembershipDirectory memberships, JdbcTemplate jdbc) {
+            MembershipDirectory memberships, JdbcTemplate jdbc, ObjectMapper json) {
         this.tenant = tenant;
         this.actor = actor;
         this.auth = auth;
         this.audit = audit;
         this.memberships = memberships;
         this.jdbc = jdbc;
+        this.json = json;
     }
 
     @Transactional
@@ -95,10 +98,11 @@ class EngagementService {
         surveyForTenant(surveyId);
         if (sequence < 1)
             throw new IllegalArgumentException("sequence must be positive");
+        String options = validatedJson(optionsJson == null ? "[]" : optionsJson, "optionsJson");
         UUID id = UUID.randomUUID();
         jdbc.update(
                 "insert into survey_question(id,tenant_id,survey_id,sequence_number,question_type,prompt,required,options_json) values(?,?,?,?,?,?,?,cast(? as jsonb))",
-                id, t, surveyId, sequence, type, prompt.trim(), required, optionsJson == null ? "[]" : optionsJson);
+                id, t, surveyId, sequence, type, prompt.trim(), required, options);
         audit.record(t, actor.requireSubject(), "SURVEY_QUESTION_ADDED", "survey_question", id.toString());
         return jdbc.queryForObject(
                 "select id,survey_id,sequence_number,question_type,prompt,required,options_json::text from survey_question where tenant_id=? and id=?",
@@ -144,7 +148,7 @@ class EngagementService {
     }
 
     @Transactional
-    void respond(UUID surveyId, String answers, UUID membershipId) {
+    void respond(UUID surveyId, String answers) {
         UUID t = tenant.requireTenantId();
         SurveyView s = surveyForTenant(surveyId);
         auth.require(PermissionKey.SURVEYS_VIEW);
@@ -154,16 +158,17 @@ class EngagementService {
             throw new IllegalStateException("Survey not yet open");
         if (s.closesAt() != null && clock.instant().isAfter(s.closesAt()))
             throw new IllegalStateException("Survey closed");
-        UUID respondent = s.anonymous() ? null : membershipId;
-        if (respondent != null)
-            memberships.requireActive(respondent);
+        String validatedAnswers = validatedJson(answers, "answersJson");
+        // Respondent identity is always the caller's own membership; never client-supplied.
+        // Anonymous surveys stay true-anonymous and record a null membership.
+        UUID respondent = s.anonymous() ? null : memberships.current().membershipId();
         if (respondent != null && jdbc.queryForObject(
                 "select count(*) from survey_response where tenant_id=? and survey_id=? and membership_id=?",
                 Long.class, t, surveyId, respondent) > 0)
             throw new IllegalStateException("Survey response already submitted");
         jdbc.update(
                 "insert into survey_response(id,tenant_id,survey_id,membership_id,answers_json,submitted_at) values(?,?,?,?,cast(? as jsonb),?)",
-                UUID.randomUUID(), t, surveyId, respondent, answers, clock.instant());
+                UUID.randomUUID(), t, surveyId, respondent, validatedAnswers, clock.instant());
     }
 
     @Transactional
@@ -211,6 +216,16 @@ class EngagementService {
                         rs.getBoolean(4), rs.getObject(5, Instant.class), rs.getObject(6, Instant.class),
                         rs.getString(7), rs.getLong(8)),
                 tenant.requireTenantId(), id);
+    }
+
+    /** Free-text payloads are cast to jsonb columns; reject anything Jackson cannot parse as 400. */
+    private String validatedJson(String value, String label) {
+        try {
+            json.readTree(value);
+        } catch (Exception malformed) {
+            throw new IllegalArgumentException(label + " must be valid JSON");
+        }
+        return value;
     }
 
     record MentorshipView(UUID id, UUID mentorMembershipId, UUID menteeMembershipId, String goal, String status,

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ReasonDialog } from '../app/ReasonDialog'
 import {
   acknowledgeAnnouncement,
   cancelAnnouncement,
@@ -29,6 +30,7 @@ export function AnnouncementWorkspace({ me }: { me: CurrentIdentity }) {
   const roles = useQuery({ queryKey: ['roles'], queryFn: fetchRoles, enabled: canManage && has(me, 'ROLES_VIEW') })
   const members = useQuery({ queryKey: ['members'], queryFn: fetchMembers, enabled: canManage && has(me, 'USERS_VIEW') })
   const [targetKind, setTargetKind] = useState<AnnouncementTargetKind>('ORGANIZATION')
+  const [cancelTarget, setCancelTarget] = useState<AnnouncementView | null>(null)
   const refresh = () => Promise.all([client.invalidateQueries({ queryKey: ['announcements-me'] }), client.invalidateQueries({ queryKey: ['announcements-admin'] }), client.invalidateQueries({ queryKey: ['notifications'] }), client.invalidateQueries({ queryKey: ['today'] })])
   const create = useMutation({ mutationFn: createAnnouncement, onSuccess: () => void refresh() })
   const publish = useMutation({ mutationFn: ({ id, version }: { id: string; version: number }) => publishAnnouncement(id, version), onSuccess: () => void refresh() })
@@ -72,14 +74,31 @@ export function AnnouncementWorkspace({ me }: { me: CurrentIdentity }) {
       </form>
     </section>}
 
-    {canManage && <AnnouncementList title="Managed announcements" items={admin.data?.items ?? []} empty="No announcements created yet." actions={item => <div className="button-row">{(item.status === 'DRAFT' || item.status === 'SCHEDULED') && <button className="secondary-button" disabled={publish.isPending} onClick={() => publish.mutate({ id: item.id, version: item.version })}>Publish now</button>}{(item.status === 'DRAFT' || item.status === 'SCHEDULED') && <button className="secondary-button danger-action" disabled={cancel.isPending} onClick={() => { const reason = window.prompt('Cancellation reason'); if (reason) cancel.mutate({ id: item.id, version: item.version, reason }) }}>Cancel</button>}</div>} />}
+    {canManage && <>{
+      admin.isError
+        ? <p className="error-text" role="alert">Managed announcements could not be loaded: {admin.error.message}</p>
+        : <AnnouncementList title="Managed announcements" items={admin.data?.items ?? []} empty="No announcements created yet." error={publish.isError ? publish.error : cancel.isError ? cancel.error : null} actions={item => <div className="button-row">{(item.status === 'DRAFT' || item.status === 'SCHEDULED') && <button className="secondary-button" disabled={publish.isPending} onClick={() => publish.mutate({ id: item.id, version: item.version })}>Publish now</button>}{(item.status === 'DRAFT' || item.status === 'SCHEDULED') && <button className="secondary-button danger-action" disabled={cancel.isPending} onClick={() => setCancelTarget(item)}>Cancel</button>}</div>} />
+    }</>}
 
-    <AnnouncementList title="Announcements for you" items={mine.data?.items ?? []} empty={mine.isPending ? 'Loading announcements…' : 'No active announcements.'} actions={item => item.acknowledgementRequired && !item.acknowledgedAt ? <button className="primary-button" disabled={acknowledge.isPending} onClick={() => acknowledge.mutate(item.id)}>Acknowledge</button> : null} />
+    {mine.isError
+      ? <p className="error-text" role="alert">Your announcements could not be loaded: {mine.error.message}</p>
+      : <AnnouncementList title="Announcements for you" items={mine.data?.items ?? []} empty={mine.isPending ? 'Loading announcements…' : 'No active announcements.'} error={acknowledge.isError ? acknowledge.error : null} actions={item => item.acknowledgementRequired && !item.acknowledgedAt ? <button className="primary-button" disabled={acknowledge.isPending} onClick={() => acknowledge.mutate(item.id)}>Acknowledge</button> : null} />}
+
+    {cancelTarget && <ReasonDialog
+      title="Cancellation reason"
+      description={`Cancel announcement “${cancelTarget.title}”? The reason is retained for the audit trail.`}
+      confirmLabel="Cancel announcement"
+      onCancel={() => setCancelTarget(null)}
+      onConfirm={reason => {
+        cancel.mutate({ id: cancelTarget.id, version: cancelTarget.version, reason })
+        setCancelTarget(null)
+      }}
+    />}
   </div>
 }
 
-function AnnouncementList({ title, items, empty, actions }: { title: string; items: AnnouncementView[]; empty: string; actions: (item: AnnouncementView) => ReactNode }) {
-  return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Announcements</p><h3>{title}</h3></div><span className="count-badge">{items.length}</span></div>{items.length === 0 ? <p className="muted">{empty}</p> : <div className="announcement-list">{items.map(item => <article className={`announcement-card priority-${item.priority.toLowerCase()}`} key={item.id}><div className="mini-card-title"><strong>{item.title}</strong><span>{item.status}</span></div><p>{item.body}</p><div className="announcement-meta"><span>{item.priority}</span>{item.publishedAt && <span>Published {new Date(item.publishedAt).toLocaleString()}</span>}{item.expiresAt && <span>Expires {new Date(item.expiresAt).toLocaleString()}</span>}{item.acknowledgedAt && <span>Acknowledged</span>}</div>{actions(item)}</article>)}</div>}</section>
+function AnnouncementList({ title, items, empty, error, actions }: { title: string; items: AnnouncementView[]; empty: string; error: Error | null; actions: (item: AnnouncementView) => ReactNode }) {
+  return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Announcements</p><h3>{title}</h3></div><span className="count-badge">{items.length}</span></div>{error && <p className="error-text" role="alert">{error.message}</p>}{items.length === 0 ? <p className="muted">{empty}</p> : <div className="announcement-list">{items.map(item => <article className={`announcement-card priority-${item.priority.toLowerCase()}`} key={item.id}><div className="mini-card-title"><strong>{item.title}</strong><span>{item.status}</span></div><p>{item.body}</p><div className="announcement-meta"><span>{item.priority}</span>{item.publishedAt && <span>Published {new Date(item.publishedAt).toLocaleString()}</span>}{item.expiresAt && <span>Expires {new Date(item.expiresAt).toLocaleString()}</span>}{item.acknowledgedAt && <span>Acknowledged</span>}</div>{actions(item)}</article>)}</div>}</section>
 }
 
 function targetsFromForm(form: HTMLFormElement, kind: AnnouncementTargetKind): AnnouncementTarget[] {

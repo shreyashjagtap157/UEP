@@ -1,24 +1,33 @@
 package com.universalplatform.notification;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * Materializes due outbox events into per-recipient notifications and email deliveries.
+ * Each due event is processed inside its own transaction via {@link TransactionTemplate}
+ * so the pessimistic row lock and the processed/failed state transitions actually persist
+ * (a self-invoked {@code @Transactional} method from {@code poll()} would bypass the proxy).
+ */
 @Service
 class NotificationOutboxProcessor {
+    private static final Logger log = LoggerFactory.getLogger(NotificationOutboxProcessor.class);
+
     private final NotificationOutboxRepository outbox;
     private final NotificationOutboxRecipientRepository recipients;
     private final NotificationPreferenceRepository preferences;
     private final PlatformNotificationRepository notifications;
     private final NotificationDeliveryRepository deliveries;
+    private final TransactionTemplate transactions;
     private final boolean emailDeliveryEnabled;
     private final Clock clock = Clock.systemUTC();
 
@@ -27,23 +36,37 @@ class NotificationOutboxProcessor {
                                 NotificationPreferenceRepository preferences,
                                 PlatformNotificationRepository notifications,
                                 NotificationDeliveryRepository deliveries,
+                                TransactionTemplate transactions,
                                 @Value("${platform.notifications.email.enabled:false}") boolean emailDeliveryEnabled) {
         this.outbox = outbox;
         this.recipients = recipients;
         this.preferences = preferences;
         this.notifications = notifications;
         this.deliveries = deliveries;
+        this.transactions = transactions;
         this.emailDeliveryEnabled = emailDeliveryEnabled;
     }
 
     @Scheduled(fixedDelayString = "${platform.notifications.outbox-poll-ms:1000}")
     void poll() {
         Instant now = clock.instant();
-        for (UUID id : outbox.findDueIds(now, PageRequest.of(0, 50))) processOne(id);
+        for (UUID id : outbox.findDueIds(now, PageRequest.of(0, 50))) {
+            try {
+                processOne(id);
+            } catch (RuntimeException exception) {
+                // One poisoned event must not stop the batch; its failure state is recorded
+                // inside the per-event transaction so it backs off via availableAt.
+                log.warn("Notification outbox event {} failed to process", id, exception);
+            }
+        }
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    /** Public for tests; executes the per-event work in a separate transaction each call. */
     public void processOne(UUID id) {
+        transactions.executeWithoutResult(status -> processWithinTransaction(id));
+    }
+
+    private void processWithinTransaction(UUID id) {
         NotificationOutbox event = outbox.lockById(id).orElse(null);
         if (event == null || event.processedAt() != null || event.deadLetteredAt() != null || event.availableAt().isAfter(clock.instant())) return;
         Instant now = clock.instant();

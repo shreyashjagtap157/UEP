@@ -62,6 +62,8 @@ class LiveKitRecordingProvider implements RecordingMediaProvider {
         try {
             HttpRequest r = HttpRequest.newBuilder(URI.create(apiUrl + "/twirp/livekit.Egress/" + method))
                     .header("Authorization", "Bearer " + roomRecordToken()).header("Content-Type", "application/json")
+                    // Bound the call so a stalled LiveKit upstream cannot hold a DB transaction indefinitely.
+                    .timeout(java.time.Duration.ofSeconds(15))
                     .POST(HttpRequest.BodyPublishers.ofString(body)).build();
             HttpResponse<String> response = http.send(r, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() / 100 != 2)
@@ -104,7 +106,29 @@ class LiveKitRecordingProvider implements RecordingMediaProvider {
         }
     }
 
+    /** Proper JSON string escaping: quotes, backslashes and control characters (JWT claims and request bodies). */
     private static String esc(String s) {
-        return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"");
+        if (s == null)
+            return "";
+        StringBuilder b = new StringBuilder(s.length() + 8);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"' -> b.append("\\\"");
+                case '\\' -> b.append("\\\\");
+                case '\n' -> b.append("\\n");
+                case '\r' -> b.append("\\r");
+                case '\t' -> b.append("\\t");
+                case '\b' -> b.append("\\b");
+                case '\f' -> b.append("\\f");
+                default -> {
+                    if (c < 0x20)
+                        b.append(String.format("\\u%04x", (int) c));
+                    else
+                        b.append(c);
+                }
+            }
+        }
+        return b.toString();
     }
 }

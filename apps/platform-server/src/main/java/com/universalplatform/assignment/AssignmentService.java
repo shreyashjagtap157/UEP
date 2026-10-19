@@ -122,6 +122,9 @@ class AssignmentService implements AssignmentDirectory {
         if (a.status() == AssignmentStatus.ARCHIVED || a.status() == AssignmentStatus.CLOSED)
             throw new IllegalStateException("Closed or archived assignments cannot be assigned");
         if (!links.existsByTenantIdAndAssignmentIdAndBatchId(tid, id, batchId)) {
+            // Serialize concurrent weight sums for this batch (advisory lock held until commit) so the
+            // 10000 basis-point budget cannot be exceeded by two simultaneous assignBatch calls.
+            links.lockBatchWeight(batchId.getMostSignificantBits() ^ batchId.getLeastSignificantBits());
             int totalWeight = links
                     .findAllByTenantIdAndBatchId(tid, batchId).stream().mapToInt(l -> assignments
                             .findByTenantIdAndId(tid, l.assignmentId()).map(Assignment::weightBasisPoints).orElse(0))
@@ -161,6 +164,25 @@ class AssignmentService implements AssignmentDirectory {
                 .anyMatch(l -> enrollment.activeLearnerMembershipIdsForBatch(l.batchId()).contains(mid));
         if (!linked)
             throw new SecurityException("Assignment is not assigned to this learner");
+        // Promote an existing DRAFT row into the submitted attempt so drafts never shadow graded work and
+        // the attempt number stays contiguous; otherwise create a fresh next-attempt submission.
+        AssignmentSubmission draft = submissions
+                .findTopByTenantIdAndAssignmentIdAndMembershipIdOrderByAttemptNumberDesc(tid, id, mid).orElse(null);
+        if (draft != null && draft.status() == SubmissionStatus.DRAFT) {
+            String draftBody = textBody != null ? textBody : draft.textBody();
+            UUID draftResource = resourceId != null ? resourceId : draft.resourceId();
+            if ((draftBody == null || draftBody.isBlank()) && draftResource == null)
+                throw new IllegalArgumentException("Submission content is required");
+            draft.saveDraft(draftBody, draftResource, clock.instant());
+            draft.submit(clock.instant());
+            draft.markLate(!clock.instant().isBefore(a.dueAt()));
+            submissions.save(draft);
+            audit.record(tid, actor.requireSubject(), "ASSIGNMENT_SUBMITTED", "assignment_submission",
+                    draft.id().toString());
+            return submissionView(draft, a);
+        }
+        if ((textBody == null || textBody.isBlank()) && resourceId == null)
+            throw new IllegalArgumentException("Submission content is required");
         int next = submissions.findAllByTenantIdAndAssignmentIdAndMembershipIdOrderByAttemptNumberDesc(tid, id, mid)
                 .stream().mapToInt(AssignmentSubmission::attemptNumber).max().orElse(0) + 1;
         AssignmentSubmission n = new AssignmentSubmission(UUID.randomUUID(), tid, id, mid, next, SubmissionStatus.DRAFT,
@@ -231,6 +253,18 @@ class AssignmentService implements AssignmentDirectory {
                 .orElseThrow(() -> new IllegalArgumentException("Submission not found"));
         if (s.version() != expectedVersion)
             throw new IllegalStateException("Submission was modified");
+        // Org-level managers (tenant-wide scope) grade any submission; other graders must be connected
+        // to a batch the assignment targets (closest tenant-scoped check available without a new
+        // cross-module API).
+        if (!auth.currentScope(PermissionKey.ASSIGNMENTS_MANAGE).tenantWide()) {
+            UUID graderMembership = memberships.current().membershipId();
+            var graderBatches = enrollment.activeBatchIdsForMembership(graderMembership);
+            boolean assignedToGrader = !graderBatches.isEmpty() && links
+                    .findAllByTenantIdAndAssignmentId(tid, s.assignmentId()).stream()
+                    .anyMatch(l -> graderBatches.contains(l.batchId()));
+            if (!assignedToGrader)
+                throw new SecurityException("Assignment is outside the grader's assigned batches");
+        }
         Assignment a = require(s.assignmentId());
         if (s.status() != SubmissionStatus.SUBMITTED && s.status() != SubmissionStatus.RESUBMITTED)
             throw new IllegalStateException("Only submitted work can be graded");
@@ -259,8 +293,13 @@ class AssignmentService implements AssignmentDirectory {
                 .anyMatch(l -> l.batchId().equals(batchId));
         if (!assigned)
             throw new SecurityException("Assignment is not assigned to batch");
-        var sub = submissions.findTopByTenantIdAndAssignmentIdAndMembershipIdOrderByAttemptNumberDesc(tid, assignmentId,
-                membershipId).orElse(null);
+        // Prefer the latest submitted/graded attempt so an in-flight DRAFT can never shadow graded work.
+        var sub = submissions
+                .findTopByTenantIdAndAssignmentIdAndMembershipIdAndStatusInOrderByAttemptNumberDesc(tid, assignmentId,
+                        membershipId, List.of(SubmissionStatus.SUBMITTED, SubmissionStatus.RESUBMITTED))
+                .or(() -> submissions.findTopByTenantIdAndAssignmentIdAndMembershipIdOrderByAttemptNumberDesc(tid,
+                        assignmentId, membershipId))
+                .orElse(null);
         return new GradebookAssignment(a.id(), a.title(), a.maxPoints(), a.weightBasisPoints(),
                 sub == null ? null : sub.awardedPoints(), a.status());
     }

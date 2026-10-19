@@ -8,16 +8,15 @@ import {
   type ChatMessage,
 } from 'livekit-client'
 import type { CurrentIdentity, LiveClassView } from '../platform/api'
+import type { PageResult } from '../platform/api'
 import {
   createLiveClass,
   endLiveClass,
   fetchLiveClasses,
   joinLiveClass,
-  leaveLiveClass,
   startLiveClass,
   type LiveClassToken,
   requestRecording,
-  stopRecording,
 } from '../platform/api'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -65,15 +64,14 @@ export function LiveLearningWorkspace({ me }: { me: CurrentIdentity }) {
 
 function LiveRoom({ me, liveClass, onClose }: { me: CurrentIdentity; liveClass: LiveClassView; onClose: () => void }) {
   const queryClient = useQueryClient()
-  const start = useMutation({ mutationFn: startLiveClass, onSuccess: value => { queryClient.setQueryData(['live-classes'], (old: any) => old ? { ...old, items: old.items.map((x: LiveClassView) => x.id === value.id ? value : x) } : old) } })
-  const end = useMutation({ mutationFn: endLiveClass, onSuccess: value => { queryClient.setQueryData(['live-classes'], (old: any) => old ? { ...old, items: old.items.map((x: LiveClassView) => x.id === value.id ? value : x) } : old) } })
+  const start = useMutation({ mutationFn: startLiveClass, onSuccess: value => { queryClient.setQueryData(['live-classes'], (old: PageResult<LiveClassView> | undefined) => old ? { ...old, items: old.items.map((x: LiveClassView) => x.id === value.id ? value : x) } : old) } })
+  const end = useMutation({ mutationFn: endLiveClass, onSuccess: value => { queryClient.setQueryData(['live-classes'], (old: PageResult<LiveClassView> | undefined) => old ? { ...old, items: old.items.map((x: LiveClassView) => x.id === value.id ? value : x) } : old) } })
   const admin = me.permissions.includes('LIVE_CLASS_MANAGE')
   const [token, setToken] = useState<LiveClassToken | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
   const [recording, setRecording] = useState<'ECONOMY' | 'BALANCED' | 'HIGH_QUALITY' | 'SOURCE_ARCHIVE'>('BALANCED')
   const record = useMutation({ mutationFn: () => requestRecording(liveClass.id, recording) })
-  const stopRecordingMutation = useMutation({ mutationFn: stopRecording })
 
   useEffect(() => {
     if (liveClass.status !== 'LIVE') return
@@ -120,8 +118,8 @@ function ConnectedRoom({ token, liveClass }: { token: LiveClassToken; liveClass:
       videoCaptureDefaults: { resolution: liveClass.lowBandwidth ? VideoPresets.h360.resolution : VideoPresets.h720.resolution },
     })
     setRoom(livekit)
-    const attach = (track: any) => { const host = grid.current; if (!host || !track) return; const element = track.attach(); element.className = 'live-track'; host.appendChild(element) }
-    const detach = (track: any) => track?.detach?.().forEach?.((el: HTMLElement) => el.remove())
+    const attach = (track: Track) => { const host = grid.current; if (!host || !track) return; const element = track.attach(); element.className = 'live-track'; host.appendChild(element) }
+    const detach = (track?: Track) => track?.detach?.()?.forEach?.((el: HTMLElement) => el.remove())
     const refresh = () => setParticipants(livekit.remoteParticipants.size + 1)
     const chat = (payload: ChatMessage, participant?: { identity?: string }) => setMessages(current => [...current, `${participant?.identity ?? 'Participant'}: ${payload.message}`])
     livekit.on(RoomEvent.TrackSubscribed, track => attach(track))

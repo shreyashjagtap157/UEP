@@ -1,119 +1,87 @@
 import Keycloak from 'keycloak-js'
 
-let activeKeycloakUrl = import.meta.env.VITE_KEYCLOAK_URL ?? 'http://localhost:8081'
-let keycloak = new Keycloak({
-  url: activeKeycloakUrl,
-  realm: import.meta.env.VITE_KEYCLOAK_REALM ?? 'education',
-  clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID ?? 'platform-web',
-})
+// The only supported sign-in path is the configured Keycloak OIDC realm.
+// All three variables are required so the client never guesses identity
+// endpoints (previously it probed localhost ports, including the backend's).
+let instance: Keycloak | null = null
 
-export type PersonaRole = 'DEV_ADMIN' | 'CLIENT_ADMIN' | 'TEACHER' | 'STUDENT'
-let currentPersona: PersonaRole = (localStorage.getItem('uep_persona') as PersonaRole) || 'DEV_ADMIN'
-
-export function setPersona(persona: PersonaRole) {
-  currentPersona = persona
-  localStorage.setItem('uep_persona', persona)
-}
-
-export function getActivePersona(): PersonaRole {
-  return currentPersona
-}
-
-let isStandaloneDevMode = false
-
-async function findReachableKeycloakUrl(realm: string): Promise<string | null> {
-  const candidates = Array.from(new Set([
-    import.meta.env.VITE_KEYCLOAK_URL,
-    'http://localhost:8081',
-    'http://localhost:8080',
-    'http://localhost:8082',
-  ])).filter(Boolean) as string[]
-
-  for (const url of candidates) {
-    try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 1200)
-      await fetch(`${url}/realms/${realm}`, { method: 'HEAD', signal: controller.signal, mode: 'no-cors' })
-      clearTimeout(timer)
-      return url
-    } catch {
-      // Continue checking next candidate
-    }
+function ensureKeycloak(): Keycloak {
+  if (instance) return instance
+  const url = import.meta.env.VITE_KEYCLOAK_URL
+  const realm = import.meta.env.VITE_KEYCLOAK_REALM
+  const clientId = import.meta.env.VITE_KEYCLOAK_CLIENT_ID
+  if (!url || !realm || !clientId) {
+    throw new Error(
+      'Keycloak is not configured. Set VITE_KEYCLOAK_URL, VITE_KEYCLOAK_REALM and VITE_KEYCLOAK_CLIENT_ID at build time.',
+    )
   }
-  return null
+  instance = new Keycloak({ url, realm, clientId })
+  return instance
 }
+
+let initialized = false
 
 export async function initializeAuthentication(): Promise<void> {
-  const realm = import.meta.env.VITE_KEYCLOAK_REALM ?? 'education'
-  const reachableUrl = await findReachableKeycloakUrl(realm)
-
-  if (!reachableUrl) {
-    console.warn(`[Keycloak Auth] No active Keycloak identity service discovered on 8081, 8080, or 8082. Initializing in local development fallback mode.`)
-    isStandaloneDevMode = true
-    return
-  }
-
-  activeKeycloakUrl = reachableUrl
-  keycloak = new Keycloak({
-    url: activeKeycloakUrl,
-    realm,
-    clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID ?? 'platform-web',
-  })
-
-  try {
+  const keycloak = ensureKeycloak()
+  if (!initialized) {
     const authenticated = await keycloak.init({
       onLoad: 'login-required',
       flow: 'standard',
       pkceMethod: 'S256',
       checkLoginIframe: false,
     })
+    initialized = true
     if (!authenticated) await keycloak.login()
-  } catch (error) {
-    console.warn(`[Keycloak Auth] Keycloak initialization at ${activeKeycloakUrl} failed, switching to local development fallback mode:`, error)
-    isStandaloneDevMode = true
   }
 }
 
-export async function accessToken(): Promise<string> {
-  if (isStandaloneDevMode) {
-    return 'mock-dev-access-token'
+export function isAuthenticated(): boolean {
+  return instance?.authenticated === true
+}
+
+/** Subscribes to OIDC session transitions; returns an unsubscribe function. */
+export function onOidcStatus(callback: (authenticated: boolean) => void): () => void {
+  const keycloak = ensureKeycloak()
+  const notify = () => callback(keycloak.authenticated === true)
+  const previousSuccess = keycloak.onAuthSuccess
+  const previousLogout = keycloak.onAuthLogout
+  const previousError = keycloak.onAuthError
+  const previousRefreshError = keycloak.onAuthRefreshError
+  keycloak.onAuthSuccess = notify
+  keycloak.onAuthLogout = notify
+  keycloak.onAuthError = notify
+  keycloak.onAuthRefreshError = notify
+  return () => {
+    keycloak.onAuthSuccess = previousSuccess
+    keycloak.onAuthLogout = previousLogout
+    keycloak.onAuthError = previousError
+    keycloak.onAuthRefreshError = previousRefreshError
   }
+}
+
+export function signIn(): Promise<void> {
+  return ensureKeycloak().login()
+}
+
+export async function logout(): Promise<void> {
+  await ensureKeycloak().logout({ redirectUri: window.location.origin })
+}
+
+export async function openAccountManagement(): Promise<void> {
+  await ensureKeycloak().accountManagement()
+}
+
+export function enrollOtp(): Promise<void> {
+  return ensureKeycloak().login({ action: 'CONFIGURE_TOTP' })
+}
+
+export function enrollPasskey(): Promise<void> {
+  return ensureKeycloak().login({ action: 'webauthn-register-passwordless:skip_if_exists' })
+}
+
+export async function accessToken(): Promise<string> {
+  const keycloak = ensureKeycloak()
   await keycloak.updateToken(30)
   if (!keycloak.token) throw new Error('Authenticated access token is unavailable')
   return keycloak.token
 }
-
-export function logout(): Promise<void> {
-  if (isStandaloneDevMode) {
-    window.location.reload()
-    return Promise.resolve()
-  }
-  return keycloak.logout({ redirectUri: window.location.origin })
-}
-
-export async function openAccountManagement(): Promise<void> {
-  if (isStandaloneDevMode) {
-    alert('Keycloak identity server is currently offline. Start Keycloak via docker compose to manage identity accounts.')
-    return
-  }
-  await keycloak.accountManagement()
-}
-
-export function enrollOtp(): Promise<void> {
-  if (isStandaloneDevMode) {
-    alert('Keycloak identity server is currently offline. Start Keycloak via docker compose to configure OTP.')
-    return Promise.resolve()
-  }
-  return keycloak.login({ action: 'CONFIGURE_TOTP' })
-}
-
-export function enrollPasskey(): Promise<void> {
-  if (isStandaloneDevMode) {
-    alert('Keycloak identity server is currently offline. Start Keycloak via docker compose to register passkeys.')
-    return Promise.resolve()
-  }
-  return keycloak.login({ action: 'webauthn-register-passwordless:skip_if_exists' })
-}
-
-export { keycloak }
-

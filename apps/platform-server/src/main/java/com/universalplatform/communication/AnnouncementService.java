@@ -71,11 +71,15 @@ class AnnouncementService {
         UUID tenantId = tenantContext.requireTenantId();
         AuthorizationService.AccessScope scope = authorization.currentScope(PermissionKey.ANNOUNCEMENTS_MANAGE);
         PageRequest request = PageRequest.of(safePage(page), safeSize(size), Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        if (!scope.tenantWide() && scope.branchIds().isEmpty()) {
+            // Branch-restricted caller with no assigned branches sees nothing; an empty IN clause
+            // would be an invalid SQL shape on PostgreSQL.
+            return new AnnouncementPage<>(List.of(), safePage(page), safeSize(size), 0, 0);
+        }
         Page<Announcement> result;
         if (scope.tenantWide()) {
             result = announcements.findAllByTenantId(tenantId, request);
         } else {
-            if (scope.branchIds().isEmpty()) authorization.require(PermissionKey.ANNOUNCEMENTS_MANAGE);
             result = announcements.findAllByTenantIdAndAuthorizationBranchIdIn(tenantId, scope.branchIds(), request);
         }
         return page(result, false, null);
@@ -275,12 +279,32 @@ class AnnouncementService {
     }
 
     private AnnouncementPage<AnnouncementView> page(Page<Announcement> result, boolean includeAck, UUID membershipId) {
-        List<AnnouncementView> items = result.stream().map(item -> {
-            Instant ack = includeAck ? acknowledgements.findByTenantIdAndIdAnnouncementIdAndIdMembershipId(item.tenantId(), item.id(), membershipId)
-                    .map(AnnouncementAcknowledgement::acknowledgedAt).orElse(null) : null;
-            return view(item, targetList(item.tenantId(), item.id()), ack);
-        }).toList();
+        List<UUID> announcementIds = result.stream().map(Announcement::id).distinct().toList();
+        Map<UUID, List<Target>> targetLists = targetsByAnnouncement(result, announcementIds);
+        Map<UUID, Instant> acknowledgedAt = includeAck ? acknowledgementsByAnnouncement(result, announcementIds, membershipId)
+                : Map.of();
+        List<AnnouncementView> items = result.stream().map(item -> view(item, targetLists.getOrDefault(item.id(), List.of()),
+                acknowledgedAt.get(item.id()))).toList();
         return new AnnouncementPage<>(items, result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
+    }
+
+    /** One query for all targets on the page instead of one per announcement (N+1). */
+    private Map<UUID, List<AnnouncementTarget.Target>> targetsByAnnouncement(Page<Announcement> result, List<UUID> announcementIds) {
+        if (announcementIds.isEmpty()) return Map.of();
+        UUID tenantId = result.getContent().get(0).tenantId();
+        return targets.findAllByTenantIdAndAnnouncementIdIn(tenantId, announcementIds).stream()
+                .collect(java.util.stream.Collectors.groupingBy(item -> item.announcementId,
+                        java.util.stream.Collectors.mapping(item -> new AnnouncementTarget.Target(item.targetKind, item.targetId()),
+                                java.util.stream.Collectors.toList())));
+    }
+
+    /** One query for the caller's acknowledgements across the page instead of one per announcement. */
+    private Map<UUID, Instant> acknowledgementsByAnnouncement(Page<Announcement> result, List<UUID> announcementIds, UUID membershipId) {
+        if (announcementIds.isEmpty() || membershipId == null) return Map.of();
+        UUID tenantId = result.getContent().get(0).tenantId();
+        return acknowledgements.findAllByTenantIdAndIdAnnouncementIdInAndIdMembershipId(tenantId, announcementIds, membershipId).stream()
+                .collect(java.util.stream.Collectors.toMap(item -> item.id().announcementId(),
+                        AnnouncementAcknowledgement::acknowledgedAt));
     }
 
     private static AnnouncementView view(Announcement announcement, List<AnnouncementTarget.Target> targets, Instant acknowledgedAt) {

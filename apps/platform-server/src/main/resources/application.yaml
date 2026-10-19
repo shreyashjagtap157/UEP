@@ -57,6 +57,8 @@ management:
 
 platform:
   version: 0.15.0.0-SNAPSHOT
+  # Explicit opt-out of the production-secret guard (ProductionSecretGuard) for local dev and CI.
+  development-mode: ${PLATFORM_DEV_MODE:false}
   notifications:
     outbox-poll-ms: ${NOTIFICATION_OUTBOX_POLL_MS:1000}
     email:
@@ -69,6 +71,7 @@ platform:
   storage:
     upload-cleanup-poll-ms: ${PLATFORM_UPLOAD_CLEANUP_POLL_MS:3600000}
     retention-poll-ms: ${PLATFORM_CONTENT_RETENTION_POLL_MS:3600000}
+    max-upload-bytes: ${PLATFORM_MAX_UPLOAD_BYTES:5368709120}
     staging:
       root: ${PLATFORM_UPLOAD_STAGING:./var/uploads}
     local:

@@ -10,10 +10,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 @Service
 class ScheduleConflictDetector {
+    /** Upper bound for the overlap scan executed inside the tenant advisory lock. */
+    private static final int MAX_SCAN_ITEMS = 2000;
+
     private final ScheduleOccurrenceRepository occurrences;
     private final ScheduleSeriesRepository series;
 
@@ -28,7 +32,10 @@ class ScheduleConflictDetector {
         if (subject.kind() == ScheduleKind.HOLIDAY || proposed.isEmpty()) return List.of();
         Instant from = proposed.stream().map(RecurrenceExpander.ExpandedOccurrence::startsAt).min(Instant::compareTo).orElseThrow();
         Instant to = proposed.stream().map(RecurrenceExpander.ExpandedOccurrence::endsAt).max(Instant::compareTo).orElseThrow();
-        List<ScheduleOccurrence> existing = occurrences.findRange(tenantId, from, to).stream()
+        // Bounded overlap window: only occurrences that actually overlap the proposed range are read,
+        // limited to MAX_SCAN_ITEMS so a huge tenant calendar cannot stretch the advisory-locked scan.
+        List<ScheduleOccurrence> existing = occurrences
+                .findRangeCapped(tenantId, from, to, PageRequest.of(0, MAX_SCAN_ITEMS)).stream()
                 .filter(item -> ignoredOccurrenceId == null || !item.id().equals(ignoredOccurrenceId))
                 .toList();
         Map<UUID, ScheduleSeries> byId = series.findAllByTenantIdAndIdIn(tenantId,

@@ -6,4 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 interface AnnouncementAcknowledgementRepository extends JpaRepository<AnnouncementAcknowledgement, AnnouncementAcknowledgementId> {
     Optional<AnnouncementAcknowledgement> findByTenantIdAndIdAnnouncementIdAndIdMembershipId(UUID tenantId, UUID announcementId, UUID membershipId);
+    List<AnnouncementAcknowledgement> findAllByTenantIdAndIdAnnouncementIdInAndIdMembershipId(UUID tenantId, java.util.Collection<UUID> announcementIds, UUID membershipId);
 }

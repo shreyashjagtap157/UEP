@@ -16,7 +16,9 @@ import java.util.*;
 import org.springframework.data.domain.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 class RecordingService {
@@ -32,6 +34,8 @@ class RecordingService {
     private final RecordingMediaProvider media;
     private final RecordingThumbnailService thumbnails;
     private final StorageAdapterRegistry adapters;
+    private final RecordingWorkerLock workerLock;
+    private final TransactionTemplate claimTemplate;
     private final AuditService audit;
     private final NotificationPublisher notifications;
     private final Path processingRoot;
@@ -42,7 +46,8 @@ class RecordingService {
             MembershipDirectory memberships, EnrollmentDirectory enrollment, LiveClassDirectory liveClasses,
             RecordingRepository recordings,
             RecordingAssetRepository assets, RecordingStoragePolicyRepository policies, RecordingMediaProvider media,
-            RecordingThumbnailService thumbnails, StorageAdapterRegistry adapters,
+            RecordingThumbnailService thumbnails, StorageAdapterRegistry adapters, RecordingWorkerLock workerLock,
+            PlatformTransactionManager transactions,
             AuditService audit, NotificationPublisher notifications,
             @Value("${platform.recording.processing-root:./var/recordings}") String processingRoot,
             @Value("${platform.recording.playback-secret:change-me-in-production}") String playbackSecret) {
@@ -58,6 +63,8 @@ class RecordingService {
         this.media = media;
         this.thumbnails = thumbnails;
         this.adapters = adapters;
+        this.workerLock = workerLock;
+        this.claimTemplate = new TransactionTemplate(transactions);
         this.audit = audit;
         this.notifications = notifications;
         this.processingRoot = Path.of(processingRoot).toAbsolutePath().normalize();
@@ -88,7 +95,20 @@ class RecordingService {
         UUID t = tenants.requireTenantId();
         Pageable p = PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size)),
                 Sort.by(Sort.Direction.DESC, "requestedAt", "id"));
-        Page<Recording> rows = recordings.findAllByTenantId(t, p);
+        Page<Recording> rows;
+        if (auth.has(PermissionKey.RECORDINGS_MANAGE)) {
+            rows = recordings.findAllByTenantId(t, p);
+        } else {
+            // Non-managers may only enumerate recordings of live classes they participate in,
+            // determined via batch membership (learner enrollments plus teaching assignments).
+            Set<UUID> batchIds = enrollment.activeBatchIdsForMembership(memberships.current().membershipId());
+            Set<UUID> liveClassIds = batchIds.isEmpty() ? Set.of()
+                    : Set.copyOf(liveClasses.liveClassIdsForBatches(batchIds));
+            if (liveClassIds.isEmpty())
+                rows = Page.empty(p);
+            else
+                rows = recordings.findAllByTenantIdAndLiveClassIdIn(t, liveClassIds, p);
+        }
         return new PageResult<>(rows.getContent().stream().map(this::view).toList(), rows.getNumber(), rows.getSize(),
                 rows.getTotalElements(), rows.getTotalPages());
     }
@@ -189,10 +209,16 @@ class RecordingService {
 
     @Transactional
     void processOrReconcile(Recording r) {
-        if (r.status() == RecordingProcessingStatus.REQUESTED)
-            processRequested(r);
-        else if (r.status() == RecordingProcessingStatus.RECORDING || r.status() == RecordingProcessingStatus.STARTING)
-            reconcile(r);
+        // Cross-instance co-claim: the advisory lock is transaction-scoped and must be acquired
+        // before the row is re-read, so two workers can never process the same row concurrently.
+        workerLock.acquire(r.tenantId());
+        Recording current = recordings.findByTenantIdAndId(r.tenantId(), r.id()).orElse(null);
+        if (current == null)
+            return;
+        if (current.status() == RecordingProcessingStatus.REQUESTED)
+            processRequested(current);
+        else if (current.status() == RecordingProcessingStatus.RECORDING || current.status() == RecordingProcessingStatus.STARTING)
+            reconcile(current);
     }
 
     Recording reconcile(Recording r) {
@@ -200,24 +226,21 @@ class RecordingService {
             return r;
         try {
             var state = media.status(r.egressId());
-            if (state.status().contains("ACTIVE"))
-                return r;
-            if (state.status().contains("STARTING")) {
-                return r;
-            }
-            if (state.status().contains("FAILED") || state.status().contains("ABORTED")
-                    || state.status().contains("LIMIT")) {
-                r.fail(state.error() == null ? "LiveKit egress failed" : state.error());
-                return r;
-            }
-            if (state.status().contains("COMPLETE")) {
-                r.markFinalizing(clock.instant());
-                Path video = localPath(r);
-                if (!Files.exists(video)) {
-                    r.fail("LiveKit completed without the expected recording file");
+            switch (normalizeEgressStatus(state.status())) {
+                case "STARTING", "ACTIVE", "ENDING" -> {
                     return r;
                 }
-                finalizeFile(r, video, Math.max(0, state.durationNanos() / 1_000_000_000L));
+                case "FAILED", "ABORTED", "LIMIT_REACHED" -> {
+                    r.fail(state.error() == null ? "LiveKit egress failed" : state.error());
+                    return r;
+                }
+                case "COMPLETE", "INNER_COMPLETE" -> {
+                    return finalizeEgress(r, state);
+                }
+                default -> {
+                    // Unknown provider status: leave the recording for the next reconciliation pass.
+                    return r;
+                }
             }
         } catch (Exception e) {
             r.fail(trim(e.getMessage()));
@@ -225,6 +248,38 @@ class RecordingService {
         return r;
     }
 
+    private Recording finalizeEgress(Recording r, RecordingMediaProvider.EgressState state) {
+        r.markFinalizing(clock.instant());
+        Path video = localPath(r);
+        if (!Files.exists(video)) {
+            r.fail("LiveKit completed without the expected recording file");
+            return r;
+        }
+        finalizeFile(r, video, Math.max(0, state.durationNanos() / 1_000_000_000L));
+        return r;
+    }
+
+    private static String normalizeEgressStatus(String raw) {
+        if (raw == null)
+            return "";
+        return raw.strip().toUpperCase(Locale.ROOT).replace("EGRESS_STATUS_", "");
+    }
+
+    /**
+     * Tier migration (HOT -> CACHE, CACHE -> ARCHIVE). Ordering guarantees:
+     * <ol>
+     * <li>each asset object is copied to the target provider first, then the asset row/locator is
+     * persisted and committed, and only afterwards is the old object deleted (delete failures are
+     * tolerated: the row already points at the new locator, so the old object is a harmless
+     * orphan);</li>
+     * <li>the master recording row is updated from the already-migrated MASTER asset locator, so
+     * the master object is copied exactly once per pass and can never point at a deleted
+     * locator;</li>
+     * <li>a partially completed previous pass recovers safely: already-migrated assets and rows
+     * are skipped, and the workspace claim (ARCHIVING transition under a tenant advisory lock)
+     * makes cross-instance duplication impossible.</li>
+     * </ol>
+     */
     void archiveDue(Recording r) {
         if (r.status() != RecordingProcessingStatus.READY && r.status() != RecordingProcessingStatus.ARCHIVING)
             return;
@@ -232,47 +287,135 @@ class RecordingService {
         if (p == null || r.readyAt() == null)
             return;
         Instant now = clock.instant();
-        Instant cacheAt = r.readyAt().plus(Duration.ofDays(p.hotCacheDays()));
-        Instant archiveAt = cacheAt.plus(Duration.ofDays(p.cacheDays()));
-        try {
-            if (r.storageTier() == RecordingStorageTier.HOT) {
-                if (now.isBefore(cacheAt))
-                    return;
-                if (r.storageProvider() != p.cacheProvider()) {
-                    migrateAssets(r, p.cacheProvider());
-                    migrateMaster(r, p.cacheProvider());
-                } else {
-                    migrateAssets(r, p.cacheProvider());
-                }
-                r.cached(p.cacheProvider(), r.storageLocator(), r.objectKey(), now);
+        if (r.storageTier() == RecordingStorageTier.HOT) {
+            if (r.status() == RecordingProcessingStatus.READY
+                    && now.isBefore(r.readyAt().plus(Duration.ofDays(p.hotCacheDays()))))
+                return;
+            Recording current = claimForMigration(r);
+            if (current == null)
+                return;
+            try {
+                migrateToTier(current, p.cacheProvider(), RecordingStorageTier.CACHE, now);
                 audit.record(r.tenantId(), "system", "RECORDING_MOVED_TO_CACHE", "recording", r.id().toString());
-                return;
+            } catch (Exception e) {
+                restore(current);
             }
-            if (r.storageTier() == RecordingStorageTier.CACHE && now.isBefore(archiveAt))
+            return;
+        }
+        if (r.storageTier() == RecordingStorageTier.CACHE) {
+            if (r.status() == RecordingProcessingStatus.READY
+                    && now.isBefore(r.readyAt().plusDays((long) p.hotCacheDays() + p.cacheDays())))
                 return;
-            if (r.status() == RecordingProcessingStatus.READY)
-                r.markArchiving();
-            if (r.storageProvider() != p.archiveProvider()) {
-                migrateAssets(r, p.archiveProvider());
-                migrateMaster(r, p.archiveProvider());
+            Recording current = claimForMigration(r);
+            if (current == null)
+                return;
+            try {
+                migrateToTier(current, p.archiveProvider(), RecordingStorageTier.ARCHIVE, now);
+                audit.record(r.tenantId(), "system", "RECORDING_ARCHIVED", "recording", r.id().toString());
+            } catch (Exception e) {
+                restore(current);
             }
-            r.archived(p.archiveProvider(), r.storageLocator(), r.objectKey(), now);
-            audit.record(r.tenantId(), "system", "RECORDING_ARCHIVED", "recording", r.id().toString());
-        } catch (Exception e) {
-            r.restoreReady();
         }
     }
 
-    private void migrateMaster(Recording r, StorageProviderType targetType) throws java.io.IOException {
+    /**
+     * Claims a READY row for tier migration by transitioning it to ARCHIVING inside a short
+     * transaction that is guarded by the tenant advisory lock (cross-instance co-claim), then
+     * returns a freshly re-loaded snapshot for the migration pass. Rows already ARCHIVING (a
+     * partially completed previous pass) are re-loaded and resumed without re-claiming.
+     */
+    private Recording claimForMigration(Recording r) {
+        try {
+            if (r.status() == RecordingProcessingStatus.READY && !claimMigration(r.tenantId(), r.id()))
+                return null;
+        } catch (Exception claimedByAnotherInstance) {
+            return null;
+        }
+        Recording current = reload(r);
+        if (current == null || current.status() != RecordingProcessingStatus.ARCHIVING)
+            return null;
+        return current;
+    }
+
+    private boolean claimMigration(UUID tenantId, UUID id) {
+        Boolean claimed = claimTemplate.execute(status -> {
+            workerLock.acquire(tenantId);
+            Recording fresh = recordings.findByTenantIdAndId(tenantId, id).orElse(null);
+            if (fresh == null || fresh.status() != RecordingProcessingStatus.READY)
+                return false;
+            fresh.markArchiving();
+            recordings.save(fresh);
+            return true;
+        });
+        return Boolean.TRUE.equals(claimed);
+    }
+
+    private Recording reload(Recording r) {
+        return recordings.findByTenantIdAndId(r.tenantId(), r.id()).orElse(null);
+    }
+
+    private void restore(Recording r) {
+        try {
+            r.restoreReady();
+        } catch (Exception ignored) {
+        }
+        try {
+            recordings.save(r);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void migrateToTier(Recording r, StorageProviderType targetType, RecordingStorageTier tier, Instant now)
+            throws java.io.IOException {
+        boolean toArchive = tier == RecordingStorageTier.ARCHIVE;
+        if (r.storageProvider() == targetType) {
+            // Row already migrated by a previous pass; only the tier/status bookkeeping is missing.
+            if (toArchive)
+                r.archived(targetType, r.storageLocator(), r.objectKey(), now);
+            else
+                r.cached(targetType, r.storageLocator(), r.objectKey(), now);
+            recordings.save(r);
+            return;
+        }
+        migrateAssets(r, targetType);
+        String newLocator = masterLocatorOnTarget(r, targetType);
+        StorageAdapter source = adapters.require(r.storageProvider());
+        String old = r.storageLocator();
+        if (toArchive)
+            r.archived(targetType, newLocator, r.objectKey(), now);
+        else
+            r.cached(targetType, newLocator, r.objectKey(), now);
+        // Persist + commit the new locator BEFORE deleting the old master object; a crash after
+        // commit leaves a harmless orphan, while the recording never references a deleted object.
+        recordings.save(r);
+        deleteQuietly(source, old, newLocator);
+    }
+
+    /**
+     * Returns the locator of the MASTER asset on the target provider. The MASTER asset was either
+     * migrated earlier in this pass (migrateAssets above) or in a partially completed previous
+     * pass; in both cases its committed locator is a valid live object, so the master object is
+     * copied exactly once per pass and never re-read from a possibly deleted locator.
+     */
+    private String masterLocatorOnTarget(Recording r, StorageProviderType targetType) throws java.io.IOException {
+        RecordingAsset master = assets.findByTenantIdAndRecordingIdAndKind(r.tenantId(), r.id(), RecordingAssetKind.MASTER)
+                .orElse(null);
+        if (master != null && master.provider() == targetType && master.locator() != null)
+            return master.locator();
         StorageAdapter src = adapters.require(r.storageProvider());
         StorageAdapter dst = adapters.require(targetType);
-        if (r.storageProvider() == targetType)
-            return;
         try (InputStream in = src.open(r.storageLocator())) {
-            String loc = dst.put(r.objectKey(), in, r.sizeBytes() == null ? 0 : r.sizeBytes(), "video/mp4");
-            String old = r.storageLocator();
-            r.cached(targetType, loc, r.objectKey(), clock.instant());
-            src.delete(old);
+            return dst.put(r.objectKey(), in, r.sizeBytes() == null ? 0 : r.sizeBytes(), "video/mp4");
+        }
+    }
+
+    /** Deletes an already-replaced old object; the DB row was persisted first, so failures here only leave a harmless orphan. */
+    private void deleteQuietly(StorageAdapter source, String oldLocator, String newLocator) {
+        if (source == null || oldLocator == null || oldLocator.equals(newLocator))
+            return;
+        try {
+            source.delete(oldLocator);
+        } catch (Exception ignored) {
         }
     }
 
@@ -286,7 +429,9 @@ class RecordingService {
                 String loc = dst.put(a.objectKey(), in, a.sizeBytes(), a.mimeType());
                 String old = a.locator();
                 a.migrateTo(targetType, loc);
-                src.delete(old);
+                // Persist + commit the new locator BEFORE deleting the old object.
+                assets.save(a);
+                deleteQuietly(src, old, loc);
             }
         }
     }

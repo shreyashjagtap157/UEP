@@ -38,8 +38,21 @@ class CredentialService {
         if (membershipId != null)
             sql += " and membership_id=?";
         sql += " order by issued_at desc";
-        return membershipId == null ? jdbc.query(sql, (rs, n) -> credentialRow(rs), t)
-                : jdbc.query(sql, (rs, n) -> credentialRow(rs), t, membershipId);
+        // The verification code doubles as the public proof token behind /verify/{code}; it is
+        // only returned to callers allowed to manage credentials, everyone else gets a redacted view.
+        boolean maySeeCodes = auth.has(PermissionKey.CREDENTIALS_MANAGE);
+        return membershipId == null ? jdbc.query(sql, (rs, n) -> listRow(rs, maySeeCodes), t)
+                : jdbc.query(sql, (rs, n) -> listRow(rs, maySeeCodes), t, membershipId);
+    }
+
+    private CredentialView listRow(java.sql.ResultSet rs, boolean maySeeCodes) throws java.sql.SQLException {
+        if (maySeeCodes)
+            return new CredentialView(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getObject(3, UUID.class),
+                    rs.getString(4), rs.getString(5), rs.getObject(6, Instant.class), rs.getString(7), rs.getString(8),
+                    rs.getString(9), rs.getString(10), rs.getLong(11));
+        return new CredentialView(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getObject(3, UUID.class),
+                null, null, rs.getObject(6, Instant.class), rs.getString(7), rs.getString(8),
+                rs.getString(9), null, rs.getLong(11));
     }
 
     @Transactional(readOnly = true)
@@ -106,18 +119,15 @@ class CredentialService {
     }
 
     @Transactional(readOnly = true)
-    PublicVerification verify(String code) {
-        auth.require(PermissionKey.CREDENTIALS_VERIFY);
-        return publicVerify(code);
-    }
-
-    @Transactional(readOnly = true)
     PublicVerification publicVerify(String code) {
-        return jdbc.queryForObject(
+        List<PublicVerification> found = jdbc.query(
                 "select c.verification_code,t.name,u.display_name, c.issued_at,c.status,c.issuer_subject,c.reason from credential c join credential_template t on t.tenant_id=c.tenant_id and t.id=c.template_id join tenant_membership m on m.tenant_id=c.tenant_id and m.id=c.membership_id join user_account u on u.id=m.user_id where c.verification_code=?",
                 (rs, n) -> new PublicVerification(rs.getString(1), rs.getString(2), rs.getString(3),
                         rs.getObject(4, Instant.class), rs.getString(5), rs.getString(6), rs.getString(7)),
                 code);
+        if (found.isEmpty())
+            throw new CredentialNotFoundException("Credential not found");
+        return found.get(0);
     }
 
     private CredentialView credentialRow(java.sql.ResultSet rs) throws java.sql.SQLException {

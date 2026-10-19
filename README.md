@@ -81,6 +81,11 @@ npm --prefix apps/web run build
 Development services can be started with `infra/compose.yaml` on a machine with
 Docker Compose or compatible Podman tooling.
 
+Local development boots must opt out of the production-secret guard by setting
+`PLATFORM_DEV_MODE=true` (see `.env.example`), or by providing real values for
+`DATABASE_PASSWORD`, `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`,
+`PLATFORM_RECORDING_PLAYBACK_SECRET`, and `PLATFORM_INTEGRATION_SECRET_KEY`.
+
 ## Licensing
 
 First-party code is proprietary. See `LICENSE` and

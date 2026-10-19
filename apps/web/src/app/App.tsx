@@ -1,7 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { enrollOtp, enrollPasskey, logout, openAccountManagement } from '../auth/keycloak'
+import {
+  enrollOtp,
+  enrollPasskey,
+  isAuthenticated as isOidcAuthenticated,
+  logout,
+  onOidcStatus,
+  openAccountManagement,
+  signIn,
+} from '../auth/keycloak'
 import { AcademicOverview } from '../academic/AcademicOverview'
 import { AcademicWorkspace } from '../academic/AcademicWorkspace'
 import { EnrollmentWorkspace } from '../academic/EnrollmentWorkspace'
@@ -34,10 +42,6 @@ import {
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
 
-import { AuthPage } from '../auth/AuthPage'
-import type { PersonaRole } from '../auth/AuthPage'
-import { setPersona } from '../auth/keycloak'
-
 type Section = 'overview' | 'advanced' | 'integrations' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
 
 const permissionOptions: PermissionKey[] = [
@@ -54,30 +58,52 @@ const permissionOptions: PermissionKey[] = [
 
 export function App() {
   const [section, setSection] = useState<Section>('overview')
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => localStorage.getItem('uep_authenticated') === 'true')
+  const [oidcAuthenticated, setOidcAuthenticated] = useState<boolean>(() => isOidcAuthenticated())
+  const [signInPending, setSignInPending] = useState(false)
+  const [signInError, setSignInError] = useState<string | null>(null)
   const queryClient = useQueryClient()
-  const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: isAuthenticated })
-  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: isAuthenticated })
 
-  function handleAuthenticate(personaRole: PersonaRole) {
-    setPersona(personaRole)
-    localStorage.setItem('uep_authenticated', 'true')
-    setIsAuthenticated(true)
-    setSection('overview')
-    void queryClient.invalidateQueries({ queryKey: ['me'] })
+  useEffect(() => onOidcStatus(setOidcAuthenticated), [])
+
+  const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: oidcAuthenticated })
+  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated })
+
+  function handleSignIn() {
+    setSignInPending(true)
+    setSignInError(null)
+    void signIn()
+      .catch(error => {
+        setSignInError(error instanceof Error ? error.message : 'Sign-in could not be started')
+        setSignInPending(false)
+      })
+      .finally(() => setSignInPending(false))
   }
 
   function handleSignOut() {
-    localStorage.removeItem('uep_authenticated')
-    setIsAuthenticated(false)
+    queryClient.clear()
+    void logout()
   }
 
-  if (!isAuthenticated) {
-    return <AuthPage onAuthenticate={handleAuthenticate} />
+  if (!oidcAuthenticated) {
+    return (
+      <main className="centered-status">
+        <section className="hero-card">
+          <p className="eyebrow">Universal Education Platform</p>
+          <h1>Sign in required</h1>
+          <p>Your single sign-on session is not active. Continue to the identity provider to authenticate.</p>
+          <div className="button-row">
+            <button className="primary-button" disabled={signInPending} onClick={handleSignIn}>
+              Sign in with Keycloak
+            </button>
+          </div>
+          {signInError && <p className="error-text" role="alert">{signInError}</p>}
+        </section>
+      </main>
+    )
   }
 
   if (identity.isPending) return <CenteredStatus title="Loading your workspace" detail="Resolving tenant identity and permissions…" />
-  if (identity.isError) return <CenteredStatus title="Access unavailable" detail={identity.error.message} />
+    if (identity.isError) return <CenteredStatus title="Access unavailable" detail={identity.error.message} />
 
   const me = identity.data
   const nav: Array<{ id: Section; label: string; visible: boolean }> = [
@@ -94,6 +120,7 @@ export function App() {
     { id: 'assignments', label: 'Assignments', visible: has(me, 'ASSIGNMENTS_VIEW') || has(me, 'ASSIGNMENTS_TAKE') || has(me, 'GRADEBOOK_VIEW') },
     { id: 'content', label: 'Learning Content', visible: has(me, 'CONTENT_VIEW') },
     { id: 'academics', label: 'Academics', visible: has(me, 'ACADEMICS_VIEW') || has(me, 'CURRICULUM_VIEW') },
+    { id: 'advanced', label: 'Advanced Academics', visible: has(me, 'LEARNING_OUTCOMES_MANAGE') || has(me, 'CREDENTIALS_MANAGE') || has(me, 'MENTORING_MANAGE') || has(me, 'SURVEYS_MANAGE') || has(me, 'LEARNING_OUTCOMES_VIEW') || has(me, 'CREDENTIALS_VIEW') || has(me, 'MENTORING_VIEW') || has(me, 'SURVEYS_VIEW') || has(me, 'FEEDBACK_MANAGE') },
     { id: 'enrollment', label: 'Enrollment', visible: has(me, 'ENROLLMENTS_VIEW') || has(me, 'TEACHING_ASSIGNMENTS_VIEW') },
     { id: 'people', label: 'People', visible: has(me, 'USERS_VIEW') },
     { id: 'roles', label: 'Roles', visible: has(me, 'ROLES_VIEW') },
@@ -221,7 +248,7 @@ function People({ me }: { me: CurrentIdentity }) {
       <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">Directory</p><h3>Tenant people</h3></div><span className="count-badge">{members.data?.totalElements ?? 0}</span></div>
         {members.isPending ? <LoadingLine /> : members.isError ? <ErrorLine error={members.error} /> : (
-          <div className="table-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>Roles</th><th>Identity subject</th></tr></thead><tbody>
+          <div className="table-wrap"><table aria-label="Tenant member directory"><thead><tr><th>Name</th><th>Status</th><th>Roles</th><th>Identity subject</th></tr></thead><tbody>
             {members.data.items.map(member => <tr key={member.membershipId}><td><strong>{member.displayName}</strong><span>{member.email ?? 'No email'}</span></td><td>{member.membershipStatus}</td><td>{member.roles.map(role => role.name).join(', ') || '—'}</td><td><code>{member.oidcSubject}</code></td></tr>)}
           </tbody></table></div>
         )}

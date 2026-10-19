@@ -1,4 +1,4 @@
-# ADR 0011 — Advanced academic outcomes and credentials
+# ADR 0012 — Advanced academic outcomes and credentials
 
 ## Status
 Accepted for milestone 0.13.0.0.

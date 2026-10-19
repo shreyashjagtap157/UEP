@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.universalplatform.assessment.AssessmentReadDirectory;
 import com.universalplatform.audit.AuditService;
+import com.universalplatform.enrollment.EnrollmentDirectory;
 import com.universalplatform.identity.AuthorizationService;
 import com.universalplatform.identity.PermissionKey;
 import com.universalplatform.security.ActorContext;
@@ -20,6 +21,7 @@ public class GradingService implements GradingDirectory {
     private final ActorContext actor;
     private final AuthorizationService auth;
     private final com.universalplatform.identity.MembershipDirectory memberships;
+    private final EnrollmentDirectory enrollment;
     private final AssessmentReadDirectory assessments;
     private final GradeRevisionRepository revisions;
     private final GradeItemRepository items;
@@ -28,12 +30,14 @@ public class GradingService implements GradingDirectory {
     private final Clock clock = Clock.systemUTC();
 
     GradingService(TenantContext tenant, ActorContext actor, AuthorizationService auth,
-            com.universalplatform.identity.MembershipDirectory memberships, AssessmentReadDirectory assessments,
+            com.universalplatform.identity.MembershipDirectory memberships, EnrollmentDirectory enrollment,
+            AssessmentReadDirectory assessments,
             GradeRevisionRepository revisions, GradeItemRepository items, AuditService audit, ObjectMapper mapper) {
         this.tenant = tenant;
         this.actor = actor;
         this.auth = auth;
         this.memberships = memberships;
+        this.enrollment = enrollment;
         this.assessments = assessments;
         this.revisions = revisions;
         this.items = items;
@@ -58,6 +62,7 @@ public class GradingService implements GradingDirectory {
         var packet = assessments.requireSubmittedAttempt(tid, attemptId);
         if (!packet.submitted())
             throw new IllegalStateException("Only submitted attempts can be graded");
+        requireAttemptScope(tid, packet);
         List<AssessmentReadDirectory.AnswerSnapshot> answers = assessments.answersForAttempt(tid, attemptId);
         int next = revisions.findTopByTenantIdAndAttemptIdOrderByRevisionNumberDesc(tid, attemptId)
                 .map(r -> r.revisionNumber() + 1).orElse(1);
@@ -74,7 +79,7 @@ public class GradingService implements GradingDirectory {
                     answer.assessmentQuestionId(), answer.maxMarks(), answer.negativeMarks(), result.score(), null,
                     result.score(), clock.instant(), result.explanationJson(), result.rubricJson()));
         }
-        int capped = Math.min(total, packet.totalMarks());
+        int capped = Math.max(0, Math.min(total, packet.totalMarks()));
         revision.setAwardedMarks(capped);
         final UUID targetRevisionId = revision.id();
         if (publish) {
@@ -100,6 +105,7 @@ public class GradingService implements GradingDirectory {
         var packet = assessments.requireSubmittedAttempt(tid, attemptId);
         if (!packet.submitted())
             throw new IllegalStateException("Attempt is not submitted");
+        requireAttemptScope(tid, packet);
         var previous = revisions.findTopByTenantIdAndAttemptIdOrderByRevisionNumberDesc(tid, attemptId)
                 .orElseThrow(() -> new IllegalStateException("Grade first"));
         var previousItem = items.findByTenantIdAndGradeRevisionIdAndAnswerId(tid, previous.id(), answerId)
@@ -108,7 +114,7 @@ public class GradingService implements GradingDirectory {
             throw new IllegalArgumentException("Score outside question bounds");
         int next = previous.revisionNumber() + 1;
         int total = previous.awardedMarks() - previousItem.finalScore() + finalScore;
-        total = Math.min(total, packet.totalMarks());
+        total = Math.max(0, Math.min(total, packet.totalMarks()));
         if (publish) {
             previous.supersede();
             revisions.save(previous);
@@ -136,6 +142,7 @@ public class GradingService implements GradingDirectory {
         auth.require(PermissionKey.GRADING_MANAGE);
         UUID tid = tenant.requireTenantId();
         var packet = assessments.requireSubmittedAttempt(tid, attemptId);
+        requireAttemptScope(tid, packet);
         var current = revisions.findTopByTenantIdAndAttemptIdOrderByRevisionNumberDesc(tid, attemptId).orElseThrow();
         revisions.findAllByTenantIdAndAttemptIdOrderByRevisionNumberDesc(tid, attemptId).stream()
                 .filter(r -> !r.id().equals(current.id()) && r.status() == GradeRevisionStatus.PUBLISHED).forEach(r -> {
@@ -156,6 +163,7 @@ public class GradingService implements GradingDirectory {
         var packet = assessments.requireSubmittedAttempt(tid, attemptId);
         if (!packet.submitted())
             throw new IllegalStateException("Only submitted attempts can be graded");
+        requireAttemptScope(tid, packet);
         var base = assessments.answersForAttempt(tid, attemptId);
         int next = revisions.findTopByTenantIdAndAttemptIdOrderByRevisionNumberDesc(tid, attemptId)
                 .map(r -> r.revisionNumber() + 1).orElse(1);
@@ -173,7 +181,16 @@ public class GradingService implements GradingDirectory {
                     answer.assessmentQuestionId(), answer.maxMarks(), answer.negativeMarks(), result.score(), null,
                     result.score(), clock.instant(), result.explanationJson(), result.rubricJson()));
         }
-        revision.setAwardedMarks(Math.min(total, packet.totalMarks()));
+        final UUID targetRevisionId = revision.id();
+        if (publish) {
+            revisions.findAllByTenantIdAndAttemptIdOrderByRevisionNumberDesc(tid, attemptId).stream()
+                    .filter(r -> !r.id().equals(targetRevisionId) && r.status() == GradeRevisionStatus.PUBLISHED)
+                    .forEach(r -> {
+                        r.supersede();
+                        revisions.save(r);
+                    });
+        }
+        revision.setAwardedMarks(Math.max(0, Math.min(total, packet.totalMarks())));
         revision.setStatus(publish ? GradeRevisionStatus.PUBLISHED : GradeRevisionStatus.GENERATED);
         revisions.save(revision);
         audit.record(tid, actor.requireSubject(), "GRADE_REGENERATED_WITH_OVERRIDES", "attempt", attemptId.toString());
@@ -192,10 +209,16 @@ public class GradingService implements GradingDirectory {
             throw new IllegalArgumentException("Answer does not belong to the attempt");
         var result = grade(answer.type(), proposedPayloadJson, answer.questionPayloadJson(), answer.maxMarks(),
                 answer.negativeMarks());
-        int currentScore = revisions.findTopByTenantIdAndAttemptIdOrderByRevisionNumberDesc(tid, attemptId)
+        return new GradingDirectory.ProjectedAnswerGrade(answerId, result.score(), answer.maxMarks(), true);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int answerScore(UUID attemptId, UUID answerId) {
+        UUID tid = tenant.requireTenantId();
+        return revisions.findTopByTenantIdAndAttemptIdOrderByRevisionNumberDesc(tid, attemptId)
                 .flatMap(r -> items.findByTenantIdAndGradeRevisionIdAndAnswerId(tid, r.id(), answerId))
                 .map(GradeItem::finalScore).orElse(0);
-        return new GradingDirectory.ProjectedAnswerGrade(answerId, result.score(), answer.maxMarks(), true);
     }
 
     @Transactional(readOnly = true)
@@ -216,13 +239,6 @@ public class GradingService implements GradingDirectory {
         var p = assessments.requireSubmittedAttempt(tid, attemptId);
         return new AttemptGrade(attemptId, rev.id(), rev.revisionNumber(), rev.awardedMarks(), rev.maxMarks(),
                 p.passMarks(), rev.awardedMarks() >= p.passMarks());
-    }
-
-    @Transactional(readOnly = true)
-    public boolean hasPublishedGrade(UUID attemptId) {
-        UUID tid = tenant.requireTenantId();
-        return revisions.findAllByTenantIdAndAttemptIdOrderByRevisionNumberDesc(tid, attemptId).stream()
-                .anyMatch(r -> r.status() == GradeRevisionStatus.PUBLISHED);
     }
 
     @Transactional(readOnly = true)
@@ -264,10 +280,11 @@ public class GradingService implements GradingDirectory {
                 case SINGLE_MCQ, TRUE_FALSE -> scalar(a, q, maxMarks, negativeMarks);
                 case MULTIPLE_SELECTION -> multi(a, q, maxMarks, negativeMarks);
                 case NUMERIC -> numeric(a, q, maxMarks, negativeMarks);
-                case FILL_BLANK, SHORT_ANSWER, LONG_ANSWER, ESSAY -> text(a, q, maxMarks, negativeMarks);
+                case FILL_BLANK -> text(a, q, maxMarks, negativeMarks);
+                case SHORT_ANSWER, LONG_ANSWER, ESSAY, FILE_SUBMISSION -> new GradeResult(0, "{\"mode\":\"manual\"}",
+                        "{\"required\":true}");
                 case MATCHING -> matching(a, q, maxMarks, negativeMarks);
                 case ORDERING -> ordering(a, q, maxMarks, negativeMarks);
-                case FILE_SUBMISSION -> new GradeResult(0, "{\"mode\":\"manual\"}", "{\"required\":true}");
             };
         } catch (Exception e) {
             return new GradeResult(0, "{\"error\":\"invalid_answer_or_key\"}", "{}");
@@ -347,6 +364,24 @@ public class GradingService implements GradingDirectory {
                 i.systemScore(), i.teacherScore(), i.finalScore(), i.explanationJson(), i.rubricJson(), i.createdAt());
     }
 
+    /**
+     * Org-level managers (tenant-wide GRADING_MANAGE scope) may grade any attempt in the tenant.
+     * Other graders must share an active enrollment batch (teaching assignment) with the attempt's
+     * learner; this is the closest tenant-scoped check available without a new cross-module API.
+     */
+    private void requireAttemptScope(UUID tid, AssessmentReadDirectory.SubmittedAttempt packet) {
+        if (auth.currentScope(PermissionKey.GRADING_MANAGE).tenantWide()) {
+            return;
+        }
+        UUID graderMembership = memberships.current().membershipId();
+        var graderBatches = enrollment.activeBatchIdsForMembership(graderMembership);
+        boolean assignedToGrader = !graderBatches.isEmpty() && enrollment
+                .activeBatchIdsForMembership(packet.membershipId()).stream().anyMatch(graderBatches::contains);
+        if (!assignedToGrader) {
+            throw new SecurityException("Attempt is outside the grader's assigned batches");
+        }
+    }
+
     private record GradeResult(int score, String explanationJson, String rubricJson) {
     }
 
@@ -357,9 +392,5 @@ public class GradingService implements GradingDirectory {
     public record GradeItemView(UUID id, UUID answerId, UUID assessmentQuestionId, int maxMarks, int negativeMarks,
             int systemScore, Integer teacherScore, int finalScore, String explanationJson, String rubricJson,
             Instant createdAt) {
-    }
-
-    public record ProjectedAnswerGrade(UUID answerId, int currentScore, int projectedScore, int delta,
-            String explanationJson) {
     }
 }

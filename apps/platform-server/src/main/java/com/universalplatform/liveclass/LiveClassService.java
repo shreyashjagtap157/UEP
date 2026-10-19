@@ -13,6 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 class LiveClassService implements LiveClassDirectory {
+    /** A heartbeat older than this marks the participant as a missing leaver for tenure accounting. */
+    private static final java.time.Duration HEARTBEAT_STALENESS = java.time.Duration.ofMinutes(5);
+
     private final TenantContext tenant;
     private final ActorContext actor;
     private final AuthorizationService auth;
@@ -174,6 +177,15 @@ class LiveClassService implements LiveClassDirectory {
     }
 
     @Transactional
+    void unmute(UUID id, UUID membershipId) {
+        auth.require(PermissionKey.LIVE_CLASS_MODERATE);
+        LiveClassParticipant p = participant(id, membershipId);
+        p.moderateUnmute();
+        audit.record(tenant.requireTenantId(), actor.requireSubject(), "LIVE_CLASS_PARTICIPANT_UNMUTED",
+                "live_class_participant", p.id().toString());
+    }
+
+    @Transactional
     void kick(UUID id, UUID membershipId, String reason) {
         auth.require(PermissionKey.LIVE_CLASS_MODERATE);
         LiveClassParticipant p = participant(id, membershipId);
@@ -227,11 +239,29 @@ class LiveClassService implements LiveClassDirectory {
         Instant now = clock.instant();
         return participants.findAllByTenantIdAndLiveClassId(tid, id).stream().map(p -> {
             long seconds = p.totalPresentSeconds();
-            if (p.joinedAt() != null && p.leftAt() == null)
-                seconds += Math.max(0, Duration.between(p.joinedAt(), now).getSeconds());
+            if (p.joinedAt() != null && p.leftAt() == null) {
+                // Fairness: a participant that vanished without leaving keeps tenure only up to a
+                // live heartbeat (or, if stale, up to their last heartbeat instead of indefinitely
+                // accruing until the class is finalized).
+                Instant heartbeat = p.lastHeartbeatAt();
+                Instant activeUntil = heartbeat == null ? p.joinedAt()
+                        : now.minus(HEARTBEAT_STALENESS).isBefore(heartbeat) ? now : heartbeat;
+                if (activeUntil.isBefore(p.joinedAt()))
+                    activeUntil = p.joinedAt();
+                seconds += Math.max(0, Duration.between(p.joinedAt(), activeUntil).getSeconds());
+            }
             return new ParticipantSnapshot(p.membershipId(), p.role(), p.status(), p.joinedAt(), p.leftAt(), seconds,
                     p.lastHeartbeatAt());
         }).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> liveClassIdsForBatches(Collection<UUID> batchIds) {
+        if (batchIds == null || batchIds.isEmpty())
+            return List.of();
+        return liveClasses.findAllByTenantIdAndBatchIdIn(tenant.requireTenantId(), batchIds, Pageable.unpaged())
+                .getContent().stream().map(LiveClass::id).toList();
     }
 
     private LiveClass require0(UUID id) {

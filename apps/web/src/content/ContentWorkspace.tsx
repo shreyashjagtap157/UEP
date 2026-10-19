@@ -2,8 +2,8 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { completeUpload, createFileResource, createTextResource, fetchResources, initiateUpload, uploadChunk } from '../platform/api'
-import type { CurrentIdentity, DownloadPolicy, ResourceVisibility } from '../platform/api'
-const has=(me:CurrentIdentity,p:string)=>me.permissions.includes(p as never)||me.primaryBranchPermissions.includes(p as never)
+import type { CurrentIdentity, DownloadPolicy, PermissionKey, ResourceVisibility } from '../platform/api'
+const has = (me: CurrentIdentity, p: PermissionKey) => me.permissions.includes(p) || me.primaryBranchPermissions.includes(p)
 export function ContentWorkspace({me}:{me:CurrentIdentity}){
  const qc=useQueryClient();const resources=useQuery({queryKey:['resources'],queryFn:fetchResources});const [progress,setProgress]=useState('')
  const text=useMutation({mutationFn:createTextResource,onSuccess:()=>void qc.invalidateQueries({queryKey:['resources']})})

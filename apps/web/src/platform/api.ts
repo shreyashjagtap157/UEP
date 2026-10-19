@@ -1,4 +1,4 @@
-import { accessToken, getActivePersona } from '../auth/keycloak'
+import { accessToken } from '../auth/keycloak'
 
 export interface PlatformVersion {
   version: string
@@ -182,168 +182,80 @@ export interface SessionView {
   current: boolean
 }
 
-const ALL_PERMISSIONS: PermissionKey[] = [
-  'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
-  'USERS_VIEW', 'USERS_MANAGE', 'ROLES_VIEW', 'ROLES_MANAGE', 'ROLES_ASSIGN',
-  'SESSIONS_VIEW', 'SESSIONS_MANAGE',
-  'ACADEMICS_VIEW', 'ACADEMICS_MANAGE', 'CURRICULUM_VIEW', 'CURRICULUM_MANAGE',
-  'ENROLLMENTS_VIEW', 'ENROLLMENTS_MANAGE', 'TEACHING_ASSIGNMENTS_VIEW', 'TEACHING_ASSIGNMENTS_MANAGE',
-  'SCHEDULE_VIEW', 'SCHEDULE_MANAGE', 'SCHEDULE_CONFLICT_OVERRIDE',
-  'ANNOUNCEMENTS_VIEW', 'ANNOUNCEMENTS_MANAGE', 'NOTIFICATION_OPERATIONS_VIEW', 'CONTENT_VIEW', 'CONTENT_MANAGE',
-  'ASSESSMENTS_VIEW', 'ASSESSMENTS_MANAGE', 'ASSESSMENTS_TAKE', 'GRADING_VIEW', 'GRADING_MANAGE', 'REVIEW_VIEW', 'REVIEW_SUBMIT', 'REVIEW_MANAGE',
-  'ASSIGNMENTS_VIEW', 'ASSIGNMENTS_MANAGE', 'ASSIGNMENTS_TAKE', 'GRADEBOOK_VIEW', 'GRADEBOOK_MANAGE', 'LIVE_CLASS_VIEW', 'LIVE_CLASS_MANAGE', 'LIVE_CLASS_MODERATE', 'LIVE_CLASS_CHAT', 'PRESENCE_VIEW', 'PRESENCE_MANAGE', 'ATTENDANCE_VIEW', 'ATTENDANCE_MANAGE', 'RECORDINGS_VIEW', 'RECORDINGS_MANAGE', 'FINANCE_VIEW', 'FINANCE_MANAGE', 'COMMERCIAL_VIEW', 'COMMERCIAL_MANAGE', 'PAYMENTS_MANAGE', 'ANALYTICS_VIEW', 'ANALYTICS_MANAGE', 'REPORTS_EXPORT', 'OPERATIONS_VIEW', 'OPERATIONS_MANAGE', 'AUDIT_VIEW',
-]
+export class PlatformApiError extends Error {
+  readonly status: number
+  readonly problemDetail: unknown
 
-function getMockResponse(path: string): any {
-  if (path.includes('/me')) {
-    const persona = getActivePersona()
-    if (persona === 'CLIENT_ADMIN') {
-      const clientAdminPerms: PermissionKey[] = ['ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE', 'USERS_VIEW', 'USERS_MANAGE', 'ROLES_VIEW', 'ROLES_MANAGE', 'ROLES_ASSIGN', 'SESSIONS_VIEW', 'ACADEMICS_VIEW', 'ACADEMICS_MANAGE', 'CURRICULUM_VIEW', 'CURRICULUM_MANAGE', 'ENROLLMENTS_VIEW', 'ENROLLMENTS_MANAGE', 'TEACHING_ASSIGNMENTS_VIEW', 'TEACHING_ASSIGNMENTS_MANAGE', 'SCHEDULE_VIEW', 'SCHEDULE_MANAGE', 'ANNOUNCEMENTS_VIEW', 'ANNOUNCEMENTS_MANAGE', 'NOTIFICATION_OPERATIONS_VIEW', 'CONTENT_VIEW', 'CONTENT_MANAGE', 'FINANCE_VIEW', 'FINANCE_MANAGE', 'ANALYTICS_VIEW', 'OPERATIONS_VIEW']
-      return {
-        userId: 'usr_client_admin_002',
-        membershipId: 'mem_client_admin_002',
-        oidcSubject: 'sub_client_admin_002',
-        email: 'admin@apex-academy.edu',
-        displayName: 'Sarah Connor (Client Org Admin)',
-        tenantId: 'tnt_apex_academy',
-        membershipStatus: 'ACTIVE',
-        primaryBranchId: 'br_main',
-        roles: ['Client Organization Administrator'],
-        permissions: clientAdminPerms,
-        primaryBranchPermissions: clientAdminPerms,
-        authenticationAssurance: { acr: 'gsa-level-2', otpEvidence: true, webAuthnEvidence: false, authenticatedAt: new Date().toISOString() },
-      }
-    }
-    if (persona === 'TEACHER') {
-      const teacherPerms: PermissionKey[] = ['ACADEMICS_VIEW', 'CURRICULUM_VIEW', 'TEACHING_ASSIGNMENTS_VIEW', 'SCHEDULE_VIEW', 'ANNOUNCEMENTS_VIEW', 'CONTENT_VIEW', 'CONTENT_MANAGE', 'ASSESSMENTS_VIEW', 'ASSESSMENTS_MANAGE', 'GRADING_VIEW', 'GRADING_MANAGE', 'REVIEW_VIEW', 'REVIEW_MANAGE', 'ASSIGNMENTS_VIEW', 'ASSIGNMENTS_MANAGE', 'GRADEBOOK_VIEW', 'GRADEBOOK_MANAGE', 'LIVE_CLASS_VIEW', 'LIVE_CLASS_MANAGE', 'LIVE_CLASS_MODERATE', 'LIVE_CLASS_CHAT', 'PRESENCE_VIEW', 'PRESENCE_MANAGE', 'ATTENDANCE_VIEW', 'ATTENDANCE_MANAGE', 'RECORDINGS_VIEW']
-      return {
-        userId: 'usr_teacher_003',
-        membershipId: 'mem_teacher_003',
-        oidcSubject: 'sub_teacher_003',
-        email: 'mbrody@apex-academy.edu',
-        displayName: 'Dr. Marcus Brody (Faculty Member)',
-        tenantId: 'tnt_apex_academy',
-        membershipStatus: 'ACTIVE',
-        primaryBranchId: 'br_main',
-        roles: ['Senior Faculty / Evaluator'],
-        permissions: teacherPerms,
-        primaryBranchPermissions: teacherPerms,
-        authenticationAssurance: { acr: 'gsa-level-2', otpEvidence: true, webAuthnEvidence: false, authenticatedAt: new Date().toISOString() },
-      }
-    }
-    if (persona === 'STUDENT') {
-      const studentPerms: PermissionKey[] = ['SCHEDULE_VIEW', 'ANNOUNCEMENTS_VIEW', 'CONTENT_VIEW', 'ASSESSMENTS_VIEW', 'ASSESSMENTS_TAKE', 'REVIEW_VIEW', 'REVIEW_SUBMIT', 'ASSIGNMENTS_VIEW', 'ASSIGNMENTS_TAKE', 'LIVE_CLASS_VIEW', 'LIVE_CLASS_CHAT', 'RECORDINGS_VIEW']
-      return {
-        userId: 'usr_student_004',
-        membershipId: 'mem_student_004',
-        oidcSubject: 'sub_student_004',
-        email: 'elena.rostova@student.apex-academy.edu',
-        displayName: 'Elena Rostova (Student / Learner)',
-        tenantId: 'tnt_apex_academy',
-        membershipStatus: 'ACTIVE',
-        primaryBranchId: 'br_main',
-        roles: ['Enrolled Student / Learner'],
-        permissions: studentPerms,
-        primaryBranchPermissions: studentPerms,
-        authenticationAssurance: { acr: 'gsa-level-1', otpEvidence: false, webAuthnEvidence: false, authenticatedAt: new Date().toISOString() },
-      }
-    }
-    return {
-      userId: 'usr_dev_admin_001',
-      membershipId: 'mem_dev_admin_001',
-      oidcSubject: 'sub_dev_admin_001',
-      email: 'admin@universal-education.dev',
-      displayName: 'Alex Vance (Developer Admin)',
-      tenantId: 'tnt_dev_master',
-      membershipStatus: 'ACTIVE',
-      primaryBranchId: 'br_main',
-      roles: ['Developer Platform Administrator', 'Commercial Super Admin'],
-      permissions: ALL_PERMISSIONS,
-      primaryBranchPermissions: ALL_PERMISSIONS,
-      authenticationAssurance: { acr: 'gsa-level-3', otpEvidence: true, webAuthnEvidence: true, authenticatedAt: new Date().toISOString() },
-    }
+  constructor(status: number, message: string, problemDetail?: unknown) {
+    super(message)
+    this.name = 'PlatformApiError'
+    this.status = status
+    this.problemDetail = problemDetail
   }
-  if (path.includes('/platform/version')) {
-    return { version: '0.15.0.0-SNAPSHOT', releaseStatus: 'Reliability and Performance Qualification' }
+}
+
+function extractServerMessage(body: unknown, fallback: string): string {
+  if (body && typeof body === 'object') {
+    const detail = (body as { detail?: unknown }).detail
+    const message = (body as { message?: unknown }).message
+    const title = (body as { title?: unknown }).title
+    if (typeof detail === 'string' && detail.trim()) return detail
+    if (typeof message === 'string' && message.trim()) return message
+    if (typeof title === 'string' && title.trim()) return title
   }
-  if (path.includes('/today')) {
-    return {
-      generatedAt: new Date().toISOString(),
-      mode: 'ADMINISTRATIVE',
-      timezone: 'UTC',
-      schedule: [
-        {
-          occurrenceId: 'occ_dev_01',
-          classSessionId: 'cs_dev_01',
-          title: 'Advanced System Architecture & Engineering',
-          kind: 'CLASS',
-          deliveryMode: 'ONLINE_LIVE',
-          startsAt: new Date().toISOString(),
-          endsAt: new Date(Date.now() + 3600000).toISOString(),
-          roomCode: 'LIVE-101',
-        },
-      ],
-      summary: {
-        classes: 1,
-        exams: 0,
-        scheduledLearners: 25,
-        unreadNotifications: 2,
-      },
-    }
-  }
-  if (path.includes('/branches')) {
-    return { items: [{ id: 'br_main', code: 'MAIN', displayName: 'Main Campus', timezone: 'UTC' }], page: 0, size: 100, totalElements: 1, totalPages: 1 }
-  }
-  if (path.includes('/organization/settings')) {
-    return { tenantId: 'tnt_dev_master', defaultTimezone: 'UTC', defaultLocale: 'en-US', weekStartsOn: 1, supportEmail: 'support@universal-education.dev', supportUrl: 'https://support.universal-education.dev', version: 1 }
-  }
-  if (path.includes('/roles')) {
-    return { items: [{ id: 'role_admin', name: 'Platform Administrator', systemManaged: true, description: 'Full system authorization', permissions: ALL_PERMISSIONS }], page: 0, size: 100, totalElements: 1, totalPages: 1 }
-  }
-  if (path.includes('/memberships')) {
-    return { items: [{ membershipId: 'mem_dev_admin_001', userId: 'usr_dev_admin_001', oidcSubject: 'sub_dev_admin_001', email: 'admin@universal-education.dev', displayName: 'Platform Administrator (Dev Baseline)', userStatus: 'ACTIVE', membershipStatus: 'ACTIVE', joinedAt: new Date().toISOString(), roles: [{ id: 'role_admin', name: 'Platform Administrator', systemManaged: true }] }], page: 0, size: 100, totalElements: 1, totalPages: 1 }
-  }
-  if (path.includes('/sessions')) {
-    return { items: [{ id: 'sess_cur', current: true, ipAddress: '127.0.0.1', userAgent: 'Local Web Browser', lastSeenAt: new Date().toISOString(), createdAt: new Date().toISOString() }], page: 0, size: 100, totalElements: 1, totalPages: 1 }
-  }
-  if (path.includes('?') || path.endsWith('s')) return { items: [], page: 0, size: 100, totalElements: 0, totalPages: 0 }
-  return {}
+  return fallback
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let token: string
   try {
-    const token = await accessToken()
-    const headers = new Headers(init.headers)
-    headers.set('Accept', 'application/json')
-    headers.set('Authorization', `Bearer ${token}`)
-    if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-    const response = await fetch(path, { ...init, headers })
-    if (response.status === 204) return undefined as T
-    const payload = await response.json().catch(() => undefined) as { message?: string } | T | undefined
-    if (!response.ok) {
-      if (response.status === 502 || response.status === 503 || response.status === 504) {
-        console.warn(`[Platform API] Service unavailable (${response.status}) at ${path}, providing dev fallback mock data.`)
-        return getMockResponse(path) as T
-      }
-      const message = payload && typeof payload === 'object' && 'message' in payload ? payload.message : undefined
-      throw new Error(message ?? `Platform request failed: ${response.status}`)
-    }
-    return payload as T
+    token = await accessToken()
   } catch (error) {
-    console.warn(`[Platform API] Platform request failed at ${path}:`, error)
-    return getMockResponse(path) as T
+    const reason = error instanceof Error && error.message ? error.message : String(error)
+    throw new PlatformApiError(0, `Network error: the authentication session could not provide an access token (${reason})`)
   }
+  const headers = new Headers(init.headers)
+  headers.set('Accept', 'application/json')
+  headers.set('Authorization', `Bearer ${token}`)
+  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+
+  let response: Response
+  try {
+    response = await fetch(path, { ...init, headers })
+  } catch (error) {
+    const reason = error instanceof Error && error.message ? error.message : String(error)
+    throw new PlatformApiError(0, `Network error: the platform service could not be reached for ${path} (${reason})`)
+  }
+  if (response.status === 204) return undefined as T
+
+  const text = await response.text()
+  let body: unknown
+  if (text) {
+    try {
+      body = JSON.parse(text) as unknown
+    } catch {
+      body = text
+    }
+  }
+  if (!response.ok) {
+    throw new PlatformApiError(
+      response.status,
+      extractServerMessage(body, `Platform request failed: ${response.status} ${response.statusText}`),
+      body,
+    )
+  }
+  return body as T
 }
 
-export async function fetchPlatformVersion(signal?: AbortSignal): Promise<PlatformVersion> {
+export async function fetchPlatformVersion(signal?: AbortSignal): Promise<PlatformVersion | undefined> {
   try {
     const init: RequestInit = { headers: { Accept: 'application/json' } }
     if (signal) init.signal = signal
     const response = await fetch('/api/v1/platform/version', init)
-    if (!response.ok) return { version: '0.15.0.0-SNAPSHOT', releaseStatus: 'Reliability and Performance Qualification' }
-    return response.json() as Promise<PlatformVersion>
+    if (!response.ok) return undefined
+    return (await response.json()) as PlatformVersion
   } catch {
-    return { version: '0.15.0.0-SNAPSHOT', releaseStatus: 'Reliability and Performance Qualification' }
+    return undefined
   }
 }
 
@@ -821,7 +733,7 @@ export interface StorageView { id: string; provider: string; contentType: string
 export const fetchResources = () => request<PageResult<LearningResourceView>>('/api/v1/resources?size=100')
 export const createTextResource = (input: { title: string; description?: string; text: string; changeNote?: string; courseId?: string; language?: string; visibility: ResourceVisibility; downloadPolicy: DownloadPolicy }) => request<LearningResourceView>('/api/v1/resources/text', { method: 'POST', body: JSON.stringify(input) })
 export const initiateUpload = (input: { fileName: string; contentType: string; expectedBytes: number; sha256?: string; provider: UploadView['provider'] }) => request<UploadView>('/api/v1/uploads', { method: 'POST', body: JSON.stringify(input) })
-export async function uploadChunk(id: string, offset: number, bytes: Blob): Promise<UploadView> { const token = await accessToken(); const response = await fetch(`/api/v1/uploads/${id}/content`, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream', 'Content-Length': String(bytes.size), 'Upload-Offset': String(offset) }, body: bytes }); if (!response.ok) throw new Error(`Upload failed (${response.status})`); return response.json() as Promise<UploadView> }
+export async function uploadChunk(id: string, offset: number, bytes: Blob): Promise<UploadView> { const token = await accessToken(); const response = await fetch(`/api/v1/uploads/${id}/content`, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream', 'Upload-Offset': String(offset) }, body: bytes }); if (!response.ok) throw new PlatformApiError(response.status, `Upload failed (${response.status} ${response.statusText})`); return response.json() as Promise<UploadView> }
 export const completeUpload = (id: string) => request<StorageView>(`/api/v1/uploads/${id}/complete`, { method: 'POST' })
 export const createFileResource = (input: { title: string; description?: string; kind: ResourceKind; storageObjectId: string; changeNote?: string; courseId?: string; language?: string; visibility: ResourceVisibility; downloadPolicy: DownloadPolicy }) => request<LearningResourceView>('/api/v1/resources/file', { method: 'POST', body: JSON.stringify(input) })
 
@@ -845,6 +757,7 @@ export function createQuestion(input: { title: string; type: QuestionType; diffi
 export function createAssessment(input: { title: string }): Promise<AssessmentView> { return request('/api/v1/assessments', { method: 'POST', body: JSON.stringify(input) }) }
 export function createAssessmentVersion(assessmentId: string, input: { durationSeconds?: number; maxAttempts: number; totalMarks: number; passMarks: number; shuffleQuestions: boolean; allowBacktracking: boolean; availableFrom: string; availableUntil: string; settingsJson?: string }): Promise<AssessmentVersionView> { return request(`/api/v1/assessments/${assessmentId}/versions`, { method: 'POST', body: JSON.stringify(input) }) }
 export function assignAssessmentVersion(versionId: string, batchId: string) { return request(`/api/v1/assessment-versions/${versionId}/batches/${batchId}`, { method: 'POST' }) }
+export function publishAssessment(assessmentId: string, expectedVersion: number) { return request(`/api/v1/assessments/${assessmentId}/publish?expectedVersion=${expectedVersion}`, { method: 'POST' }) }
 export function startAttempt(versionId: string): Promise<AttemptView> { return request(`/api/v1/assessment-versions/${versionId}/attempts`, { method: 'POST' }) }
 export function getAttempt(attemptId: string): Promise<AttemptView> { return request(`/api/v1/attempts/${attemptId}`) }
 export function autosaveAnswer(attemptId: string, questionId: string, payloadJson: string, idempotencyKey: string, clientSequence: number): Promise<AnswerView> { return request(`/api/v1/attempts/${attemptId}/answers/${questionId}`, { method: 'PUT', body: JSON.stringify({ payloadJson, idempotencyKey, clientSequence }) }) }

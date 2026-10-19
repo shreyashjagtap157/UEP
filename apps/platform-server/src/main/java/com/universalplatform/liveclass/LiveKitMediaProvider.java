@@ -51,7 +51,28 @@ class LiveKitMediaProvider implements LiveMediaProvider {
     }
 
     private String json(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+        if (s == null)
+            return "";
+        StringBuilder b = new StringBuilder(s.length() + 8);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"' -> b.append("\\\"");
+                case '\\' -> b.append("\\\\");
+                case '\n' -> b.append("\\n");
+                case '\r' -> b.append("\\r");
+                case '\t' -> b.append("\\t");
+                case '\b' -> b.append("\\b");
+                case '\f' -> b.append("\\f");
+                default -> {
+                    if (c < 0x20)
+                        b.append(String.format("\\u%04x", (int) c));
+                    else
+                        b.append(c);
+                }
+            }
+        }
+        return b.toString();
     }
 
     private byte[] hmac(String s) {

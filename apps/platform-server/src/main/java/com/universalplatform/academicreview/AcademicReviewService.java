@@ -2,6 +2,7 @@ package com.universalplatform.academicreview;
 
 import com.universalplatform.assessment.AssessmentReadDirectory;
 import com.universalplatform.audit.AuditService;
+import com.universalplatform.enrollment.EnrollmentDirectory;
 import com.universalplatform.grading.GradingDirectory;
 import com.universalplatform.identity.*;
 import com.universalplatform.security.*;
@@ -16,6 +17,7 @@ public class AcademicReviewService {
     private final ActorContext actor;
     private final AuthorizationService auth;
     private final MembershipDirectory memberships;
+    private final EnrollmentDirectory enrollment;
     private final AssessmentReadDirectory assessments;
     private final GradingDirectory grading;
     private final ReviewCaseRepository cases;
@@ -26,13 +28,15 @@ public class AcademicReviewService {
     private final Clock clock = Clock.systemUTC();
 
     AcademicReviewService(TenantContext tenant, ActorContext actor, AuthorizationService auth,
-            MembershipDirectory memberships, AssessmentReadDirectory assessments, GradingDirectory grading,
+            MembershipDirectory memberships, EnrollmentDirectory enrollment, AssessmentReadDirectory assessments,
+            GradingDirectory grading,
             ReviewCaseRepository cases, ReviewCommentRepository comments, ReviewImpactRepository impacts,
             AnswerRevisionRepository answerRevisions, AuditService audit) {
         this.tenant = tenant;
         this.actor = actor;
         this.auth = auth;
         this.memberships = memberships;
+        this.enrollment = enrollment;
         this.assessments = assessments;
         this.grading = grading;
         this.cases = cases;
@@ -120,14 +124,17 @@ public class AcademicReviewService {
                     .findTopByTenantIdAndReviewCaseIdAndAnswerIdOrderByRevisionNumberDesc(tid, reviewId,
                             c.targetAnswerId())
                     .orElseThrow(() -> new IllegalStateException("No answer revision has been proposed"));
+            // Projected total = current awarded − replaced answer's current score + new projected score
+            // for the revised answer only; every other answer keeps its existing score.
+            int replacedScore = grading.answerScore(c.attemptId(), c.targetAnswerId());
             var projection = grading.projectAnswer(c.attemptId(), c.targetAnswerId(), latest.proposedPayloadJson());
-            int delta = projection.awardedMarks();
+            int delta = projection.awardedMarks() - replacedScore;
             projected = current.awardedMarks() + delta;
             affected = "ANSWER_REVISION";
             analysis = "{\"gradeChanged\":" + (delta != 0) + ",\"delta\":" + delta + "}";
         }
         var i = new ReviewImpact(UUID.randomUUID(), tid, reviewId, current.awardedMarks(),
-                Math.min(projected, current.maxMarks()), affected, analysis, clock.instant());
+                Math.max(0, Math.min(projected, current.maxMarks())), affected, analysis, clock.instant());
         impacts.save(i);
         return new ImpactView(i.id(), i.previousScore(), i.projectedScore(), i.affectedRule(), i.analysisJson(),
                 i.createdAt());
@@ -143,6 +150,7 @@ public class AcademicReviewService {
         if (c.status() == ReviewStatus.RESOLVED || c.status() == ReviewStatus.REJECTED
                 || c.status() == ReviewStatus.WITHDRAWN)
             throw new IllegalStateException("Review is already closed");
+        requireReviewScope(tid, c);
         c.status(status, clock.instant());
         cases.save(c);
         audit.record(tid, actor.requireSubject(), "REVIEW_RESOLVED", "review", reviewId.toString());
@@ -234,6 +242,26 @@ public class AcademicReviewService {
         auth.require(PermissionKey.REVIEW_SUBMIT);
         if (!c.membershipId().equals(memberships.current().membershipId()))
             throw new SecurityException("Review is not accessible to current user");
+    }
+
+    /**
+     * Org-level managers (tenant-wide REVIEW_MANAGE scope) may resolve any review in the tenant.
+     * Other reviewers must share an active enrollment batch (teaching assignment) with the reviewed
+     * attempt's learner; closest tenant-scoped check available without a new cross-module API.
+     * Regrading is additionally scoped inside {@link com.universalplatform.grading.GradingService}.
+     */
+    private void requireReviewScope(UUID tid, ReviewCase c) {
+        if (auth.currentScope(PermissionKey.REVIEW_MANAGE).tenantWide()) {
+            return;
+        }
+        UUID managerMembership = memberships.current().membershipId();
+        var managerBatches = enrollment.activeBatchIdsForMembership(managerMembership);
+        var attempt = assessments.requireSubmittedAttempt(tid, c.attemptId());
+        boolean assignedToManager = !managerBatches.isEmpty() && enrollment
+                .activeBatchIdsForMembership(attempt.membershipId()).stream().anyMatch(managerBatches::contains);
+        if (!assignedToManager) {
+            throw new SecurityException("Review is outside the manager's assigned batches");
+        }
     }
 
     private AnswerRevisionView revisionView(AnswerRevision r) {
