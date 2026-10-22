@@ -1,3 +1,12 @@
+# Current verified status — 22 October 2026
+
+> **Release gate: BLOCKED.** This repository is an active, substantial education-platform implementation, but it is still a `0.15.0.0-SNAPSHOT`. No GitHub release was found in the audit. The latest inspected main-branch CI run failed backend compilation; the frontend lint/build and repository-policy jobs passed, but that does not make the full pipeline green.
+>
+> The backend build reported compilation errors in announcement and scheduling code, including unresolved symbols and an invalid `Instant.plusDays(...)` call. The vulnerability scan also reported a high-severity `source-map-js` advisory (GHSA-68fv-2mgg-jv7q) and encountered Maven Central rate limits during dependency extraction. Fix the compilation issues, remediate and verify the advisory, then rerun complete CI before promoting the snapshot.
+>
+> See [GitHub Actions](https://github.com/shreyashjagtap157/UEP/actions), [issue/PR tracker](https://github.com/shreyashjagtap157/UEP/pulls) and the current [master implementation plan](docs/MASTER_IMPLEMENTATION_PLAN.md). The sections below describe intended architecture and documented scope; they are not a substitute for current build evidence.
+
+---
 ## 0.15.0.0 — Reliability and Performance Qualification
 
 Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification.
