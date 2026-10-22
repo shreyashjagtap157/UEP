@@ -1,4 +1,6 @@
-# Current verified status — 22 October 2026
+# Universal Education, Training and Learning Operations Platform
+
+## Current verified status — 22 October 2026
 
 > **Release gate: BLOCKED.** This repository is an active, substantial education-platform implementation, but it is still a `0.15.0.0-SNAPSHOT`. No GitHub release was found in the audit. The latest inspected main-branch CI run failed backend compilation; the frontend lint/build and repository-policy jobs passed, but that does not make the full pipeline green.
 >
