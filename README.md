@@ -13,8 +13,6 @@
 
 Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification.
 
-# Universal Education, Training and Learning Operations Platform
-
 A web-first, API-first, multi-tenant education and training operations platform.
 The repository follows the implementation roadmap in `docs/MASTER_IMPLEMENTATION_PLAN.md`.
 
