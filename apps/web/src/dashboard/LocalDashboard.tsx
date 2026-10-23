@@ -270,6 +270,24 @@ function welcomeFor(role: DemoRole): string {
   }
   return 'Your role-specific workspace.'
 }
+function welcomeFor(role: DemoRole): string {
+  switch (role) {
+    case 'student': return 'Keep your learning moving.'
+    case 'teacher': return 'Teach, review and support your learners.'
+    case 'client': return 'See your organization’s learning activity.'
+    case 'developer': return 'Build and publish educational products.'
+    case 'admin': return 'Monitor and manage the platform.'
+    case 'guardian': return 'Stay informed about your learner.'
+    case 'exam-controller': return 'Coordinate assessment delivery.'
+    case 'finance-admin': return 'Manage finance through authoritative records.'
+    case 'teaching-assistant': return 'Support classes and learner submissions.'
+    case 'evaluator': return 'Review assigned learner work.'
+    case 'mentor': return 'Track learner milestones and follow-ups.'
+    case 'support': return 'Review support-relevant account activity.'
+    case 'auditor': return 'Inspect recorded activity in read-only mode.'
+  }
+  return 'Your role-specific workspace.'
+}
 function PanelHeading({ eyebrow, title, detail }: { eyebrow: string; title: string; detail?: string }) {
   return <div className="local-panel-heading"><div><p className="eyebrow">{eyebrow}</p><h3>{title}</h3>{detail && <p>{detail}</p>}</div></div>
 }
