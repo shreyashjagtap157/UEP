@@ -1,6 +1,8 @@
 import { localDemoData } from './localDemoData'
 
-export type DemoStore = {
+type Mutable<T> = { -readonly [K in keyof T]: Mutable<T[K]> }
+
+export type DemoStore = Mutable<{
   assignments: typeof localDemoData.assignments
   submissions: typeof localDemoData.submissions
   students: typeof localDemoData.students
@@ -8,19 +10,19 @@ export type DemoStore = {
   organizations: typeof localDemoData.organizations
   products: typeof localDemoData.products
   releases: typeof localDemoData.releases
-}
+}>
 
 const STORAGE_KEY = 'uep-local-demo-store-v1'
 const EVENT_NAME = 'uep-local-demo-store-updated'
 
 type MutableDemoData = {
-  assignments: unknown
-  submissions: unknown
-  students: unknown
-  sessions: unknown
-  organizations: unknown
-  products: unknown
-  releases: unknown
+  assignments: DemoStore['assignments']
+  submissions: DemoStore['submissions']
+  students: DemoStore['students']
+  sessions: DemoStore['sessions']
+  organizations: DemoStore['organizations']
+  products: DemoStore['products']
+  releases: DemoStore['releases']
 }
 
 function seed(): DemoStore {
@@ -32,7 +34,7 @@ function seed(): DemoStore {
     organizations: localDemoData.organizations,
     products: localDemoData.products,
     releases: localDemoData.releases,
-  })
+  }) as DemoStore
 }
 
 function applyToDashboard(store: DemoStore) {
@@ -100,7 +102,9 @@ export function updateDemoStore(mutator: (store: DemoStore) => void) {
 export function submitAaravAssignment() {
   updateDemoStore(store => {
     const assignment = store.assignments.find(item => item.id === 'assignment-001')
-    if (assignment && assignment.status === 'Pending') assignment.status = 'Submitted'
+    if (assignment) {
+      assignment.status = 'Submitted'
+    }
     const existing = store.submissions.find(item => item.id === 'submission-001')
     if (existing) existing.status = 'Needs grading'
     else store.submissions.push({ id: 'submission-001', student: 'Aarav Mehta', assignment: 'REST API architecture review', submitted: 'Just now', status: 'Needs grading' })
