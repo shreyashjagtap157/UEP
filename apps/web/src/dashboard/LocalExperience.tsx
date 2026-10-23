@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { LocalDashboard } from './LocalDashboard'
 import type { LocalRole } from './localDemoData'
 
-type LocalAccount = {
+export type LocalAccount = {
   email: string
   role: LocalRole
   name: string
