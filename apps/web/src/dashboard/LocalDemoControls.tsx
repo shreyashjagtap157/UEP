@@ -29,7 +29,7 @@ export function LocalDemoControls({ account }: { account: LocalAccount }) {
       <p className="muted small">These actions change the same local dataset used by every role. Open another role in a second tab to demonstrate propagation.</p>
       <div className="chip-row">
         {actions.map(action => <button key={action.label} className="primary-button" type="button" onClick={action.run}>{action.label}</button>)}
-        <button className="text-button" type="button" onClick={resetDemoStore}>Reset demo data</button>
+        {account.role === 'administrator' && <button className="text-button" type="button" onClick={resetDemoStore}>Reset demo data</button>}
       </div>
     </section>
   )
@@ -41,7 +41,6 @@ function actionsFor(role: LocalRole): DemoAction[] {
   switch (role) {
     case 'student': return [
       { label: 'Submit Aarav assignment', run: submitAaravAssignment },
-      { label: 'Record attendance', run: recordAaravAttendance },
     ]
     case 'teacher': return [
       { label: 'Grade Aarav · 91%', run: () => gradeAaravAssignment(91) },
@@ -58,8 +57,6 @@ function actionsFor(role: LocalRole): DemoAction[] {
       { label: 'Resolve organization action', run: resolveOrganizationAction },
       { label: 'Publish Data Engineering product', run: publishDataEngineeringProduct },
     ]
-    case 'guardian': return [
-      { label: 'Record linked learner attendance', run: recordAaravAttendance },
-    ]
+    case 'guardian': return []
   }
 }
