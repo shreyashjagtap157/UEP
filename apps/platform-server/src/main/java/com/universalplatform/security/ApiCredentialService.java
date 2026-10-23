@@ -1,7 +1,5 @@
-package com.universalplatform.identity;
+package com.universalplatform.security;
 
-import com.universalplatform.security.ActorContext;
-import com.universalplatform.security.TenantContext;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -15,12 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class ApiCredentialService {
     private final TenantContext tenants;
     private final ActorContext actors;
-    private final AuthorizationService auth;
+    private final ApiCredentialAuthorizer auth;
     private final ApiCredentialRepository repo;
     private final Clock clock = Clock.systemUTC();
     private final SecureRandom random = new SecureRandom();
 
-    public ApiCredentialService(TenantContext tenants, ActorContext actors, AuthorizationService auth,
+    public ApiCredentialService(TenantContext tenants, ActorContext actors, ApiCredentialAuthorizer auth,
             ApiCredentialRepository repo) {
         this.tenants = tenants;
         this.actors = actors;
@@ -29,25 +27,25 @@ public class ApiCredentialService {
     }
 
     @Transactional
-    public CredentialView create(UUID membershipId, String name, Set<PermissionKey> scopes, Instant expiresAt) {
-        auth.require(PermissionKey.API_MANAGE);
+    public CredentialView create(UUID membershipId, String name, Set<String> scopes, Instant expiresAt) {
+        auth.requireApiManage();
         UUID tenant = tenants.requireTenantId();
         if (membershipId == null)
             throw new IllegalArgumentException("Membership is required");
         String normalized = name == null ? "" : name.trim();
         if (normalized.isEmpty() || normalized.length() > 120)
             throw new IllegalArgumentException("Credential name is required");
-        Set<PermissionKey> effective = scopes == null || scopes.isEmpty() ? Set.of() : Set.copyOf(scopes);
+        Set<String> effective = scopes == null || scopes.isEmpty() ? Set.of() : Set.copyOf(scopes);
         String raw = "upk_live_" + randomHex(32);
         ApiCredential saved = repo.save(new ApiCredential(UUID.randomUUID(), tenant, membershipId, normalized,
-                hash(raw), effective.stream().map(Enum::name).sorted().reduce((a, b) -> a + "," + b).orElse(""),
+                hash(raw), effective.stream().sorted().reduce((a, b) -> a + "," + b).orElse(""),
                 clock.instant(), expiresAt));
         return new CredentialView(saved.id(), saved.name(), effective, saved.expiresAt(), raw, saved.version());
     }
 
     @Transactional(readOnly = true)
     public List<CredentialView> list(UUID membershipId) {
-        auth.require(PermissionKey.API_VIEW);
+        auth.requireApiView();
         UUID tenant = tenants.requireTenantId();
         return repo.findAllByTenantIdAndMembershipIdOrderByCreatedAtDesc(tenant, membershipId).stream()
                 .map(c -> new CredentialView(c.id(), c.name(), scopeSet(c.scopes()), c.expiresAt(), null, c.version()))
@@ -56,7 +54,7 @@ public class ApiCredentialService {
 
     @Transactional
     public void revoke(UUID id, long expectedVersion) {
-        auth.require(PermissionKey.API_MANAGE);
+        auth.requireApiManage();
         ApiCredential c = repo.findById(id).filter(x -> x.tenantId().equals(tenants.requireTenantId()))
                 .orElseThrow(() -> new IllegalArgumentException("API credential not found"));
         if (c.version() != expectedVersion)
@@ -97,6 +95,6 @@ public class ApiCredentialService {
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
-    public record CredentialView(UUID id, String name, Set<?> scopes, Instant expiresAt, String secret, long version) {
+    public record CredentialView(UUID id, String name, Set<String> scopes, Instant expiresAt, String secret, long version) {
     }
 }

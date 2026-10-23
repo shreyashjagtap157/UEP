@@ -1,4 +1,4 @@
-package com.universalplatform.identity;
+package com.universalplatform.security;
 
 import jakarta.persistence.*;
 import java.time.Instant;

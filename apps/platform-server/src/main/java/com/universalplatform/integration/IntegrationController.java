@@ -2,7 +2,7 @@ package com.universalplatform.integration;
 
 import com.universalplatform.identity.FederationIdentityDirectory;
 import com.universalplatform.identity.PermissionKey;
-import com.universalplatform.identity.ApiCredentialService;
+import com.universalplatform.security.ApiCredentialService;
 import com.universalplatform.storage.StorageProviderType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -31,7 +31,7 @@ class IntegrationController {
 
     @PostMapping("/api-credentials")
     ApiCredentialService.CredentialView createCredential(@Valid @RequestBody CredentialRequest r) {
-        return credentials.create(r.membershipId(), r.name(), r.scopes(), r.expiresAt());
+        return credentials.create(r.membershipId(), r.name(), r.scopes() == null ? null : r.scopes().stream().map(Enum::name).collect(java.util.stream.Collectors.toUnmodifiableSet()), r.expiresAt());
     }
 
     @GetMapping("/api-credentials")

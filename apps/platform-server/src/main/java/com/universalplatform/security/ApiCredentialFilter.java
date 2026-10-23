@@ -1,5 +1,4 @@
 package com.universalplatform.security;
-import com.universalplatform.identity.ApiCredentialService;
 import jakarta.servlet.*; import jakarta.servlet.http.*; import java.io.IOException; import java.util.*; import org.springframework.security.core.context.SecurityContextHolder; import org.springframework.stereotype.Component; import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public final class ApiCredentialFilter extends OncePerRequestFilter {

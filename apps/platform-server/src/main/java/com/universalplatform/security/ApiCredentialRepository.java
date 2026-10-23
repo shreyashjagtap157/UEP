@@ -1,4 +1,4 @@
-package com.universalplatform.identity;
+package com.universalplatform.security;
 import java.util.*;
 import org.springframework.data.jpa.repository.JpaRepository;
 public interface ApiCredentialRepository extends JpaRepository<ApiCredential,UUID>{
