@@ -280,7 +280,7 @@ class AnnouncementService {
 
     private AnnouncementPage<AnnouncementView> page(Page<Announcement> result, boolean includeAck, UUID membershipId) {
         List<UUID> announcementIds = result.stream().map(Announcement::id).distinct().toList();
-        Map<UUID, List<Target>> targetLists = targetsByAnnouncement(result, announcementIds);
+        Map<UUID, List<AnnouncementTarget.Target>> targetLists = targetsByAnnouncement(result, announcementIds);
         Map<UUID, Instant> acknowledgedAt = includeAck ? acknowledgementsByAnnouncement(result, announcementIds, membershipId)
                 : Map.of();
         List<AnnouncementView> items = result.stream().map(item -> view(item, targetLists.getOrDefault(item.id(), List.of()),
@@ -293,8 +293,8 @@ class AnnouncementService {
         if (announcementIds.isEmpty()) return Map.of();
         UUID tenantId = result.getContent().get(0).tenantId();
         return targets.findAllByTenantIdAndAnnouncementIdIn(tenantId, announcementIds).stream()
-                .collect(java.util.stream.Collectors.groupingBy(item -> item.announcementId,
-                        java.util.stream.Collectors.mapping(item -> new AnnouncementTarget.Target(item.targetKind, item.targetId()),
+                .collect(java.util.stream.Collectors.groupingBy(AnnouncementTarget::announcementId,
+                        java.util.stream.Collectors.mapping(item -> new AnnouncementTarget.Target(item.targetKind(), item.targetId()),
                                 java.util.stream.Collectors.toList())));
     }
 
