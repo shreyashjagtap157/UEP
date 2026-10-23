@@ -53,8 +53,8 @@ function LocalLogin({ onLogin }: { onLogin: (account: LocalAccount) => void }) {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const account = demoAccounts.find(item => item.email === email.trim().toLowerCase())
-    if (!account || !password.trim()) {
-      setError('Use one of the supplied demo accounts and the local demo password.')
+    if (!account || password !== 'demo') {
+      setError('Use a supplied demo account and the password demo.')
       return
     }
     setError('')
