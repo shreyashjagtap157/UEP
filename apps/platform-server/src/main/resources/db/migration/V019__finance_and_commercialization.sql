@@ -16,6 +16,7 @@ CREATE TABLE invoice (
     total_amount numeric(19,2) NOT NULL CHECK (total_amount >= 0), paid_amount numeric(19,2) NOT NULL DEFAULT 0 CHECK (paid_amount >= 0), currency varchar(3) NOT NULL,
     status varchar(24) NOT NULL CHECK (status IN ('DRAFT','ISSUED','PARTIALLY_PAID','PAID','VOID','OVERDUE')), issued_on date, due_on date NOT NULL,
     created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP, version bigint NOT NULL DEFAULT 0,
+    CONSTRAINT uq_invoice_tenant_id UNIQUE (tenant_id, id),
     CONSTRAINT fk_invoice_membership FOREIGN KEY (tenant_id,membership_id) REFERENCES tenant_membership(tenant_id,id) ON DELETE RESTRICT,
     CONSTRAINT ck_invoice_paid_total CHECK (paid_amount <= total_amount)
 );
@@ -32,6 +33,7 @@ CREATE TABLE payment (
     status varchar(20) NOT NULL CHECK(status IN ('PENDING','AUTHORIZED','CAPTURED','FAILED','REFUNDED')), failure_reason varchar(500),
     created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP, captured_at timestamptz, version bigint NOT NULL DEFAULT 0,
     CONSTRAINT fk_payment_invoice FOREIGN KEY (tenant_id,invoice_id) REFERENCES invoice(tenant_id,id) ON DELETE RESTRICT,
+    CONSTRAINT uq_payment_tenant_id UNIQUE (tenant_id, id),
     CONSTRAINT fk_payment_membership FOREIGN KEY (tenant_id,membership_id) REFERENCES tenant_membership(tenant_id,id) ON DELETE RESTRICT
 );
 CREATE INDEX ix_payment_tenant_invoice ON payment(tenant_id,invoice_id,created_at DESC);
