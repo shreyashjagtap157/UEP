@@ -12,8 +12,9 @@ import type { LocalRole } from './localDemoData'
 import type { LocalAccount } from './LocalExperience'
 
 type LocalSection = string
-
 type Stat = { label: string; value: string; note: string }
+
+type QuickAction = [id: string, label: string]
 
 export function LocalDashboard({ account, onSignOut }: { account: LocalAccount; onSignOut: () => void }) {
   const [section, setSection] = useState<LocalSection>('today')
@@ -173,7 +174,7 @@ function statsFor(role: LocalRole): Stat[] {
       { label: 'Pending approvals', value: String(s.pendingApprovals), note: `${s.openActions} operational actions open` },
     ]
   }
-  const learner = localDemoData.students[0]
+  const learner = localDemoData.students.at(0)!
   return [
     { label: 'Learner completion', value: `${learner.completion}%`, note: learner.name },
     { label: 'Attendance', value: `${learner.attendance}%`, note: 'Current academic record' },
@@ -182,7 +183,7 @@ function statsFor(role: LocalRole): Stat[] {
 }
 
 function Today({ role, stats, onOpen }: { role: LocalRole; stats: Stat[]; onOpen: (id: string) => void }) {
-  const quick = role === 'student' ? [['learning', 'Resume learning'], ['tasks', 'Review assignments'], ['results', 'View results']]
+  const quick: QuickAction[] = role === 'student' ? [['learning', 'Resume learning'], ['tasks', 'Review assignments'], ['results', 'View results']]
     : role === 'teacher' ? [['classes', 'Open classes'], ['results', 'Review submissions'], ['students', 'Inspect learners']]
     : role === 'client' ? [['organization', 'Review programs'], ['analytics', 'Open outcome report'], ['operations', 'Review actions']]
     : role === 'developer' ? [['content', 'Open products'], ['releases', 'Review release'], ['integrations', 'Inspect integrations']]
@@ -250,11 +251,20 @@ function Products() {
 }
 
 function Analytics({ role }: { role: LocalRole }) {
-  const s = role === 'teacher' ? teacherStats() : clientStats()
-  const items = role === 'teacher'
-    ? [{ title: 'Learner completion', detail: `${s.averageCompletion}% average across roster`, status: 'Current' }, { title: 'Attendance', detail: `${s.averageAttendance}% average attendance`, status: 'Current' }, { title: 'Learner risk', detail: `${s.atRiskLearners} learners currently at risk`, status: 'Attention' }]
-    : [{ title: 'Program completion', detail: `${s.completion}% weighted completion`, status: 'Current' }, { title: 'Learner population', detail: `${s.learners} learners across ${s.organizations} organizations`, status: 'Current' }, { title: 'Open actions', detail: `${s.openActions} actions requiring follow-up`, status: 'Attention' }]
-  return <PanelList eyebrow="Analytics" title="Calculated outcome metrics" items={items} />
+  if (role === 'teacher') {
+    const s = teacherStats()
+    return <PanelList eyebrow="Analytics" title="Calculated teaching metrics" items={[
+      { title: 'Learner completion', detail: `${s.averageCompletion}% average across roster`, status: 'Current' },
+      { title: 'Attendance', detail: `${s.averageAttendance}% average attendance`, status: 'Current' },
+      { title: 'Learner risk', detail: `${s.atRiskLearners} learners currently at risk`, status: 'Attention' },
+    ]} />
+  }
+  const s = clientStats()
+  return <PanelList eyebrow="Analytics" title="Calculated outcome metrics" items={[
+    { title: 'Program completion', detail: `${s.completion}% weighted completion`, status: 'Current' },
+    { title: 'Learner population', detail: `${s.learners} learners across ${s.organizations} organizations`, status: 'Current' },
+    { title: 'Open actions', detail: `${s.openActions} actions requiring follow-up`, status: 'Attention' },
+  ]} />
 }
 
 function Organizations() {
@@ -282,7 +292,7 @@ function Messages({ role }: { role: LocalRole }) {
 }
 
 function Guardian() {
-  const learner = localDemoData.students[0]
+  const learner = localDemoData.students.at(0)!
   return <PanelList eyebrow="Linked learner" title={learner.name} items={[{ title: 'Learning progress', detail: `${learner.completion}% completion`, status: 'Current' }, { title: 'Attendance', detail: `${learner.attendance}% attendance`, status: 'Current' }, { title: 'Current cohort', detail: learner.cohort, status: learner.status }]} />
 }
 
