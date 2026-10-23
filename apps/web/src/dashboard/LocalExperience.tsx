@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { LocalDashboard } from './LocalDashboard'
+import { LocalDemoControls } from './LocalDemoControls'
+import { loadDemoStore, subscribeDemoStore } from './localDemoStore'
 import type { LocalRole } from './localDemoData'
 
 export type LocalAccount = {
@@ -20,6 +22,12 @@ const demoAccounts: LocalAccount[] = [
 
 export function LocalExperience() {
   const [account, setAccount] = useState<LocalAccount | null>(() => readSessionAccount())
+  const [, setRevision] = useState(0)
+
+  useEffect(() => {
+    loadDemoStore()
+    return subscribeDemoStore(() => setRevision(value => value + 1))
+  }, [])
 
   function handleLogin(nextAccount: LocalAccount) {
     sessionStorage.setItem('uep-local-account', JSON.stringify(nextAccount))
@@ -31,7 +39,14 @@ export function LocalExperience() {
     setAccount(null)
   }
 
-  return account ? <LocalDashboard account={account} onSignOut={handleLogout} /> : <LocalLogin onLogin={handleLogin} />
+  if (!account) return <LocalLogin onLogin={handleLogin} />
+
+  return (
+    <>
+      <LocalDemoControls account={account} />
+      <LocalDashboard account={account} onSignOut={handleLogout} />
+    </>
+  )
 }
 
 function readSessionAccount(): LocalAccount | null {
@@ -66,8 +81,8 @@ function LocalLogin({ onLogin }: { onLogin: (account: LocalAccount) => void }) {
       <section className="local-login-intro">
         <p className="eyebrow">Universal Education Platform</p>
         <h1>One platform, one workspace for each relationship.</h1>
-        <p>Local presentation mode uses a seeded, coherent dataset. Each demo account receives its own role, navigation and permissions; roles cannot be switched from inside another user's workspace.</p>
-        <div className="local-login-note"><span>LOCAL MODE</span><strong>Seeded presentation environment</strong></div>
+        <p>Local presentation mode uses a seeded, shared dataset. Each demo account receives its own role, navigation and permissions; roles cannot be switched from inside another user's workspace.</p>
+        <div className="local-login-note"><span>LOCAL MODE</span><strong>Shared presentation environment</strong></div>
       </section>
       <section className="local-login-panel" aria-labelledby="local-login-title">
         <p className="eyebrow">Demo sign in</p>
