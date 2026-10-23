@@ -34,7 +34,7 @@ function seed(): DemoStore {
     organizations: localDemoData.organizations,
     products: localDemoData.products,
     releases: localDemoData.releases,
-  }) as DemoStore
+  }) as unknown as DemoStore
 }
 
 function applyToDashboard(store: DemoStore) {
