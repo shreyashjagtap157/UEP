@@ -1,154 +1,322 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import type { FormEvent, ReactNode } from 'react'
+import {
+  DEMO_PROFILES, courseFor, createDemoProduct, gradeDemoSubmission, loadDemoState, percentage,
+  progressFor, publishDemoProduct, saveDemoState, setDemoUserStatus, submitDemoAssignment,
+} from './LocalDemoStore'
+import type { DemoProfile, DemoRole, DemoState, DemoSubmission } from './LocalDemoStore'
 
-type LocalRole = 'student' | 'client' | 'developer'
+type Section = 'overview' | 'learn' | 'classes' | 'assignments' | 'assessments' | 'results' | 'attendance' | 'calendar' | 'content' | 'learners' | 'grading' | 'reviews' | 'communication' | 'analytics' | 'programs' | 'reports' | 'billing' | 'account' | 'products' | 'editor' | 'integrations' | 'api' | 'releases' | 'academics' | 'people' | 'schedule' | 'operations' | 'finance' | 'settings' | 'security' | 'progress' | 'invoices' | 'payments' | 'submissions' | 'messages' | 'profile'
 
-type RoleConfig = {
-  label: string
-  eyebrow: string
-  title: string
-  description: string
-  accent: string
-  stats: Array<{ label: string; value: string; note: string }>
-  modules: Array<{ title: string; detail: string; status: string }>
+const navigation: Record<DemoRole, Array<{ id: Section; label: string }>> = {
+  student: [
+    { id: 'overview', label: 'Today' }, { id: 'learn', label: 'My Learning' }, { id: 'classes', label: 'My Classes' },
+    { id: 'assignments', label: 'Assignments' }, { id: 'assessments', label: 'Assessments' }, { id: 'results', label: 'Results & Feedback' },
+    { id: 'attendance', label: 'Attendance' }, { id: 'calendar', label: 'Calendar' }, { id: 'messages', label: 'Messages' }, { id: 'profile', label: 'My Profile' },
+  ],
+  teacher: [
+    { id: 'overview', label: 'Today' }, { id: 'classes', label: 'My Classes' }, { id: 'learners', label: 'My Learners' },
+    { id: 'content', label: 'Learning Content' }, { id: 'assignments', label: 'Assignments' }, { id: 'grading', label: 'Grading Queue' },
+    { id: 'assessments', label: 'Assessments' }, { id: 'reviews', label: 'Academic Reviews' }, { id: 'communication', label: 'Announcements' },
+    { id: 'analytics', label: 'Class Analytics' }, { id: 'calendar', label: 'Calendar' },
+  ],
+  client: [
+    { id: 'overview', label: 'Organization Overview' }, { id: 'programs', label: 'Programs & Products' }, { id: 'learners', label: 'Organization Members' },
+    { id: 'reports', label: 'Outcomes & Reports' }, { id: 'billing', label: 'Billing & Entitlements' }, { id: 'account', label: 'Organization Account' },
+  ],
+  developer: [
+    { id: 'overview', label: 'Product Studio' }, { id: 'products', label: 'My Products' }, { id: 'editor', label: 'Create Product' },
+    { id: 'releases', label: 'Publishing & Releases' }, { id: 'integrations', label: 'Integrations' }, { id: 'api', label: 'API & Delivery Status' },
+  ],
+  admin: [
+    { id: 'overview', label: 'Platform Overview' }, { id: 'academics', label: 'Academics & Curriculum' }, { id: 'people', label: 'People & Roles' },
+    { id: 'schedule', label: 'Scheduling' }, { id: 'assessments', label: 'Assessments' }, { id: 'operations', label: 'Operations & Audit' },
+    { id: 'finance', label: 'Finance & Licensing' }, { id: 'reports', label: 'Platform Reports' }, { id: 'settings', label: 'Configuration' }, { id: 'security', label: 'Security' },
+  ],
+  guardian: [
+    { id: 'overview', label: 'Learner Overview' }, { id: 'progress', label: 'Learning Progress' }, { id: 'schedule', label: 'Schedule' },
+    { id: 'results', label: 'Results & Feedback' }, { id: 'communication', label: 'School Communication' },
+  ],
+  'exam-controller': [
+    { id: 'overview', label: 'Exam Operations' }, { id: 'assessments', label: 'Assessments' }, { id: 'schedule', label: 'Exam Schedule' },
+    { id: 'submissions', label: 'Submission Status' }, { id: 'reports', label: 'Exam Reports' },
+  ],
+  'finance-admin': [
+    { id: 'overview', label: 'Finance Overview' }, { id: 'invoices', label: 'Invoices' }, { id: 'payments', label: 'Payments & Receipts' }, { id: 'reports', label: 'Finance Reports' },
+  ],
+  'teaching-assistant': [
+    { id: 'overview', label: 'Teaching Today' }, { id: 'classes', label: 'Assigned Classes' }, { id: 'assignments', label: 'Submission Triage' }, { id: 'content', label: 'Learning Content' }, { id: 'calendar', label: 'Calendar' },
+  ],
+  evaluator: [
+    { id: 'overview', label: 'Evaluation Overview' }, { id: 'grading', label: 'Assigned Grading' }, { id: 'assessments', label: 'Assessments' }, { id: 'reviews', label: 'Review History' },
+  ],
+  mentor: [
+    { id: 'overview', label: 'Mentoring Overview' }, { id: 'learners', label: 'Assigned Learners' }, { id: 'progress', label: 'Milestones & Progress' }, { id: 'communication', label: 'Follow-ups' },
+  ],
+  support: [
+    { id: 'overview', label: 'Support Overview' }, { id: 'people', label: 'Account Lookup' }, { id: 'operations', label: 'Service Activity' },
+  ],
+  auditor: [
+    { id: 'overview', label: 'Audit Overview' }, { id: 'operations', label: 'Activity & Audit Trail' }, { id: 'reports', label: 'Read-only Reports' },
+  ],
+}
+const sectionTitles: Record<Section, string> = {
+  overview: 'Overview', learn: 'My Learning', classes: 'Classes', assignments: 'Assignments', assessments: 'Assessments', results: 'Results & Feedback',
+  attendance: 'Attendance', calendar: 'Calendar', content: 'Learning Content', learners: 'Learners', grading: 'Grading Queue', reviews: 'Academic Reviews',
+  communication: 'Communication', analytics: 'Analytics', programs: 'Programs & Products', reports: 'Reports', billing: 'Billing & Entitlements',
+  account: 'Organization Account', products: 'Products', editor: 'Create Product', integrations: 'Integrations', api: 'API & Delivery Status', releases: 'Publishing & Releases',
+  academics: 'Academics & Curriculum', people: 'People & Roles', schedule: 'Schedule', operations: 'Operations & Audit', finance: 'Finance & Licensing',
+  settings: 'Configuration', security: 'Security', progress: 'Learning Progress', invoices: 'Invoices', payments: 'Payments & Receipts',
+  submissions: 'Submission Status', messages: 'Messages', profile: 'My Profile',
 }
 
-const roleConfigs: Record<LocalRole, RoleConfig> = {
-  student: {
-    label: 'Student',
-    eyebrow: 'Learner workspace',
-    title: 'Keep your semester moving.',
-    description: 'A focused view of classes, assessments, progress, and the next useful action in your learning plan.',
-    accent: 'coral',
-    stats: [
-      { label: 'Course progress', value: '68%', note: '+12% this month' },
-      { label: 'Due this week', value: '04', note: '2 are ready to submit' },
-      { label: 'Attendance', value: '94%', note: 'Excellent standing' },
-    ],
-    modules: [
-      { title: 'Web Application Architecture', detail: 'Module 5 · API integration', status: 'Continue' },
-      { title: 'Assessment checkpoint', detail: 'Design systems reflection', status: 'Due Friday' },
-      { title: 'Next live class', detail: 'Thursday · 10:30 · Studio 2', status: 'View details' },
-    ],
-  },
-  client: {
-    label: 'Client',
-    eyebrow: 'Institution workspace',
-    title: 'See the learning operation clearly.',
-    description: 'A decision-ready snapshot for client and institution teams managing cohorts, delivery, and outcomes.',
-    accent: 'mint',
-    stats: [
-      { label: 'Active learners', value: '248', note: '+18 this intake' },
-      { label: 'Completion rate', value: '82%', note: 'Across 12 courses' },
-      { label: 'Open actions', value: '07', note: '3 need attention today' },
-    ],
-    modules: [
-      { title: 'Cohort performance', detail: 'North campus · Spring intake', status: 'Open report' },
-      { title: 'Teaching coverage', detail: '18 of 20 sessions staffed', status: 'Review roster' },
-      { title: 'Billing & entitlement', detail: 'Renewal window in 21 days', status: 'View account' },
-    ],
-  },
-  developer: {
-    label: 'Developer',
-    eyebrow: 'Platform workspace',
-    title: 'Build with confidence.',
-    description: 'A local control room for integrations, API health, releases, and the contracts that keep the platform dependable.',
-    accent: 'blue',
-    stats: [
-      { label: 'API health', value: '99.98%', note: 'No incidents today' },
-      { label: 'Webhooks', value: '03', note: 'All deliveries healthy' },
-      { label: 'Release', value: '0.15', note: 'Ready for review' },
-    ],
-    modules: [
-      { title: 'Contract parity', detail: 'OpenAPI and client types aligned', status: 'Inspect' },
-      { title: 'Integration credentials', detail: '2 sandbox keys · 1 production key', status: 'Manage' },
-      { title: 'Recent deployment', detail: 'Platform server · 14 minutes ago', status: 'View logs' },
-    ],
-  },
-}
+export function LocalDashboard({ initialRole = 'student', onSignOut }: { initialRole?: DemoRole; onSignOut?: () => void }) {
+  const profile = DEMO_PROFILES.find(item => item.role === initialRole) ?? DEMO_PROFILES[0]
+  const [activeSection, setActiveSection] = useState<Section>('overview')
+  const [state, setState] = useState<DemoState>(() => loadDemoState())
+  const [notice, setNotice] = useState('')
+  const [productTitle, setProductTitle] = useState('')
+  const [productDescription, setProductDescription] = useState('')
+  const nav = navigation[profile.role]
+  const visibleCourses = useMemo(() => {
+    const ids = state.users.find(user => user.id === (profile.role === 'guardian' ? 'student-asha' : profile.userId))?.courseIds ?? []
+    if (['student', 'guardian', 'teacher', 'teaching-assistant', 'mentor', 'evaluator'].includes(profile.role)) return state.courses.filter(course => ids.includes(course.id) && course.status === 'Published')
+    return state.courses
+  }, [profile, state])
 
-function readRole(): LocalRole {
-  const value = new URLSearchParams(window.location.search).get('role')
-  return value === 'client' || value === 'developer' ? value : 'student'
-}
-
-export function LocalDashboard({ initialRole, onSignOut }: { initialRole?: LocalRole; onSignOut?: () => void }) {
-  const [role, setRole] = useState<LocalRole>(initialRole ?? readRole)
-  const [lastAction, setLastAction] = useState('Select a profile to preview its workspace.')
-  const config = roleConfigs[role]
-
-  function switchRole(nextRole: LocalRole) {
-    setRole(nextRole)
-    window.history.replaceState({}, '', `/?role=${nextRole}`)
-    setLastAction(`${roleConfigs[nextRole].label} dashboard loaded locally.`)
+  function commit(next: DemoState, message: string) {
+    saveDemoState(next)
+    setState(next)
+    setNotice(message)
+  }
+  function handleAssignmentSubmit(id: string) {
+    const next = submitDemoAssignment(state, id, profile)
+    if (next === state) setNotice('This assignment is no longer available to submit.')
+    else commit(next, 'Assignment submitted and saved. The teacher grading queue has been updated.')
+  }
+  function handleGrade(event: FormEvent<HTMLFormElement>, submission: DemoSubmission) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const next = gradeDemoSubmission(state, submission.id, Number(form.get('score')), String(form.get('feedback') ?? ''), profile)
+    if (next === state) setNotice('Check the score (0–100) and make sure this submission is awaiting grading.')
+    else commit(next, 'Grade published to the learner record. Sign in as that learner to see the same result.')
+  }
+  function handleCreateProduct(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const next = createDemoProduct(state, productTitle, productDescription, profile)
+    if (next === state) { setNotice('Enter a product title before saving.'); return }
+    commit(next, 'Product draft saved to this browser and listed in My Products.')
+    setProductTitle('')
+    setProductDescription('')
+    setActiveSection('products')
+  }
+  function handlePublishProduct(id: string) {
+    const next = publishDemoProduct(state, id, profile)
+    if (next !== state) commit(next, 'Product published in the local demo catalog. The client product list now reflects this change.')
   }
 
-  return (
-    <main className={`local-dashboard local-dashboard-${config.accent}`}>
-      <header className="local-hero">
-        <div>
-          <p className="eyebrow">Offline presentation mode</p>
-          <h1>Universal Education Platform</h1>
-          <p className="local-hero-copy">A complete local walkthrough of the platform experience, with remote services intentionally paused.</p>
-        </div>
-        <div className="local-hero-actions"><span className="local-mode-badge">No network required</span>{onSignOut && <button className="local-signout" onClick={onSignOut}>Sign out</button>}</div>
-      </header>
+  function renderOverview(): ReactNode {
+    const activeLearners = state.users.filter(user => user.role === 'Student' && user.status === 'Active')
+    const ownSubmissions = state.submissions.filter(item => item.studentId === profile.userId)
+    const linkedSubmissions = state.submissions.filter(item => item.studentId === (profile.role === 'guardian' ? 'student-asha' : profile.userId))
+    const pendingSubmissions = state.submissions.filter(item => item.status === 'Submitted')
+    const publishedProducts = state.products.filter(item => item.status === 'Published')
+    const studentId = profile.role === 'guardian' ? 'student-asha' : profile.userId
+    const studentCourses = state.users.find(user => user.id === studentId)?.courseIds ?? []
+    const attendanceEntries = state.attendance.filter(item => item.studentId === studentId)
+    const attendanceRate = percentage(attendanceEntries.filter(item => item.status !== 'Absent').length, attendanceEntries.length)
+    const averageProgress = percentage(studentCourses.reduce((sum, id) => sum + progressFor(state, studentId, id), 0), studentCourses.length)
+    let metrics: Array<{ label: string; value: string; detail: string }> = []
 
-      <section className="local-role-switcher" aria-label="Local dashboard profiles">
-        <div>
-          <p className="eyebrow">Preview as</p>
-          <h2>{config.label} dashboard</h2>
-        </div>
-        <div className="local-role-options" role="tablist" aria-label="Choose a local role">
-          {(Object.keys(roleConfigs) as LocalRole[]).map(option => (
-            <button
-              key={option}
-              className={role === option ? 'local-role-option active' : 'local-role-option'}
-              onClick={() => switchRole(option)}
-              role="tab"
-              aria-selected={role === option}
-            >
-              {roleConfigs[option].label}
-            </button>
-          ))}
-        </div>
+    switch (profile.role) {
+      case 'student':
+        metrics = [
+          { label: 'Enrolled courses', value: String(visibleCourses.length), detail: 'Your active learning catalog' },
+          { label: 'Average progress', value: percentage(visibleCourses.reduce((sum, course) => sum + progressFor(state, profile.userId, course.id), 0), visibleCourses.length) + '%', detail: 'Calculated from your course records' },
+          { label: 'Work awaiting completion', value: String(ownSubmissions.filter(item => item.status !== 'Graded').length), detail: 'Assignments not yet graded' },
+          { label: 'Attendance', value: attendanceRate + '%', detail: 'Based on saved attendance entries' },
+        ]; break
+      case 'teacher':
+      case 'teaching-assistant':
+      case 'evaluator':
+        metrics = [
+          { label: 'Assigned courses', value: String(visibleCourses.length), detail: 'Courses linked to this staff profile' },
+          { label: 'Active learners', value: String(new Set(state.submissions.map(item => item.studentId)).size), detail: 'Learners with coursework records' },
+          { label: 'Awaiting grading', value: String(pendingSubmissions.length), detail: 'Submitted work not yet graded' },
+          { label: 'Published products', value: String(publishedProducts.length), detail: 'Saved catalog records' },
+        ]; break
+      case 'client':
+        metrics = [
+          { label: 'Active learners', value: String(activeLearners.length), detail: 'Active learner memberships' },
+          { label: 'Published products', value: String(publishedProducts.length), detail: 'Available catalog records' },
+          { label: 'Course completion average', value: percentage(activeLearners.reduce((sum, learner) => sum + learner.courseIds.reduce((s, id) => s + progressFor(state, learner.id, id), 0), 0), activeLearners.reduce((sum, learner) => sum + learner.courseIds.length, 0)) + '%', detail: 'Calculated across enrolled learner-course records' },
+          { label: 'Work awaiting grading', value: String(pendingSubmissions.length), detail: 'Institution-wide submission queue' },
+        ]; break
+      case 'developer':
+        metrics = [
+          { label: 'Total products', value: String(state.products.length), detail: 'Saved product records' },
+          { label: 'Drafts', value: String(state.products.filter(item => item.status === 'Draft').length), detail: 'Products that can be edited' },
+          { label: 'Published versions', value: String(publishedProducts.length), detail: 'Published catalog entries' },
+          { label: 'Failed webhook deliveries', value: String(state.webhooks.reduce((sum, hook) => sum + hook.failedDeliveries, 0)), detail: 'Sample delivery history, not live endpoint health' },
+        ]; break
+      case 'admin':
+        metrics = [
+          { label: 'Platform identities', value: String(state.users.length), detail: 'Profiles in this local demo dataset' },
+          { label: 'Active learners', value: String(activeLearners.length), detail: 'Active student records' },
+          { label: 'Course records', value: String(state.courses.length), detail: 'Published and draft courses' },
+          { label: 'Awaiting grading', value: String(pendingSubmissions.length), detail: 'Submitted work awaiting review' },
+        ]; break
+      case 'guardian':
+        metrics = [
+          { label: 'Learner courses', value: String(studentCourses.length), detail: 'Linked learner: Asha Sharma' },
+          { label: 'Learner progress', value: averageProgress + '%', detail: 'Average of linked course records' },
+          { label: 'Unfinished work', value: String(linkedSubmissions.filter(item => item.status !== 'Graded').length), detail: 'Linked learner assignments' },
+          { label: 'Attendance', value: attendanceRate + '%', detail: 'Calculated from recorded entries' },
+        ]; break
+      case 'exam-controller':
+        metrics = [
+          { label: 'Scheduled exams', value: String(state.schedule.filter(item => item.kind === 'Exam' && item.status === 'Scheduled').length), detail: 'Scheduled assessment events' },
+          { label: 'Submissions received', value: String(state.submissions.filter(item => item.status !== 'Assigned').length), detail: 'Submitted or graded work' },
+          { label: 'Pending grading', value: String(pendingSubmissions.length), detail: 'Awaiting a published result' },
+        ]; break
+      case 'finance-admin':
+        metrics = [{ label: 'Finance API', value: 'Not connected', detail: 'Live finance records require the platform backend.' }, { label: 'Demo environment', value: 'Offline', detail: 'No payments are recorded or simulated as successful.' }]; break
+      case 'mentor':
+        metrics = [{ label: 'Linked learners', value: '1', detail: 'Seeded demo mentoring relationship' }, { label: 'Learner progress', value: averageProgress + '%', detail: 'Computed from linked learner course records' }, { label: 'Unfinished work', value: String(linkedSubmissions.filter(item => item.status !== 'Graded').length), detail: 'Linked learner assignments' }]; break
+      case 'support':
+        metrics = [{ label: 'Recent activity events', value: String(state.activity.length), detail: 'Locally saved demo activity' }, { label: 'Accounts in dataset', value: String(state.users.length), detail: 'Synthetic test identities only' }, { label: 'Support service', value: 'Not connected', detail: 'No external support system is contacted.' }]; break
+      case 'auditor':
+        metrics = [{ label: 'Recorded activity events', value: String(state.activity.length), detail: 'Local demonstration history' }, { label: 'Data source', value: 'Browser storage', detail: 'Not the production audit service.' }]; break
+      default: metrics = [{ label: 'Workspace', value: profile.label, detail: 'Role-specific local workspace' }]
+    }
+    return <div className="local-content-stack">
+      <section className="local-welcome"><p className="eyebrow">{profile.label} workspace</p><h2>{welcomeFor(profile.role)}</h2><p>{profile.description}</p></section>
+      <div className="local-metric-grid">{metrics.map(metric => <article className="local-metric" key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.detail}</small></article>)}</div>
+      <section className="local-panel"><div className="local-panel-heading"><div><p className="eyebrow">Next actions</p><h3>{profile.role === 'student' ? 'Continue learning' : profile.role === 'teacher' ? 'Teaching and assessment queue' : profile.role === 'developer' ? 'Product delivery' : profile.role === 'client' ? 'Organization status' : 'Recent workspace activity'}</h3></div></div>
+        {profile.role === 'student' ? <CourseList state={state} courses={visibleCourses} userId={profile.userId} onOpen={() => setActiveSection('learn')} /> :
+          ['teacher', 'evaluator', 'teaching-assistant'].includes(profile.role) ? <SubmissionList state={state} profile={profile} submissions={pendingSubmissions.slice(0, 4)} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} /> :
+          profile.role === 'developer' ? <ProductList products={state.products.slice(0, 4)} onPublish={handlePublishProduct} /> :
+          profile.role === 'client' ? <ProductList products={publishedProducts.slice(0, 4)} onPublish={handlePublishProduct} readOnly /> : <ActivityList state={state} />}
       </section>
+      <p className="local-data-notice">LOCAL DEMO DATA · Values are calculated from records stored in this browser. Records are synthetic sample data, not live institutional or production telemetry.</p>
+    </div>
+  }
 
-      <section className="local-intro">
-        <p className="eyebrow">{config.eyebrow}</p>
-        <h2>{config.title}</h2>
-        <p>{config.description}</p>
-      </section>
+  function renderSection(): ReactNode {
+    switch (activeSection) {
+      case 'overview': return renderOverview()
+      case 'learn':
+      case 'programs':
+      case 'academics': return <section className="local-panel"><PanelHeading eyebrow="Catalog" title={sectionTitles[activeSection]} detail={visibleCourses.length + ' accessible course records'} /><CourseList state={state} courses={visibleCourses} userId={['client', 'admin'].includes(profile.role) ? 'student-asha' : profile.role === 'guardian' ? 'student-asha' : profile.userId} onOpen={() => setNotice('Course selected. Course and progress values come from the local records.')} /><ProductList products={state.products.filter(item => item.status === 'Published')} onPublish={handlePublishProduct} readOnly /></section>
+      case 'classes':
+      case 'calendar':
+      case 'schedule': return <ScheduleView state={state} profile={profile} />
+      case 'assignments':
+      case 'grading':
+      case 'submissions': return <section className="local-panel"><PanelHeading eyebrow="Learning workflow" title={sectionTitles[activeSection]} detail="Submission and grade changes persist across separate demo sign-ins." /><SubmissionList state={state} profile={profile} submissions={state.submissions.filter(item => profile.role === 'student' ? item.studentId === profile.userId : profile.role === 'guardian' ? item.studentId === 'student-asha' : item.status === 'Submitted' || item.status === 'Graded')} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} /></section>
+      case 'results':
+      case 'progress': return <section className="local-panel"><PanelHeading eyebrow="Learning outcomes" title={sectionTitles[activeSection]} detail="Only the current learner or linked learner results are shown." /><CourseList state={state} courses={visibleCourses} userId={profile.role === 'guardian' ? 'student-asha' : profile.userId} onOpen={() => setNotice('Progress reflects the saved learner-course record.')} /><SubmissionList state={state} profile={profile} submissions={state.submissions.filter(item => item.status === 'Graded' && (profile.role === 'guardian' ? item.studentId === 'student-asha' : profile.role === 'student' ? item.studentId === profile.userId : true))} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} readOnly /></section>
+      case 'attendance': return <AttendanceView state={state} profile={profile} />
+      case 'learners':
+      case 'people': return <PeopleView state={state} profile={profile} onStatus={(id, status) => commit(setDemoUserStatus(state, id, status, profile), 'Membership status saved to the demo dataset.')} />
+      case 'products':
+      case 'releases': return <section className="local-panel"><PanelHeading eyebrow="Product lifecycle" title={sectionTitles[activeSection]} detail="Draft creation and publishing update the browser-persisted product catalog." /><button className="primary-button" onClick={() => setActiveSection('editor')}>Create product draft</button><ProductList products={state.products} onPublish={handlePublishProduct} /></section>
+      case 'editor': return <section className="local-panel"><PanelHeading eyebrow="Product authoring" title="Create an educational product" detail="Save a draft, then publish it from My Products." /><form className="local-form" onSubmit={handleCreateProduct}><label>Product title<input required maxLength={120} value={productTitle} onChange={event => setProductTitle(event.target.value)} placeholder="e.g. Applied Data Engineering" /></label><label>Description<textarea rows={4} value={productDescription} onChange={event => setProductDescription(event.target.value)} placeholder="Outcomes, intended audience and scope" /></label><button className="primary-button" type="submit">Save draft</button></form></section>
+      case 'content': return <section className="local-panel"><PanelHeading eyebrow="Teaching resources" title="Learning content" detail="Published course records and their lesson counts." /><CourseList state={state} courses={visibleCourses} userId={profile.userId} onOpen={() => setNotice('Lesson selected from the local demo course.')} /></section>
+      case 'assessments': return <section className="local-panel"><PanelHeading eyebrow="Assessment center" title="Assessment schedule and readiness" detail="Events come from saved class and exam records." /><ScheduleView state={state} profile={profile} examsOnly /><SubmissionList state={state} profile={profile} submissions={state.submissions} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} readOnly={profile.role === 'student' || profile.role === 'guardian'} /></section>
+      case 'analytics':
+      case 'reports': return <AnalyticsView state={state} />
+      case 'integrations':
+      case 'api': return <IntegrationView state={state} />
+      case 'communication':
+      case 'messages': return <section className="local-panel"><PanelHeading eyebrow="Communication" title="Recent communication activity" detail="These local events do not send an external message." /><ActivityList state={state} /></section>
+      case 'operations':
+      case 'security': return <section className="local-panel"><PanelHeading eyebrow="Governance" title={sectionTitles[activeSection]} detail="Inspect local events; this is not the production audit service." /><ActivityList state={state} /><p className="local-data-notice">Production sessions, identity federation, authorization and immutable audit history require the connected platform server.</p></section>
+      case 'billing':
+      case 'finance':
+      case 'invoices':
+      case 'payments': return <section className="local-panel"><PanelHeading eyebrow="Finance boundary" title={sectionTitles[activeSection]} detail="Financial records must come from the authenticated platform API." /><div className="local-honest-state"><strong>Finance API not connected in offline demo mode</strong><p>No fabricated invoice, payment, receipt, balance or subscription status is shown. Start the platform backend and sign in with an authorized finance account to use the production workspace.</p></div></section>
+      case 'account':
+      case 'settings':
+      case 'profile': return <section className="local-panel"><PanelHeading eyebrow="Workspace details" title={sectionTitles[activeSection]} detail="Current signed-in demo identity." /><dl className="local-definition-list"><dt>Name</dt><dd>{profile.name}</dd><dt>Role</dt><dd>{profile.label}</dd><dt>Email</dt><dd>{profile.email}</dd><dt>Data environment</dt><dd>Browser-persisted sample data</dd><dt>Identity provider</dt><dd>Not connected</dd></dl></section>
+      case 'reviews': return <section className="local-panel"><PanelHeading eyebrow="Review workflow" title="Academic reviews" detail="Submitted and graded records available for this demo." /><SubmissionList state={state} profile={profile} submissions={state.submissions.filter(item => item.status !== 'Assigned')} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} readOnly={profile.role !== 'teacher' && profile.role !== 'evaluator'} /></section>
+      default: return <section className="local-panel"><PanelHeading eyebrow={profile.label} title={sectionTitles[activeSection]} detail="Restricted to this signed-in demo persona." /><p>Select an available workspace item from your navigation.</p></section>
+    }
+  }
 
-      <section className="local-stat-grid" aria-label={`${config.label} summary`}>
-        {config.stats.map(stat => (
-          <article className="local-stat" key={stat.label}>
-            <span>{stat.label}</span>
-            <strong>{stat.value}</strong>
-            <small>{stat.note}</small>
-          </article>
-        ))}
-      </section>
+  return <main className="local-dashboard">
+    <header className="local-hero"><div><p className="eyebrow">Universal Education Platform · Local Demo</p><h1>{profile.role === 'developer' ? 'Product Studio' : profile.role === 'student' ? 'Your learning space.' : profile.role === 'teacher' ? 'Your teaching workspace.' : profile.role === 'client' ? 'Your organization.' : 'Your workspace.'}</h1><p className="local-hero-copy">Signed in as {profile.name}. This workspace shows only the navigation assigned to this demo persona.</p></div><div className="local-hero-actions"><span className="local-mode-badge">Offline · Sample dataset</span><button className="local-signout" onClick={onSignOut}>Sign out</button></div></header>
+    <div className="local-app-layout"><aside className="local-sidebar"><div className="local-profile"><span className="local-avatar">{profile.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</span><div><strong>{profile.name}</strong><small>{profile.label}</small></div></div><nav aria-label={profile.label + ' navigation'}>{nav.map(item => <button key={item.id} className={activeSection === item.id ? 'local-nav-item active' : 'local-nav-item'} onClick={() => setActiveSection(item.id)}>{item.label}</button>)}</nav><p className="local-sidebar-foot">Local demo profile<br />Sign out to choose another profile.</p></aside>
+      <section className="local-main"><header className="local-workspace-header"><div><p className="eyebrow">{profile.label} workspace</p><h2>{sectionTitles[activeSection]}</h2></div><span className="local-mode-badge">Saved in this browser</span></header>{notice && <div className="local-notice" role="status"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss message">×</button></div>}{renderSection()}</section>
+    </div>
+  </main>
+}
 
-      <section className="local-workspace-grid">
-        <div className="local-module-panel">
-          <div className="panel-heading"><div><p className="eyebrow">Workspace modules</p><h3>What needs your attention</h3></div><span className="count-badge">{config.modules.length}</span></div>
-          <div className="local-module-list">
-            {config.modules.map(module => (
-              <article className="local-module" key={module.title}>
-                <div><strong>{module.title}</strong><p>{module.detail}</p></div>
-                <button className="text-button" onClick={() => setLastAction(`${module.title}: ${module.status} selected.`)}>{module.status}</button>
-              </article>
-            ))}
-          </div>
-        </div>
-        <aside className="local-action-panel">
-          <p className="eyebrow">Local walkthrough</p>
-          <h3>Presentation checkpoint</h3>
-          <p>{lastAction}</p>
-          <button className="primary-button" onClick={() => setLastAction(`${config.label} dashboard is ready for a live walkthrough.`)}>Run dashboard check</button>
-          <small>All values on this screen are local demo data.</small>
-        </aside>
-      </section>
-    </main>
-  )
+function welcomeFor(role: DemoRole): string {
+  switch (role) {
+    case 'student': return 'Keep your learning moving.'
+    case 'teacher': return 'Teach, review and support your learners.'
+    case 'client': return 'See your organization’s learning activity.'
+    case 'developer': return 'Build and publish educational products.'
+    case 'admin': return 'Monitor and manage the platform.'
+    case 'guardian': return 'Stay informed about your learner.'
+    case 'exam-controller': return 'Coordinate assessment delivery.'
+    case 'finance-admin': return 'Manage finance through authoritative records.'
+    case 'teaching-assistant': return 'Support classes and learner submissions.'
+    case 'evaluator': return 'Review assigned learner work.'
+    case 'mentor': return 'Track learner milestones and follow-ups.'
+    case 'support': return 'Review support-relevant account activity.'
+    case 'auditor': return 'Inspect recorded activity in read-only mode.'
+  }
+  return 'Your role-specific workspace.'
+}
+function PanelHeading({ eyebrow, title, detail }: { eyebrow: string; title: string; detail?: string }) {
+  return <div className="local-panel-heading"><div><p className="eyebrow">{eyebrow}</p><h3>{title}</h3>{detail && <p>{detail}</p>}</div></div>
+}
+function CourseList({ state, courses, userId, onOpen }: { state: DemoState; courses: DemoState['courses']; userId: string; onOpen: () => void }) {
+  if (!courses.length) return <p className="local-empty">No courses are assigned to this profile yet.</p>
+  return <div className="local-record-list">{courses.map(course => <article className="local-record" key={course.id}><div className="local-record-main"><strong>{course.title}</strong><p>{course.description}</p><small>{course.category} · {course.lessonCount} lessons</small></div><div className="local-record-side"><strong>{progressFor(state, userId, course.id)}%</strong><small>Progress</small><button className="text-button" onClick={onOpen}>Open course</button></div></article>)}</div>
+}
+function SubmissionList({ state, profile, submissions, onGrade, onSubmit, readOnly = false }: { state: DemoState; profile: DemoProfile; submissions: DemoSubmission[]; onGrade: (event: FormEvent<HTMLFormElement>, submission: DemoSubmission) => void; onSubmit: (id: string) => void; readOnly?: boolean }) {
+  if (!submissions.length) return <p className="local-empty">No items match this workspace right now.</p>
+  return <div className="local-record-list">{submissions.map(item => {
+    const course = courseFor(state, item.courseId)
+    const student = state.users.find(user => user.id === item.studentId)
+    const canSubmit = profile.role === 'student' && !readOnly && item.studentId === profile.userId && item.status === 'Assigned'
+    const canGrade = !readOnly && ['teacher', 'evaluator', 'teaching-assistant'].includes(profile.role) && item.status === 'Submitted'
+    return <article className="local-record" key={item.id}><div className="local-record-main"><strong>{item.title}</strong><p>{course?.title ?? 'Course'}{!['student', 'guardian'].includes(profile.role) ? ' · ' + (student?.name ?? 'Learner') : ''}</p><small>Due {new Date(item.dueAt).toLocaleDateString()} · <span className={'local-status status-' + item.status.toLowerCase()}>{item.status}</span></small>{item.feedback && <p className="local-feedback">Feedback: {item.feedback}</p>}</div><div className="local-record-side">{item.score !== undefined && <><strong>{item.score}/100</strong><small>Published score</small></>}{canSubmit && <button className="primary-button small-button" onClick={() => onSubmit(item.id)}>Submit assignment</button>}{canGrade && <form className="local-grade-form" onSubmit={event => onGrade(event, item)}><label>Score / 100<input name="score" type="number" min="0" max="100" defaultValue="92" required /></label><label>Feedback<input name="feedback" defaultValue="Good work. Review the comments and continue." maxLength={500} /></label><button className="primary-button small-button" type="submit">Publish grade</button></form>}</div></article>
+  })}</div>
+}
+function ScheduleView({ state, profile, examsOnly = false }: { state: DemoState; profile: DemoProfile; examsOnly?: boolean }) {
+  const items = state.schedule.filter(item => (item.participantIds.includes(profile.userId) || ['client', 'admin', 'exam-controller', 'finance-admin', 'support', 'auditor'].includes(profile.role)) && (!examsOnly || item.kind === 'Exam')).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+  return <section className="local-panel"><PanelHeading eyebrow="Schedule records" title={examsOnly ? 'Assessment schedule' : 'Your upcoming schedule'} detail="Times are taken from saved local schedule records." />{items.length ? <div className="local-record-list">{items.map(item => <article className="local-record" key={item.id}><div className="local-record-main"><strong>{item.title}</strong><p>{item.kind} · {courseFor(state, item.courseId)?.title ?? 'Program activity'}</p><small>{new Date(item.startsAt).toLocaleString()} · {item.durationMinutes} minutes</small></div><span className={'local-status status-' + item.status.toLowerCase()}>{item.status}</span></article>)}</div> : <p className="local-empty">No scheduled items are linked to this profile.</p>}</section>
+}
+function AttendanceView({ state, profile }: { state: DemoState; profile: DemoProfile }) {
+  const studentId = profile.role === 'guardian' ? 'student-asha' : profile.userId
+  const items = ['student', 'guardian'].includes(profile.role) ? state.attendance.filter(item => item.studentId === studentId) : state.attendance
+  const present = items.filter(item => item.status !== 'Absent').length
+  return <section className="local-panel"><PanelHeading eyebrow="Attendance register" title="Attendance summary" detail={items.length + ' saved attendance entries'} /><div className="local-metric-grid"><article className="local-metric"><span>Attendance rate</span><strong>{percentage(present, items.length)}%</strong><small>Present and late entries divided by recorded sessions.</small></article><article className="local-metric"><span>Absent</span><strong>{items.filter(item => item.status === 'Absent').length}</strong><small>Count from attendance records.</small></article></div><div className="local-record-list">{items.slice().sort((a, b) => b.date.localeCompare(a.date)).map(item => <article className="local-record" key={item.id}><div className="local-record-main"><strong>{state.users.find(user => user.id === item.studentId)?.name ?? 'Learner'}</strong><p>{courseFor(state, item.courseId)?.title ?? 'Course'}</p><small>{item.date}</small></div><span className={'local-status status-' + item.status.toLowerCase()}>{item.status}</span></article>)}</div></section>
+}
+function PeopleView({ state, profile, onStatus }: { state: DemoState; profile: DemoProfile; onStatus: (id: string, status: 'Active' | 'Suspended') => void }) {
+  const users = ['teacher', 'teaching-assistant'].includes(profile.role) ? state.users.filter(user => user.role === 'Student' && user.courseIds.some(id => state.users.find(me => me.id === profile.userId)?.courseIds.includes(id))) :
+    profile.role === 'client' ? state.users.filter(user => user.organization === 'Northstar Learning Institute') :
+    profile.role === 'guardian' ? state.users.filter(user => user.id === 'student-asha') : state.users
+  const canManage = profile.role === 'admin'
+  return <section className="local-panel"><PanelHeading eyebrow="People directory" title={profile.role === 'guardian' ? 'Linked learner' : 'Authorized directory'} detail={users.length + ' records in this profile scope'} /><div className="local-record-list">{users.map(user => <article className="local-record" key={user.id}><div className="local-record-main"><strong>{user.name}</strong><p>{user.role} · {user.organization}</p><small>{user.email} · {user.courseIds.length} course associations</small></div><div className="local-record-side"><span className={'local-status status-' + user.status.toLowerCase()}>{user.status}</span>{canManage && user.id !== profile.userId && <button className="text-button" onClick={() => onStatus(user.id, user.status === 'Active' ? 'Suspended' : 'Active')}>{user.status === 'Active' ? 'Suspend demo user' : 'Reactivate demo user'}</button>}</div></article>)}</div>{!canManage && <p className="local-data-notice">Contact details are synthetic demo identities. Production directory access is enforced by the backend.</p>}</section>
+}
+function ProductList({ products, onPublish, readOnly = false }: { products: DemoState['products']; onPublish: (id: string) => void; readOnly?: boolean }) {
+  if (!products.length) return <p className="local-empty">No product records yet. Create a product draft to begin.</p>
+  return <div className="local-record-list">{products.map(product => <article className="local-record" key={product.id}><div className="local-record-main"><strong>{product.title}</strong><p>{product.description}</p><small>Version {product.version} · Updated {new Date(product.updatedAt).toLocaleString()}</small></div><div className="local-record-side"><span className={'local-status status-' + product.status.toLowerCase().replace(' ', '-')}>{product.status}</span>{!readOnly && product.status !== 'Published' && <button className="primary-button small-button" onClick={() => onPublish(product.id)}>Publish</button>}</div></article>)}</div>
+}
+function AnalyticsView({ state }: { state: DemoState }) {
+  const students = state.users.filter(user => user.role === 'Student')
+  const values = students.flatMap(student => student.courseIds.map(courseId => progressFor(state, student.id, courseId)))
+  const pending = state.submissions.filter(item => item.status === 'Submitted').length
+  return <section className="local-panel"><PanelHeading eyebrow="Computed report" title="Learning outcomes and operations" detail="Aggregates are calculated from records stored in browser storage." /><div className="local-metric-grid"><article className="local-metric"><span>Learner records</span><strong>{students.length}</strong><small>Counted from user records.</small></article><article className="local-metric"><span>Enrollment records</span><strong>{values.length}</strong><small>Student-course associations.</small></article><article className="local-metric"><span>Average progress</span><strong>{percentage(values.reduce((sum, value) => sum + value, 0), values.length)}%</strong><small>Average of enrolled learner progress records.</small></article><article className="local-metric"><span>Pending grading</span><strong>{pending}</strong><small>Submitted items awaiting a result.</small></article></div><div className="local-record-list">{state.courses.map(course => { const enrolled = students.filter(student => student.courseIds.includes(course.id)); const avg = percentage(enrolled.reduce((sum, student) => sum + progressFor(state, student.id, course.id), 0), enrolled.length); return <article className="local-record" key={course.id}><div className="local-record-main"><strong>{course.title}</strong><p>{enrolled.length} learner-course records</p></div><div className="local-record-side"><strong>{avg}%</strong><small>Average progress</small></div></article> })}</div></section>
+}
+function IntegrationView({ state }: { state: DemoState }) {
+  return <section className="local-panel"><PanelHeading eyebrow="Integration inventory" title="Configured demo integrations" detail="Endpoints and delivery totals are sample records. No HTTP requests are sent." /><div className="local-honest-state"><strong>Live connectivity is not tested in offline mode.</strong><p>Real API uptime and webhook delivery health are not fabricated; the figures below describe the local sample dataset only.</p></div><div className="local-record-list">{state.webhooks.map(hook => <article className="local-record" key={hook.id}><div className="local-record-main"><strong>{hook.name}</strong><p>{hook.endpoint}</p><small>{hook.successfulDeliveries} sample successes · {hook.failedDeliveries} sample failures</small></div><span className={'local-status status-' + hook.status.toLowerCase().replace(' ', '-')}>{hook.status} (sample)</span></article>)}</div></section>
+}
+function ActivityList({ state }: { state: DemoState }) {
+  return <div className="local-record-list">{state.activity.map(item => <article className="local-record" key={item.id}><div className="local-record-main"><strong>{item.action}</strong><p>{item.detail}</p><small>{item.actor} · {new Date(item.at).toLocaleString()}</small></div></article>)}</div>
 }
