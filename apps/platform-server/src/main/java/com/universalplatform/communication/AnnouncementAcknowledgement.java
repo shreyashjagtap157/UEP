@@ -19,5 +19,6 @@ class AnnouncementAcknowledgement {
         this.tenantId = tenantId;
         this.acknowledgedAt = at;
     }
+    AnnouncementAcknowledgementId id() { return id; }
     Instant acknowledgedAt() { return acknowledgedAt; }
 }
