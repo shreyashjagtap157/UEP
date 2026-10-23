@@ -40,6 +40,7 @@ class AnnouncementTarget {
         }
     }
 
+    UUID announcementId() { return announcementId; }
     AnnouncementTargetKind targetKind() { return targetKind; }
     UUID targetId() {
         return switch (targetKind) {
