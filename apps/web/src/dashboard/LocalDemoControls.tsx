@@ -1,0 +1,65 @@
+import { useEffect, useState } from 'react'
+import type { LocalAccount } from './LocalExperience'
+import type { LocalRole } from './localDemoData'
+import {
+  gradeAaravAssignment,
+  markApiReleaseReady,
+  publishDataEngineeringProduct,
+  recordAaravAttendance,
+  resetDemoStore,
+  resolveOrganizationAction,
+  submitAaravAssignment,
+  subscribeDemoStore,
+} from './localDemoStore'
+
+export function LocalDemoControls({ account }: { account: LocalAccount }) {
+  const [, setRevision] = useState(0)
+  useEffect(() => subscribeDemoStore(() => setRevision(value => value + 1)), [])
+
+  const actions = actionsFor(account.role)
+  return (
+    <section className="panel" aria-label="Cross-role demo workflow">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Live demo controls</p>
+          <h3>Demonstrate shared state</h3>
+        </div>
+        <span className="count-badge">Shared</span>
+      </div>
+      <p className="muted small">These actions change the same local dataset used by every role. Open another role in a second tab to demonstrate propagation.</p>
+      <div className="chip-row">
+        {actions.map(action => <button key={action.label} className="primary-button" type="button" onClick={action.run}>{action.label}</button>)}
+        <button className="text-button" type="button" onClick={resetDemoStore}>Reset demo data</button>
+      </div>
+    </section>
+  )
+}
+
+type DemoAction = { label: string; run: () => void }
+
+function actionsFor(role: LocalRole): DemoAction[] {
+  switch (role) {
+    case 'student': return [
+      { label: 'Submit Aarav assignment', run: submitAaravAssignment },
+      { label: 'Record attendance', run: recordAaravAttendance },
+    ]
+    case 'teacher': return [
+      { label: 'Grade Aarav · 91%', run: () => gradeAaravAssignment(91) },
+      { label: 'Record Aarav attendance', run: recordAaravAttendance },
+    ]
+    case 'client': return [
+      { label: 'Resolve organization action', run: resolveOrganizationAction },
+    ]
+    case 'developer': return [
+      { label: 'Publish Data Engineering product', run: publishDataEngineeringProduct },
+      { label: 'Mark API release ready', run: markApiReleaseReady },
+    ]
+    case 'administrator': return [
+      { label: 'Resolve organization action', run: resolveOrganizationAction },
+      { label: 'Publish Data Engineering product', run: publishDataEngineeringProduct },
+    ]
+    case 'guardian': return [
+      { label: 'Record linked learner attendance', run: recordAaravAttendance },
+    ]
+  }
+}
