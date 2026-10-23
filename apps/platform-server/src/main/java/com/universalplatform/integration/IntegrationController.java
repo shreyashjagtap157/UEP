@@ -2,7 +2,7 @@ package com.universalplatform.integration;
 
 import com.universalplatform.identity.FederationIdentityDirectory;
 import com.universalplatform.identity.PermissionKey;
-import com.universalplatform.security.ApiCredentialService;
+import com.universalplatform.identity.ApiCredentialService;
 import com.universalplatform.storage.StorageProviderType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;

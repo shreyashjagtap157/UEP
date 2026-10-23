@@ -1,7 +1,5 @@
-package com.universalplatform.security;
+package com.universalplatform.identity;
 
-import com.universalplatform.identity.AuthorizationService;
-import com.universalplatform.identity.PermissionKey;
 import com.universalplatform.security.ActorContext;
 import com.universalplatform.security.TenantContext;
 import java.nio.charset.StandardCharsets;
@@ -66,13 +64,13 @@ public class ApiCredentialService {
         c.revoke(clock.instant());
     }
 
-    Optional<ApiCredential> authenticate(String rawKey) {
+    public Optional<ApiCredential> authenticate(String rawKey) {
         if (rawKey == null || rawKey.isBlank())
             return Optional.empty();
         return repo.findActiveByKeyHash(hash(rawKey)).filter(c -> c.active(clock.instant()));
     }
 
-    void touch(ApiCredential c) {
+    public void touch(ApiCredential c) {
         c.used(clock.instant());
         repo.save(c);
     }
@@ -92,7 +90,7 @@ public class ApiCredentialService {
         return HexFormat.of().formatHex(b);
     }
 
-    static Set<String> scopeSet(String scopes) {
+    public static Set<String> scopeSet(String scopes) {
         if (scopes == null || scopes.isBlank())
             return Set.of();
         return Arrays.stream(scopes.split(",")).filter(x -> !x.isBlank())
