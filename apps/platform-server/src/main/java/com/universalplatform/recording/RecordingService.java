@@ -304,7 +304,7 @@ class RecordingService {
         }
         if (r.storageTier() == RecordingStorageTier.CACHE) {
             if (r.status() == RecordingProcessingStatus.READY
-                    && now.isBefore(r.readyAt().plusDays((long) p.hotCacheDays() + p.cacheDays())))
+                    && now.isBefore(r.readyAt().plus(Duration.ofDays((long) p.hotCacheDays() + p.cacheDays()))))
                 return;
             Recording current = claimForMigration(r);
             if (current == null)
