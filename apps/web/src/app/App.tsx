@@ -8,6 +8,7 @@ import {
   logout,
   onOidcStatus,
   openAccountManagement,
+  localMode,
   signIn,
 } from '../auth/keycloak'
 import { AcademicOverview } from '../academic/AcademicOverview'
@@ -15,6 +16,7 @@ import { AcademicWorkspace } from '../academic/AcademicWorkspace'
 import { EnrollmentWorkspace } from '../academic/EnrollmentWorkspace'
 import { AnnouncementWorkspace } from '../communication/AnnouncementWorkspace'
 import { TodayOverview } from '../dashboard/TodayOverview'
+import { LocalExperience } from '../dashboard/LocalExperience'
 import { NotificationWorkspace } from '../notifications/NotificationWorkspace'
 import { ScheduleWorkspace } from '../scheduling/ScheduleWorkspace'
 import { ContentWorkspace } from '../content/ContentWorkspace'
@@ -31,6 +33,7 @@ import {
   createRole,
   fetchBranches,
   fetchCurrentIdentity,
+  fetchLocalCurrentIdentity,
   fetchMembers,
   fetchMySessions,
   fetchOrganizationSettings,
@@ -62,11 +65,38 @@ export function App() {
   const [signInPending, setSignInPending] = useState(false)
   const [signInError, setSignInError] = useState<string | null>(null)
   const queryClient = useQueryClient()
+  const identity = useQuery({ queryKey: ['me'], queryFn: localMode ? fetchLocalCurrentIdentity : fetchCurrentIdentity, enabled: oidcAuthenticated })
+  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated && !localMode })
 
   useEffect(() => onOidcStatus(setOidcAuthenticated), [])
 
-  const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: oidcAuthenticated })
-  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated })
+  // Determine initial dashboard section based on user role after authentication
+  useEffect(() => {
+    if (oidcAuthenticated && identity.data) {
+      setSection(determineInitialSection(identity.data))
+    }
+  }, [oidcAuthenticated, identity.data])
+
+  function determineInitialSection(me: CurrentIdentity): Section {
+    // Check for Student role - primary role for learners
+    const isStudent = me.roles.includes('Student')
+    const isTeacher = me.roles.includes('Teacher')
+    const isAdmin = me.roles.some(r => 
+      ['Organization Owner', 'Organization Administrator', 'Branch Administrator', 'Academic Administrator'].includes(r)
+    )
+
+    // Route based on user type
+    if (isAdmin) {
+      return 'overview' // Administrators see overview first with full navigation
+    }
+    if (isTeacher) {
+      return 'academics' // Teachers see academic content first
+    }
+    if (isStudent) {
+      return 'overview' // Students start with overview
+    }
+    return 'overview' // Default fallback
+  }
 
   function handleSignIn() {
     setSignInPending(true)
@@ -102,6 +132,8 @@ export function App() {
     )
   }
 
+  if (localMode) return <LocalExperience />
+
   if (identity.isPending) return <CenteredStatus title="Loading your workspace" detail="Resolving tenant identity and permissions…" />
     if (identity.isError) return <CenteredStatus title="Access unavailable" detail={identity.error.message} />
 
@@ -136,7 +168,7 @@ export function App() {
           <h1 className="product-title">Operations Platform</h1>
         </div>
         <nav aria-label="Primary navigation" className="nav-list">
-          {nav.filter(item => item.visible).map(item => (
+          {nav.filter(item => item.visible && (!localMode || item.id === 'overview')).map(item => (
             <button key={item.id} className={section === item.id ? 'nav-item active' : 'nav-item'} onClick={() => setSection(item.id)}>
               {item.label}
             </button>
@@ -203,7 +235,12 @@ function Overview({ me }: { me: CurrentIdentity }) {
           {me.roles.length ? me.roles.map(role => <span className="chip" key={role}>{role}</span>) : <span className="muted">No roles assigned.</span>}
         </div>
       </section>
-      <AcademicOverview me={me} />
+      {localMode ? (
+        <section className="panel">
+          <div className="panel-heading"><div><p className="eyebrow">Offline preview</p><h3>Learning workspace</h3></div></div>
+          <p className="muted">Backend-backed course and enrollment data is disabled in local mode.</p>
+        </section>
+      ) : <AcademicOverview me={me} />}
     </div>
   )
 }

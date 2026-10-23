@@ -4,6 +4,7 @@ import Keycloak from 'keycloak-js'
 // All three variables are required so the client never guesses identity
 // endpoints (previously it probed localhost ports, including the backend's).
 let instance: Keycloak | null = null
+export const localMode = import.meta.env.VITE_LOCAL_MODE === 'true'
 
 function ensureKeycloak(): Keycloak {
   if (instance) return instance
@@ -22,6 +23,7 @@ function ensureKeycloak(): Keycloak {
 let initialized = false
 
 export async function initializeAuthentication(): Promise<void> {
+  if (localMode) return
   const keycloak = ensureKeycloak()
   if (!initialized) {
     const authenticated = await keycloak.init({
@@ -36,11 +38,12 @@ export async function initializeAuthentication(): Promise<void> {
 }
 
 export function isAuthenticated(): boolean {
-  return instance?.authenticated === true
+  return localMode || instance?.authenticated === true
 }
 
 /** Subscribes to OIDC session transitions; returns an unsubscribe function. */
 export function onOidcStatus(callback: (authenticated: boolean) => void): () => void {
+  if (localMode) return () => undefined
   const keycloak = ensureKeycloak()
   const notify = () => callback(keycloak.authenticated === true)
   const previousSuccess = keycloak.onAuthSuccess
@@ -60,10 +63,12 @@ export function onOidcStatus(callback: (authenticated: boolean) => void): () => 
 }
 
 export function signIn(): Promise<void> {
+  if (localMode) return Promise.resolve()
   return ensureKeycloak().login()
 }
 
 export async function logout(): Promise<void> {
+  if (localMode) return
   await ensureKeycloak().logout({ redirectUri: window.location.origin })
 }
 

@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchToday } from '../platform/api'
+import { localMode } from '../auth/keycloak'
+import { fetchLocalToday, fetchToday } from '../platform/api'
 
 export function TodayOverview() {
-  const today = useQuery({ queryKey: ['today'], queryFn: fetchToday, refetchInterval: 60_000 })
+  const today = useQuery({ queryKey: ['today'], queryFn: localMode ? fetchLocalToday : fetchToday, refetchInterval: localMode ? false : 60_000 })
   if (today.isError) return <section className="panel"><p className="error-text" role="alert">{today.error.message}</p></section>
   if (today.isPending || !today.data || !today.data.summary) return <section className="panel"><p className="muted">Loading today…</p></section>
   const value = today.data

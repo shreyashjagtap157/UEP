@@ -112,6 +112,20 @@ export interface CurrentIdentity {
   authenticationAssurance: AuthenticationAssurance
 }
 
+export const fetchLocalCurrentIdentity = async (): Promise<CurrentIdentity> => ({
+  userId: 'local-user',
+  membershipId: 'local-membership',
+  oidcSubject: 'local-subject',
+  email: 'local@example.test',
+  displayName: 'Local Demo User',
+  tenantId: 'local-tenant',
+  membershipStatus: 'ACTIVE',
+  roles: ['Student'],
+  permissions: ['ACADEMICS_VIEW', 'CURRICULUM_VIEW', 'SCHEDULE_VIEW', 'ANNOUNCEMENTS_VIEW', 'CONTENT_VIEW', 'ASSESSMENTS_VIEW', 'ASSIGNMENTS_VIEW', 'ASSIGNMENTS_TAKE', 'GRADEBOOK_VIEW', 'REVIEW_VIEW', 'REVIEW_SUBMIT', 'LIVE_CLASS_VIEW', 'LIVE_CLASS_CHAT', 'RECORDINGS_VIEW'],
+  primaryBranchPermissions: ['ACADEMICS_VIEW', 'CURRICULUM_VIEW', 'SCHEDULE_VIEW', 'ANNOUNCEMENTS_VIEW', 'CONTENT_VIEW'],
+  authenticationAssurance: { acr: 'local', methods: ['local'], otpEvidence: false, webAuthnEvidence: false, multiFactorEvidence: false },
+})
+
 export interface PageResult<T> {
   items: T[]
   page: number
@@ -723,6 +737,15 @@ export interface TodayView {
 }
 
 export const fetchToday = () => request<TodayView>('/api/v1/today')
+
+export const fetchLocalToday = async (): Promise<TodayView> => ({
+  date: new Date().toISOString().slice(0, 10),
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  generatedAt: new Date().toISOString(),
+  mode: 'PERSONAL',
+  schedule: [],
+  summary: { classes: 0, exams: 0, scheduledLearners: 0, unreadNotifications: 0 },
+})
 
 export type ResourceVisibility = 'PRIVATE' | 'STAFF' | 'ENROLLED_LEARNERS' | 'TENANT'
 export type DownloadPolicy = 'DOWNLOAD_ALLOWED' | 'STREAM_ONLY' | 'NO_DOWNLOAD'
