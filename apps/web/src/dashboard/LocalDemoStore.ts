@@ -109,6 +109,27 @@ export interface DemoState {
 }
 
 const STORAGE_KEY = 'uep.local-demo-data.v1'
+const STORE_CHANGED_EVENT = 'uep:local-demo-data-updated'
+
+const ROLE_RECORD_NAMES: Record<DemoRole, string> = {
+  student: 'Student',
+  teacher: 'Teacher',
+  client: 'Client Administrator',
+  developer: 'Product Developer',
+  admin: 'Platform Administrator',
+  guardian: 'Guardian',
+  'exam-controller': 'Exam Controller',
+  'finance-admin': 'Finance Administrator',
+  'teaching-assistant': 'Teaching Assistant',
+  evaluator: 'Evaluator',
+  mentor: 'Mentor',
+  support: 'Support Operator',
+  auditor: 'Auditor',
+}
+
+function activeActor(state: DemoState, actor: DemoProfile): DemoUser | undefined {
+  return state.users.find(user => user.id === actor.userId && user.status === 'Active' && user.role === ROLE_RECORD_NAMES[actor.role])
+}
 function dateAt(dayOffset: number, hour: number, minute = 0): string {
   const date = new Date()
   date.setDate(date.getDate() + dayOffset)
@@ -207,8 +228,8 @@ export function loadDemoState(): DemoState {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (raw) {
-      const parsed = JSON.parse(raw) as DemoState
-      if (parsed.schemaVersion === 1 && Array.isArray(parsed.users) && Array.isArray(parsed.submissions) && Array.isArray(parsed.courses)) return parsed
+      const parsed: unknown = JSON.parse(raw)
+      if (isDemoState(parsed)) return parsed
     }
   } catch {
     // Corrupt/unavailable browser storage starts a fresh local demonstration.
@@ -217,44 +238,127 @@ export function loadDemoState(): DemoState {
   saveDemoState(initial)
   return initial
 }
-export function saveDemoState(state: DemoState): void {
-  try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)) } catch { /* usable for this tab */ }
+
+function isDemoState(value: unknown): value is DemoState {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as Partial<DemoState>
+  return candidate.schemaVersion === 1
+    && Array.isArray(candidate.users)
+    && Array.isArray(candidate.courses)
+    && Array.isArray(candidate.submissions)
+    && Array.isArray(candidate.attendance)
+    && Array.isArray(candidate.schedule)
+    && Array.isArray(candidate.products)
+    && Array.isArray(candidate.webhooks)
+    && Array.isArray(candidate.activity)
+    && typeof candidate.courseProgress === 'object'
+    && candidate.courseProgress !== null
 }
+
+export function saveDemoState(state: DemoState): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // The current tab remains usable even when browser storage is unavailable.
+  }
+  // The StorageEvent is not emitted in the tab that made the write, so notify
+  // current-tab subscribers separately and other tabs through the browser event.
+  window.dispatchEvent(new Event(STORE_CHANGED_EVENT))
+}
+
+export function subscribeDemoState(listener: () => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY || event.key === null) listener()
+  }
+  window.addEventListener('storage', onStorage)
+  window.addEventListener(STORE_CHANGED_EVENT, listener)
+  return () => {
+    window.removeEventListener('storage', onStorage)
+    window.removeEventListener(STORE_CHANGED_EVENT, listener)
+  }
+}
+
+export function resetDemoState(): DemoState {
+  const state = seedDemoState()
+  saveDemoState(state)
+  return state
+}
+
 export function recordDemoActivity(state: DemoState, actor: string, action: string, detail: string): DemoState {
   const item: DemoActivity = { id: 'activity-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8), at: new Date().toISOString(), actor, action, detail }
   return { ...state, activity: [item, ...state.activity].slice(0, 50) }
 }
+
 export function submitDemoAssignment(state: DemoState, submissionId: string, actor: DemoProfile): DemoState {
+  if (actor.role !== 'student') return state
+  const user = activeActor(state, actor)
   const target = state.submissions.find(item => item.id === submissionId && item.studentId === actor.userId && item.status === 'Assigned')
-  if (!target) return state
+  const course = target && courseFor(state, target.courseId)
+  if (!user || !target || !course || course.status !== 'Published' || !user.courseIds.includes(target.courseId)) return state
   const submissions = state.submissions.map(item => item.id === submissionId ? { ...item, status: 'Submitted' as const, submittedAt: new Date().toISOString() } : item)
   return recordDemoActivity({ ...state, submissions }, actor.name, 'Assignment submitted', target.title)
 }
+
 export function gradeDemoSubmission(state: DemoState, submissionId: string, score: number, feedback: string, actor: DemoProfile): DemoState {
+  if (!['teacher', 'evaluator', 'teaching-assistant'].includes(actor.role)) return state
+  const user = activeActor(state, actor)
   const target = state.submissions.find(item => item.id === submissionId && item.status === 'Submitted')
-  if (!target || !Number.isFinite(score) || score < 0 || score > 100) return state
+  const learner = target && state.users.find(item => item.id === target.studentId && item.role === 'Student' && item.status === 'Active')
+  if (!user || !target || !learner || !user.courseIds.includes(target.courseId) || !learner.courseIds.includes(target.courseId)
+      || !Number.isFinite(score) || score < 0 || score > 100) return state
   const submissions = state.submissions.map(item => item.id === submissionId ? { ...item, status: 'Graded' as const, score: Math.round(score), feedback: feedback.trim() || 'Reviewed and graded.', gradedAt: new Date().toISOString() } : item)
-  const learner = state.users.find(user => user.id === target.studentId)?.name ?? 'learner'
-  return recordDemoActivity({ ...state, submissions }, actor.name, 'Grade published', target.title + ' · ' + Math.round(score) + '/100 for ' + learner)
+  return recordDemoActivity({ ...state, submissions }, actor.name, 'Grade published', target.title + ' · ' + Math.round(score) + '/100 for ' + learner.name)
 }
+
+export function advanceDemoProgress(state: DemoState, courseId: string, actor: DemoProfile): DemoState {
+  if (actor.role !== 'student') return state
+  const user = activeActor(state, actor)
+  const course = courseFor(state, courseId)
+  if (!user || !course || course.status !== 'Published' || !user.courseIds.includes(courseId)) return state
+  const key = actor.userId + ':' + courseId
+  const current = state.courseProgress[key] ?? 0
+  if (current >= 100) return state
+  const nextProgress = { ...state.courseProgress, [key]: Math.min(100, current + 10) }
+  return recordDemoActivity({ ...state, courseProgress: nextProgress }, actor.name, 'Learning progress updated', course.title + ' · ' + Math.min(100, current + 10) + '% complete')
+}
+
+export function updateDemoAttendance(state: DemoState, attendanceId: string, status: DemoAttendance['status'], actor: DemoProfile): DemoState {
+  if (!['teacher', 'admin'].includes(actor.role)) return state
+  const user = activeActor(state, actor)
+  const target = state.attendance.find(item => item.id === attendanceId)
+  const learner = target && state.users.find(item => item.id === target.studentId && item.role === 'Student' && item.status === 'Active')
+  if (!user || !target || !learner || !learner.courseIds.includes(target.courseId)
+      || (actor.role === 'teacher' && !user.courseIds.includes(target.courseId))) return state
+  if (target.status === status) return state
+  const attendance = state.attendance.map(item => item.id === attendanceId ? { ...item, status } : item)
+  const course = courseFor(state, target.courseId)
+  return recordDemoActivity({ ...state, attendance }, actor.name, 'Attendance recorded', learner.name + ' · ' + (course?.title ?? 'Course') + ' · ' + status + ' (' + target.date + ')')
+}
+
 export function createDemoProduct(state: DemoState, title: string, description: string, actor: DemoProfile): DemoState {
+  if (actor.role !== 'developer' || !activeActor(state, actor)) return state
   const cleanTitle = title.trim()
   if (!cleanTitle) return state
   const product: DemoProduct = { id: 'product-' + Date.now(), title: cleanTitle, description: description.trim() || 'New educational product draft.', version: 1, status: 'Draft', updatedAt: new Date().toISOString() }
   return recordDemoActivity({ ...state, products: [product, ...state.products] }, actor.name, 'Product created', cleanTitle)
 }
+
 export function publishDemoProduct(state: DemoState, productId: string, actor: DemoProfile): DemoState {
+  if (actor.role !== 'developer' || !activeActor(state, actor)) return state
   const target = state.products.find(item => item.id === productId && item.status !== 'Published')
   if (!target) return state
   const products = state.products.map(item => item.id === productId ? { ...item, status: 'Published' as const, version: item.version + 1, updatedAt: new Date().toISOString() } : item)
   return recordDemoActivity({ ...state, products }, actor.name, 'Product published', target.title)
 }
+
 export function setDemoUserStatus(state: DemoState, userId: string, status: DemoUser['status'], actor: DemoProfile): DemoState {
+  if (actor.role !== 'admin' || !activeActor(state, actor)) return state
   const target = state.users.find(item => item.id === userId)
-  if (!target) return state
+  if (!target || target.id === actor.userId || target.role === 'Platform Administrator' || target.status === status) return state
   const users = state.users.map(item => item.id === userId ? { ...item, status } : item)
   return recordDemoActivity({ ...state, users }, actor.name, 'User status updated', target.name + ': ' + status)
 }
+
 export function courseFor(state: DemoState, courseId: string): DemoCourse | undefined { return state.courses.find(course => course.id === courseId) }
 export function progressFor(state: DemoState, userId: string, courseId: string): number { return state.courseProgress[userId + ':' + courseId] ?? 0 }
 export function percentage(numerator: number, denominator: number): number { return denominator > 0 ? Math.round((numerator / denominator) * 100) : 0 }
