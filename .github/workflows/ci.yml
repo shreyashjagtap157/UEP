@@ -65,14 +65,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
       - uses: actions/setup-node@v4
         with:
           node-version: '22.16.0'
       - name: Resolve web lock metadata without install scripts
         run: npm --prefix apps/web install --package-lock-only --ignore-scripts
+      - name: Generate Java dependency SBOM
+        run: >-
+          mvn -B -f apps/platform-server/pom.xml
+          org.cyclonedx:cyclonedx-maven-plugin:2.9.3:makeBom
+          -DoutputFormat=json
+          -DoutputName=bom
+          -DincludeTestScope=true
       - name: OSV source dependency scan
         run: >-
           docker run --rm
           -v "$PWD:/src"
           ghcr.io/google/osv-scanner:v2.4.0
-          scan source --recursive /src
+          scan source
+          --lockfile=/src/apps/web/package-lock.json
+          --lockfile=/src/apps/platform-server/target/bom.json
