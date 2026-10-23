@@ -71,7 +71,7 @@ const sectionTitles: Record<Section, string> = {
 }
 
 export function LocalDashboard({ initialRole = 'student', onSignOut }: { initialRole?: DemoRole; onSignOut?: () => void }) {
-  const profile = DEMO_PROFILES.find(item => item.role === initialRole) ?? DEMO_PROFILES[0]
+  const profile = DEMO_PROFILES.find(item => item.role === initialRole) ?? DEMO_PROFILES.find(item => item.role === 'student')!
   const [activeSection, setActiveSection] = useState<Section>('overview')
   const [state, setState] = useState<DemoState>(() => loadDemoState())
   const [notice, setNotice] = useState('')
@@ -252,24 +252,6 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
   </main>
 }
 
-function welcomeFor(role: DemoRole): string {
-  switch (role) {
-    case 'student': return 'Keep your learning moving.'
-    case 'teacher': return 'Teach, review and support your learners.'
-    case 'client': return 'See your organization’s learning activity.'
-    case 'developer': return 'Build and publish educational products.'
-    case 'admin': return 'Monitor and manage the platform.'
-    case 'guardian': return 'Stay informed about your learner.'
-    case 'exam-controller': return 'Coordinate assessment delivery.'
-    case 'finance-admin': return 'Manage finance through authoritative records.'
-    case 'teaching-assistant': return 'Support classes and learner submissions.'
-    case 'evaluator': return 'Review assigned learner work.'
-    case 'mentor': return 'Track learner milestones and follow-ups.'
-    case 'support': return 'Review support-relevant account activity.'
-    case 'auditor': return 'Inspect recorded activity in read-only mode.'
-  }
-  return 'Your role-specific workspace.'
-}
 function welcomeFor(role: DemoRole): string {
   switch (role) {
     case 'student': return 'Keep your learning moving.'
