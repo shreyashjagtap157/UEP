@@ -147,6 +147,20 @@ for required in [
 if 'UploadStatus.EXPIRED' not in text('apps/platform-server/src/main/java/com/universalplatform/content/UploadCleanupWorker.java'):
     errors.append('staging cleanup must retry files left behind by previously expired sessions')
 
+staging_migration = text('apps/platform-server/src/main/resources/db/migration/V030__upload_staging_cleanup_state.sql')
+if 'ADD COLUMN staging_cleaned_at timestamptz' not in staging_migration:
+    errors.append('upload staging cleanup needs a durable staging_cleaned_at marker')
+upload_repository = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadSessionRepository.java')
+for required in [
+    'AndStagingCleanedAtIsNullAndExpiresAtBeforeOrderByExpiresAtAsc',
+    'AndStagingCleanedAtIsNullAndCompletedAtBeforeOrderByCompletedAtAsc',
+]:
+    if required not in upload_repository:
+        errors.append(f'upload cleanup repository is missing filtered cleanup query: {required}')
+staging_service = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadStagingCleanupService.java')
+if 'Propagation.REQUIRES_NEW' not in staging_service or 'staging_cleaned_at = CURRENT_TIMESTAMP' not in staging_service:
+    errors.append('committed staging cleanup must persist its marker in a new transaction')
+
 # Tenant isolation gate: require tenant-leading indexes for the high-frequency 0.15 query paths.
 required_indexes = {
     "ix_tenant_membership_tenant_status", "ix_enrollment_tenant_status_started",

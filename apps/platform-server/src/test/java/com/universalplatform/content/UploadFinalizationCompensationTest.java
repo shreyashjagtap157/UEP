@@ -53,6 +53,7 @@ class UploadFinalizationCompensationTest {
     @Mock AuditService audit;
     @Mock MalwareScanner malwareScanner;
     @Mock StorageCleanupOutboxService cleanupOutbox;
+    @Mock UploadStagingCleanupService stagingCleanup;
     @Mock StorageAdapter adapter;
 
     private UploadService service;
@@ -69,7 +70,7 @@ class UploadFinalizationCompensationTest {
         session.status = UploadStatus.UPLOADING;
 
         service = new UploadService(tenants, actors, auth, uploads, objects, adapters, audit,
-                malwareScanner, cleanupOutbox, tempDir.toString(), 1024);
+                malwareScanner, cleanupOutbox, stagingCleanup, tempDir.toString(), 1024);
 
         when(tenants.requireTenantId()).thenReturn(tenantId);
         when(actors.requireSubject()).thenReturn(actor);
@@ -99,6 +100,7 @@ class UploadFinalizationCompensationTest {
 
         verify(adapter).delete("remote-locator");
         verify(cleanupOutbox, never()).enqueue(any(), any(), anyString(), anyString(), any());
+        verify(stagingCleanup, never()).markCleaned(any(), any());
         assertThat(Files.exists(stagingFile)).isTrue();
     }
 
@@ -124,6 +126,7 @@ class UploadFinalizationCompensationTest {
 
         verify(adapter, never()).delete("remote-locator");
         verify(cleanupOutbox, never()).enqueue(any(), any(), anyString(), anyString(), any());
+        verify(stagingCleanup).markCleaned(tenantId, uploadId);
         assertThat(Files.exists(stagingFile)).isFalse();
         assertThat(session.status).isEqualTo(UploadStatus.COMPLETED);
     }

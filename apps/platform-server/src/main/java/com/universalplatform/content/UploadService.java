@@ -45,6 +45,7 @@ class UploadService {
     private final AuditService audit;
     private final MalwareScanner malwareScanner;
     private final StorageCleanupOutboxService storageCleanupOutbox;
+    private final UploadStagingCleanupService uploadStagingCleanup;
     private final Path staging;
     private final long maxUploadBytes;
     private final Clock clock = Clock.systemUTC();
@@ -58,6 +59,7 @@ class UploadService {
                   AuditService audit,
                   MalwareScanner malwareScanner,
                   StorageCleanupOutboxService storageCleanupOutbox,
+                  UploadStagingCleanupService uploadStagingCleanup,
                   @Value("${platform.storage.staging.root:./var/uploads}") String staging,
                   @Value("${platform.storage.max-upload-bytes:5368709120}") long maxUploadBytes) {
         this.tenants = tenants;
@@ -69,6 +71,7 @@ class UploadService {
         this.audit = audit;
         this.malwareScanner = malwareScanner;
         this.storageCleanupOutbox = storageCleanupOutbox;
+        this.uploadStagingCleanup = uploadStagingCleanup;
         this.staging = Path.of(staging).toAbsolutePath().normalize();
         this.maxUploadBytes = maxUploadBytes;
     }
@@ -181,7 +184,7 @@ class UploadService {
         }
         // Compensate the external side effect if metadata/audit persistence rolls back.
         // Keep the staging file until commit so the caller can safely retry after a rollback.
-        registerProviderObjectCompensation(tenant, u.provider, locator, key, path, adapter);
+        registerProviderObjectCompensation(tenant, u.id, u.provider, locator, key, path, adapter);
         StorageObject o = objects.save(new StorageObject(UUID.randomUUID(), tenant, u.provider, locator, key,
                 u.contentType, u.expectedBytes, digest, scan, clock.instant()));
         u.status = UploadStatus.COMPLETED;
@@ -191,7 +194,7 @@ class UploadService {
         return view(o);
     }
 
-    private void registerProviderObjectCompensation(UUID tenantId, StorageProviderType provider,
+    private void registerProviderObjectCompensation(UUID tenantId, UUID uploadId, StorageProviderType provider,
                                                     String locator, String objectKey, Path stagingPath,
                                                     StorageAdapter adapter) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()
@@ -210,7 +213,8 @@ class UploadService {
                 if (completionStatus == STATUS_COMMITTED) {
                     try {
                         Files.deleteIfExists(stagingPath);
-                    } catch (IOException cleanupFailure) {
+                        uploadStagingCleanup.markCleaned(tenantId, uploadId);
+                    } catch (Exception cleanupFailure) {
                         // Completed sessions retain their staging path so the cleanup worker can retry.
                         log.warn("Could not remove committed upload staging file for tenant {} object key {}",
                                 tenantId, objectKey, cleanupFailure);

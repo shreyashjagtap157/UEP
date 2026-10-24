@@ -40,9 +40,10 @@ class UploadCleanupWorker {
         }
     }
 
-    private static void deleteStaging(UploadSession upload, String purpose) {
+    private void deleteStaging(UploadSession upload, String purpose) {
         try {
             Files.deleteIfExists(Path.of(upload.stagingPath));
+            upload.stagingCleanedAt = clock.instant();
         } catch (IOException failure) {
             log.warn("Could not delete staging file for tenant {} {} {}", upload.tenantId, purpose, upload.id, failure);
         }
