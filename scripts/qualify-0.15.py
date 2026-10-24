@@ -157,6 +157,30 @@ if not (ROOT / 'apps/platform-server/src/main/java/com/universalplatform/content
 if 'malwareRejectionCommitsTerminalAbortAndRemovesStagingFile' not in text('apps/platform-server/src/test/java/com/universalplatform/content/UploadFinalizationCompensationTest.java'):
     errors.append('missing malware rejection terminal-state regression test')
 
+# Manual payments represent operator-attested external settlement, not an implicit successful gateway.
+manual_provider = text('apps/platform-server/src/main/java/com/universalplatform/finance/ManualPaymentProvider.java')
+finance_service = text('apps/platform-server/src/main/java/com/universalplatform/finance/FinanceService.java')
+finance_controller = text('apps/platform-server/src/main/java/com/universalplatform/finance/FinanceController.java')
+payment_migration = text('apps/platform-server/src/main/resources/db/migration/V031__prevent_duplicate_manual_settlement_references.sql')
+finance_ui = text('apps/web/src/finance/FinanceWorkspace.tsx')
+for required in [
+    'A valid external settlement reference is required',
+    'Operator-verified manual settlement recorded',
+    'not automated',
+]:
+    if required not in manual_provider:
+        errors.append(f'MANUAL payment provider is missing an explicit settlement/refund guard: {required}')
+if 'settlementReference' not in finance_service or 'Confirm that the funds have settled' not in finance_service:
+    errors.append('finance service must require explicit settlement reference and confirmation')
+if '@NotBlank @Size(max=120) String settlementReference' not in finance_controller or '@jakarta.validation.constraints.AssertTrue Boolean confirmSettlement' not in finance_controller:
+    errors.append('finance payment request must validate settlement evidence and confirmation')
+if 'uq_payment_tenant_provider_reference' not in payment_migration:
+    errors.append('duplicate external settlement references must be rejected per tenant/provider')
+if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/finance/ManualPaymentProviderTest.java').exists():
+    errors.append('missing manual payment provider regression tests')
+if 'No online payment gateway was contacted.' not in finance_ui:
+    errors.append('finance UI must clearly identify manual settlement and avoid implying gateway capture')
+
 # Upload provider side effects must be compensated after rollback, with durable retry when delete fails.
 storage_cleanup_migration = text('apps/platform-server/src/main/resources/db/migration/V029__storage_cleanup_outbox.sql')
 for required in [

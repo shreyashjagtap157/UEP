@@ -2096,10 +2096,10 @@ paths:
       responses: {'200': {description: Issued, content: {application/json: {schema: {$ref: '#/components/schemas/InvoiceView'}}}}}
   /finance/invoices/{id}/payments:
     post:
-      summary: Capture an invoice payment
+      summary: Record an operator-verified manual settlement for an invoice (no online gateway is called)
       parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/PayRequest'}}}}
-      responses: {'200': {description: Captured, content: {application/json: {schema: {$ref: '#/components/schemas/PaymentView'}}}}}
+      responses: {'200': {description: Manual settlement recorded and receipt issued, content: {application/json: {schema: {$ref: '#/components/schemas/PaymentView'}}}}}
   /commercial/subscription:
     get:
       summary: Get tenant subscription
@@ -2727,8 +2727,12 @@ components:
       properties: {id: {type: string, format: uuid}, invoiceId: {type: string, format: uuid}, amount: {type: number}, currency: {type: string}, provider: {type: string}, providerReference: {type: string}, status: {type: string}, capturedAt: {type: string, format: date-time}, receipt: {type: object}}
     PayRequest:
       type: object
-      required: [amount, currency]
-      properties: {amount: {type: number}, currency: {type: string}}
+      required: [amount, currency, settlementReference, confirmSettlement]
+      properties:
+        amount: {type: number, minimum: 0.01}
+        currency: {type: string, pattern: '^[A-Za-z]{3}$'}
+        settlementReference: {type: string, minLength: 1, maxLength: 120, description: Externally issued settlement reference entered by the authorized finance operator}
+        confirmSettlement: {type: boolean, enum: [true], description: Explicit operator attestation that funds have settled}
     VersionRequest:
       type: object
       required: [expectedVersion]

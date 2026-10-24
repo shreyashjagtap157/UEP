@@ -8,8 +8,8 @@ import jakarta.validation.Valid; import jakarta.validation.constraints.*; import
  @GetMapping("/invoices/{id}") FinanceService.InvoiceView invoice(@PathVariable UUID id){return s.getInvoice(id);}
  @PostMapping("/invoices") FinanceService.InvoiceView create(@Valid @RequestBody CreateInvoiceRequest r){return s.createInvoice(r.membershipId,r.totalAmount,r.currency,r.dueOn,r.installments);}
  @PostMapping("/invoices/{id}/issue") FinanceService.InvoiceView issue(@PathVariable UUID id,@Valid @RequestBody VersionRequest r){return s.issue(id,r.expectedVersion);}
- @PostMapping("/invoices/{id}/payments") FinanceService.PaymentView pay(@PathVariable UUID id,@Valid @RequestBody PayRequest r){return s.pay(id,r.amount,r.currency);}
+ @PostMapping("/invoices/{id}/payments") FinanceService.PaymentView pay(@PathVariable UUID id,@Valid @RequestBody PayRequest r){return s.pay(id,r.amount,r.currency,r.settlementReference,r.confirmSettlement);}
  record FeeRequest(@NotBlank String name,@NotNull @DecimalMin("0.00") BigDecimal amount,@NotBlank @Pattern(regexp="[A-Za-z]{3}") String currency,@NotNull FeeStatus status,long expectedVersion){}
  record CreateInvoiceRequest(@NotNull UUID membershipId,@NotNull @DecimalMin("0.01") BigDecimal totalAmount,@NotBlank @Pattern(regexp="[A-Za-z]{3}") String currency,@NotNull LocalDate dueOn,List<FinanceService.InstallmentRequest> installments){}
- record VersionRequest(long expectedVersion){} record PayRequest(@NotNull @DecimalMin("0.01") BigDecimal amount,@NotBlank @Pattern(regexp="[A-Za-z]{3}") String currency){}
+ record VersionRequest(long expectedVersion){} record PayRequest(@NotNull @DecimalMin("0.01") BigDecimal amount,@NotBlank @Pattern(regexp="[A-Za-z]{3}") String currency,@NotBlank @Size(max=120) String settlementReference,@NotNull @jakarta.validation.constraints.AssertTrue Boolean confirmSettlement){}
 }

@@ -877,7 +877,7 @@ export const createFinanceFee = (input: { name: string; amount: number; currency
 export const fetchFinanceInvoices = () => request<FinanceInvoicePage>('/api/v1/finance/invoices?size=100')
 export const createFinanceInvoice = (input: { membershipId: string; totalAmount: number; currency: string; dueOn: string }) => request<FinanceInvoice>('/api/v1/finance/invoices', { method: 'POST', body: JSON.stringify(input) })
 export const issueFinanceInvoice = (id: string, expectedVersion: number) => request<FinanceInvoice>(`/api/v1/finance/invoices/${id}/issue`, { method: 'POST', body: JSON.stringify({ expectedVersion }) })
-export const recordFinancePayment = (id: string, input: { amount: number; currency: string }) => request('/api/v1/finance/invoices/' + id + '/payments', { method: 'POST', body: JSON.stringify(input) })
+export const recordFinancePayment = (id: string, input: { amount: number; currency: string; settlementReference: string; confirmSettlement: true }) => request('/api/v1/finance/invoices/' + id + '/payments', { method: 'POST', body: JSON.stringify(input) })
 
 
 export interface AnalyticsOverview {
