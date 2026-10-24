@@ -1,7 +1,7 @@
 package com.universalplatform.security;
 import jakarta.servlet.*; import jakarta.servlet.http.*; import java.io.IOException; import java.util.*; import org.springframework.security.core.context.SecurityContextHolder; import org.springframework.stereotype.Component; import org.springframework.web.filter.OncePerRequestFilter;
 @Component
-public final class ApiCredentialFilter extends OncePerRequestFilter {
+public class ApiCredentialFilter extends OncePerRequestFilter {
     private final ApiCredentialService credentials;
     public ApiCredentialFilter(ApiCredentialService credentials){this.credentials=credentials;}
     @Override protected void doFilterInternal(HttpServletRequest request,HttpServletResponse response,FilterChain chain)throws ServletException,IOException{
