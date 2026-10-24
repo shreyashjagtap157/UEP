@@ -197,6 +197,23 @@ if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/finance
 if 'No online payment gateway was contacted.' not in finance_ui:
     errors.append('finance UI must clearly identify manual settlement and avoid implying gateway capture')
 
+# A provider-declared decline must leave a committed FAILED payment row, not roll the whole transaction back.
+finance_service_failure = text('apps/platform-server/src/main/java/com/universalplatform/finance/FinanceService.java')
+for required in [
+    '@Transactional(noRollbackFor = PaymentProcessingException.class)',
+    'throw new PaymentProcessingException("Payment authorization failed")',
+    'throw new PaymentProcessingException("Payment capture failed")',
+]:
+    if required not in finance_service_failure:
+        errors.append(f'finance provider failure handling is missing durable failure-state contract: {required}')
+for rel in [
+    'apps/platform-server/src/main/java/com/universalplatform/finance/PaymentProcessingException.java',
+    'apps/platform-server/src/main/java/com/universalplatform/finance/FinanceApiExceptionHandler.java',
+    'apps/platform-server/src/test/java/com/universalplatform/finance/FinancePaymentFailureStateTest.java',
+]:
+    if not (ROOT / rel).exists():
+        errors.append(f'missing durable payment failure-state component/test: {rel}')
+
 # Upload provider side effects must be compensated after rollback, with durable retry when delete fails.
 storage_cleanup_migration = text('apps/platform-server/src/main/resources/db/migration/V029__storage_cleanup_outbox.sql')
 for required in [
