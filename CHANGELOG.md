@@ -4,6 +4,23 @@
 
 Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification. (Tracked by the milestone gate in `docs/QUALIFICATION_0.15.md`.)
 
+## 0.15.0.0-SNAPSHOT — 2026-10-24
+
+### Added
+- local, browser-only demonstration workspaces for student, teacher, institution client, product developer, platform administrator, guardian, exam controller, finance administrator, teaching assistant, evaluator, mentor, support, and auditor personas;
+- shared local demo state with same-tab/cross-tab updates and a reset-to-seed workflow;
+- cross-persona assignment submission, course-scoped grading, attendance updates, product publishing, and synthetic-data reporting;
+- native Node test coverage for assignment/grade propagation, attendance persistence, persona submission scope, rejected mutations, and dataset reset.
+
+### Fixed
+- corrected the pending notification-outbox index to use columns actually present in the schema;
+- added forward-only V026/V027 migrations for the live-class batch scope and schedule recurrence column type expected by JPA;
+- removed the API-credential authorization package cycle through a narrow security-owned authorization port;
+- upgraded affected Maven dependency baselines and made OSV scan the resolved Maven SBOM plus the npm lockfile rather than relying on dependency re-resolution of the POM.
+
+### Demo boundary
+- local demonstration accounts use synthetic identities and browser storage only; profile selection is not production authentication, and backend authorization remains authoritative for production data and operations.
+
 ## 0.15.0.0-SNAPSHOT - 2026-09-02
 
 ### Added
