@@ -157,6 +157,22 @@ if not (ROOT / 'apps/platform-server/src/main/java/com/universalplatform/content
 if 'malwareRejectionCommitsTerminalAbortAndRemovesStagingFile' not in text('apps/platform-server/src/test/java/com/universalplatform/content/UploadFinalizationCompensationTest.java'):
     errors.append('missing malware rejection terminal-state regression test')
 
+# Payment recording uses its dedicated permission separately from general finance management.
+finance_service_for_auth = text('apps/platform-server/src/main/java/com/universalplatform/finance/FinanceService.java')
+finance_ui_for_auth = text('apps/web/src/finance/FinanceWorkspace.tsx')
+if '@Transactional PaymentView pay(UUID invoiceId,BigDecimal amount,String currency,String settlementReference,boolean settlementConfirmed){auth.require(PermissionKey.PAYMENTS_MANAGE);' not in finance_service_for_auth:
+    errors.append('recording a payment must require PAYMENTS_MANAGE, not just FINANCE_MANAGE')
+if "const canManagePayments = me.permissions.includes('PAYMENTS_MANAGE')" not in finance_ui_for_auth:
+    errors.append('finance UI must gate payment recording on PAYMENTS_MANAGE')
+
+if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/finance/FinancePaymentAuthorizationIntegrationTest.java').exists():
+    errors.append('missing finance-vs-payment permission separation regression test')
+finance_openapi = text('docs/api/openapi.yaml')
+if 'required: [amount, currency, settlementReference, confirmSettlement]' not in finance_openapi:
+    errors.append('OpenAPI must require settlement reference and confirmation for manual payments')
+if 'Record an operator-verified manual settlement' not in finance_openapi:
+    errors.append('OpenAPI must describe the manual settlement behavior rather than an online gateway capture')
+
 # Manual payments represent operator-attested external settlement, not an implicit successful gateway.
 manual_provider = text('apps/platform-server/src/main/java/com/universalplatform/finance/ManualPaymentProvider.java')
 finance_service = text('apps/platform-server/src/main/java/com/universalplatform/finance/FinanceService.java')
