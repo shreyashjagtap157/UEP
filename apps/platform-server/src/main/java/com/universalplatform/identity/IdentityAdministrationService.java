@@ -3,6 +3,7 @@ package com.universalplatform.identity;
 import com.universalplatform.audit.AuditService;
 import com.universalplatform.security.ActorContext;
 import com.universalplatform.security.TenantContext;
+import com.universalplatform.security.TenantMutationLock;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -33,13 +34,15 @@ class IdentityAdministrationService {
     private final RoleAssignmentRepository assignments;
     private final DefaultRoleSeeder roleSeeder;
     private final OwnershipGuard ownershipGuard;
+    private final TenantMutationLock tenantMutationLock;
     private final AuditService audit;
     private final Clock clock = Clock.systemUTC();
 
     IdentityAdministrationService(TenantContext tenantContext, ActorContext actorContext, AuthorizationService authorization,
                                   IdentitySecurityService identitySecurity, UserAccountRepository users, TenantMembershipRepository memberships,
                                   RoleDefinitionRepository roles, RoleAssignmentRepository assignments,
-                                  DefaultRoleSeeder roleSeeder, OwnershipGuard ownershipGuard, AuditService audit) {
+                                  DefaultRoleSeeder roleSeeder, OwnershipGuard ownershipGuard,
+                                  TenantMutationLock tenantMutationLock, AuditService audit) {
         this.tenantContext = tenantContext;
         this.actorContext = actorContext;
         this.authorization = authorization;
@@ -50,6 +53,7 @@ class IdentityAdministrationService {
         this.assignments = assignments;
         this.roleSeeder = roleSeeder;
         this.ownershipGuard = ownershipGuard;
+        this.tenantMutationLock = tenantMutationLock;
         this.audit = audit;
     }
 
@@ -59,6 +63,7 @@ class IdentityAdministrationService {
             throw new IdentityAccessDeniedException("Platform super administrator role is required for tenant bootstrap");
         }
         UUID tenantId = tenantContext.requireTenantId();
+        tenantMutationLock.lockTenant(tenantId);
         if (memberships.countByTenantId(tenantId) != 0) {
             throw new IdentityConflictException("Tenant identity bootstrap is already complete");
         }
