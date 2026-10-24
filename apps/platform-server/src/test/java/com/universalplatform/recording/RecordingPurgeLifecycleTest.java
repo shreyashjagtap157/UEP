@@ -3,6 +3,7 @@ package com.universalplatform.recording;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -84,8 +85,8 @@ class RecordingPurgeLifecycleTest {
 
         when(recordings.findByTenantIdAndId(tenantId, recordingId)).thenReturn(Optional.of(recording));
         when(policies.findById(tenantId)).thenReturn(Optional.of(policy));
-        when(assets.findAllByTenantIdAndRecordingId(tenantId, recordingId)).thenReturn(List.of(master, thumbnail));
-        when(adapters.require(StorageProviderType.LOCAL)).thenReturn(localStorage);
+        lenient().when(assets.findAllByTenantIdAndRecordingId(tenantId, recordingId)).thenReturn(List.of(master, thumbnail));
+        lenient().when(adapters.require(StorageProviderType.LOCAL)).thenReturn(localStorage);
     }
 
     @Test
