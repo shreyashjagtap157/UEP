@@ -141,16 +141,19 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
   }
 
   function renderOverview(): ReactNode {
+    const currentUser = state.users.find(user => user.id === profile.userId && user.status === 'Active')
     const activeLearners = state.users.filter(user => user.role === 'Student' && user.status === 'Active'
-      && (profile.role !== 'client' || user.organization === 'Northstar Learning Institute'))
-    const assignedCourseIds = new Set(state.users.find(user => user.id === profile.userId)?.courseIds ?? [])
+      && (profile.role !== 'client' || user.organization === currentUser?.organization))
+    const assignedCourseIds = new Set(currentUser?.courseIds ?? [])
     const studentId = ['guardian', 'mentor'].includes(profile.role) ? 'student-asha' : profile.userId
-    const ownSubmissions = state.submissions.filter(item => item.studentId === profile.userId)
-    const linkedSubmissions = state.submissions.filter(item => item.studentId === studentId
-      && (profile.role !== 'mentor' || assignedCourseIds.has(item.courseId)))
-    const staffRoles = ['teacher', 'teaching-assistant', 'evaluator']
-    const pendingSubmissions = state.submissions.filter(item => item.status === 'Submitted'
-      && (!staffRoles.includes(profile.role) || assignedCourseIds.has(item.courseId)))
+    const scopedSubmissions = submissionsForProfile(state, profile)
+    const ownSubmissions = scopedSubmissions.filter(item => item.studentId === profile.userId)
+    const linkedSubmissions = scopedSubmissions.filter(item => item.studentId === studentId)
+    const pendingSubmissions = scopedSubmissions.filter(item => item.status === 'Submitted')
+    const learnersWithWork = new Set(scopedSubmissions.map(item => item.studentId))
+    const scopedExams = state.schedule.filter(item => item.kind === 'Exam'
+      && item.status === 'Scheduled' && item.participantIds.includes(profile.userId))
+    const submittedExamWork = scopedSubmissions.filter(item => item.status !== 'Assigned')
     const publishedProducts = state.products.filter(item => item.status === 'Published')
     const studentCourses = (state.users.find(user => user.id === studentId)?.courseIds ?? [])
       .filter(id => profile.role !== 'mentor' || assignedCourseIds.has(id))
@@ -172,7 +175,7 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       case 'evaluator':
         metrics = [
           { label: 'Assigned courses', value: String(visibleCourses.length), detail: 'Courses linked to this staff profile' },
-          { label: 'Active learners', value: String(new Set(state.submissions.map(item => item.studentId)).size), detail: 'Learners with coursework records' },
+          { label: 'Active learners', value: String(learnersWithWork.size), detail: 'Learners with coursework in assigned courses' },
           { label: 'Awaiting grading', value: String(pendingSubmissions.length), detail: 'Submitted work not yet graded' },
           { label: 'Published products', value: String(publishedProducts.length), detail: 'Saved catalog records' },
         ]; break
@@ -206,8 +209,8 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
         ]; break
       case 'exam-controller':
         metrics = [
-          { label: 'Scheduled exams', value: String(state.schedule.filter(item => item.kind === 'Exam' && item.status === 'Scheduled').length), detail: 'Scheduled assessment events' },
-          { label: 'Submissions received', value: String(state.submissions.filter(item => item.status !== 'Assigned').length), detail: 'Submitted or graded work' },
+          { label: 'Scheduled exams', value: String(scopedExams.length), detail: 'Scheduled exams assigned to this exam controller' },
+          { label: 'Submissions received', value: String(submittedExamWork.length), detail: 'Submitted or graded work in assigned exam courses' },
           { label: 'Pending grading', value: String(pendingSubmissions.length), detail: 'Awaiting a published result' },
         ]; break
       case 'finance-admin':
@@ -215,7 +218,7 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       case 'mentor':
         metrics = [{ label: 'Linked learners', value: '1', detail: 'Seeded demo mentoring relationship' }, { label: 'Learner progress', value: averageProgress + '%', detail: 'Computed from linked learner course records' }, { label: 'Unfinished work', value: String(linkedSubmissions.filter(item => item.status !== 'Graded').length), detail: 'Linked learner assignments' }]; break
       case 'support':
-        metrics = [{ label: 'Recent activity events', value: String(state.activity.length), detail: 'Locally saved demo activity' }, { label: 'Accounts in dataset', value: String(state.users.length), detail: 'Synthetic test identities only' }, { label: 'Support service', value: 'Not connected', detail: 'No external support system is contacted.' }]; break
+        metrics = [{ label: 'Recent activity events', value: String(activityForProfile(state, profile).length), detail: 'Events visible to this support profile' }, { label: 'Platform accounts', value: String(state.users.filter(user => user.organization === 'UEP Platform').length), detail: 'Synthetic platform-only identities' }, { label: 'Support service', value: 'Not connected', detail: 'No external support system is contacted.' }]; break
       case 'auditor':
         metrics = [{ label: 'Recorded activity events', value: String(state.activity.length), detail: 'Local demonstration history' }, { label: 'Data source', value: 'Browser storage', detail: 'Not the production audit service.' }]; break
       default: metrics = [{ label: 'Workspace', value: profile.label, detail: 'Role-specific local workspace' }]
