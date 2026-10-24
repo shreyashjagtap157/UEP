@@ -243,9 +243,19 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       case 'schedule': return <ScheduleView state={state} profile={profile} />
       case 'assignments':
       case 'grading':
-      case 'submissions': return <section className="local-panel"><PanelHeading eyebrow="Learning workflow" title={sectionTitles[activeSection]} detail="Submission and grade changes persist across separate demo sign-ins." /><SubmissionList state={state} profile={profile} submissions={state.submissions.filter(item => profile.role === 'student' ? item.studentId === profile.userId : profile.role === 'guardian' ? item.studentId === 'student-asha' : item.status === 'Submitted' || item.status === 'Graded')} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} /></section>
+      case 'submissions': {
+        const permitted = submissionsForProfile(state, profile)
+        const visible = ['student', 'guardian', 'mentor'].includes(profile.role)
+          ? permitted
+          : permitted.filter(item => item.status === 'Submitted' || item.status === 'Graded')
+        return <section className="local-panel"><PanelHeading eyebrow="Learning workflow" title={sectionTitles[activeSection]} detail="Only records inside this demo profile's learner/course scope are displayed." /><SubmissionList state={state} profile={profile} submissions={visible} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} /></section>
+      }
       case 'results':
-      case 'progress': return <section className="local-panel"><PanelHeading eyebrow="Learning outcomes" title={sectionTitles[activeSection]} detail="Only the current learner or linked learner results are shown." /><CourseList state={state} courses={visibleCourses} userId={profile.role === 'guardian' ? 'student-asha' : profile.userId} onOpen={() => setNotice('Progress reflects the saved learner-course record.')} /><SubmissionList state={state} profile={profile} submissions={state.submissions.filter(item => item.status === 'Graded' && (profile.role === 'guardian' ? item.studentId === 'student-asha' : profile.role === 'student' ? item.studentId === profile.userId : true))} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} readOnly /></section>
+      case 'progress': {
+        const linkedLearnerId = ['guardian', 'mentor'].includes(profile.role) ? 'student-asha' : profile.userId
+        const resultItems = submissionsForProfile(state, profile).filter(item => item.status === 'Graded')
+        return <section className="local-panel"><PanelHeading eyebrow="Learning outcomes" title={sectionTitles[activeSection]} detail="Only the current learner or explicitly linked learner's authorized results are shown." /><CourseList state={state} courses={visibleCourses} userId={linkedLearnerId} onOpen={() => setNotice('Progress reflects the saved learner-course record.')} /><SubmissionList state={state} profile={profile} submissions={resultItems} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} readOnly /></section>
+      }
       case 'attendance': return <AttendanceView state={state} profile={profile} onUpdate={handleAttendanceUpdate} />
       case 'learners':
       case 'people': return <PeopleView state={state} profile={profile} onStatus={(id, status) => commit(setDemoUserStatus(state, id, status, profile), 'Membership status saved to the demo dataset.')} />
@@ -253,7 +263,11 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       case 'releases': return <section className="local-panel"><PanelHeading eyebrow="Product lifecycle" title={sectionTitles[activeSection]} detail="Draft creation and publishing update the browser-persisted product catalog." /><button className="primary-button" onClick={() => setActiveSection('editor')}>Create product draft</button><ProductList products={state.products} onPublish={handlePublishProduct} /></section>
       case 'editor': return <section className="local-panel"><PanelHeading eyebrow="Product authoring" title="Create an educational product" detail="Save a draft, then publish it from My Products." /><form className="local-form" onSubmit={handleCreateProduct}><label>Product title<input required maxLength={120} value={productTitle} onChange={event => setProductTitle(event.target.value)} placeholder="e.g. Applied Data Engineering" /></label><label>Description<textarea rows={4} value={productDescription} onChange={event => setProductDescription(event.target.value)} placeholder="Outcomes, intended audience and scope" /></label><button className="primary-button" type="submit">Save draft</button></form></section>
       case 'content': return <section className="local-panel"><PanelHeading eyebrow="Teaching resources" title="Learning content" detail="Published course records and their lesson counts." /><CourseList state={state} courses={visibleCourses} userId={profile.userId} onOpen={() => setNotice('Lesson selected from the local demo course.')} /></section>
-      case 'assessments': return <section className="local-panel"><PanelHeading eyebrow="Assessment center" title="Assessment schedule and readiness" detail="Events come from saved class and exam records." /><ScheduleView state={state} profile={profile} examsOnly /><SubmissionList state={state} profile={profile} submissions={state.submissions} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} readOnly={profile.role === 'student' || profile.role === 'guardian'} /></section>
+      case 'assessments': {
+        const permitted = submissionsForProfile(state, profile)
+        const examsOnly = profile.role === 'exam-controller'
+        return <section className="local-panel"><PanelHeading eyebrow="Assessment center" title="Assessment schedule and readiness" detail="Events and submissions are restricted to this persona's assigned learner/course scope." /><ScheduleView state={state} profile={profile} examsOnly={examsOnly} /><SubmissionList state={state} profile={profile} submissions={permitted} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} readOnly={profile.role === 'student' || profile.role === 'guardian' || profile.role === 'mentor'} /></section>
+      }
       case 'analytics':
       case 'reports':
         if (profile.role === 'finance-admin') return <section className="local-panel"><PanelHeading eyebrow="Finance boundary" title="Finance reports" detail="Financial reports require authoritative backend records." /><div className="local-honest-state"><strong>Finance API not connected in offline demo mode</strong><p>No invoice totals, payment states or account balances are fabricated.</p></div></section>
@@ -272,7 +286,10 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       case 'settings': return <section className="local-panel"><PanelHeading eyebrow="Workspace configuration" title="Configuration" detail="Local-only controls for this demonstration profile." /><dl className="local-definition-list"><dt>Name</dt><dd>{profile.name}</dd><dt>Role</dt><dd>{profile.label}</dd><dt>Email</dt><dd>{profile.email}</dd><dt>Data environment</dt><dd>Browser-persisted sample data</dd><dt>Identity provider</dt><dd>Not connected</dd></dl>{profile.role === 'admin' && <div className="local-reset-zone"><h3>Reset demo data</h3><p>Restore seed records and clear saved workflow changes across browser demo sign-ins.</p><button className="text-button" type="button" onClick={handleResetDemo}>Reset to seed data</button></div>}</section>
       case 'account':
       case 'profile': return <section className="local-panel"><PanelHeading eyebrow="Workspace details" title={sectionTitles[activeSection]} detail="Current signed-in demo identity." /><dl className="local-definition-list"><dt>Name</dt><dd>{profile.name}</dd><dt>Role</dt><dd>{profile.label}</dd><dt>Email</dt><dd>{profile.email}</dd><dt>Data environment</dt><dd>Browser-persisted sample data</dd><dt>Identity provider</dt><dd>Not connected</dd></dl></section>
-      case 'reviews': return <section className="local-panel"><PanelHeading eyebrow="Review workflow" title="Academic reviews" detail="Submitted and graded records available for this demo." /><SubmissionList state={state} profile={profile} submissions={state.submissions.filter(item => item.status !== 'Assigned')} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} readOnly={profile.role !== 'teacher' && profile.role !== 'evaluator'} /></section>
+      case 'reviews': {
+        const permitted = submissionsForProfile(state, profile).filter(item => item.status !== 'Assigned')
+        return <section className="local-panel"><PanelHeading eyebrow="Review workflow" title="Academic reviews" detail="Only submitted and graded work in this persona's scope is included." /><SubmissionList state={state} profile={profile} submissions={permitted} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} readOnly={profile.role !== 'teacher' && profile.role !== 'evaluator'} /></section>
+      }
       default: return <section className="local-panel"><PanelHeading eyebrow={profile.label} title={sectionTitles[activeSection]} detail="Restricted to this signed-in demo persona." /><p>Select an available workspace item from your navigation.</p></section>
     }
   }
@@ -283,6 +300,31 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       <section className="local-main"><header className="local-workspace-header"><div><p className="eyebrow">{profile.label} workspace</p><h2>{sectionTitles[activeSection]}</h2></div><span className="local-mode-badge">Saved in this browser</span></header>{notice && <div className="local-notice" role="status"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss message">×</button></div>}{renderSection()}</section>
     </div>
   </main>
+}
+
+function submissionsForProfile(state: DemoState, profile: DemoProfile): DemoSubmission[] {
+  const currentUser = state.users.find(user => user.id === profile.userId && user.status === 'Active')
+  if (!currentUser) return []
+  if (profile.role === 'student') return state.submissions.filter(item => item.studentId === profile.userId)
+  if (profile.role === 'guardian') return state.submissions.filter(item => item.studentId === 'student-asha')
+  if (profile.role === 'mentor') {
+    const assigned = new Set(currentUser.courseIds)
+    return state.submissions.filter(item => item.studentId === 'student-asha' && assigned.has(item.courseId))
+  }
+  if (['teacher', 'teaching-assistant', 'evaluator'].includes(profile.role)) {
+    const assigned = new Set(currentUser.courseIds)
+    return state.submissions.filter(item => assigned.has(item.courseId))
+  }
+  if (profile.role === 'exam-controller') {
+    const examCourseIds = new Set(state.schedule.filter(item => item.kind === 'Exam' && item.participantIds.includes(profile.userId)).map(item => item.courseId))
+    return state.submissions.filter(item => examCourseIds.has(item.courseId))
+  }
+  if (profile.role === 'client') {
+    const learners = new Set(state.users.filter(user => user.role === 'Student' && user.status === 'Active' && user.organization === currentUser.organization).map(user => user.id))
+    return state.submissions.filter(item => learners.has(item.studentId))
+  }
+  if (profile.role === 'admin') return state.submissions
+  return []
 }
 
 function welcomeFor(role: DemoRole): string {
@@ -366,11 +408,20 @@ function PeopleView({ state, profile, onStatus }: { state: DemoState; profile: D
   return <section className="local-panel"><PanelHeading eyebrow="People directory" title={['guardian', 'mentor'].includes(profile.role) ? 'Linked learner' : 'Authorized directory'} detail={users.length + ' records in this profile scope'} /><div className="local-record-list">{users.map(user => <article className="local-record" key={user.id}><div className="local-record-main"><strong>{user.name}</strong><p>{user.role} · {user.organization}</p>{redactDetails ? <small>Contact and course details are redacted for support lookup.</small> : <small>{user.email} · {user.courseIds.length} course associations</small>}</div><div className="local-record-side"><span className={'local-status status-' + user.status.toLowerCase()}>{user.status}</span>{canManage && user.id !== profile.userId && <button className="text-button" onClick={() => onStatus(user.id, user.status === 'Active' ? 'Suspended' : 'Active')}>{user.status === 'Active' ? 'Suspend demo user' : 'Reactivate demo user'}</button>}</div></article>)}</div>{!canManage && <p className="local-data-notice">Contact details are synthetic demo identities. Production directory access is enforced by the backend.</p>}</section>
 }
 function AnalyticsView({ state, profile }: { state: DemoState; profile: DemoProfile }) {
-  const students = state.users.filter(user => user.role === 'Student' && (profile.role !== 'client' || user.organization === 'Northstar Learning Institute'))
-  const courseIds = new Set(students.flatMap(student => student.courseIds))
-  const courses = state.courses.filter(course => profile.role !== 'client' || courseIds.has(course.id))
-  const values = students.flatMap(student => student.courseIds.filter(courseId => courses.some(course => course.id === courseId)).map(courseId => progressFor(state, student.id, courseId)))
-  const pending = state.submissions.filter(item => item.status === 'Submitted' && (profile.role !== 'client' || students.some(student => student.id === item.studentId))).length
+  const actor = state.users.find(user => user.id === profile.userId)
+  const assignedCourseIds = new Set(actor?.courseIds ?? [])
+  const linkedLearnerId = profile.role === 'mentor' ? 'student-asha' : null
+  const organization = actor?.organization
+  const students = state.users.filter(user => user.role === 'Student' && user.status === 'Active'
+    && (profile.role !== 'client' || user.organization === organization)
+    && (!['teacher', 'teaching-assistant', 'evaluator'].includes(profile.role) || user.courseIds.some(id => assignedCourseIds.has(id)))
+    && (profile.role !== 'mentor' || user.id === linkedLearnerId))
+  const courseIds = new Set(students.flatMap(student => student.courseIds).filter(id =>
+    !['teacher', 'teaching-assistant', 'evaluator', 'mentor'].includes(profile.role) || assignedCourseIds.has(id)))
+  const courses = state.courses.filter(course => courseIds.has(course.id) && (course.status === 'Published' || profile.role === 'admin' || profile.role === 'auditor'))
+  const values = students.flatMap(student => student.courseIds.filter(courseId => courseIds.has(courseId)).map(courseId => progressFor(state, student.id, courseId)))
+  const studentIds = new Set(students.map(student => student.id))
+  const pending = state.submissions.filter(item => item.status === 'Submitted' && studentIds.has(item.studentId) && courseIds.has(item.courseId)).length
   return <section className="local-panel"><PanelHeading eyebrow="Computed report" title="Learning outcomes and operations" detail={profile.role === 'client' ? 'Institution-scoped aggregates computed from synthetic learner-course records.' : 'Aggregates are calculated from records stored in browser storage.'} /><div className="local-metric-grid"><article className="local-metric"><span>Learner records</span><strong>{students.length}</strong><small>Counted from records in this report scope.</small></article><article className="local-metric"><span>Enrollment records</span><strong>{values.length}</strong><small>Student-course associations in scope.</small></article><article className="local-metric"><span>Average progress</span><strong>{percentage(values.reduce((sum, value) => sum + value, 0), values.length)}%</strong><small>Average of enrolled learner progress records.</small></article><article className="local-metric"><span>Pending grading</span><strong>{pending}</strong><small>Submitted items awaiting a result.</small></article></div><div className="local-record-list">{courses.map(course => { const enrolled = students.filter(student => student.courseIds.includes(course.id)); const avg = percentage(enrolled.reduce((sum, student) => sum + progressFor(state, student.id, course.id), 0), enrolled.length); return <article className="local-record" key={course.id}><div className="local-record-main"><strong>{course.title}</strong><p>{enrolled.length} learner-course records</p><small>{course.category} · {course.status}</small></div><div className="local-record-side"><strong>{avg}%</strong><small>Average progress</small></div></article> })}</div></section>
 }
 function ExamReportsView({ state, profile }: { state: DemoState; profile: DemoProfile }) {
