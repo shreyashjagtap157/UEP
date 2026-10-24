@@ -3,7 +3,7 @@ import type { FormEvent, ReactNode } from 'react'
 import {
   DEMO_PROFILES, activityForProfile, advanceDemoProgress, courseFor, createDemoProduct, gradeDemoSubmission, loadDemoState, percentage,
   publishDemoCourse, publishDemoProduct, resetDemoState, resolveDemoOrganizationAction, saveDemoState, setDemoUserStatus, submitDemoAssignment,
-  subscribeDemoState, updateDemoAttendance,
+  progressFor, submissionsForProfile, subscribeDemoState, updateDemoAttendance,
 } from './LocalDemoStore'
 import type { DemoProfile, DemoRole, DemoState, DemoSubmission } from './LocalDemoStore'
 
