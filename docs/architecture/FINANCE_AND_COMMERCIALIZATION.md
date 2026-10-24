@@ -6,7 +6,7 @@ The 0.11 subsystem adds institution finance and commercial controls without coup
 
 ## Finance
 
-Institution fees are reusable tenant-scoped fee definitions. Invoices are durable tenant/member records with explicit `DRAFT`, `ISSUED`, `PARTIALLY_PAID`, `PAID`, `VOID`, and `OVERDUE` states. Installments must sum exactly to the invoice total. Captured payments update the invoice transactionally and create an immutable receipt record.
+Institution fees are reusable tenant-scoped fee definitions. Invoices are durable tenant/member records with explicit `DRAFT`, `ISSUED`, `PARTIALLY_PAID`, `PAID`, `VOID`, and `OVERDUE` states. Installments must sum exactly to the invoice total. Captured payments update the invoice transactionally and create an immutable receipt record. Payment recording obtains a tenant-scoped pessimistic lock on the invoice before checking its remaining balance, preventing concurrent requests from independently accepting the same available balance.
 
 `PaymentProvider` is the server-side payment boundary. The reference `MANUAL` provider records an operator-attested settlement only when an authorized finance user supplies an external settlement reference and explicitly confirms that funds have settled; this does **not** contact an online payment gateway. Reusing the same provider reference within a tenant is rejected by a database uniqueness constraint. Automated refunds are intentionally not reported as successful; manual refunds require a separate reconciliation workflow. A production gateway can be added behind the provider contract with its own authorization, capture, webhook-signature, idempotency, reconciliation, and refund qualification.
 

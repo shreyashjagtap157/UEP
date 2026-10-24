@@ -165,6 +165,13 @@ payment_method_end = finance_service_for_auth.find('@Transactional(readOnly=true
 payment_method = finance_service_for_auth[payment_method_start:payment_method_end] if payment_method_start >= 0 and payment_method_end > payment_method_start else ''
 if 'auth.require(PermissionKey.PAYMENTS_MANAGE);' not in payment_method:
     errors.append('recording a payment must require PAYMENTS_MANAGE, not just FINANCE_MANAGE')
+if 'requireForUpdate(invoiceId)' not in payment_method:
+    errors.append('payment balance checks must use a locked tenant-scoped invoice row')
+invoice_repository_for_payments = text('apps/platform-server/src/main/java/com/universalplatform/finance/InvoiceRepository.java')
+if '@Lock(LockModeType.PESSIMISTIC_WRITE)' not in invoice_repository_for_payments or 'lockByTenantIdAndId' not in invoice_repository_for_payments:
+    errors.append('payment creation must lock the invoice at the tenant/id boundary')
+if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/finance/ConcurrentInvoicePaymentIntegrationTest.java').exists():
+    errors.append('missing concurrent invoice overpayment regression test')
 if "const canManagePayments = me.permissions.includes('PAYMENTS_MANAGE')" not in finance_ui_for_auth:
     errors.append('finance UI must gate payment recording on PAYMENTS_MANAGE')
 
