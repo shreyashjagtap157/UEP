@@ -4,7 +4,9 @@
 
 `0.15.0.0-SNAPSHOT` — Reliability and Performance Qualification.
 
-The source implementation through the 0.14 milestone is integrated across the backend and web application. It remains a snapshot because this execution environment cannot run the complete JDK 25 / Maven / PostgreSQL 18 / dependency-backed web release gate.
+The source implementation through the 0.14 milestone is integrated across the backend and web application. It remains a snapshot because the full 0.15 reliability/performance qualification is not complete; passing CI alone does not establish the load targets, backup/restore drills, provider integration qualification, or production operations.
+
+The latest recorded green GitHub Actions run at code commit `9f53c666c5bb3ef79e3852bb84b2d928d032638c` ([run #148](https://github.com/shreyashjagtap157/UEP/actions/runs/40071964073)) passed backend Maven verification (61 tests, zero failures/errors), web lint, all 10 web demo tests, the production web build, repository policy checks, and the configured dependency scan. This is CI evidence, not a claim that the complete 0.15 qualification milestone is finished.
 
 ## Current milestone — 0.15 Reliability and Performance Qualification
 

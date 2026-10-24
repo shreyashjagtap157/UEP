@@ -27,6 +27,8 @@ Built-in roles are tenant-local persisted records rather than Java-only enums. C
 
 The final active `Organization Owner` assignment cannot be removed and the final owner's membership cannot be deactivated. This prevents accidental tenant lockout.
 
+`Organization Owner` and `Organization Administrator` are privileged tenant-wide roles. Only an active Organization Owner or platform super-administrator can grant either role, and both roles must be assigned at tenant scope. The rule applies consistently to direct role assignment, initial membership provisioning, and federated role synchronization. Federation-driven membership deprovisioning also uses the final-owner guard, so an external sync cannot end the last active owner.
+
 ## Tenant defense in depth
 
 Memberships, role assignments, branch references, and platform sessions carry tenant-aware foreign keys. Service queries also require the current tenant. Database integrity therefore rejects cross-tenant relationships even if a future application defect constructs an invalid mutation.

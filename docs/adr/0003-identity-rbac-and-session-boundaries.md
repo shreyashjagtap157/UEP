@@ -14,5 +14,6 @@ Use an external OIDC identity provider for authentication and a platform-owned t
 - Custom roles do not require source-code forks.
 - Commercial entitlements remain a separate authorization dimension and are not encoded as role names.
 - Cross-tenant membership, assignment, branch, and session relationships are rejected by database constraints.
+- Organization Owner and Organization Administrator grants are restricted to an active Organization Owner or platform super-administrator across manual assignment, membership provisioning, and federated role sync; federation deprovisioning preserves the final active owner.
 - An application session can be denied immediately even before an upstream OIDC session naturally expires.
 - Enterprise federation can replace the reference Keycloak deployment without rewriting academic authorization.
