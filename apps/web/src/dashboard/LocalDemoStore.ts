@@ -95,8 +95,16 @@ export interface DemoActivity {
   action: string
   detail: string
 }
+export interface DemoOrganizationAction {
+  id: string
+  organization: string
+  title: string
+  description: string
+  status: 'Open' | 'Resolved'
+  updatedAt: string
+}
 export interface DemoState {
-  schemaVersion: 1
+  schemaVersion: 2
   users: DemoUser[]
   courses: DemoCourse[]
   submissions: DemoSubmission[]
@@ -104,11 +112,13 @@ export interface DemoState {
   schedule: DemoScheduleItem[]
   products: DemoProduct[]
   webhooks: DemoWebhook[]
+  organizationActions: DemoOrganizationAction[]
   courseProgress: Record<string, number>
   activity: DemoActivity[]
 }
 
-const STORAGE_KEY = 'uep.local-demo-data.v1'
+const STORAGE_KEY = 'uep.local-demo-data.v2'
+const LEGACY_STORAGE_KEY = 'uep.local-demo-data.v1'
 const STORE_CHANGED_EVENT = 'uep:local-demo-data-updated'
 
 const ROLE_RECORD_NAMES: Record<DemoRole, string> = {
@@ -197,13 +207,18 @@ function seedDemoState(): DemoState {
     { id: 'product-sql-course', title: 'Database Systems and SQL', description: 'SQL and relational database learning path.', version: 2, status: 'Published', updatedAt: dateAt(-5, 12) },
     { id: 'product-ai-draft', title: 'Applied AI Product Design', description: 'Draft curriculum awaiting author review.', version: 1, status: 'Draft', updatedAt: dateAt(-1, 17) },
   ]
+  const organizationActions: DemoOrganizationAction[] = [
+    { id: 'org-action-attendance-review', organization: 'Northstar Learning Institute', title: 'Review attendance exceptions', description: 'Review the recent attendance register and confirm follow-up for missed sessions.', status: 'Open', updatedAt: dateAt(-1, 15) },
+    { id: 'org-action-onboarding', organization: 'Northstar Learning Institute', title: 'Confirm learner onboarding', description: 'Confirm that active learners can access their published course catalog.', status: 'Open', updatedAt: dateAt(-2, 11) },
+    { id: 'org-action-outcomes-review', organization: 'Northstar Learning Institute', title: 'Review monthly learning outcomes', description: 'Review the course progress snapshot and retain next-step actions for the academic team.', status: 'Resolved', updatedAt: dateAt(-4, 14) },
+  ]
   const webhooks: DemoWebhook[] = [
     { id: 'webhook-enrollment', name: 'Enrollment events', endpoint: 'https://client.example.test/hooks/enrollment', status: 'Healthy', successfulDeliveries: 142, failedDeliveries: 1 },
     { id: 'webhook-results', name: 'Published results', endpoint: 'https://client.example.test/hooks/results', status: 'Healthy', successfulDeliveries: 86, failedDeliveries: 0 },
     { id: 'webhook-attendance', name: 'Attendance updates', endpoint: 'https://client.example.test/hooks/attendance', status: 'Needs attention', successfulDeliveries: 39, failedDeliveries: 4 },
   ]
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     users,
     courses,
     submissions,
@@ -211,6 +226,7 @@ function seedDemoState(): DemoState {
     schedule,
     products,
     webhooks,
+    organizationActions,
     courseProgress: {
       'student-asha:course-web': 68, 'student-asha:course-data': 82, 'student-asha:course-cloud': 34,
       'student-ravi:course-web': 54, 'student-ravi:course-data': 61,
@@ -224,12 +240,32 @@ function seedDemoState(): DemoState {
   }
 }
 
+type PersistedDemoState = Omit<DemoState, 'schemaVersion' | 'organizationActions'> & {
+  schemaVersion: 1 | 2
+  organizationActions?: DemoOrganizationAction[]
+}
+
 export function loadDemoState(): DemoState {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed: unknown = JSON.parse(raw)
-      if (isDemoState(parsed)) return parsed
+    const candidates = [
+      { key: STORAGE_KEY, raw: window.localStorage.getItem(STORAGE_KEY) },
+      { key: LEGACY_STORAGE_KEY, raw: window.localStorage.getItem(LEGACY_STORAGE_KEY) },
+    ]
+    for (const stored of candidates) {
+      if (!stored.raw) continue
+      const parsed: unknown = JSON.parse(stored.raw)
+      if (!isPersistedDemoState(parsed)) continue
+      const state: DemoState = {
+        ...parsed,
+        schemaVersion: 2,
+        organizationActions: Array.isArray(parsed.organizationActions)
+          ? parsed.organizationActions
+          : seedDemoState().organizationActions,
+      }
+      if (stored.key !== STORAGE_KEY || parsed.schemaVersion !== 2 || !Array.isArray(parsed.organizationActions)) {
+        saveDemoState(state)
+      }
+      return state
     }
   } catch {
     // Corrupt/unavailable browser storage starts a fresh local demonstration.
@@ -239,10 +275,10 @@ export function loadDemoState(): DemoState {
   return initial
 }
 
-function isDemoState(value: unknown): value is DemoState {
+function isPersistedDemoState(value: unknown): value is PersistedDemoState {
   if (typeof value !== 'object' || value === null) return false
-  const candidate = value as Partial<DemoState>
-  return candidate.schemaVersion === 1
+  const candidate = value as Partial<PersistedDemoState>
+  return (candidate.schemaVersion === 1 || candidate.schemaVersion === 2)
     && Array.isArray(candidate.users)
     && Array.isArray(candidate.courses)
     && Array.isArray(candidate.submissions)
@@ -268,7 +304,7 @@ export function saveDemoState(state: DemoState): void {
 
 export function subscribeDemoState(listener: () => void): () => void {
   const onStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY || event.key === null) listener()
+    if (event.key === STORAGE_KEY || event.key === LEGACY_STORAGE_KEY || event.key === null) listener()
   }
   window.addEventListener('storage', onStorage)
   window.addEventListener(STORE_CHANGED_EVENT, listener)
@@ -351,6 +387,31 @@ export function publishDemoProduct(state: DemoState, productId: string, actor: D
   return recordDemoActivity({ ...state, products }, actor.name, 'Product published', target.title)
 }
 
+export function publishDemoCourse(state: DemoState, courseId: string, actor: DemoProfile): DemoState {
+  if (actor.role !== 'admin' || !activeActor(state, actor)) return state
+  const target = state.courses.find(item => item.id === courseId && item.status === 'Draft')
+  if (!target) return state
+  const courses = state.courses.map(item => item.id === courseId ? { ...item, status: 'Published' as const } : item)
+  return recordDemoActivity({ ...state, courses }, actor.name, 'Course published', target.title)
+}
+
+export function resolveDemoOrganizationAction(state: DemoState, actionId: string, actor: DemoProfile): DemoState {
+  if (actor.role !== 'client') return state
+  const user = activeActor(state, actor)
+  const target = state.organizationActions.find(item =>
+    item.id === actionId && item.organization === user?.organization && item.status === 'Open')
+  if (!user || !target) return state
+  const updatedAt = new Date().toISOString()
+  const organizationActions = state.organizationActions.map(item =>
+    item.id === actionId ? { ...item, status: 'Resolved' as const, updatedAt } : item)
+  return recordDemoActivity(
+    { ...state, organizationActions },
+    actor.name,
+    'Organization action resolved',
+    target.title,
+  )
+}
+
 export function setDemoUserStatus(state: DemoState, userId: string, status: DemoUser['status'], actor: DemoProfile): DemoState {
   if (actor.role !== 'admin' || !activeActor(state, actor)) return state
   const target = state.users.find(item => item.id === userId)
@@ -414,6 +475,9 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
 
   const submissions = submissionsForProfile(state, profile)
   const scopedSubmissionTitles = submissions.map(item => item.title.toLocaleLowerCase())
+  const scopedOrganizationActionTitles = profile.role === 'client'
+    ? state.organizationActions.filter(item => item.organization === actor.organization).map(item => item.title.toLocaleLowerCase())
+    : []
   let scopedCourseIds = new Set(actor.courseIds)
   let scopedLearnerIds = new Set<string>()
 
@@ -445,6 +509,12 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
     const action = item.action.toLocaleLowerCase()
     const detail = item.detail.toLocaleLowerCase()
     if (action.includes('product')) return false
+
+    if (profile.role === 'client' && action.includes('organization action resolved')
+      && scopedOrganizationActionTitles.some(title => detail.includes(title))) return true
+
+    if (profile.role === 'client' && action.includes('course published')
+      && state.courses.some(course => course.status === 'Published' && detail.includes(course.title.toLocaleLowerCase()))) return true
 
     // Assignment and grading events are tied back to the learner/course records.
     if (scopedSubmissionTitles.some(title => detail.includes(title))) return true
