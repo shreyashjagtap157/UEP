@@ -169,8 +169,8 @@ class IdentityAdministrationService {
         for (UUID roleId : Set.copyOf(roleIds)) {
             RoleDefinition role = roles.findByTenantIdAndId(tenantId, roleId)
                     .orElseThrow(() -> new IdentityNotFoundException("Role not found: " + roleId));
-            if (role.systemManaged() && SystemRoleKey.ORGANIZATION_OWNER.name().equals(role.systemKey())) {
-                ownershipGuard.assertCanAssignOwner(tenantId, role, actorContext.requireSubject(),
+            if (ownershipGuard.isPrivilegedRole(role)) {
+                ownershipGuard.assertCanAssignPrivilegedRole(tenantId, role, actorContext.requireSubject(),
                         actorContext.hasRealmRole(AuthorizationService.PLATFORM_SUPER_ADMIN_ROLE));
             }
             assignments.save(new RoleAssignment(UUID.randomUUID(), tenantId, membershipId, role.id(),

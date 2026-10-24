@@ -67,8 +67,8 @@ public class FederationIdentityDirectory {
             if (roleKey == null) continue;
             RoleDefinition role = roles.findByTenantIdAndSystemKey(tenantId, roleKey.name())
                     .orElseThrow(() -> new IdentityNotFoundException("System role not found: " + roleKey));
-            if (roleKey == SystemRoleKey.ORGANIZATION_OWNER) {
-                ownershipGuard.assertCanAssignOwner(tenantId, role, actorContext.requireSubject(),
+            if (ownershipGuard.isPrivilegedRole(role)) {
+                ownershipGuard.assertCanAssignPrivilegedRole(tenantId, role, actorContext.requireSubject(),
                         actorContext.hasRealmRole(AuthorizationService.PLATFORM_SUPER_ADMIN_ROLE));
             }
             assignments.save(new RoleAssignment(UUID.randomUUID(), tenantId, membership.id(), role.id(),

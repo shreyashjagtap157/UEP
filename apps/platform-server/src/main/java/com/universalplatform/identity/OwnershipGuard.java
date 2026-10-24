@@ -28,18 +28,26 @@ class OwnershipGuard {
         }
     }
 
-    void assertCanAssignOwner(UUID tenantId, RoleDefinition ownerRole, String actorSubject,
-                              boolean platformSuperAdmin) {
+    boolean isPrivilegedRole(RoleDefinition role) {
+        return role.systemManaged() && (SystemRoleKey.ORGANIZATION_OWNER.name().equals(role.systemKey())
+                || SystemRoleKey.ORGANIZATION_ADMINISTRATOR.name().equals(role.systemKey()));
+    }
+
+    void assertCanAssignPrivilegedRole(UUID tenantId, RoleDefinition requestedRole, String actorSubject,
+                                       boolean platformSuperAdmin) {
         if (platformSuperAdmin) return;
+        RoleDefinition ownerRole = roles.findByTenantIdAndSystemKey(tenantId, SystemRoleKey.ORGANIZATION_OWNER.name())
+                .orElseThrow(() -> new IdentityConflictException("Organization Owner role is not configured"));
         TenantMembership actorMembership = memberships.findByTenantAndSubject(tenantId, actorSubject)
                 .filter(membership -> membership.status() == MembershipStatus.ACTIVE)
                 .orElseThrow(() -> new IdentityAccessDeniedException(
-                        "An active tenant Organization Owner is required to assign the Organization Owner role"));
+                        "An active tenant Organization Owner is required to assign privileged administrative roles"));
         boolean isOwner = assignments.existsByTenantIdAndMembershipIdAndRoleIdAndScopeKind(
                 tenantId, actorMembership.id(), ownerRole.id(), AssignmentScopeKind.TENANT);
         if (!isOwner) {
             throw new IdentityAccessDeniedException(
-                    "Only an existing Organization Owner or platform super administrator can assign the Organization Owner role");
+                    "Only an existing Organization Owner or platform super administrator can assign "
+                            + requestedRole.name());
         }
     }
 

@@ -32,6 +32,7 @@ class IdentityAuthorizationIntegrationTest {
     private static final UUID TEACHER_ROLE = UUID.fromString("01901234-1111-7000-8000-000000000007");
     private static final UUID STUDENT_ROLE = UUID.fromString("01901234-1111-7000-8000-000000000008");
     private static final UUID DELEGATED_ADMIN_ROLE = UUID.fromString("01901234-1111-7000-8000-000000000009");
+    private static final UUID ORGANIZATION_ADMIN_ROLE = UUID.fromString("01901234-1111-7000-8000-000000000010");
     private static final String OWNER_SUBJECT = "owner-subject";
     private static final String DUAL_SUBJECT = "dual-role-subject";
 
@@ -47,6 +48,7 @@ class IdentityAuthorizationIntegrationTest {
         jdbc.update("INSERT INTO tenant_membership(id, tenant_id, user_id, status) VALUES (?, ?, ?, 'ACTIVE')", DUAL_MEMBERSHIP, TENANT, DUAL_USER);
 
         insertSystemRole(OWNER_ROLE, "ORGANIZATION_OWNER", "Organization Owner");
+        insertSystemRole(ORGANIZATION_ADMIN_ROLE, "ORGANIZATION_ADMINISTRATOR", "Organization Administrator");
         insertSystemRole(TEACHER_ROLE, "TEACHER", "Teacher");
         insertSystemRole(STUDENT_ROLE, "STUDENT", "Student");
         jdbc.update("INSERT INTO role_definition(id, tenant_id, name, system_managed) VALUES (?, ?, 'Delegated Administrator', false)", DELEGATED_ADMIN_ROLE, TENANT);
@@ -158,6 +160,32 @@ class IdentityAuthorizationIntegrationTest {
                         .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IDENTITY_CONFLICT"));
+    }
+
+    @Test
+    void nonOwnerCannotAssignOrganizationAdministrator() throws Exception {
+        String body = """
+                {"membershipId":"%s","roleId":"%s","scopeKind":"TENANT"}
+                """.formatted(DUAL_MEMBERSHIP, ORGANIZATION_ADMIN_ROLE);
+        mvc.perform(post("/api/v1/identity/roles/assignments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+    }
+
+    @Test
+    void nonOwnerCannotProvisionOrganizationAdministratorMembership() throws Exception {
+        String body = """
+                {"subject":"escalation-admin","email":"admin-escalation@example.test","displayName":"Escalation Admin","roleIds":["%s"]}
+                """.formatted(ORGANIZATION_ADMIN_ROLE);
+        mvc.perform(post("/api/v1/identity/memberships")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
     }
 
     @Test

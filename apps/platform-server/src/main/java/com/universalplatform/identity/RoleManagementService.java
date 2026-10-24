@@ -123,11 +123,11 @@ class RoleManagementService {
         if (membership.status() == MembershipStatus.ENDED) throw new IdentityConflictException("Cannot assign roles to an ended membership");
         RoleDefinition role = role(tenantId, roleId);
         validateScope(scopeKind, scopeId);
-        if (role.systemManaged() && SystemRoleKey.ORGANIZATION_OWNER.name().equals(role.systemKey())) {
+        if (ownershipGuard.isPrivilegedRole(role)) {
             if (scopeKind != AssignmentScopeKind.TENANT) {
-                throw new IdentityConflictException("Organization Owner must be assigned at tenant scope");
+                throw new IdentityConflictException(role.name() + " must be assigned at tenant scope");
             }
-            ownershipGuard.assertCanAssignOwner(tenantId, role, actorContext.requireSubject(),
+            ownershipGuard.assertCanAssignPrivilegedRole(tenantId, role, actorContext.requireSubject(),
                     actorContext.hasRealmRole(AuthorizationService.PLATFORM_SUPER_ADMIN_ROLE));
         }
         RoleAssignment assignment = assignments.save(new RoleAssignment(UUID.randomUUID(), tenantId, membership.id(), role.id(),
