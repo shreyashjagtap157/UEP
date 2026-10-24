@@ -4,7 +4,7 @@ import { DEMO_PROFILES } from './LocalDemoStore'
 import type { DemoRole } from './LocalDemoStore'
 import { LocalDashboard } from './LocalDashboard'
 import { LocalDemoControls } from './LocalDemoControls'
-import { loadDemoStore, subscribeDemoStore } from './localDemoStore'
+import { loadDemoStore, subscribeDemoStore } from './LocalDemoWorkflowStore'
 import type { LocalRole } from './localDemoData'
 
 export type LocalAccount = {

@@ -10,7 +10,7 @@ import {
   resolveOrganizationAction,
   submitAaravAssignment,
   subscribeDemoStore,
-} from './localDemoStore'
+} from './LocalDemoWorkflowStore'
 
 export function LocalDemoControls({ account }: { account: LocalAccount }) {
   const [, setRevision] = useState(0)
