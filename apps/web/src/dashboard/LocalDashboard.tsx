@@ -408,11 +408,12 @@ function AttendanceView({ state, profile, onUpdate }: { state: DemoState; profil
   return <section className="local-panel"><PanelHeading eyebrow="Attendance register" title="Attendance summary" detail={scopedItems.length + ' saved attendance entries in this profile scope'} /><div className="local-metric-grid"><article className="local-metric"><span>Attendance rate</span><strong>{percentage(present, scopedItems.length)}%</strong><small>Present and late entries divided by recorded sessions.</small></article><article className="local-metric"><span>Absent</span><strong>{scopedItems.filter(item => item.status === 'Absent').length}</strong><small>Count from attendance records.</small></article></div><div className="local-record-list">{scopedItems.slice().sort((a, b) => b.date.localeCompare(a.date)).map(item => <article className="local-record" key={item.id}><div className="local-record-main"><strong>{state.users.find(user => user.id === item.studentId)?.name ?? 'Learner'}</strong><p>{courseFor(state, item.courseId)?.title ?? 'Course'}</p><small>{item.date}</small></div><div className="local-record-side"><span className={'local-status status-' + item.status.toLowerCase()}>{item.status}</span>{canManage && <div className="local-attendance-actions"><button type="button" className="text-button" disabled={item.status === 'Present'} onClick={() => onUpdate(item.id, 'Present')}>Present</button><button type="button" className="text-button" disabled={item.status === 'Late'} onClick={() => onUpdate(item.id, 'Late')}>Late</button><button type="button" className="text-button" disabled={item.status === 'Absent'} onClick={() => onUpdate(item.id, 'Absent')}>Absent</button></div>}</div></article>)}</div>{canManage && <p className="local-data-notice">Only attendance records for this staff member's assigned courses can be changed in this local demo.</p>}</section>
 }
 function PeopleView({ state, profile, onStatus }: { state: DemoState; profile: DemoProfile; onStatus: (id: string, status: 'Active' | 'Suspended') => void }) {
-  const assignedCourseIds = new Set(state.users.find(user => user.id === profile.userId)?.courseIds ?? [])
+  const currentUser = state.users.find(user => user.id === profile.userId && user.status === 'Active')
+  const assignedCourseIds = new Set(currentUser?.courseIds ?? [])
   const users = ['teacher', 'teaching-assistant'].includes(profile.role)
-    ? state.users.filter(user => user.role === 'Student' && user.courseIds.some(id => assignedCourseIds.has(id)))
+    ? state.users.filter(user => user.role === 'Student' && user.status === 'Active' && user.courseIds.some(id => assignedCourseIds.has(id)))
     : profile.role === 'client'
-      ? state.users.filter(user => user.organization === 'Northstar Learning Institute')
+      ? state.users.filter(user => user.organization === currentUser?.organization)
       : profile.role === 'guardian'
         ? state.users.filter(user => user.id === 'student-asha')
         : profile.role === 'mentor'
