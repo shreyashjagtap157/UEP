@@ -94,13 +94,9 @@ public class WebhookService {
         for (WebhookSubscription s : subs.findAllByTenantIdAndEnabledTrue(tenantId)) {
             if (!matches(s.eventFilter(), e))
                 continue;
-            // Per-subscription isolation: one duplicate/conflicting enqueue may not abort the
-            // remaining subscriptions (e.g. the unique (subscription,event) delivery row raced).
-            try {
-                if (deliveries.findBySubscriptionIdAndEventId(s.id(), eventId).isEmpty())
-                    deliveries.save(new WebhookDelivery(UUID.randomUUID(), tenantId, s.id(), eventId, e, body, clock.instant()));
-            } catch (Exception ignored) {
-            }
+            // The unique (subscription,event) constraint and ON CONFLICT make duplicate event
+            // publication idempotent without swallowing real persistence failures.
+            deliveries.enqueueIfAbsent(UUID.randomUUID(), tenantId, s.id(), eventId, e, body, clock.instant());
         }
     }
 
