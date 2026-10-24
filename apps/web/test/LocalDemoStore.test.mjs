@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   DEMO_PROFILES,
+  activityForProfile,
   submissionsForProfile,
   gradeDemoSubmission,
   loadDemoState,
@@ -142,6 +143,38 @@ test('submission visibility is restricted to each persona learner/course scope',
   assert.deepEqual(ids('auditor'), [])
   assert.deepEqual(ids('developer'), [])
   assert.deepEqual(ids('finance-admin'), [])
+})
+
+test('activity feeds do not expose global details to unrelated personas', () => {
+  const state = resetDemoState()
+  const events = (role) => activityForProfile(state, profile(role))
+
+  const studentEvents = events('student')
+  assert.ok(studentEvents.length > 0)
+  assert.ok(studentEvents.every((item) => item.actor === 'Asha Sharma'
+    || state.submissions.some((submission) => submission.studentId === 'student-asha'
+      && item.detail.toLowerCase().includes(submission.title.toLowerCase()))))
+  assert.ok(!studentEvents.some((item) => item.action === 'Product updated'))
+
+  const guardianEvents = events('guardian')
+  assert.ok(guardianEvents.some((item) => item.action === 'Grade published'))
+  assert.ok(!guardianEvents.some((item) => item.action === 'Product updated'))
+
+  const mentorEvents = events('mentor')
+  assert.ok(mentorEvents.some((item) => item.action === 'Assignment submitted'))
+  assert.ok(!mentorEvents.some((item) => item.action === 'Grade published'))
+
+  const evaluatorEvents = events('evaluator')
+  assert.ok(evaluatorEvents.some((item) => item.action === 'Grade published'))
+  assert.ok(!evaluatorEvents.some((item) => item.action === 'Assignment submitted'))
+
+  const developerEvents = events('developer')
+  assert.ok(developerEvents.length > 0)
+  assert.ok(developerEvents.every((item) => item.action.toLowerCase().includes('product')))
+  assert.deepEqual(events('support'), [])
+  assert.deepEqual(events('finance-admin'), [])
+  assert.equal(events('admin').length, state.activity.length)
+  assert.equal(events('auditor').length, state.activity.length)
 })
 
 test('reset restores seeded records after mutations', () => {
