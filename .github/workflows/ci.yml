@@ -103,6 +103,8 @@ jobs:
         run: bash scripts/verify-repository.sh
       - name: Test backup/restore safety guards
         run: bash scripts/test-backup-restore-drill.sh
+      - name: Test load-smoke percentile and latency checks
+        run: python3 scripts/test-load-smoke.py
       - name: Qualify 0.15 reliability and security contracts
         run: python3 scripts/qualify-0.15.py
 

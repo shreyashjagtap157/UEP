@@ -102,6 +102,18 @@ for required in [
     if required not in load_probe:
         errors.append(f'load-smoke probe is missing a percentile/latency contract: {required}')
 
+if not (ROOT / 'scripts/test-load-smoke.py').exists():
+    errors.append('missing load-smoke percentile and HTTP status regression tests')
+
+workflow = text('.github/workflows/ci.yml')
+for runtime_contract in [
+    'Start packaged server on a fresh database and run health smoke',
+    'CREATE DATABASE education_platform_smoke OWNER education',
+    'python3 scripts/load-smoke.py http://localhost:8080/actuator/health 30 6 2500 4000',
+]:
+    if runtime_contract not in workflow:
+        errors.append(f'CI is missing packaged-server runtime smoke contract: {runtime_contract}')
+
 # Tenant isolation gate: require tenant-leading indexes for the high-frequency 0.15 query paths.
 required_indexes = {
     "ix_tenant_membership_tenant_status", "ix_enrollment_tenant_status_started",
