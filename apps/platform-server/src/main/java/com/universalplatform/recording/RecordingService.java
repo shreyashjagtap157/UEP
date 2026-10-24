@@ -99,35 +99,26 @@ class RecordingService {
         if (auth.has(PermissionKey.RECORDINGS_MANAGE)) {
             rows = recordings.findAllByTenantId(t, p);
         } else {
-            // Non-managers may only enumerate recordings of live classes they participate in,
-            // determined via batch membership (learner enrollments plus teaching assignments).
             Set<UUID> batchIds = enrollment.activeBatchIdsForMembership(memberships.current().membershipId());
             Set<UUID> liveClassIds = batchIds.isEmpty() ? Set.of()
                     : Set.copyOf(liveClasses.liveClassIdsForBatches(batchIds));
-            if (liveClassIds.isEmpty())
-                rows = Page.empty(p);
-            else
-                rows = recordings.findAllByTenantIdAndLiveClassIdIn(t, liveClassIds, p);
+            if (liveClassIds.isEmpty()) rows = Page.empty(p);
+            else rows = recordings.findAllByTenantIdAndLiveClassIdIn(t, liveClassIds, p);
         }
         return new PageResult<>(rows.getContent().stream().map(this::view).toList(), rows.getNumber(), rows.getSize(),
                 rows.getTotalElements(), rows.getTotalPages());
     }
 
     @Transactional(readOnly = true)
-    RecordingView get(UUID id) {
-        auth.require(PermissionKey.RECORDINGS_VIEW);
-        return view(require(id));
-    }
+    RecordingView get(UUID id) { auth.require(PermissionKey.RECORDINGS_VIEW); return view(require(id)); }
 
     @Transactional
     void stop(UUID id) {
         auth.require(PermissionKey.RECORDINGS_MANAGE);
         Recording r = require(id);
-        if (r.egressId() != null && (r.status() == RecordingProcessingStatus.RECORDING
-                || r.status() == RecordingProcessingStatus.STARTING)) {
+        if (r.egressId() != null && (r.status() == RecordingProcessingStatus.RECORDING || r.status() == RecordingProcessingStatus.STARTING)) {
             media.stop(r.egressId());
-            audit.record(r.tenantId(), actors.requireSubject(), "RECORDING_STOP_REQUESTED", "recording",
-                    r.id().toString());
+            audit.record(r.tenantId(), actors.requireSubject(), "RECORDING_STOP_REQUESTED", "recording", r.id().toString());
         }
     }
 
@@ -140,21 +131,16 @@ class RecordingService {
         UUID mid = memberships.current().membershipId();
         String name = memberships.current().displayName();
         Instant expires = clock.instant().plusSeconds(300);
-        return new PlaybackView("/api/v1/recordings/" + id + "/stream?token=" + opaque(id, mid, expires.toEpochMilli()),
-                expires, name, mid.toString(), clock.instant());
+        return new PlaybackView("/api/v1/recordings/" + id + "/stream?token=" + opaque(id, mid, expires.toEpochMilli()), expires, name, mid.toString(), clock.instant());
     }
 
     @Transactional(readOnly = true)
     InputStream openStream(UUID id, String token) throws java.io.IOException {
         Recording r = require(id);
-        if (!(r.status() == RecordingProcessingStatus.READY || r.status() == RecordingProcessingStatus.ARCHIVED))
-            throw new IllegalStateException("Recording is not ready");
+        if (!(r.status() == RecordingProcessingStatus.READY || r.status() == RecordingProcessingStatus.ARCHIVED)) throw new IllegalStateException("Recording is not ready");
         PlaybackToken parsed = parseToken(token);
-        if (!parsed.recordingId().equals(id) || !parsed.membershipId().equals(memberships.current().membershipId())
-                || parsed.expiresAt() < clock.instant().toEpochMilli())
-            throw new SecurityException("Playback token is invalid or expired");
-        if (!auth.has(PermissionKey.RECORDINGS_VIEW))
-            throw new SecurityException("Playback access denied");
+        if (!parsed.recordingId().equals(id) || !parsed.membershipId().equals(memberships.current().membershipId()) || parsed.expiresAt() < clock.instant().toEpochMilli()) throw new SecurityException("Playback token is invalid or expired");
+        if (!auth.has(PermissionKey.RECORDINGS_VIEW)) throw new SecurityException("Playback access denied");
         return adapters.require(r.storageProvider()).open(r.storageLocator());
     }
 
@@ -172,168 +158,87 @@ class RecordingService {
         auth.require(PermissionKey.RECORDINGS_MANAGE);
         UUID t = tenants.requireTenantId();
         RecordingStoragePolicy p = policies.findById(t).orElseGet(() -> new RecordingStoragePolicy(t, clock.instant()));
-        if (p.version() != expectedVersion && policies.existsById(t))
-            throw new IllegalStateException("Recording storage policy was modified");
-        if (hotDays < 0 || cacheDays < 0 || retentionDays != null && retentionDays < 1 || grace < 0)
-            throw new IllegalArgumentException("Invalid recording retention policy");
-        adapters.require(hotProvider);
-        adapters.require(cacheProvider);
-        adapters.require(archiveProvider);
-        p.update(hotDays, cacheDays, retentionDays, hotProvider, cacheProvider, archiveProvider, grace,
-                clock.instant());
+        if (p.version() != expectedVersion && policies.existsById(t)) throw new IllegalStateException("Recording storage policy was modified");
+        if (hotDays < 0 || cacheDays < 0 || retentionDays != null && retentionDays < 1 || grace < 0) throw new IllegalArgumentException("Invalid recording retention policy");
+        adapters.require(hotProvider); adapters.require(cacheProvider); adapters.require(archiveProvider);
+        p.update(hotDays, cacheDays, retentionDays, hotProvider, cacheProvider, archiveProvider, grace, clock.instant());
         policies.save(p);
-        audit.record(t, actors.requireSubject(), "RECORDING_STORAGE_POLICY_UPDATED", "recording-storage-policy",
-                t.toString());
+        audit.record(t, actors.requireSubject(), "RECORDING_STORAGE_POLICY_UPDATED", "recording-storage-policy", t.toString());
         return policyView(p);
     }
 
-    private StoragePolicyView policyView(RecordingStoragePolicy p) {
-        return new StoragePolicyView(p.hotCacheDays(), p.cacheDays(), p.retentionDays(), p.hotProvider(),
-                p.cacheProvider(), p.archiveProvider(), p.deletedObjectGraceDays(), p.version());
-    }
+    private StoragePolicyView policyView(RecordingStoragePolicy p) { return new StoragePolicyView(p.hotCacheDays(), p.cacheDays(), p.retentionDays(), p.hotProvider(), p.cacheProvider(), p.archiveProvider(), p.deletedObjectGraceDays(), p.version()); }
 
     Recording processRequested(Recording r) {
-        if (r.status() != RecordingProcessingStatus.REQUESTED)
-            return r;
+        if (r.status() != RecordingProcessingStatus.REQUESTED) return r;
         try {
             Files.createDirectories(processingRoot.resolve(r.tenantId().toString()).resolve(r.id().toString()));
             r.markStarting(clock.instant());
             String path = "/recordings/" + r.tenantId() + "/" + r.id() + "/recording.mp4";
             var started = media.startRoomComposite(r.roomName(), r.qualityPreset(), path);
             r.start(started.egressId(), clock.instant());
-        } catch (Exception e) {
-            r.fail(trim(e.getMessage()));
-        }
+        } catch (Exception e) { r.fail(trim(e.getMessage())); }
         return r;
     }
 
     @Transactional
     void processOrReconcile(Recording r) {
-        // Cross-instance co-claim: the advisory lock is transaction-scoped and must be acquired
-        // before the row is re-read, so two workers can never process the same row concurrently.
         workerLock.acquire(r.tenantId());
         Recording current = recordings.findByTenantIdAndId(r.tenantId(), r.id()).orElse(null);
-        if (current == null)
-            return;
-        if (current.status() == RecordingProcessingStatus.REQUESTED)
-            processRequested(current);
-        else if (current.status() == RecordingProcessingStatus.RECORDING || current.status() == RecordingProcessingStatus.STARTING)
-            reconcile(current);
+        if (current == null) return;
+        if (current.status() == RecordingProcessingStatus.REQUESTED) processRequested(current);
+        else if (current.status() == RecordingProcessingStatus.RECORDING || current.status() == RecordingProcessingStatus.STARTING) reconcile(current);
     }
 
     Recording reconcile(Recording r) {
-        if (r.egressId() == null)
-            return r;
+        if (r.egressId() == null) return r;
         try {
             var state = media.status(r.egressId());
             switch (normalizeEgressStatus(state.status())) {
-                case "STARTING", "ACTIVE", "ENDING" -> {
-                    return r;
-                }
-                case "FAILED", "ABORTED", "LIMIT_REACHED" -> {
-                    r.fail(state.error() == null ? "LiveKit egress failed" : state.error());
-                    return r;
-                }
-                case "COMPLETE", "INNER_COMPLETE" -> {
-                    return finalizeEgress(r, state);
-                }
-                default -> {
-                    // Unknown provider status: leave the recording for the next reconciliation pass.
-                    return r;
-                }
+                case "STARTING", "ACTIVE", "ENDING" -> { return r; }
+                case "FAILED", "ABORTED", "LIMIT_REACHED" -> { r.fail(state.error() == null ? "LiveKit egress failed" : state.error()); return r; }
+                case "COMPLETE", "INNER_COMPLETE" -> { return finalizeEgress(r, state); }
+                default -> { return r; }
             }
-        } catch (Exception e) {
-            r.fail(trim(e.getMessage()));
-        }
+        } catch (Exception e) { r.fail(trim(e.getMessage())); }
         return r;
     }
 
     private Recording finalizeEgress(Recording r, RecordingMediaProvider.EgressState state) {
         r.markFinalizing(clock.instant());
         Path video = localPath(r);
-        if (!Files.exists(video)) {
-            r.fail("LiveKit completed without the expected recording file");
-            return r;
-        }
+        if (!Files.exists(video)) { r.fail("LiveKit completed without the expected recording file"); return r; }
         finalizeFile(r, video, Math.max(0, state.durationNanos() / 1_000_000_000L));
         return r;
     }
 
-    private static String normalizeEgressStatus(String raw) {
-        if (raw == null)
-            return "";
-        return raw.strip().toUpperCase(Locale.ROOT).replace("EGRESS_STATUS_", "");
-    }
+    private static String normalizeEgressStatus(String raw) { return raw == null ? "" : raw.strip().toUpperCase(Locale.ROOT).replace("EGRESS_STATUS_", ""); }
 
-    /**
-     * Tier migration (HOT -> CACHE, CACHE -> ARCHIVE). Ordering guarantees:
-     * <ol>
-     * <li>each asset object is copied to the target provider first, then the asset row/locator is
-     * persisted and committed, and only afterwards is the old object deleted (delete failures are
-     * tolerated: the row already points at the new locator, so the old object is a harmless
-     * orphan);</li>
-     * <li>the master recording row is updated from the already-migrated MASTER asset locator, so
-     * the master object is copied exactly once per pass and can never point at a deleted
-     * locator;</li>
-     * <li>a partially completed previous pass recovers safely: already-migrated assets and rows
-     * are skipped, and the workspace claim (ARCHIVING transition under a tenant advisory lock)
-     * makes cross-instance duplication impossible.</li>
-     * </ol>
-     */
     void archiveDue(Recording r) {
-        if (r.status() != RecordingProcessingStatus.READY && r.status() != RecordingProcessingStatus.ARCHIVING)
-            return;
+        if (r.status() != RecordingProcessingStatus.READY && r.status() != RecordingProcessingStatus.ARCHIVING) return;
         RecordingStoragePolicy p = policies.findById(r.tenantId()).orElse(null);
-        if (p == null || r.readyAt() == null)
-            return;
+        if (p == null || r.readyAt() == null) return;
         Instant now = clock.instant();
         if (r.storageTier() == RecordingStorageTier.HOT) {
-            if (r.status() == RecordingProcessingStatus.READY
-                    && now.isBefore(r.readyAt().plus(Duration.ofDays(p.hotCacheDays()))))
-                return;
-            Recording current = claimForMigration(r);
-            if (current == null)
-                return;
-            try {
-                migrateToTier(current, p.cacheProvider(), RecordingStorageTier.CACHE, now);
-                audit.record(r.tenantId(), "system", "RECORDING_MOVED_TO_CACHE", "recording", r.id().toString());
-            } catch (Exception e) {
-                restore(current);
-            }
+            if (r.status() == RecordingProcessingStatus.READY && now.isBefore(r.readyAt().plus(Duration.ofDays(p.hotCacheDays())))) return;
+            Recording current = claimForMigration(r); if (current == null) return;
+            try { migrateToTier(current, p.cacheProvider(), RecordingStorageTier.CACHE, now); audit.record(r.tenantId(), "system", "RECORDING_MOVED_TO_CACHE", "recording", r.id().toString()); }
+            catch (Exception e) { restore(current); }
             return;
         }
         if (r.storageTier() == RecordingStorageTier.CACHE) {
-            if (r.status() == RecordingProcessingStatus.READY
-                    && now.isBefore(r.readyAt().plusDays((long) p.hotCacheDays() + p.cacheDays())))
-                return;
-            Recording current = claimForMigration(r);
-            if (current == null)
-                return;
-            try {
-                migrateToTier(current, p.archiveProvider(), RecordingStorageTier.ARCHIVE, now);
-                audit.record(r.tenantId(), "system", "RECORDING_ARCHIVED", "recording", r.id().toString());
-            } catch (Exception e) {
-                restore(current);
-            }
+            if (r.status() == RecordingProcessingStatus.READY && now.isBefore(r.readyAt().plus(Duration.ofDays((long) p.hotCacheDays() + p.cacheDays())))) return;
+            Recording current = claimForMigration(r); if (current == null) return;
+            try { migrateToTier(current, p.archiveProvider(), RecordingStorageTier.ARCHIVE, now); audit.record(r.tenantId(), "system", "RECORDING_ARCHIVED", "recording", r.id().toString()); }
+            catch (Exception e) { restore(current); }
         }
     }
 
-    /**
-     * Claims a READY row for tier migration by transitioning it to ARCHIVING inside a short
-     * transaction that is guarded by the tenant advisory lock (cross-instance co-claim), then
-     * returns a freshly re-loaded snapshot for the migration pass. Rows already ARCHIVING (a
-     * partially completed previous pass) are re-loaded and resumed without re-claiming.
-     */
     private Recording claimForMigration(Recording r) {
-        try {
-            if (r.status() == RecordingProcessingStatus.READY && !claimMigration(r.tenantId(), r.id()))
-                return null;
-        } catch (Exception claimedByAnotherInstance) {
-            return null;
-        }
+        try { if (r.status() == RecordingProcessingStatus.READY && !claimMigration(r.tenantId(), r.id())) return null; }
+        catch (Exception claimedByAnotherInstance) { return null; }
         Recording current = reload(r);
-        if (current == null || current.status() != RecordingProcessingStatus.ARCHIVING)
-            return null;
+        if (current == null || current.status() != RecordingProcessingStatus.ARCHIVING) return null;
         return current;
     }
 
@@ -341,247 +246,119 @@ class RecordingService {
         Boolean claimed = claimTemplate.execute(status -> {
             workerLock.acquire(tenantId);
             Recording fresh = recordings.findByTenantIdAndId(tenantId, id).orElse(null);
-            if (fresh == null || fresh.status() != RecordingProcessingStatus.READY)
-                return false;
-            fresh.markArchiving();
-            recordings.save(fresh);
-            return true;
+            if (fresh == null || fresh.status() != RecordingProcessingStatus.READY) return false;
+            fresh.markArchiving(); recordings.save(fresh); return true;
         });
         return Boolean.TRUE.equals(claimed);
     }
 
-    private Recording reload(Recording r) {
-        return recordings.findByTenantIdAndId(r.tenantId(), r.id()).orElse(null);
-    }
+    private Recording reload(Recording r) { return recordings.findByTenantIdAndId(r.tenantId(), r.id()).orElse(null); }
+    private void restore(Recording r) { try { r.restoreReady(); } catch (Exception ignored) {} try { recordings.save(r); } catch (Exception ignored) {} }
 
-    private void restore(Recording r) {
-        try {
-            r.restoreReady();
-        } catch (Exception ignored) {
-        }
-        try {
-            recordings.save(r);
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void migrateToTier(Recording r, StorageProviderType targetType, RecordingStorageTier tier, Instant now)
-            throws java.io.IOException {
+    private void migrateToTier(Recording r, StorageProviderType targetType, RecordingStorageTier tier, Instant now) throws java.io.IOException {
         boolean toArchive = tier == RecordingStorageTier.ARCHIVE;
         if (r.storageProvider() == targetType) {
-            // Row already migrated by a previous pass; only the tier/status bookkeeping is missing.
-            if (toArchive)
-                r.archived(targetType, r.storageLocator(), r.objectKey(), now);
-            else
-                r.cached(targetType, r.storageLocator(), r.objectKey(), now);
-            recordings.save(r);
-            return;
+            if (toArchive) r.archived(targetType, r.storageLocator(), r.objectKey(), now); else r.cached(targetType, r.storageLocator(), r.objectKey(), now);
+            recordings.save(r); return;
         }
         migrateAssets(r, targetType);
         String newLocator = masterLocatorOnTarget(r, targetType);
         StorageAdapter source = adapters.require(r.storageProvider());
         String old = r.storageLocator();
-        if (toArchive)
-            r.archived(targetType, newLocator, r.objectKey(), now);
-        else
-            r.cached(targetType, newLocator, r.objectKey(), now);
-        // Persist + commit the new locator BEFORE deleting the old master object; a crash after
-        // commit leaves a harmless orphan, while the recording never references a deleted object.
-        recordings.save(r);
-        deleteQuietly(source, old, newLocator);
+        if (toArchive) r.archived(targetType, newLocator, r.objectKey(), now); else r.cached(targetType, newLocator, r.objectKey(), now);
+        recordings.save(r); deleteQuietly(source, old, newLocator);
     }
 
-    /**
-     * Returns the locator of the MASTER asset on the target provider. The MASTER asset was either
-     * migrated earlier in this pass (migrateAssets above) or in a partially completed previous
-     * pass; in both cases its committed locator is a valid live object, so the master object is
-     * copied exactly once per pass and never re-read from a possibly deleted locator.
-     */
     private String masterLocatorOnTarget(Recording r, StorageProviderType targetType) throws java.io.IOException {
-        RecordingAsset master = assets.findByTenantIdAndRecordingIdAndKind(r.tenantId(), r.id(), RecordingAssetKind.MASTER)
-                .orElse(null);
-        if (master != null && master.provider() == targetType && master.locator() != null)
-            return master.locator();
-        StorageAdapter src = adapters.require(r.storageProvider());
-        StorageAdapter dst = adapters.require(targetType);
-        try (InputStream in = src.open(r.storageLocator())) {
-            return dst.put(r.objectKey(), in, r.sizeBytes() == null ? 0 : r.sizeBytes(), "video/mp4");
-        }
+        RecordingAsset master = assets.findByTenantIdAndRecordingIdAndKind(r.tenantId(), r.id(), RecordingAssetKind.MASTER).orElse(null);
+        if (master != null && master.provider() == targetType && master.locator() != null) return master.locator();
+        StorageAdapter src = adapters.require(r.storageProvider()); StorageAdapter dst = adapters.require(targetType);
+        try (InputStream in = src.open(r.storageLocator())) { return dst.put(r.objectKey(), in, r.sizeBytes() == null ? 0 : r.sizeBytes(), "video/mp4"); }
     }
 
-    /** Deletes an already-replaced old object; the DB row was persisted first, so failures here only leave a harmless orphan. */
     private void deleteQuietly(StorageAdapter source, String oldLocator, String newLocator) {
-        if (source == null || oldLocator == null || oldLocator.equals(newLocator))
-            return;
-        try {
-            source.delete(oldLocator);
-        } catch (Exception ignored) {
-        }
+        if (source == null || oldLocator == null || oldLocator.equals(newLocator)) return;
+        try { source.delete(oldLocator); } catch (Exception ignored) {}
     }
 
     private void migrateAssets(Recording r, StorageProviderType targetType) throws java.io.IOException {
         for (RecordingAsset a : assets.findAllByTenantIdAndRecordingId(r.tenantId(), r.id())) {
-            if (a.provider() == targetType)
-                continue;
-            StorageAdapter src = adapters.require(a.provider());
-            StorageAdapter dst = adapters.require(targetType);
+            if (a.provider() == targetType) continue;
+            StorageAdapter src = adapters.require(a.provider()); StorageAdapter dst = adapters.require(targetType);
             try (InputStream in = src.open(a.locator())) {
-                String loc = dst.put(a.objectKey(), in, a.sizeBytes(), a.mimeType());
-                String old = a.locator();
-                a.migrateTo(targetType, loc);
-                // Persist + commit the new locator BEFORE deleting the old object.
-                assets.save(a);
-                deleteQuietly(src, old, loc);
+                String loc = dst.put(a.objectKey(), in, a.sizeBytes(), a.mimeType()); String old = a.locator(); a.migrateTo(targetType, loc); assets.save(a); deleteQuietly(src, old, loc);
             }
         }
     }
 
     void purgeDue(Recording r) {
         RecordingStoragePolicy p = policies.findById(r.tenantId()).orElse(null);
-        if (p == null || p.retentionDays() == null || r.readyAt() == null || r.readyAt()
-                .plus(Duration.ofDays((long) p.retentionDays() + p.deletedObjectGraceDays())).isAfter(clock.instant()))
-            return;
+        if (p == null || p.retentionDays() == null || r.readyAt() == null || r.readyAt().plus(Duration.ofDays((long) p.retentionDays() + p.deletedObjectGraceDays())).isAfter(clock.instant())) return;
         try {
             adapters.require(r.storageProvider()).delete(r.storageLocator());
-            for (RecordingAsset a : assets.findAllByTenantIdAndRecordingId(r.tenantId(), r.id())) {
-                try {
-                    adapters.require(a.provider()).delete(a.locator());
-                } catch (Exception ignored) {
-                }
-            }
-            r.delete(clock.instant());
-            audit.record(r.tenantId(), "system", "RECORDING_PURGED", "recording", r.id().toString());
-        } catch (Exception ignored) {
-        }
+            for (RecordingAsset a : assets.findAllByTenantIdAndRecordingId(r.tenantId(), r.id())) { try { adapters.require(a.provider()).delete(a.locator()); } catch (Exception ignored) {} }
+            r.delete(clock.instant()); audit.record(r.tenantId(), "system", "RECORDING_PURGED", "recording", r.id().toString());
+        } catch (Exception ignored) {}
     }
 
     private void finalizeFile(Recording r, Path video, long duration) {
         try {
-            long bytes = Files.size(video);
-            String hash = RecordingThumbnailService.sha256(video);
-            String key = r.tenantId() + "/recordings/" + r.id() + "/master.mp4";
-            StorageAdapter target = adapters.require(r.storageProvider());
+            long bytes = Files.size(video); String hash = RecordingThumbnailService.sha256(video); String key = r.tenantId() + "/recordings/" + r.id() + "/master.mp4"; StorageAdapter target = adapters.require(r.storageProvider());
             try (InputStream in = Files.newInputStream(video)) {
-                String loc = target.put(key, in, bytes, "video/mp4");
-                r.ready(loc, key, hash, bytes, duration, clock.instant());
-                assets.save(new RecordingAsset(UUID.randomUUID(), r.tenantId(), r.id(), RecordingAssetKind.MASTER,
-                        r.storageProvider(), loc, key, "video/mp4", bytes, hash, clock.instant()));
+                String loc = target.put(key, in, bytes, "video/mp4"); r.ready(loc, key, hash, bytes, duration, clock.instant());
+                assets.save(new RecordingAsset(UUID.randomUUID(), r.tenantId(), r.id(), RecordingAssetKind.MASTER, r.storageProvider(), loc, key, "video/mp4", bytes, hash, clock.instant()));
                 createThumbnail(r, video, target, key);
             }
-            Files.deleteIfExists(video);
-            Files.deleteIfExists(video.getParent());
-            notifyReady(r);
-        } catch (Exception e) {
-            r.fail(trim(e.getMessage()));
-        }
+            Files.deleteIfExists(video); Files.deleteIfExists(video.getParent()); notifyReady(r);
+        } catch (Exception e) { r.fail(trim(e.getMessage())); }
     }
 
     private void createThumbnail(Recording r, Path video, StorageAdapter target, String masterKey) {
         Path thumb = video.resolveSibling("thumbnail.jpg");
         try {
-            thumbnails.create(video, thumb);
-            long b = Files.size(thumb);
-            String h = RecordingThumbnailService.sha256(thumb);
-            String key = r.tenantId() + "/recordings/" + r.id() + "/thumbnail.jpg";
-            try (InputStream in = Files.newInputStream(thumb)) {
-                String loc = target.put(key, in, b, "image/jpeg");
-                assets.save(new RecordingAsset(UUID.randomUUID(), r.tenantId(), r.id(), RecordingAssetKind.THUMBNAIL,
-                        r.storageProvider(), loc, key, "image/jpeg", b, h, clock.instant()));
-            }
+            thumbnails.create(video, thumb); long b = Files.size(thumb); String h = RecordingThumbnailService.sha256(thumb); String key = r.tenantId() + "/recordings/" + r.id() + "/thumbnail.jpg";
+            try (InputStream in = Files.newInputStream(thumb)) { String loc = target.put(key, in, b, "image/jpeg"); assets.save(new RecordingAsset(UUID.randomUUID(), r.tenantId(), r.id(), RecordingAssetKind.THUMBNAIL, r.storageProvider(), loc, key, "image/jpeg", b, h, clock.instant())); }
             Files.deleteIfExists(thumb);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private void notifyReady(Recording r) {
         try {
-            Set<UUID> recipients = enrollment
-                    .activeMembershipIdsForBatch(liveClasses.require(r.liveClassId()).batchId());
-            List<NotificationPublisher.Recipient> target = recipients.stream().limit(5000)
-                    .map(id -> new NotificationPublisher.Recipient(id, null)).toList();
-            notifications.enqueue(
-                    new NotificationPublisher.NotificationRequest(r.tenantId(), NotificationEventType.RECORDING_READY,
-                            "recording", r.id(), "Class recording ready", "The recording is ready for playback.",
-                            com.universalplatform.notification.NotificationPriority.NORMAL, "recording", r.id(),
-                            "recording-ready-" + r.id(), clock.instant(), target));
-        } catch (Exception ignored) {
-        }
+            Set<UUID> recipients = enrollment.activeMembershipIdsForBatch(liveClasses.require(r.liveClassId()).batchId());
+            List<NotificationPublisher.Recipient> target = recipients.stream().limit(5000).map(id -> new NotificationPublisher.Recipient(id, null)).toList();
+            notifications.enqueue(new NotificationPublisher.NotificationRequest(r.tenantId(), NotificationEventType.RECORDING_READY, "recording", r.id(), "Class recording ready", "The recording is ready for playback.", com.universalplatform.notification.NotificationPriority.NORMAL, "recording", r.id(), "recording-ready-" + r.id(), clock.instant(), target));
+        } catch (Exception ignored) {}
     }
 
-    private Recording require(UUID id) {
-        return recordings.findByTenantIdAndId(tenants.requireTenantId(), id)
-                .orElseThrow(() -> new IllegalArgumentException("Recording not found"));
-    }
+    private Recording require(UUID id) { return recordings.findByTenantIdAndId(tenants.requireTenantId(), id).orElseThrow(() -> new IllegalArgumentException("Recording not found")); }
 
-    private RecordingView view(Recording r) {
-        return new RecordingView(r.id(), r.liveClassId(), r.classSessionId(), r.qualityPreset(), r.status(),
-                r.storageTier(), r.storageProvider(), r.sizeBytes(), r.durationSeconds(), r.requestedAt(),
-                r.startedAt(), r.endedAt(), r.readyAt(), r.archivedAt(), r.failureReason, r.version());
-    }
-
-    private Path localPath(Recording r) {
-        return processingRoot.resolve(r.tenantId().toString()).resolve(r.id().toString()).resolve("recording.mp4");
-    }
+    private RecordingView view(Recording r) { return new RecordingView(r.id(), r.liveClassId(), r.classSessionId(), r.qualityPreset(), r.status(), r.storageTier(), r.storageProvider(), r.sizeBytes(), r.durationSeconds(), r.requestedAt(), r.startedAt(), r.endedAt(), r.readyAt(), r.archivedAt(), r.failureReason, r.version()); }
+    private Path localPath(Recording r) { return processingRoot.resolve(r.tenantId().toString()).resolve(r.id().toString()).resolve("recording.mp4"); }
 
     private String opaque(UUID id, UUID membership, long exp) {
-        String payload = id + ":" + membership + ":" + exp;
-        String sig = Base64.getUrlEncoder().withoutPadding().encodeToString(hmac(payload));
-        return Base64.getUrlEncoder().withoutPadding()
-                .encodeToString((payload + ":" + sig).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String payload = id + ":" + membership + ":" + exp; String sig = Base64.getUrlEncoder().withoutPadding().encodeToString(hmac(payload));
+        return Base64.getUrlEncoder().withoutPadding().encodeToString((payload + ":" + sig).getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     private PlaybackToken parseToken(String token) {
         try {
-            String[] p = new String(Base64.getUrlDecoder().decode(token), java.nio.charset.StandardCharsets.UTF_8)
-                    .split(":", 4);
-            String payload = p[0] + ":" + p[1] + ":" + p[2];
-            String expected = Base64.getUrlEncoder().withoutPadding().encodeToString(hmac(payload));
-            if (!MessageDigest.isEqual(expected.getBytes(java.nio.charset.StandardCharsets.UTF_8),
-                    p[3].getBytes(java.nio.charset.StandardCharsets.UTF_8)))
-                throw new SecurityException("Playback token is invalid");
+            String[] p = new String(Base64.getUrlDecoder().decode(token), java.nio.charset.StandardCharsets.UTF_8).split(":", 4); String payload = p[0] + ":" + p[1] + ":" + p[2]; String expected = Base64.getUrlEncoder().withoutPadding().encodeToString(hmac(payload));
+            if (!MessageDigest.isEqual(expected.getBytes(java.nio.charset.StandardCharsets.UTF_8), p[3].getBytes(java.nio.charset.StandardCharsets.UTF_8))) throw new SecurityException("Playback token is invalid");
             return new PlaybackToken(UUID.fromString(p[0]), UUID.fromString(p[1]), Long.parseLong(p[2]));
-        } catch (SecurityException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new SecurityException("Playback token is invalid");
-        }
+        } catch (SecurityException e) { throw e; } catch (Exception e) { throw new SecurityException("Playback token is invalid"); }
     }
 
     private byte[] hmac(String text) {
-        try {
-            var mac = javax.crypto.Mac.getInstance("HmacSHA256");
-            mac.init(new javax.crypto.spec.SecretKeySpec(playbackSecret, "HmacSHA256"));
-            return mac.doFinal(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        } catch (Exception e) {
-            throw new IllegalStateException("Unable to sign playback token", e);
-        }
+        try { var mac = javax.crypto.Mac.getInstance("HmacSHA256"); mac.init(new javax.crypto.spec.SecretKeySpec(playbackSecret, "HmacSHA256")); return mac.doFinal(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
+        catch (Exception e) { throw new IllegalStateException("Unable to sign playback token", e); }
     }
 
-    private static String trim(String s) {
-        return s == null ? "Recording processing failed" : s.length() > 900 ? s.substring(0, 900) : s;
-    }
+    private static String trim(String s) { return s == null ? "Recording processing failed" : s.length() > 900 ? s.substring(0, 900) : s; }
 
-    record RecordingView(UUID id, UUID liveClassId, UUID classSessionId, RecordingQualityPreset qualityPreset,
-            RecordingProcessingStatus status, RecordingStorageTier storageTier, StorageProviderType storageProvider,
-            Long sizeBytes, Long durationSeconds, Instant requestedAt, Instant startedAt, Instant endedAt,
-            Instant readyAt, Instant archivedAt, String failureReason, long version) {
-    }
-
-    record PlaybackView(String streamUrl, Instant expiresAt, String watermarkName, String watermarkId,
-            Instant issuedAt) {
-    }
-
-    record StreamHandle(StorageProviderType provider, String locator, String fileName, Long sizeBytes) {
-    }
-
-    record StoragePolicyView(int hotCacheDays, int cacheDays, Integer retentionDays, StorageProviderType hotProvider,
-            StorageProviderType cacheProvider, StorageProviderType archiveProvider, int deletedObjectGraceDays,
-            long version) {
-    }
-
-    record PageResult<T>(List<T> items, int page, int size, long totalElements, int totalPages) {
-    }
-
-    private record PlaybackToken(UUID recordingId, UUID membershipId, long expiresAt) {
-    }
+    record RecordingView(UUID id, UUID liveClassId, UUID classSessionId, RecordingQualityPreset qualityPreset, RecordingProcessingStatus status, RecordingStorageTier storageTier, StorageProviderType storageProvider, Long sizeBytes, Long durationSeconds, Instant requestedAt, Instant startedAt, Instant endedAt, Instant readyAt, Instant archivedAt, String failureReason, long version) {}
+    record PlaybackView(String streamUrl, Instant expiresAt, String watermarkName, String watermarkId, Instant issuedAt) {}
+    record StreamHandle(StorageProviderType provider, String locator, String fileName, Long sizeBytes) {}
+    record StoragePolicyView(int hotCacheDays, int cacheDays, Integer retentionDays, StorageProviderType hotProvider, StorageProviderType cacheProvider, StorageProviderType archiveProvider, int deletedObjectGraceDays, long version) {}
+    record PageResult<T>(List<T> items, int page, int size, long totalElements, int totalPages) {}
+    private record PlaybackToken(UUID recordingId, UUID membershipId, long expiresAt) {}
 }

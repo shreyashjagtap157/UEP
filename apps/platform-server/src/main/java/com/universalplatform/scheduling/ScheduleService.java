@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -103,7 +104,6 @@ class ScheduleService {
     List<OccurrenceView> calendar(Instant from, Instant to) {
         validateRange(from, to);
         UUID tenantId = tenantContext.requireTenantId();
-        // Enforce the item cap inside SQL (LIMIT) instead of loading everything and failing after.
         Pageable cap = PageRequest.of(0, MAX_CALENDAR_ITEMS + 1);
         List<ScheduleOccurrence> visible;
         AuthorizationService.AccessScope manageScope = authorization.currentScope(PermissionKey.SCHEDULE_MANAGE);
