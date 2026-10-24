@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import {
-  DEMO_PROFILES, activityForProfile, courseFor, createDemoProduct, gradeDemoSubmission, loadDemoState, percentage,
-  submissionsForProfile,
-  progressFor, publishDemoProduct, resetDemoState, saveDemoState, setDemoUserStatus, submitDemoAssignment,
+  DEMO_PROFILES, activityForProfile, advanceDemoProgress, courseFor, createDemoProduct, gradeDemoSubmission, loadDemoState, percentage,
+  publishDemoCourse, publishDemoProduct, resetDemoState, resolveDemoOrganizationAction, saveDemoState, setDemoUserStatus, submitDemoAssignment,
   subscribeDemoState, updateDemoAttendance,
 } from './LocalDemoStore'
 import type { DemoProfile, DemoRole, DemoState, DemoSubmission } from './LocalDemoStore'
 
-type Section = 'overview' | 'learn' | 'classes' | 'assignments' | 'assessments' | 'results' | 'attendance' | 'calendar' | 'content' | 'learners' | 'grading' | 'reviews' | 'communication' | 'analytics' | 'programs' | 'reports' | 'billing' | 'account' | 'products' | 'editor' | 'integrations' | 'api' | 'releases' | 'academics' | 'people' | 'schedule' | 'operations' | 'finance' | 'settings' | 'security' | 'progress' | 'invoices' | 'payments' | 'submissions' | 'messages' | 'profile'
+type Section = 'overview' | 'learn' | 'classes' | 'assignments' | 'assessments' | 'results' | 'attendance' | 'calendar' | 'content' | 'learners' | 'grading' | 'reviews' | 'communication' | 'analytics' | 'programs' | 'reports' | 'billing' | 'account' | 'products' | 'editor' | 'integrations' | 'api' | 'releases' | 'academics' | 'people' | 'schedule' | 'operations' | 'finance' | 'settings' | 'security' | 'progress' | 'invoices' | 'payments' | 'submissions' | 'messages' | 'profile' | 'organization-actions'
 
 const navigation: Record<DemoRole, Array<{ id: Section; label: string }>> = {
   student: [
@@ -24,7 +23,7 @@ const navigation: Record<DemoRole, Array<{ id: Section; label: string }>> = {
   ],
   client: [
     { id: 'overview', label: 'Organization Overview' }, { id: 'programs', label: 'Programs & Products' }, { id: 'learners', label: 'Organization Members' },
-    { id: 'reports', label: 'Outcomes & Reports' }, { id: 'billing', label: 'Billing & Entitlements' }, { id: 'account', label: 'Organization Account' },
+    { id: 'organization-actions', label: 'Action Centre' }, { id: 'reports', label: 'Outcomes & Reports' }, { id: 'billing', label: 'Billing & Entitlements' }, { id: 'account', label: 'Organization Account' },
   ],
   developer: [
     { id: 'overview', label: 'Product Studio' }, { id: 'products', label: 'My Products' }, { id: 'editor', label: 'Create Product' },
@@ -69,7 +68,7 @@ const sectionTitles: Record<Section, string> = {
   account: 'Organization Account', products: 'Products', editor: 'Create Product', integrations: 'Integrations', api: 'API & Delivery Status', releases: 'Publishing & Releases',
   academics: 'Academics & Curriculum', people: 'People & Roles', schedule: 'Schedule', operations: 'Operations & Audit', finance: 'Finance & Licensing',
   settings: 'Configuration', security: 'Security', progress: 'Learning Progress', invoices: 'Invoices', payments: 'Payments & Receipts',
-  submissions: 'Submission Status', messages: 'Messages', profile: 'My Profile',
+  submissions: 'Submission Status', messages: 'Messages', profile: 'My Profile', 'organization-actions': 'Organization Action Centre',
 }
 
 export function LocalDashboard({ initialRole = 'student', onSignOut }: { initialRole?: DemoRole; onSignOut?: () => void }) {
@@ -123,6 +122,30 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
   function handlePublishProduct(id: string) {
     const next = publishDemoProduct(state, id, profile)
     if (next !== state) commit(next, 'Product published in the local demo catalog. The client product list now reflects this change.')
+  }
+  function handleAdvanceProgress(courseId: string) {
+    const next = advanceDemoProgress(state, courseId, profile)
+    if (next === state) {
+      setNotice('Progress was not changed. Only an active student can complete a lesson in an assigned published course.')
+      return
+    }
+    commit(next, 'Lesson completion saved. Your progress and the linked guardian summary now reflect this change.')
+  }
+  function handlePublishCourse(courseId: string) {
+    const next = publishDemoCourse(state, courseId, profile)
+    if (next === state) {
+      setNotice('Course was not published. Only an active platform administrator can publish a draft course.')
+      return
+    }
+    commit(next, 'Course published to the shared demo catalog. The client catalog now reflects the published status.')
+  }
+  function handleResolveOrganizationAction(actionId: string) {
+    const next = resolveDemoOrganizationAction(state, actionId, profile)
+    if (next === state) {
+      setNotice('This organization action cannot be resolved from the current profile or organization.')
+      return
+    }
+    commit(next, 'Organization action resolved and saved for the active institution.')
   }
   function handleAttendanceUpdate(id: string, status: 'Present' | 'Late' | 'Absent') {
     const next = updateDemoAttendance(state, id, status, profile)
@@ -227,7 +250,7 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       <section className="local-welcome"><p className="eyebrow">{profile.label} workspace</p><h2>{welcomeFor(profile.role)}</h2><p>{profile.description}</p></section>
       <div className="local-metric-grid">{metrics.map(metric => <article className="local-metric" key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.detail}</small></article>)}</div>
       <section className="local-panel"><div className="local-panel-heading"><div><p className="eyebrow">Next actions</p><h3>{profile.role === 'student' ? 'Continue learning' : profile.role === 'teacher' ? 'Teaching and assessment queue' : profile.role === 'developer' ? 'Product delivery' : profile.role === 'client' ? 'Organization status' : 'Recent workspace activity'}</h3></div></div>
-        {profile.role === 'student' ? <CourseList state={state} courses={visibleCourses} userId={profile.userId} onOpen={() => setActiveSection('learn')} /> :
+        {profile.role === 'student' ? <CourseList state={state} courses={visibleCourses} userId={profile.userId} onOpen={() => setActiveSection('learn')} onAdvance={handleAdvanceProgress} /> :
           ['teacher', 'evaluator', 'teaching-assistant'].includes(profile.role) ? <SubmissionList state={state} profile={profile} submissions={pendingSubmissions.slice(0, 4)} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} /> :
           profile.role === 'developer' ? <ProductList products={state.products.slice(0, 4)} onPublish={handlePublishProduct} /> :
           profile.role === 'client' ? <ProductList products={publishedProducts.slice(0, 4)} onPublish={handlePublishProduct} readOnly /> : <ActivityList state={state} profile={profile} />}
@@ -241,7 +264,7 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       case 'overview': return renderOverview()
       case 'learn':
       case 'programs':
-      case 'academics': return <section className="local-panel"><PanelHeading eyebrow="Catalog" title={sectionTitles[activeSection]} detail={visibleCourses.length + ' accessible course records'} /><CourseList state={state} courses={visibleCourses} userId={['client', 'admin'].includes(profile.role) ? 'student-asha' : profile.role === 'guardian' ? 'student-asha' : profile.userId} onOpen={() => setNotice('Course selected. Course and progress values come from the local records.')} /><ProductList products={state.products.filter(item => item.status === 'Published')} onPublish={handlePublishProduct} readOnly /></section>
+      case 'academics': return <section className="local-panel"><PanelHeading eyebrow="Catalog" title={sectionTitles[activeSection]} detail={visibleCourses.length + ' accessible course records'} /><CourseList state={state} courses={visibleCourses} userId={['client', 'admin'].includes(profile.role) ? 'student-asha' : profile.role === 'guardian' ? 'student-asha' : profile.userId} onOpen={() => setNotice('Course selected. Course and progress values come from the local records.')} onAdvance={profile.role === 'student' ? handleAdvanceProgress : undefined} onPublishCourse={profile.role === 'admin' ? handlePublishCourse : undefined} /><ProductList products={state.products.filter(item => item.status === 'Published')} onPublish={handlePublishProduct} readOnly /></section>
       case 'classes':
       case 'calendar':
       case 'schedule': return <ScheduleView state={state} profile={profile} />
@@ -263,6 +286,11 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       case 'attendance': return <AttendanceView state={state} profile={profile} onUpdate={handleAttendanceUpdate} />
       case 'learners':
       case 'people': return <PeopleView state={state} profile={profile} onStatus={(id, status) => commit(setDemoUserStatus(state, id, status, profile), 'Membership status saved to the demo dataset.')} />
+      case 'organization-actions': {
+        const organization = state.users.find(user => user.id === profile.userId)?.organization
+        const actions = state.organizationActions.filter(action => action.organization === organization)
+        return <section className="local-panel"><PanelHeading eyebrow="Institution operations" title="Organization action centre" detail="Resolution state is shared across this browser's separate demo sign-ins for the same institution." />{actions.length ? <div className="local-record-list">{actions.map(action => <article className="local-record" key={action.id}><div className="local-record-main"><strong>{action.title}</strong><p>{action.description}</p><small>Updated {new Date(action.updatedAt).toLocaleString()}</small></div><div className="local-record-side"><span className={'local-status status-' + action.status.toLowerCase()}>{action.status}</span>{profile.role === 'client' && action.status === 'Open' && <button className="primary-button small-button" type="button" onClick={() => handleResolveOrganizationAction(action.id)}>Mark resolved</button>}</div></article>)}</div> : <p className="local-empty">No organization actions are available in this local demo scope.</p>}<p className="local-data-notice">These are synthetic offline demo actions, not live tasks from an institution's production system.</p></section>
+      }
       case 'products':
       case 'releases': return <section className="local-panel"><PanelHeading eyebrow="Product lifecycle" title={sectionTitles[activeSection]} detail="Draft creation and publishing update the browser-persisted product catalog." /><button className="primary-button" onClick={() => setActiveSection('editor')}>Create product draft</button><ProductList products={state.products} onPublish={handlePublishProduct} /></section>
       case 'editor': return <section className="local-panel"><PanelHeading eyebrow="Product authoring" title="Create an educational product" detail="Save a draft, then publish it from My Products." /><form className="local-form" onSubmit={handleCreateProduct}><label>Product title<input required maxLength={120} value={productTitle} onChange={event => setProductTitle(event.target.value)} placeholder="e.g. Applied Data Engineering" /></label><label>Description<textarea rows={4} value={productDescription} onChange={event => setProductDescription(event.target.value)} placeholder="Outcomes, intended audience and scope" /></label><button className="primary-button" type="submit">Save draft</button></form></section>
@@ -327,9 +355,19 @@ function welcomeFor(role: DemoRole): string {
 function PanelHeading({ eyebrow, title, detail }: { eyebrow: string; title: string; detail?: string }) {
   return <div className="local-panel-heading"><div><p className="eyebrow">{eyebrow}</p><h3>{title}</h3>{detail && <p>{detail}</p>}</div></div>
 }
-function CourseList({ state, courses, userId, onOpen }: { state: DemoState; courses: DemoState['courses']; userId: string; onOpen: () => void }) {
+function CourseList({ state, courses, userId, onOpen, onAdvance, onPublishCourse }: {
+  state: DemoState
+  courses: DemoState['courses']
+  userId: string
+  onOpen: () => void
+  onAdvance?: (courseId: string) => void
+  onPublishCourse?: (courseId: string) => void
+}) {
   if (!courses.length) return <p className="local-empty">No courses are assigned to this profile yet.</p>
-  return <div className="local-record-list">{courses.map(course => <article className="local-record" key={course.id}><div className="local-record-main"><strong>{course.title}</strong><p>{course.description}</p><small>{course.category} · {course.lessonCount} lessons</small></div><div className="local-record-side"><strong>{progressFor(state, userId, course.id)}%</strong><small>Progress</small><button className="text-button" onClick={onOpen}>Open course</button></div></article>)}</div>
+  return <div className="local-record-list">{courses.map(course => {
+    const progress = progressFor(state, userId, course.id)
+    return <article className="local-record" key={course.id}><div className="local-record-main"><strong>{course.title}</strong><p>{course.description}</p><small>{course.category} · {course.lessonCount} lessons · {course.status}</small></div><div className="local-record-side"><strong>{progress}%</strong><small>Progress</small><button className="text-button" onClick={onOpen}>Open course</button>{onAdvance && progress < 100 && course.status === 'Published' && <button className="primary-button small-button" type="button" onClick={() => onAdvance(course.id)}>Complete next lesson</button>}{onPublishCourse && course.status === 'Draft' && <button className="primary-button small-button" type="button" onClick={() => onPublishCourse(course.id)}>Publish course</button>}</div></article>
+  })}</div>
 }
 function SubmissionList({ state, profile, submissions, onGrade, onSubmit, readOnly = false }: { state: DemoState; profile: DemoProfile; submissions: DemoSubmission[]; onGrade: (event: FormEvent<HTMLFormElement>, submission: DemoSubmission) => void; onSubmit: (id: string) => void; readOnly?: boolean }) {
   if (!submissions.length) return <p className="local-empty">No items match this workspace right now.</p>
