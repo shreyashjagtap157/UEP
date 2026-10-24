@@ -84,6 +84,7 @@ The current hardening milestone is implemented in source and intentionally remai
 ```bash
 mvn -f apps/platform-server/pom.xml verify
 npm --prefix apps/web install --ignore-scripts
+npm --prefix apps/web test
 npm --prefix apps/web run build
 ```
 
