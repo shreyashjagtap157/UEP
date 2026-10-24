@@ -3,6 +3,9 @@ import test from 'node:test'
 import {
   DEMO_PROFILES,
   activityForProfile,
+  advanceDemoProgress,
+  publishDemoCourse,
+  resolveDemoOrganizationAction,
   submissionsForProfile,
   gradeDemoSubmission,
   loadDemoState,
@@ -143,6 +146,65 @@ test('submission visibility is restricted to each persona learner/course scope',
   assert.deepEqual(ids('auditor'), [])
   assert.deepEqual(ids('developer'), [])
   assert.deepEqual(ids('finance-admin'), [])
+})
+
+test('student progress advances and administrator course publication changes the shared catalog', () => {
+  const original = resetDemoState()
+  const student = profile('student')
+  const admin = profile('admin')
+
+  const progressed = advanceDemoProgress(original, 'course-web', student)
+  assert.notStrictEqual(progressed, original)
+  assert.equal(progressed.courseProgress['student-asha:course-web'], 78)
+  assert.ok(progressed.activity.some((item) => item.action === 'Learning progress updated'))
+
+  assert.strictEqual(advanceDemoProgress(progressed, 'course-web', profile('teacher')), progressed)
+
+  const published = publishDemoCourse(progressed, 'course-product-draft', admin)
+  assert.notStrictEqual(published, progressed)
+  assert.equal(published.courses.find((item) => item.id === 'course-product-draft')?.status, 'Published')
+  assert.ok(published.activity.some((item) => item.action === 'Course published'))
+  assert.strictEqual(publishDemoCourse(published, 'course-product-draft', student), published)
+})
+
+test('client organization actions resolve only for their matching active organization', () => {
+  const state = resetDemoState()
+  const client = profile('client')
+  const actionId = 'org-action-attendance-review'
+  const resolved = resolveDemoOrganizationAction(state, actionId, client)
+
+  assert.notStrictEqual(resolved, state)
+  assert.equal(resolved.organizationActions.find((item) => item.id === actionId)?.status, 'Resolved')
+  assert.ok(resolved.activity.some((item) => item.action === 'Organization action resolved'
+    && item.detail === 'Review attendance exceptions'))
+  assert.strictEqual(resolveDemoOrganizationAction(resolved, actionId, client), resolved)
+  assert.strictEqual(resolveDemoOrganizationAction(state, actionId, profile('teacher')), state)
+
+  const unrelatedOrgState = {
+    ...state,
+    organizationActions: state.organizationActions.map((item) => item.id === actionId
+      ? { ...item, organization: 'Different Learning Institute' }
+      : item),
+  }
+  assert.strictEqual(resolveDemoOrganizationAction(unrelatedOrgState, actionId, client), unrelatedOrgState)
+})
+
+test('legacy browser state migrates to v2 without losing saved workflows', () => {
+  let state = resetDemoState()
+  state = advanceDemoProgress(state, 'course-web', profile('student'))
+  saveDemoState(state)
+
+  const current = JSON.parse(localStorage.getItem('uep.local-demo-data.v2'))
+  current.schemaVersion = 1
+  delete current.organizationActions
+  localStorage.setItem('uep.local-demo-data.v1', JSON.stringify(current))
+  localStorage.removeItem('uep.local-demo-data.v2')
+
+  const migrated = loadDemoState()
+  assert.equal(migrated.schemaVersion, 2)
+  assert.equal(migrated.courseProgress['student-asha:course-web'], 78)
+  assert.equal(migrated.organizationActions.length, 3)
+  assert.ok(localStorage.getItem('uep.local-demo-data.v2'))
 })
 
 test('activity feeds do not expose global details to unrelated personas', () => {
