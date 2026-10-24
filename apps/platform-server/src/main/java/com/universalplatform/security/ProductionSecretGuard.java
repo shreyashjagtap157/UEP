@@ -29,26 +29,41 @@ final class ProductionSecretGuard {
     void rejectDevelopmentDefaults() {
         if (environment.getProperty(DEV_MODE_PROPERTY, Boolean.class, false)) return;
         if (runningUnderTestHarness()) return;
+        validateProductionSecrets(environment);
+    }
+
+    /**
+     * Validates without the test-harness bypass so the fail-closed contract can be unit-tested.
+     * Values are never included in errors; only property/environment variable names are reported.
+     */
+    static void validateProductionSecrets(Environment environment) {
         List<String> offenders = new ArrayList<>();
-        check(offenders, "spring.datasource.password", "DATABASE_PASSWORD", "education");
-        check(offenders, "platform.recording.playback-secret", "PLATFORM_RECORDING_PLAYBACK_SECRET", "change-me-in-production");
-        check(offenders, "platform.integrations.secret-key", "PLATFORM_INTEGRATION_SECRET_KEY", "change-me-in-production");
-        check(offenders, "platform.live-learning.livekit.api-key", "LIVEKIT_API_KEY", "devkey");
-        check(offenders, "platform.live-learning.livekit.api-secret", "LIVEKIT_API_SECRET", "secret");
+        check(offenders, environment, "spring.datasource.password", "DATABASE_PASSWORD", "education", 16);
+        check(offenders, environment, "platform.recording.playback-secret",
+                "PLATFORM_RECORDING_PLAYBACK_SECRET", "change-me-in-production", 32);
+        check(offenders, environment, "platform.integrations.secret-key",
+                "PLATFORM_INTEGRATION_SECRET_KEY", "change-me-in-production", 32);
+        check(offenders, environment, "platform.live-learning.livekit.api-key", "LIVEKIT_API_KEY", "devkey", 16);
+        check(offenders, environment, "platform.live-learning.livekit.api-secret", "LIVEKIT_API_SECRET", "secret", 32);
         if (offenders.isEmpty()) return;
         throw new IllegalStateException(
-                "Refusing to start: deployment secrets are still at their public development defaults. "
-                        + "Set real values via environment variables (or set "
-                        + DEV_MODE_PROPERTY + "=true / env PLATFORM_DEV_MODE=true for non-production environments only): "
+                "Refusing to start: one or more production secrets are missing, blank, too short, "
+                        + "or still at published development defaults. Set strong values through the named "
+                        + "environment variables (or set " + DEV_MODE_PROPERTY
+                        + "=true / env PLATFORM_DEV_MODE=true for non-production environments only): "
                         + String.join("; ", offenders));
     }
 
-    private void check(List<String> offenders, String property, String envVar, String devDefault) {
+    private static void check(List<String> offenders, Environment environment, String property,
+                              String envVar, String devDefault, int minimumLength) {
         String value = environment.getProperty(property);
-        // A missing property is not a violation; only a value exactly equal to the published dev
-        // default cannot ship to production.
-        if (value != null && value.equals(devDefault)) {
-            offenders.add(property + " (env " + envVar + ")");
+        String label = property + " (env " + envVar + ")";
+        if (value == null || value.isBlank()) {
+            offenders.add(label + " is missing or blank");
+        } else if (value.equals(devDefault)) {
+            offenders.add(label + " uses the development default");
+        } else if (value.trim().length() < minimumLength) {
+            offenders.add(label + " must contain at least " + minimumLength + " characters");
         }
     }
 
