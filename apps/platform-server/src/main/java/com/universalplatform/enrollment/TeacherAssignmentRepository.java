@@ -29,20 +29,44 @@ interface TeacherAssignmentRepository extends JpaRepository<TeacherAssignment, U
                          @Param("subjectId") UUID subjectId, @Param("moduleId") UUID moduleId,
                          @Param("batchId") UUID batchId, @Param("role") TeacherAssignmentRole role);
 
-    @Query("""
-            select distinct t.membershipId from TeacherAssignment t
-            where t.tenantId = :tenantId and t.status = com.universalplatform.enrollment.TeacherAssignmentStatus.ACTIVE
-              and ((:batchId is not null and t.batchId = :batchId)
-                   or (:courseId is not null and (
-                        t.courseId = :courseId
-                        or t.batchId in (select b.id from Batch b where b.tenantId = :tenantId and b.courseId = :courseId)
-                        or t.subjectId in (select s.id from Subject s where s.tenantId = :tenantId and s.courseId = :courseId)
-                        or t.moduleId in (select m.id from CurriculumModule m where m.tenantId = :tenantId and (
-                            m.courseId = :courseId or m.subjectId in (select s2.id from Subject s2 where s2.tenantId = :tenantId and s2.courseId = :courseId))))
-                   or (:subjectId is not null and (
-                        t.subjectId = :subjectId
-                        or t.moduleId in (select m2.id from CurriculumModule m2 where m2.tenantId = :tenantId and m2.subjectId = :subjectId))))
-            """)
+    @Query(value = """
+            SELECT DISTINCT ta.membership_id
+            FROM teacher_assignment ta
+            WHERE ta.tenant_id = :tenantId
+              AND ta.status = 'ACTIVE'
+              AND (
+                (:batchId IS NOT NULL AND ta.batch_id = :batchId)
+                OR (:courseId IS NOT NULL AND (
+                    ta.course_id = :courseId
+                    OR ta.batch_id IN (
+                        SELECT b.id FROM batch b
+                        WHERE b.tenant_id = :tenantId AND b.course_id = :courseId
+                    )
+                    OR ta.subject_id IN (
+                        SELECT s.id FROM subject s
+                        WHERE s.tenant_id = :tenantId AND s.course_id = :courseId
+                    )
+                    OR ta.module_id IN (
+                        SELECT m.id FROM curriculum_module m
+                        WHERE m.tenant_id = :tenantId
+                          AND (
+                              m.course_id = :courseId
+                              OR m.subject_id IN (
+                                  SELECT s2.id FROM subject s2
+                                  WHERE s2.tenant_id = :tenantId AND s2.course_id = :courseId
+                              )
+                          )
+                    )
+                ))
+                OR (:subjectId IS NOT NULL AND (
+                    ta.subject_id = :subjectId
+                    OR ta.module_id IN (
+                        SELECT m2.id FROM curriculum_module m2
+                        WHERE m2.tenant_id = :tenantId AND m2.subject_id = :subjectId
+                    )
+                ))
+              )
+            """, nativeQuery = true)
     java.util.List<UUID> findActiveMembershipIdsForAudience(@Param("tenantId") UUID tenantId,
             @Param("batchId") UUID batchId, @Param("courseId") UUID courseId, @Param("subjectId") UUID subjectId);
 
