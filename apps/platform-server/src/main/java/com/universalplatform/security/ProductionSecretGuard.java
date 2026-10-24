@@ -27,7 +27,15 @@ final class ProductionSecretGuard {
 
     @PostConstruct
     void rejectDevelopmentDefaults() {
-        if (environment.getProperty(DEV_MODE_PROPERTY, Boolean.class, false)) return;
+        boolean developmentMode = environment.getProperty(DEV_MODE_PROPERTY, Boolean.class, false);
+        boolean productionProfile = java.util.Arrays.stream(environment.getActiveProfiles())
+                .anyMatch(profile -> profile.equalsIgnoreCase("prod") || profile.equalsIgnoreCase("production"));
+        if (developmentMode && productionProfile) {
+            throw new IllegalStateException(
+                    "Refusing to start: " + DEV_MODE_PROPERTY
+                            + " cannot be enabled with the prod/production Spring profile");
+        }
+        if (developmentMode) return;
         if (runningUnderTestHarness()) return;
         validateProductionSecrets(environment);
     }

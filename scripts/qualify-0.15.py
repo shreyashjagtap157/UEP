@@ -24,6 +24,7 @@ required_guard_contract = [
     'value == null || value.isBlank()',
     'value.equals(devDefault)',
     'value.trim().length() < minimumLength',
+    'cannot be enabled with the prod/production Spring profile',
 ]
 for required in required_guard_contract:
     if required not in guard:

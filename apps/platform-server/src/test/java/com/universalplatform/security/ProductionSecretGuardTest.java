@@ -43,6 +43,18 @@ class ProductionSecretGuardTest {
     }
 
     @Test
+    void developmentModeCannotBypassChecksUnderProductionProfile() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty(ProductionSecretGuard.DEV_MODE_PROPERTY, "true");
+        environment.setActiveProfiles("production");
+        ProductionSecretGuard guard = new ProductionSecretGuard(environment);
+
+        assertThatThrownBy(guard::rejectDevelopmentDefaults)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("cannot be enabled with the prod/production Spring profile");
+    }
+
+    @Test
     void acceptsStrongNonDefaultProductionSecrets() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("spring.datasource.password", "S3cure-database-password-2026")
