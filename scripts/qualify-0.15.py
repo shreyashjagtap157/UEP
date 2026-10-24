@@ -146,6 +146,17 @@ credential_repository = text('apps/platform-server/src/main/java/com/universalpl
 if 'int touchLastUsedAt(' not in credential_repository:
     errors.append('API credential last-used metadata must update atomically without optimistic-lock contention')
 
+# Malware rejection is a terminal state transition; throwing must not roll that transition back.
+upload_service_for_rejection = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
+if '@Transactional(noRollbackFor = UploadRejectedException.class)' not in upload_service_for_rejection:
+    errors.append('malware rejection must commit the ABORTED upload state')
+if 'throw new UploadRejectedException("Upload rejected by malware scanner")' not in upload_service_for_rejection:
+    errors.append('malware rejection must throw the non-rollback terminal exception')
+if not (ROOT / 'apps/platform-server/src/main/java/com/universalplatform/content/UploadRejectedException.java').exists():
+    errors.append('missing terminal upload rejection exception type')
+if 'malwareRejectionCommitsTerminalAbortAndRemovesStagingFile' not in text('apps/platform-server/src/test/java/com/universalplatform/content/UploadFinalizationCompensationTest.java'):
+    errors.append('missing malware rejection terminal-state regression test')
+
 # Upload provider side effects must be compensated after rollback, with durable retry when delete fails.
 storage_cleanup_migration = text('apps/platform-server/src/main/resources/db/migration/V029__storage_cleanup_outbox.sql')
 for required in [

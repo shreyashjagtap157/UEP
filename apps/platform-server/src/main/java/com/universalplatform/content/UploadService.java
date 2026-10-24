@@ -145,7 +145,7 @@ class UploadService {
      * produced instead of re-scanning, re-uploading to the provider, and inserting a duplicate
      * {@link StorageObject}. The check runs under the session's pessimistic row lock.
      */
-    @Transactional
+    @Transactional(noRollbackFor = UploadRejectedException.class)
     StorageView finalizeUpload(UUID id) throws IOException, GeneralSecurityException {
         auth.require(PermissionKey.CONTENT_MANAGE);
         UUID tenant = tenants.requireTenantId();
@@ -174,7 +174,7 @@ class UploadService {
             u.status = UploadStatus.ABORTED;
             Files.deleteIfExists(path);
             audit.record(tenant, actors.requireSubject(), "UPLOAD_REJECTED_MALWARE", "upload_session", u.id.toString());
-            throw new IllegalStateException("Upload rejected by malware scanner");
+            throw new UploadRejectedException("Upload rejected by malware scanner");
         }
         String key = tenant + "/" + LocalDate.now(ZoneOffset.UTC) + "/" + UUID.randomUUID() + "/" + u.fileName;
         StorageAdapter adapter = adapters.require(u.provider);

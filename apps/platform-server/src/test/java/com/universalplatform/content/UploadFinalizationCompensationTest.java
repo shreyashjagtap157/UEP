@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -76,10 +77,10 @@ class UploadFinalizationCompensationTest {
         when(actors.requireSubject()).thenReturn(actor);
         when(uploads.lock(tenantId, uploadId)).thenReturn(Optional.of(session));
         when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.CLEAN);
-        when(adapters.require(StorageProviderType.LOCAL)).thenReturn(adapter);
-        when(adapter.put(anyString(), any(), eq((long) FILE_BYTES.length), eq("application/octet-stream")))
+        lenient().when(adapters.require(StorageProviderType.LOCAL)).thenReturn(adapter);
+        lenient().when(adapter.put(anyString(), any(), eq((long) FILE_BYTES.length), eq("application/octet-stream")))
                 .thenReturn("remote-locator");
-        when(objects.save(any(StorageObject.class))).thenAnswer(call -> call.getArgument(0));
+        lenient().when(objects.save(any(StorageObject.class))).thenAnswer(call -> call.getArgument(0));
         TransactionSynchronizationManager.setActualTransactionActive(true);
         TransactionSynchronizationManager.initSynchronization();
     }
@@ -90,6 +91,21 @@ class UploadFinalizationCompensationTest {
             TransactionSynchronizationManager.clearSynchronization();
         }
         TransactionSynchronizationManager.setActualTransactionActive(false);
+    }
+
+    @Test
+    void malwareRejectionCommitsTerminalAbortAndRemovesStagingFile() throws Exception {
+        when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.REJECTED);
+
+        assertThatThrownBy(() -> service.finalizeUpload(uploadId))
+                .isInstanceOf(UploadRejectedException.class)
+                .hasMessage("Upload rejected by malware scanner");
+
+        assertThat(session.status).isEqualTo(UploadStatus.ABORTED);
+        assertThat(Files.exists(stagingFile)).isFalse();
+        verify(adapter, never()).put(anyString(), any(), eq((long) FILE_BYTES.length), eq("application/octet-stream"));
+        verify(objects, never()).save(any(StorageObject.class));
+        verify(audit).record(tenantId, actor, "UPLOAD_REJECTED_MALWARE", "upload_session", uploadId.toString());
     }
 
     @Test
