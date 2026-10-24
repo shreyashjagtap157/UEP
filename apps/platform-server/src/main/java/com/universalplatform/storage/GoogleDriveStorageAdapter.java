@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.time.Duration;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -14,7 +15,7 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnProperty(name="platform.storage.google-drive.enabled", havingValue="true")
 class GoogleDriveStorageAdapter implements StorageAdapter {
-    private final HttpClient http=HttpClient.newHttpClient(); private final ObjectMapper json=new ObjectMapper();
+    private final HttpClient http=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build(); private final ObjectMapper json=new ObjectMapper();
     private final String token; private final String folderId; private final String sharedDriveId;
     GoogleDriveStorageAdapter(@Value("${platform.storage.google-drive.access-token}") String token,
                               @Value("${platform.storage.google-drive.folder-id:}") String folderId,
@@ -29,12 +30,12 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
             byte[] tail=("\r\n--"+boundary+"--\r\n").getBytes(StandardCharsets.UTF_8);
             HttpRequest.BodyPublisher body=HttpRequest.BodyPublishers.concat(HttpRequest.BodyPublishers.ofByteArray(head),HttpRequest.BodyPublishers.ofInputStream(()->source),HttpRequest.BodyPublishers.ofByteArray(tail));
             String uri="https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true";
-            HttpRequest req=HttpRequest.newBuilder(URI.create(uri)).header("Authorization","Bearer "+token).header("Content-Type","multipart/related; boundary="+boundary).POST(body).build();
+            HttpRequest req=HttpRequest.newBuilder(URI.create(uri)).timeout(Duration.ofMinutes(2)).header("Authorization","Bearer "+token).header("Content-Type","multipart/related; boundary="+boundary).POST(body).build();
             HttpResponse<String> r=http.send(req,HttpResponse.BodyHandlers.ofString()); if(r.statusCode()/100!=2) throw new IOException("Google Drive upload failed: HTTP "+r.statusCode());
             JsonNode n=json.readTree(r.body()); return n.path("id").asText();
         } catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("Google Drive upload interrupted",e);}
     }
-    public InputStream open(String id) throws IOException { try { HttpRequest q=HttpRequest.newBuilder(URI.create("https://www.googleapis.com/drive/v3/files/"+id+"?alt=media&supportsAllDrives=true")).header("Authorization","Bearer "+token).GET().build(); HttpResponse<InputStream> r=http.send(q,HttpResponse.BodyHandlers.ofInputStream()); if(r.statusCode()/100!=2) throw new IOException("Google Drive download failed: HTTP "+r.statusCode()); return r.body(); } catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException(e);} }
-    public void delete(String id) throws IOException { try { HttpRequest q=HttpRequest.newBuilder(URI.create("https://www.googleapis.com/drive/v3/files/"+id+"?supportsAllDrives=true")).header("Authorization","Bearer "+token).DELETE().build(); HttpResponse<Void> r=http.send(q,HttpResponse.BodyHandlers.discarding()); if(r.statusCode()/100!=2 && r.statusCode()!=404) throw new IOException("Google Drive delete failed: HTTP "+r.statusCode()); } catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException(e);} }
+    public InputStream open(String id) throws IOException { try { HttpRequest q=HttpRequest.newBuilder(URI.create("https://www.googleapis.com/drive/v3/files/"+id+"?alt=media&supportsAllDrives=true")).timeout(Duration.ofSeconds(30)).header("Authorization","Bearer "+token).GET().build(); HttpResponse<InputStream> r=http.send(q,HttpResponse.BodyHandlers.ofInputStream()); if(r.statusCode()/100!=2) throw new IOException("Google Drive download failed: HTTP "+r.statusCode()); return r.body(); } catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException(e);} }
+    public void delete(String id) throws IOException { try { HttpRequest q=HttpRequest.newBuilder(URI.create("https://www.googleapis.com/drive/v3/files/"+id+"?supportsAllDrives=true")).timeout(Duration.ofSeconds(15)).header("Authorization","Bearer "+token).DELETE().build(); HttpResponse<Void> r=http.send(q,HttpResponse.BodyHandlers.discarding()); if(r.statusCode()/100!=2 && r.statusCode()!=404) throw new IOException("Google Drive delete failed: HTTP "+r.statusCode()); } catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException(e);} }
     private static String escape(String s){return s.replace("\\","\\\\").replace("\"","\\\"");}
 }

@@ -83,6 +83,13 @@ if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/recordi
 drive_storage = text('apps/platform-server/src/main/java/com/universalplatform/storage/GoogleDriveStorageAdapter.java')
 if 'r.statusCode()!=404' not in drive_storage:
     errors.append('Google Drive deletes must treat already-missing objects as idempotently deleted')
+for timeout_contract in [
+    'connectTimeout(Duration.ofSeconds(5))',
+    'timeout(Duration.ofMinutes(2))',
+    'timeout(Duration.ofSeconds(15))',
+]:
+    if timeout_contract not in drive_storage:
+        errors.append(f'Google Drive adapter is missing bounded HTTP timeout: {timeout_contract}')
 
 # Tenant isolation gate: require tenant-leading indexes for the high-frequency 0.15 query paths.
 required_indexes = {
