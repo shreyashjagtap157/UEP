@@ -218,6 +218,43 @@ class IdentityAuthorizationIntegrationTest {
     }
 
     @Test
+    void apiCredentialCanManageCredentialsOnlyForItsOwnMembership() throws Exception {
+        String createKeyBody = """
+                {"membershipId":"%s","name":"api-management-key","scopes":["API_MANAGE"]}
+                """.formatted(DUAL_MEMBERSHIP);
+        var created = mvc.perform(post("/api/v1/integrations/api-credentials")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createKeyBody)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk())
+                .andReturn();
+        String apiKey = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(created.getResponse().getContentAsString())
+                .path("secret")
+                .asText();
+
+        String ownMembershipBody = """
+                {"membershipId":"%s","name":"api-key-created-key","scopes":["API_VIEW"]}
+                """.formatted(DUAL_MEMBERSHIP);
+        mvc.perform(post("/api/v1/integrations/api-credentials")
+                        .header("X-API-Key", apiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(ownMembershipBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("api-key-created-key"));
+
+        String otherMembershipBody = """
+                {"membershipId":"%s","name":"api-key-owner-impersonation","scopes":["API_VIEW"]}
+                """.formatted(OWNER_MEMBERSHIP);
+        mvc.perform(post("/api/v1/integrations/api-credentials")
+                        .header("X-API-Key", apiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(otherMembershipBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+    }
+
+    @Test
     void ownerCanCreateApiCredentialForAnotherActiveMembership() throws Exception {
         String body = """
                 {"membershipId":"%s","name":"managed-service-key","scopes":["API_VIEW"]}

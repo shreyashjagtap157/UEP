@@ -51,14 +51,17 @@ public class AuthorizationService implements ApiCredentialAuthorizer {
             return;
         }
 
-        ActiveIdentity actor = identitySecurity.requireCurrentIdentity();
-        if (actor.membershipId().equals(membershipId)) {
+        var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        UUID actorMembershipId = authentication != null
+                && authentication.getPrincipal() instanceof ScopedCredentialPrincipal credential
+                ? credential.membershipId()
+                : identitySecurity.requireCurrentIdentity().membershipId();
+        if (actorMembershipId.equals(membershipId)) {
             membershipDirectory.requireActive(membershipId);
             return;
         }
 
-        ownershipGuard.assertCanManageCredentialsForAnotherMembership(
-                tenantId, actorContext.requireSubject(), false);
+        ownershipGuard.assertCanManageCredentialsForAnotherMembership(tenantId, actorMembershipId, false);
         membershipDirectory.requireActive(membershipId);
     }
 
