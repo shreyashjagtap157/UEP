@@ -1,72 +1,111 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { DEMO_PROFILES } from './LocalDemoStore'
 import type { DemoRole } from './LocalDemoStore'
 import { LocalDashboard } from './LocalDashboard'
+import { LocalDemoControls } from './LocalDemoControls'
+import { loadDemoStore, subscribeDemoStore } from './localDemoStore'
+import type { LocalRole } from './localDemoData'
 
-const SESSION_KEY = 'uep.local-demo-role.v1'
-
-export function LocalExperience() {
-  const [role, setRole] = useState<DemoRole | null>(() => readSessionRole())
-
-  function handleLogin(nextRole: DemoRole) {
-    try { window.sessionStorage.setItem(SESSION_KEY, nextRole) } catch { /* session can still run in memory */ }
-    setRole(nextRole)
-  }
-  function handleLogout() {
-    try { window.sessionStorage.removeItem(SESSION_KEY) } catch { /* no persistent session to clear */ }
-    setRole(null)
-  }
-
-  return role ? <LocalDashboard initialRole={role} onSignOut={handleLogout} /> : <LocalDemoLogin onLogin={handleLogin} />
+export type LocalAccount = {
+  email: string
+  role: LocalRole
+  name: string
 }
 
-function readSessionRole(): DemoRole | null {
+const demoAccounts: LocalAccount[] = [
+  { email: 'student@demo.uep', role: 'student', name: 'Aarav Mehta' },
+  { email: 'teacher@demo.uep', role: 'teacher', name: 'Priya Nair' },
+  { email: 'client@demo.uep', role: 'client', name: 'Pune Technology Academy' },
+  { email: 'developer@demo.uep', role: 'developer', name: 'UEP Product Team' },
+  { email: 'admin@demo.uep', role: 'administrator', name: 'Platform Administrator' },
+  { email: 'guardian@demo.uep', role: 'guardian', name: 'Meera Mehta' },
+]
+
+export function LocalExperience() {
+  const [account, setAccount] = useState<LocalAccount | null>(() => readSessionAccount())
+  const [, setRevision] = useState(0)
+
+  useEffect(() => {
+    loadDemoStore()
+    return subscribeDemoStore(() => setRevision(value => value + 1))
+  }, [])
+
+  function handleLogin(nextAccount: LocalAccount) {
+    sessionStorage.setItem('uep-local-account', JSON.stringify(nextAccount))
+    setAccount(nextAccount)
+  }
+  function handleLogout() {
+    sessionStorage.removeItem('uep-local-account')
+    setAccount(null)
+  }
+
+  if (!account) return <LocalLogin onLogin={handleLogin} />
+
+  return (
+    <>
+      <LocalDemoControls account={account} />
+      <LocalDashboard account={account} onSignOut={handleLogout} />
+    </>
+  )
+}
+
+function readSessionAccount(): LocalAccount | null {
   try {
-    const value = window.sessionStorage.getItem(SESSION_KEY)
-    return DEMO_PROFILES.find(profile => profile.role === value)?.role ?? null
+    const raw = sessionStorage.getItem('uep-local-account')
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<LocalAccount>
+    return demoAccounts.find(account => account.email === parsed.email && account.role === parsed.role) ?? null
   } catch {
     return null
   }
 }
 
-function LocalDemoLogin({ onLogin }: { onLogin: (role: DemoRole) => void }) {
-  const [role, setRole] = useState<DemoRole>('student')
+function LocalLogin({ onLogin }: { onLogin: (account: LocalAccount) => void }) {
+  const [email, setEmail] = useState('student@demo.uep')
+  const [password, setPassword] = useState('demo')
   const [error, setError] = useState('')
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!DEMO_PROFILES.some(profile => profile.role === role)) {
-      setError('Choose one of the available demo profiles.')
+    const account = demoAccounts.find(item => item.email === email.trim().toLowerCase())
+    if (!account || password !== 'demo') {
+      setError('Use a supplied demo account and the password demo.')
       return
     }
     setError('')
-    onLogin(role)
+    onLogin(account)
   }
 
-  return <main className="local-login">
-    <section className="local-login-intro">
-      <p className="eyebrow">Universal Education Platform</p>
-      <h1>One place for every learning relationship.</h1>
-      <p>Enter a local demonstration workspace. Each persona has its own navigation and data scope. Saved workflow changes remain in this browser so you can demonstrate them across separate sign-ins.</p>
-      <div className="local-login-note"><span>LOCAL DEMO ONLY</span><strong>This does not authenticate against production.</strong></div>
-    </section>
-    <section className="local-login-panel" aria-labelledby="local-login-title">
-      <p className="eyebrow">Client demonstration</p>
-      <h2 id="local-login-title">Choose a demo account</h2>
-      <p className="local-login-help">Select one persona to open its dedicated workspace. To change personas, sign out first.</p>
-      <form className="local-login-form" onSubmit={submit}>
-        <label>Demo account
-          <select value={role} onChange={event => setRole(event.target.value as DemoRole)}>
-            {DEMO_PROFILES.map(profile => <option key={profile.role} value={profile.role}>{profile.label} — {profile.name}</option>)}
-          </select>
-        </label>
-        <p className="local-demo-account-email">{DEMO_PROFILES.find(profile => profile.role === role)?.email}</p>
-        <p className="local-demo-account-description">{DEMO_PROFILES.find(profile => profile.role === role)?.description}</p>
-        {error && <p className="error-text" role="alert">{error}</p>}
-        <button className="primary-button local-login-submit" type="submit">Open {DEMO_PROFILES.find(profile => profile.role === role)?.label ?? 'demo'} workspace</button>
-      </form>
-      <p className="local-login-footnote">All sample records are synthetic. Metrics are calculated from local stored records; production API, identity, payments and service-health data require the connected platform backend.</p>
-    </section>
-  </main>
+  return (
+    <main className="local-login">
+      <section className="local-login-intro">
+        <p className="eyebrow">Universal Education Platform</p>
+        <h1>One platform, one workspace for each relationship.</h1>
+        <p>Local presentation mode uses a seeded, shared dataset. Each demo account receives its own role, navigation and permissions; roles cannot be switched from inside another user's workspace.</p>
+        <div className="local-login-note"><span>LOCAL MODE</span><strong>Shared presentation environment</strong></div>
+      </section>
+      <section className="local-login-panel" aria-labelledby="local-login-title">
+        <p className="eyebrow">Demo sign in</p>
+        <h2 id="local-login-title">Enter your workspace</h2>
+        <p className="local-login-help">Use a supplied account below. The password for every account is <strong>demo</strong>.</p>
+        <form className="local-login-form" onSubmit={submit}>
+          <label>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="student@demo.uep" autoComplete="username" /></label>
+          <label>Password<input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" /></label>
+          {error && <p className="error-text" role="alert">{error}</p>}
+          <button className="primary-button local-login-submit" type="submit">Sign in</button>
+        </form>
+        <div className="panel">
+          <div className="panel-heading"><div><p className="eyebrow">Presentation accounts</p><h3>Choose a persona</h3></div></div>
+          <div className="chip-row">
+            {demoAccounts.map(account => (
+              <button key={account.email} className="text-button" type="button" onClick={() => setEmail(account.email)}>
+                {account.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+    </main>
+  )
 }

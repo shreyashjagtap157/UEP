@@ -17,14 +17,6 @@
 
   <properties>
     <java.version>25</java.version>
-    <!-- Pin BOM-managed transitive dependencies to their upstream-fixed releases. -->
-    <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
-    <jackson-bom.version>3.1.7</jackson-bom.version>
-    <netty.version>4.2.17.Final</netty.version>
-    <log4j2.version>2.25.5</log4j2.version>
-    <tomcat.version>11.0.25</tomcat.version>
-    <spring-framework.version>7.0.9</spring-framework.version>
-    <postgresql.version>42.7.12</postgresql.version>
     <spring-modulith.version>2.1.1</spring-modulith.version>
     <aws-sdk.version>2.31.78</aws-sdk.version>
     <maven.compiler.release>25</maven.compiler.release>
@@ -166,7 +158,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>3.6.1</version>
+        <version>3.6.3</version>
         <executions>
           <execution>
             <id>enforce</id>
