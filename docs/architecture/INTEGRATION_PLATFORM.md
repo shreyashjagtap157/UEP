@@ -8,7 +8,7 @@ Tenant administrators can mint API credentials for a real, active tenant members
 
 ## Webhooks
 
-Webhook subscriptions are tenant-owned. The delivery worker persists an event before transport, emits `X-UEP-Event-ID`, `X-UEP-Event`, and `X-UEP-Signature`, and retries with bounded exponential backoff. Signing secrets are encrypted at rest. Domain notification publication emits a public integration event; the integration module consumes it without creating a domain dependency cycle.
+Webhook subscriptions are tenant-owned. The delivery worker persists an event before transport, emits `X-UEP-Event-ID`, `X-UEP-Event`, and `X-UEP-Signature`, and retries with bounded exponential backoff. Signing secrets are encrypted at rest. Webhook and external-notification endpoints are validated at configuration and revalidated immediately before each send; endpoints resolving to loopback, private, link-local, reserved, or mixed public/non-public addresses are rejected, and redirects are disabled. These application checks do not pin DNS to the selected address, so production deployments must also apply network egress controls that prevent access to private networks and cloud metadata endpoints. Domain notification publication emits a public integration event; the integration module consumes it without creating a domain dependency cycle.
 
 ## SSO and federation
 

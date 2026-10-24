@@ -17,17 +17,23 @@ public class ExternalNotificationService {
     private final AuthorizationService auth;
     private final ExternalNotificationProviderRepository repo;
     private final IntegrationSecretCipher cipher;
-    private final HttpClient http = HttpClient.newHttpClient();
+    private final OutboundEndpointValidator endpointValidator;
+    private final HttpClient http = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NEVER)
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
     private final ObjectMapper json = new ObjectMapper();
     private final Clock clock = Clock.systemUTC();
 
     ExternalNotificationService(TenantContext tenants, ActorContext actor, AuthorizationService auth,
-            ExternalNotificationProviderRepository repo, IntegrationSecretCipher cipher) {
+            ExternalNotificationProviderRepository repo, IntegrationSecretCipher cipher,
+            OutboundEndpointValidator endpointValidator) {
         this.tenants = tenants;
         this.actor = actor;
         this.auth = auth;
         this.repo = repo;
         this.cipher = cipher;
+        this.endpointValidator = endpointValidator;
     }
 
     @Transactional
@@ -38,7 +44,7 @@ public class ExternalNotificationService {
         String ty = req(type, 24).toUpperCase(Locale.ROOT);
         if (!Set.of("HTTP_JSON", "SLACK_WEBHOOK", "TEAMS_WEBHOOK").contains(ty))
             throw new IllegalArgumentException("Unsupported notification provider");
-        String e = url(endpoint);
+        String e = endpointValidator.validate(endpoint).toString();
         ExternalNotificationProvider p = repo.findByTenantIdAndProviderKey(t, k).orElse(null);
         Instant now = clock.instant();
         if (p != null) {
@@ -66,7 +72,10 @@ public class ExternalNotificationService {
                 .orElseThrow(() -> new IllegalArgumentException("Notification provider not found"));
         try {
             Map<String, Object> payload = payloadFor(p.providerType(), title, body);
-            HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(p.endpoint())).timeout(Duration.ofSeconds(15)).header("Content-Type", "application/json");
+            URI safeEndpoint = endpointValidator.validate(p.endpoint());
+            HttpRequest.Builder b = HttpRequest.newBuilder(safeEndpoint)
+                    .timeout(Duration.ofSeconds(15))
+                    .header("Content-Type", "application/json");
             if (p.credentialCiphertext() != null) {
                 String secret = cipher.decrypt(p.credentialCiphertext());
                 if (p.providerType().equals("HTTP_JSON"))
@@ -101,17 +110,6 @@ public class ExternalNotificationService {
         if (x == null || x.isBlank() || x.trim().length() > m)
             throw new IllegalArgumentException("Invalid provider value");
         return x.trim();
-    }
-
-    private static String url(String x) {
-        try {
-            URI u = URI.create(req(x, 1000));
-            if (!Set.of("https", "http").contains(u.getScheme()) || u.getHost() == null)
-                throw new IllegalArgumentException();
-            return u.toString();
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid endpoint");
-        }
     }
 
     public record ProviderView(UUID id, String providerKey, String providerType, String endpoint, long version) {}

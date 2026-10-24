@@ -15,15 +15,20 @@ class WebhookWorker {
     private final WebhookSubscriptionRepository subs;
     private final IntegrationSecretCipher cipher;
     private final WebhookWorkerLock workerLock;
-    private final java.net.http.HttpClient http = HttpClient.newHttpClient();
+    private final OutboundEndpointValidator endpointValidator;
+    private final java.net.http.HttpClient http = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NEVER)
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
     private final Clock clock = Clock.systemUTC();
 
     WebhookWorker(WebhookDeliveryRepository d, WebhookSubscriptionRepository s, IntegrationSecretCipher c,
-            WebhookWorkerLock workerLock) {
+            WebhookWorkerLock workerLock, OutboundEndpointValidator endpointValidator) {
         deliveries = d;
         subs = s;
         cipher = c;
         this.workerLock = workerLock;
+        this.endpointValidator = endpointValidator;
     }
 
     @Scheduled(fixedDelayString = "${platform.integrations.webhooks.poll-ms:2000}")
@@ -52,7 +57,8 @@ class WebhookWorker {
         try {
             long epoch = clock.instant().getEpochSecond();
             String sig = WebhookService.signature(cipher.decrypt(s.secretCiphertext()), epoch, d.payloadJson());
-            HttpRequest r = HttpRequest.newBuilder(URI.create(s.callbackUrl()))
+            URI endpoint = endpointValidator.validate(s.callbackUrl());
+            HttpRequest r = HttpRequest.newBuilder(endpoint)
                     .timeout(Duration.ofSeconds(15))
                     .header("Content-Type", "application/json")
                     .header("X-UEP-Event-ID", d.eventId().toString())

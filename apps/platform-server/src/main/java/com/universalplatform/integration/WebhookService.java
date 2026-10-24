@@ -23,13 +23,14 @@ public class WebhookService {
     private final WebhookDeliveryRepository deliveries;
     private final IntegrationSecretCipher cipher;
     private final AuditService audit;
+    private final OutboundEndpointValidator endpointValidator;
     private final ObjectMapper json = new ObjectMapper();
     private final Clock clock = Clock.systemUTC();
     private final SecureRandom random = new SecureRandom();
 
     WebhookService(TenantContext tenants, ActorContext actor, AuthorizationService auth,
             WebhookSubscriptionRepository subs, WebhookDeliveryRepository deliveries,
-            IntegrationSecretCipher cipher, AuditService audit) {
+            IntegrationSecretCipher cipher, AuditService audit, OutboundEndpointValidator endpointValidator) {
         this.tenants = tenants;
         this.actor = actor;
         this.auth = auth;
@@ -37,13 +38,14 @@ public class WebhookService {
         this.deliveries = deliveries;
         this.cipher = cipher;
         this.audit = audit;
+        this.endpointValidator = endpointValidator;
     }
 
     @Transactional
     public SubscriptionView create(String url, String eventFilter) {
         auth.require(PermissionKey.WEBHOOKS_MANAGE);
         UUID t = tenants.requireTenantId();
-        String u = normalizeUrl(url);
+        String u = endpointValidator.validate(url).toString();
         String e = normalizeFilter(eventFilter);
         String secret = generateSecret();
         WebhookSubscription s = subs.save(new WebhookSubscription(UUID.randomUUID(), t, u, e, cipher.encrypt(secret), clock.instant()));
@@ -110,18 +112,6 @@ public class WebhookService {
         byte[] b = new byte[24];
         random.nextBytes(b);
         return "whsec_" + Base64.getUrlEncoder().withoutPadding().encodeToString(b);
-    }
-
-    private static String normalizeUrl(String value) {
-        try {
-            String u = value == null ? "" : value.trim();
-            java.net.URI x = java.net.URI.create(u);
-            if (!Set.of("https", "http").contains(x.getScheme()) || x.getHost() == null || u.length() > 1000)
-                throw new IllegalArgumentException();
-            return u;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("A valid webhook http(s) URL is required");
-        }
     }
 
     private static String normalizeFilter(String v) {
