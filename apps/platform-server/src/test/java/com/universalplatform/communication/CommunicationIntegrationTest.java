@@ -79,9 +79,7 @@ class CommunicationIntegrationTest {
 
         UUID announcementId = UUID.fromString(objectMapper.readTree(response).get("id").asText());
         enroll(LEARNER2_MEMBER);
-        entityManager.flush();
         jdbc.update("UPDATE announcement SET publish_at = CURRENT_TIMESTAMP - interval '1 second' WHERE id = ?", announcementId);
-        entityManager.clear();
 
         tenantExecution.run(TENANT, () -> announcements.publishScheduled(announcementId));
 
@@ -105,6 +103,7 @@ class CommunicationIntegrationTest {
 
     @AfterEach
     void cleanup() {
+        jdbc.update("DELETE FROM audit_event WHERE tenant_id = ?", TENANT);
         jdbc.update("DELETE FROM tenant WHERE id = ?", TENANT);
     }
 

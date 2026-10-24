@@ -101,6 +101,7 @@ class NotificationIntegrationTest {
 
         UUID ownOutbox = jdbc.queryForObject("SELECT id FROM notification_outbox WHERE tenant_id = ? AND deduplication_key = ?", UUID.class, TENANT, key);
         processor.processOne(ownOutbox);
+        entityManager.flush();
         jdbc.update("UPDATE notification_delivery SET status = 'DEAD_LETTERED', attempt_count = 8 WHERE tenant_id = ?", TENANT);
 
         mvc.perform(get("/api/v1/notifications/operations")
@@ -119,6 +120,7 @@ class NotificationIntegrationTest {
                 "test:announcement:" + RESOURCE, null,
                 List.of(new NotificationPublisher.Recipient(MEMBER, "learner@example.test"))));
         UUID outboxId = jdbc.queryForObject("SELECT id FROM notification_outbox WHERE deduplication_key = ?", UUID.class, "test:announcement:" + RESOURCE);
+        entityManager.flush();
         processor.processOne(outboxId);
         entityManager.flush();
         UUID notificationId = jdbc.queryForObject("SELECT id FROM notification WHERE tenant_id = ? AND membership_id = ?", UUID.class, TENANT, MEMBER);

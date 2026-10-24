@@ -26,7 +26,7 @@ class AnalyticsService {
     Overview overview(Instant from, Instant to) {
         requireView(); UUID tid = tenant.requireTenantId(); window(from, to);
         Long learners = jdbc.queryForObject("select count(*) from tenant_membership where tenant_id=? and status='ACTIVE'", Long.class, tid);
-        Long enrollments = jdbc.queryForObject("select count(*) from enrollment where tenant_id=? and enrolled_at < ? and (ended_at is null or ended_at >= ?)", Long.class, tid, to, from);
+        Long enrollments = jdbc.queryForObject("select count(*) from enrollment where tenant_id=? and enrolled_at < ? and (ended_at is null or ended_at >= ?)", Long.class, tid, sqlTimestamp(to), sqlTimestamp(from));
         Attendance attendance = attendanceInternal(tid, from, to);
         Assessment assessment = assessmentInternal(tid, from, to);
         Recording recording = recordingInternal(tid, from, to);
@@ -44,7 +44,7 @@ class AnalyticsService {
     @Transactional(readOnly = true) QuestionReport questions(Instant from, Instant to) {
         requireView(); UUID tid=tenant.requireTenantId(); window(from,to);
         List<QuestionMetric> rows=jdbc.query("select q.id,q.title,qv.difficulty,count(distinct gi.id),coalesce(avg(case when gi.max_marks=0 then null else gi.final_score::numeric/gi.max_marks end),0),coalesce(sum(case when gi.final_score=gi.max_marks then 1 else 0 end),0) from question q join question_version qv on qv.question_id=q.id and qv.tenant_id=q.tenant_id left join assessment_question aq on aq.question_version_id=qv.id and aq.tenant_id=q.tenant_id left join grade_item gi on gi.assessment_question_id=aq.id and gi.tenant_id=aq.tenant_id join grade_revision gr on gr.id=gi.grade_revision_id and gr.tenant_id=gi.tenant_id and gr.status='PUBLISHED' where q.tenant_id=? and q.created_at < ? and qv.created_at < ? group by q.id,q.title,qv.difficulty order by q.title limit 500",
-            (rs,n)->new QuestionMetric(rs.getObject(1,UUID.class),rs.getString(2),rs.getString(3),rs.getLong(4),rs.getBigDecimal(5),rs.getLong(6)),tid,to,to);
+            (rs,n)->new QuestionMetric(rs.getObject(1,UUID.class),rs.getString(2),rs.getString(3),rs.getLong(4),rs.getBigDecimal(5),rs.getLong(6)),tid,sqlTimestamp(to),sqlTimestamp(to));
         return new QuestionReport(from,to,rows);
     }
     @Transactional(readOnly = true) OperationsReport operations(Instant from, Instant to) {
@@ -88,7 +88,7 @@ class AnalyticsService {
     }
 
     private Attendance attendanceInternal(UUID tid,Instant from,Instant to){
-        Object[] c=jdbc.queryForObject("select coalesce(sum(case when status='PRESENT' then 1 else 0 end),0),coalesce(sum(case when status='PARTIAL' then 1 else 0 end),0),coalesce(sum(case when status='ABSENT' then 1 else 0 end),0),coalesce(sum(case when status='EXCUSED' then 1 else 0 end),0),coalesce(sum(present_seconds),0) from attendance_record where tenant_id=? and finalized_at>=? and finalized_at<?",(rs,n)->new Object[]{rs.getLong(1),rs.getLong(2),rs.getLong(3),rs.getLong(4),rs.getLong(5)},tid,from,to);
+        Object[] c=jdbc.queryForObject("select coalesce(sum(case when status='PRESENT' then 1 else 0 end),0),coalesce(sum(case when status='PARTIAL' then 1 else 0 end),0),coalesce(sum(case when status='ABSENT' then 1 else 0 end),0),coalesce(sum(case when status='EXCUSED' then 1 else 0 end),0),coalesce(sum(present_seconds),0) from attendance_record where tenant_id=? and finalized_at>=? and finalized_at<?",(rs,n)->new Object[]{rs.getLong(1),rs.getLong(2),rs.getLong(3),rs.getLong(4),rs.getLong(5)},tid,sqlTimestamp(from),sqlTimestamp(to));
         long total=(long)c[0]+(long)c[1]+(long)c[2]+(long)c[3]; double rate=total==0?0:(double)(long)c[0]/total*100.0; return new Attendance((long)c[0],(long)c[1],(long)c[2],(long)c[3],(long)c[4],rate);
     }
     private Assessment assessmentInternal(UUID tid,Instant from,Instant to){
@@ -109,13 +109,21 @@ class AnalyticsService {
         return new Recording(count,seconds,bytes,ready,archived,failed);
     }
     private Finance financeInternal(UUID tid,Instant from,Instant to){
-        BigDecimal invoiced=jdbc.queryForObject("select coalesce(sum(total_amount),0) from invoice where tenant_id=? and created_at>=? and created_at<?",BigDecimal.class,tid,from,to); BigDecimal paid=jdbc.queryForObject("select coalesce(sum(paid_amount),0) from invoice where tenant_id=? and created_at>=? and created_at<?",BigDecimal.class,tid,from,to); long pc=n("select count(*) from payment where tenant_id=? and created_at>=? and created_at<?",tid,from,to); return new Finance(invoiced,paid,invoiced.subtract(paid),pc);
+        BigDecimal invoiced=jdbc.queryForObject("select coalesce(sum(total_amount),0) from invoice where tenant_id=? and created_at>=? and created_at<?",BigDecimal.class,tid,sqlTimestamp(from),sqlTimestamp(to)); BigDecimal paid=jdbc.queryForObject("select coalesce(sum(paid_amount),0) from invoice where tenant_id=? and created_at>=? and created_at<?",BigDecimal.class,tid,sqlTimestamp(from),sqlTimestamp(to)); long pc=n("select count(*) from payment where tenant_id=? and created_at>=? and created_at<?",tid,from,to); return new Finance(invoiced,paid,invoiced.subtract(paid),pc);
     }
     private Usage usageInternal(UUID tid){
         List<UsageItem> rows=jdbc.query("select ec.limit_key,ec.hard_limit,coalesce(uc.consumed,0) from entitlement_limit ec left join lateral (select consumed from usage_counter u where u.tenant_id=ec.tenant_id and u.limit_key=ec.limit_key order by period_start desc limit 1) uc on true where ec.tenant_id=? order by ec.limit_key",(rs,n)->new UsageItem(rs.getString(1),rs.getLong(2),rs.getLong(3)),tid); return new Usage(List.copyOf(rows));
     }
     private static String csv(String value){ return "\""+value.replace("\"", "\"\"")+"\""; }
-    private long n(String sql,Object...args){Long v=jdbc.queryForObject(sql,Long.class,args); return v==null?0:v;}
+    private long n(String sql,Object...args){Long v=jdbc.queryForObject(sql,Long.class,jdbcArguments(args)); return v==null?0:v;}
+    private static Object[] jdbcArguments(Object... args) {
+        return Arrays.stream(args)
+                .map(value -> value instanceof Instant instant ? sqlTimestamp(instant) : value)
+                .toArray();
+    }
+    private static java.sql.Timestamp sqlTimestamp(Instant value) {
+        return java.sql.Timestamp.from(value);
+    }
     private void requireView(){ requirePermission(PermissionKey.ANALYTICS_VIEW); }
     private void requirePermission(PermissionKey p){ authorization.require(p); }
     private static void window(Instant from,Instant to){if(from==null||to==null||!from.isBefore(to))throw new IllegalArgumentException("from must be before to");if(Duration.between(from,to).compareTo(Duration.ofDays(366))>0)throw new IllegalArgumentException("Analytics window cannot exceed 366 days");}
