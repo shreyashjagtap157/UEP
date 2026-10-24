@@ -83,20 +83,29 @@ public class WebhookService {
 
     @Transactional
     public void publishForTenant(UUID tenantId, UUID eventId, String eventType, Map<String, Object> payload) {
+        publishForTenantAt(tenantId, eventId, eventType, payload, clock.instant());
+    }
+
+    @Transactional
+    public void publishForTenantAt(UUID tenantId, UUID eventId, String eventType,
+                                   Map<String, Object> payload, Instant occurredAt) {
         String e = normalizeEvent(eventType);
+        Instant eventTime = occurredAt == null ? clock.instant() : occurredAt;
         String body;
         try {
-            body = json.writeValueAsString(Map.of("id", eventId, "eventType", e, "occurredAt", clock.instant().toString(),
+            body = json.writeValueAsString(Map.of("id", eventId, "eventType", e, "occurredAt", eventTime.toString(),
                     "data", payload == null ? Map.of() : payload));
         } catch (Exception x) {
             throw new IllegalStateException("Webhook event serialization failed", x);
         }
-        for (WebhookSubscription s : subs.findAllByTenantIdAndEnabledTrue(tenantId)) {
-            if (!matches(s.eventFilter(), e))
+        Instant nextAttemptAt = clock.instant();
+        for (WebhookSubscription subscription : subs.findAllByTenantIdAndEnabledTrue(tenantId)) {
+            if (!matches(subscription.eventFilter(), e))
                 continue;
             // The unique (subscription,event) constraint and ON CONFLICT make duplicate event
             // publication idempotent without swallowing real persistence failures.
-            deliveries.enqueueIfAbsent(UUID.randomUUID(), tenantId, s.id(), eventId, e, body, clock.instant());
+            deliveries.enqueueIfAbsent(UUID.randomUUID(), tenantId, subscription.id(), eventId,
+                    e, body, nextAttemptAt);
         }
     }
 
