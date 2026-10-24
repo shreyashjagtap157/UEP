@@ -1695,3 +1695,44 @@ td span {
   .local-definition-list { grid-template-columns: 1fr; gap: .2rem; }
   .local-definition-list dd { margin-bottom: .6rem; }
 }
+
+/* Local demo workflow controls */
+.local-reset-zone {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e4d9ca;
+}
+.local-reset-zone h3 { margin: 0; font-size: 1rem; }
+.local-reset-zone p { max-width: 58rem; color: #6d6257; font-size: .82rem; line-height: 1.55; }
+.local-reset-zone > button {
+  border: 1px solid #b88229;
+  border-radius: .6rem;
+  padding: .6rem .85rem;
+  color: #6b4d12;
+  background: #fff7e2;
+  font-weight: 650;
+}
+.local-attendance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .25rem;
+  margin-top: .45rem;
+}
+.local-attendance-actions .text-button {
+  border: 1px solid #ddd0bf;
+  border-radius: .45rem;
+  padding: .25rem .42rem;
+  color: #4e4238;
+  background: #fffdf9;
+  font-size: .72rem;
+}
+.local-attendance-actions .text-button:disabled {
+  color: #7d6f61;
+  background: #f0e9df;
+  cursor: default;
+}
+@media (max-width: 760px) {
+  .local-attendance-actions { justify-content: flex-start; }
+}
+
