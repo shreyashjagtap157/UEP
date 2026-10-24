@@ -46,6 +46,9 @@ for required in required_restore_contract:
     if required not in restore_script:
         errors.append(f'backup/restore drill is missing safety check: {required}')
 
+if not (ROOT / 'scripts/test-backup-restore-drill.sh').exists():
+    errors.append('missing backup/restore drill safety regression test')
+
 # Webhook fan-out must be durable, idempotent, and processed independently of the source transaction.
 required_webhook_files = [
     'apps/platform-server/src/main/resources/db/migration/V028__durable_webhook_event_outbox.sql',
