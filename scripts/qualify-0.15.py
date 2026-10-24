@@ -31,6 +31,21 @@ for required in required_guard_contract:
 if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/security/ProductionSecretGuardTest.java').exists():
     errors.append('missing ProductionSecretGuard regression tests')
 
+# The destructive restore drill must protect its source and require explicit disposable-target consent.
+restore_script = text('scripts/backup-restore-drill.sh')
+required_restore_contract = [
+    'RESTORE_TARGET_IS_DISPOSABLE',
+    '[[ "$RESTORE_TARGET_IS_DISPOSABLE" != "true" ]]',
+    'source_database" == "$restore_database"',
+    'source_identity" == "$restore_identity"',
+    'if [[ -e "$BACKUP_FILE"',
+    'pg_restore --exit-on-error --clean --if-exists',
+    "SELECT count(*) FROM flyway_schema_history WHERE success;",
+]
+for required in required_restore_contract:
+    if required not in restore_script:
+        errors.append(f'backup/restore drill is missing safety check: {required}')
+
 # Webhook fan-out must be durable, idempotent, and processed independently of the source transaction.
 required_webhook_files = [
     'apps/platform-server/src/main/resources/db/migration/V028__durable_webhook_event_outbox.sql',

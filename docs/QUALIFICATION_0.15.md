@@ -24,4 +24,4 @@ Existing tenant-isolation integration tests remain mandatory. The 0.15 gate addi
 
 ## Restore drill
 
-A production-like PostgreSQL instance must be backed up with `pg_dump --format=custom`, restored into a clean database, and checked for tenant-row availability before the release can progress to 0.16.
+A production-like PostgreSQL instance must be backed up with `pg_dump --format=custom`, restored into a uniquely named disposable database, and checked for tenant, membership, and successful Flyway-migration readability before the release can progress to 0.16. The script requires `RESTORE_TARGET_IS_DISPOSABLE=true`, refuses source/target database identity collisions and backup-file overwrites, uses restrictive backup-file permissions, and stops on restore errors. Never point the restore target at a production database; `pg_restore --clean` intentionally removes conflicting target objects.

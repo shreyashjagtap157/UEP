@@ -6,7 +6,7 @@
 
 The source implementation through the 0.14 milestone is integrated across the backend and web application. It remains a snapshot because the full 0.15 reliability/performance qualification is not complete; passing CI alone does not establish the load targets, backup/restore drills, provider integration qualification, or production operations.
 
-The latest recorded green GitHub Actions run at code commit `9f53c666c5bb3ef79e3852bb84b2d928d032638c` ([run #148](https://github.com/shreyashjagtap157/UEP/actions/runs/40071964073)) passed backend Maven verification (61 tests, zero failures/errors), web lint, all 10 web demo tests, the production web build, repository policy checks, and the configured dependency scan. This is CI evidence, not a claim that the complete 0.15 qualification milestone is finished.
+The latest recorded green GitHub Actions run at code commit `893376bff5ef1c7bef7b9cf95bfff0ec3af1b210` ([run #161](https://github.com/shreyashjagtap157/UEP/actions/runs/40099369552)) passed backend Maven verification, web lint, all 10 web demo tests, the production web build, repository-policy checks including `scripts/qualify-0.15.py`, and the configured dependency scan. The backend includes regression coverage for privileged-role escalation, API credential membership scope, outbound endpoint validation, webhook retry transactions, durable webhook fan-out, and fail-closed production secret validation. This is CI evidence, not a claim that the complete 0.15 qualification milestone is finished; a live restore drill and production-like load results are still required.
 
 ## Current milestone — 0.15 Reliability and Performance Qualification
 

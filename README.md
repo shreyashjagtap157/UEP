@@ -1,12 +1,12 @@
 # Universal Education, Training and Learning Operations Platform
 
-## Current verified status — 22 October 2026
+## Current verified status — 24 October 2026
 
-> **Release gate: BLOCKED.** This repository is an active, substantial education-platform implementation, but it is still a `0.15.0.0-SNAPSHOT`. No GitHub release was found in the audit. The latest inspected main-branch CI run failed backend compilation; the frontend lint/build and repository-policy jobs passed, but that does not make the full pipeline green.
+> **Release gate: NOT YET QUALIFIED FOR PRODUCTION.** The repository is an active, substantial implementation and remains `0.15.0.0-SNAPSHOT`. The latest recorded complete green CI run is [run #161](https://github.com/shreyashjagtap157/UEP/actions/runs/40099369552), at commit `893376bff5ef1c7bef7b9cf95bfff0ec3af1b210`. Backend Maven verification, web lint/tests/build, repository policy plus the 0.15 static qualification gate, and the configured dependency scan passed.
 >
-> The backend build reported compilation errors in announcement and scheduling code, including unresolved symbols and an invalid `Instant.plusDays(...)` call. The vulnerability scan also reported a high-severity `source-map-js` advisory (GHSA-68fv-2mgg-jv7q) and encountered Maven Central rate limits during dependency extraction. Fix the compilation issues, remediate and verify the advisory, then rerun complete CI before promoting the snapshot.
+> CI is not a substitute for production-like load measurements, an executed PostgreSQL backup/restore drill against an explicitly disposable target, live provider qualification, or operational backup/alert/restore runbooks. The repository now includes durable webhook fan-out, outbound endpoint validation, privileged-role and API-credential authorization hardening, fail-closed production-secret validation, and regression tests for these contracts.
 >
-> See [GitHub Actions](https://github.com/shreyashjagtap157/UEP/actions), [issue/PR tracker](https://github.com/shreyashjagtap157/UEP/pulls) and the current [master implementation plan](docs/MASTER_IMPLEMENTATION_PLAN.md). The sections below describe intended architecture and documented scope; they are not a substitute for current build evidence.
+> See [GitHub Actions](https://github.com/shreyashjagtap157/UEP/actions), [issue/PR tracker](https://github.com/shreyashjagtap157/UEP/pulls), the [0.15 qualification guide](docs/QUALIFICATION_0.15.md), and the [master implementation plan](docs/MASTER_IMPLEMENTATION_PLAN.md). The sections below describe documented scope and should not be read as proof that every external provider or production drill has run.
 
 ---
 ## 0.15.0.0 — Reliability and Performance Qualification
