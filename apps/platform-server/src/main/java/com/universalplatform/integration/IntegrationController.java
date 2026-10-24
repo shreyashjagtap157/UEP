@@ -31,7 +31,7 @@ class IntegrationController {
 
     @PostMapping("/api-credentials")
     ApiCredentialService.CredentialView createCredential(@Valid @RequestBody CredentialRequest r) {
-        return credentials.create(r.membershipId(), r.name(), r.scopes(), r.expiresAt());
+        return credentials.create(r.membershipId(), r.name(), r.scopes() == null ? null : r.scopes().stream().map(Enum::name).collect(java.util.stream.Collectors.toUnmodifiableSet()), r.expiresAt());
     }
 
     @GetMapping("/api-credentials")

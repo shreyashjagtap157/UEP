@@ -3,6 +3,7 @@ package com.universalplatform.licensing;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +14,7 @@ public class EntitlementService {
     private final EntitlementGrantRepository grants;
     private final Clock clock;
 
+    @Autowired
     EntitlementService(SubscriptionRepository subscriptions, EntitlementGrantRepository grants) {
         this(subscriptions, grants, Clock.systemUTC());
     }

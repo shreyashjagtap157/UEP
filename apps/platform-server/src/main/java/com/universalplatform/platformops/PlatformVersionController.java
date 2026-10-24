@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/platform")
-final class PlatformVersionController {
+class PlatformVersionController {
     private final String version;
 
     PlatformVersionController(@Value("${platform.version}") String version) {

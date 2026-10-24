@@ -51,6 +51,8 @@ jobs:
         run: npm --prefix apps/web install --ignore-scripts
       - name: Lint
         run: npm --prefix apps/web run lint
+      - name: Demo workflow tests
+        run: npm --prefix apps/web test
       - name: Build
         run: npm --prefix apps/web run build
 
@@ -70,9 +72,18 @@ jobs:
           node-version: '22.22.0'
       - name: Resolve web lock metadata without install scripts
         run: npm --prefix apps/web install --package-lock-only --ignore-scripts
+      - name: Generate Java dependency SBOM
+        run: >-
+          mvn -B -f apps/platform-server/pom.xml
+          org.cyclonedx:cyclonedx-maven-plugin:2.9.3:makeBom
+          -DoutputFormat=json
+          -DoutputName=bom
+          -DincludeTestScope=true
       - name: OSV source dependency scan
         run: >-
           docker run --rm
           -v "$PWD:/src"
           ghcr.io/google/osv-scanner:v2.4.0
-          scan source --recursive /src
+          scan source
+          --lockfile=/src/apps/web/package-lock.json
+          --lockfile=/src/apps/platform-server/target/bom.json

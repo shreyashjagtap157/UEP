@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { DEMO_PROFILES } from './LocalDemoStore'
+import type { DemoRole } from './LocalDemoStore'
 import { LocalDashboard } from './LocalDashboard'
 import { LocalDemoControls } from './LocalDemoControls'
 import { loadDemoStore, subscribeDemoStore } from './localDemoStore'
@@ -33,7 +35,6 @@ export function LocalExperience() {
     sessionStorage.setItem('uep-local-account', JSON.stringify(nextAccount))
     setAccount(nextAccount)
   }
-
   function handleLogout() {
     sessionStorage.removeItem('uep-local-account')
     setAccount(null)

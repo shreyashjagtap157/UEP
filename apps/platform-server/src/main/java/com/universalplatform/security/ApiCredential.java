@@ -6,7 +6,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name="api_credential", uniqueConstraints=@UniqueConstraint(name="uq_api_credential_hash", columnNames="key_hash"))
-class ApiCredential {
+public class ApiCredential {
     @Id private UUID id;
     @Column(nullable=false) private UUID tenantId;
     @Column(nullable=false) private UUID membershipId;
@@ -19,9 +19,9 @@ class ApiCredential {
     private Instant revokedAt;
     @Version private long version;
     protected ApiCredential() {}
-    ApiCredential(UUID id,UUID tenantId,UUID membershipId,String name,String keyHash,String scopes,Instant createdAt,Instant expiresAt){this.id=id;this.tenantId=tenantId;this.membershipId=membershipId;this.name=name;this.keyHash=keyHash;this.scopes=scopes;this.createdAt=createdAt;this.expiresAt=expiresAt;}
-    UUID id(){return id;} UUID tenantId(){return tenantId;} UUID membershipId(){return membershipId;} String name(){return name;} String keyHash(){return keyHash;} String scopes(){return scopes;} Instant expiresAt(){return expiresAt;} Instant revokedAt(){return revokedAt;} long version(){return version;}
-    void used(Instant now){lastUsedAt=now;}
-    void revoke(Instant now){revokedAt=now;}
-    boolean active(Instant now){return revokedAt==null && (expiresAt==null || expiresAt.isAfter(now));}
+    public ApiCredential(UUID id,UUID tenantId,UUID membershipId,String name,String keyHash,String scopes,Instant createdAt,Instant expiresAt){this.id=id;this.tenantId=tenantId;this.membershipId=membershipId;this.name=name;this.keyHash=keyHash;this.scopes=scopes;this.createdAt=createdAt;this.expiresAt=expiresAt;}
+    public UUID id(){return id;} public UUID tenantId(){return tenantId;} public UUID membershipId(){return membershipId;} public String name(){return name;} public String keyHash(){return keyHash;} public String scopes(){return scopes;} public Instant expiresAt(){return expiresAt;} public Instant revokedAt(){return revokedAt;} public long version(){return version;}
+    public void used(Instant now){lastUsedAt=now;}
+    public void revoke(Instant now){revokedAt=now;}
+    public boolean active(Instant now){return revokedAt==null && (expiresAt==null || expiresAt.isAfter(now));}
 }

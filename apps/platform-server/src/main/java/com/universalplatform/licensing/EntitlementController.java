@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/licensing/entitlements")
-final class EntitlementController {
+class EntitlementController {
     private final TenantContext tenantContext;
     private final EntitlementService entitlements;
 

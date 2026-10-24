@@ -1,6 +1,7 @@
 package com.universalplatform.identity;
 
 import com.universalplatform.security.ActorContext;
+import com.universalplatform.security.ApiCredentialAuthorizer;
 import com.universalplatform.security.ScopedCredentialPrincipal;
 import com.universalplatform.security.TenantContext;
 import java.util.EnumSet;
@@ -10,7 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class AuthorizationService {
+public class AuthorizationService implements ApiCredentialAuthorizer {
     public static final String PLATFORM_SUPER_ADMIN_ROLE = "platform_super_admin";
 
     private final TenantContext tenantContext;
@@ -24,6 +25,16 @@ public class AuthorizationService {
         this.actorContext = actorContext;
         this.identitySecurity = identitySecurity;
         this.rolePermissions = rolePermissions;
+    }
+
+    @Override
+    public void requireApiManage() {
+        require(PermissionKey.API_MANAGE);
+    }
+
+    @Override
+    public void requireApiView() {
+        require(PermissionKey.API_VIEW);
     }
 
     @Transactional(readOnly = true)
