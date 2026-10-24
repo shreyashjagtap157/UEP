@@ -24,12 +24,18 @@ import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 class UploadService {
+    private static final Logger log = LoggerFactory.getLogger(UploadService.class);
+
     private final TenantContext tenants;
     private final ActorContext actors;
     private final AuthorizationService auth;
@@ -38,6 +44,7 @@ class UploadService {
     private final StorageAdapterRegistry adapters;
     private final AuditService audit;
     private final MalwareScanner malwareScanner;
+    private final StorageCleanupOutboxService storageCleanupOutbox;
     private final Path staging;
     private final long maxUploadBytes;
     private final Clock clock = Clock.systemUTC();
@@ -50,6 +57,7 @@ class UploadService {
                   StorageAdapterRegistry adapters,
                   AuditService audit,
                   MalwareScanner malwareScanner,
+                  StorageCleanupOutboxService storageCleanupOutbox,
                   @Value("${platform.storage.staging.root:./var/uploads}") String staging,
                   @Value("${platform.storage.max-upload-bytes:5368709120}") long maxUploadBytes) {
         this.tenants = tenants;
@@ -60,6 +68,7 @@ class UploadService {
         this.adapters = adapters;
         this.audit = audit;
         this.malwareScanner = malwareScanner;
+        this.storageCleanupOutbox = storageCleanupOutbox;
         this.staging = Path.of(staging).toAbsolutePath().normalize();
         this.maxUploadBytes = maxUploadBytes;
     }
@@ -170,14 +179,61 @@ class UploadService {
         try (InputStream in = Files.newInputStream(path)) {
             locator = adapter.put(key, in, u.expectedBytes, u.contentType);
         }
+        // Compensate the external side effect if metadata/audit persistence rolls back.
+        // Keep the staging file until commit so the caller can safely retry after a rollback.
+        registerProviderObjectCompensation(tenant, u.provider, locator, key, path, adapter);
         StorageObject o = objects.save(new StorageObject(UUID.randomUUID(), tenant, u.provider, locator, key,
                 u.contentType, u.expectedBytes, digest, scan, clock.instant()));
         u.status = UploadStatus.COMPLETED;
         u.completedAt = clock.instant();
         u.storageObjectId = o.id;
-        Files.deleteIfExists(path);
         audit.record(tenant, actors.requireSubject(), "UPLOAD_COMPLETED", "storage_object", o.id.toString());
         return view(o);
+    }
+
+    private void registerProviderObjectCompensation(UUID tenantId, StorageProviderType provider,
+                                                    String locator, String objectKey, Path stagingPath,
+                                                    StorageAdapter adapter) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            try {
+                adapter.delete(locator);
+            } catch (Exception cleanupFailure) {
+                storageCleanupOutbox.enqueue(tenantId, provider, locator, objectKey, cleanupFailure);
+            }
+            throw new IllegalStateException("Upload finalization requires an active database transaction");
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int completionStatus) {
+                if (completionStatus == STATUS_COMMITTED) {
+                    try {
+                        Files.deleteIfExists(stagingPath);
+                    } catch (IOException cleanupFailure) {
+                        // Completed sessions retain their staging path so the cleanup worker can retry.
+                        log.warn("Could not remove committed upload staging file for tenant {} object key {}",
+                                tenantId, objectKey, cleanupFailure);
+                    }
+                    return;
+                }
+
+                // Database state rolled back after the provider accepted the object.
+                try {
+                    adapter.delete(locator);
+                } catch (Exception cleanupFailure) {
+                    log.warn("Could not compensate remote object after upload rollback for tenant {} provider {}",
+                            tenantId, provider, cleanupFailure);
+                    try {
+                        storageCleanupOutbox.enqueue(tenantId, provider, locator, objectKey, cleanupFailure);
+                    } catch (RuntimeException enqueueFailure) {
+                        cleanupFailure.addSuppressed(enqueueFailure);
+                        log.error("Could not persist remote-object cleanup after upload rollback for tenant {}",
+                                tenantId, cleanupFailure);
+                    }
+                }
+            }
+        });
     }
 
     @Transactional

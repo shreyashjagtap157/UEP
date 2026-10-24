@@ -117,6 +117,36 @@ for runtime_contract in [
     if runtime_contract not in workflow:
         errors.append(f'CI is missing packaged-server runtime smoke contract: {runtime_contract}')
 
+# Upload provider side effects must be compensated after rollback, with durable retry when delete fails.
+storage_cleanup_migration = text('apps/platform-server/src/main/resources/db/migration/V029__storage_cleanup_outbox.sql')
+for required in [
+    'CREATE TABLE storage_cleanup_outbox',
+    'UNIQUE (tenant_id, provider, locator)',
+]:
+    if required not in storage_cleanup_migration:
+        errors.append(f'storage cleanup migration is missing invariant: {required}')
+required_cleanup_files = [
+    'apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupJob.java',
+    'apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupRepository.java',
+    'apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupOutboxService.java',
+    'apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java',
+    'apps/platform-server/src/test/java/com/universalplatform/content/UploadFinalizationCompensationTest.java',
+]
+for rel in required_cleanup_files:
+    if not (ROOT / rel).exists():
+        errors.append(f'missing upload compensation component/test: {rel}')
+upload_service = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
+for required in [
+    'registerProviderObjectCompensation',
+    'TransactionSynchronizationManager.registerSynchronization',
+    'storageCleanupOutbox.enqueue(tenantId, provider, locator, objectKey, cleanupFailure)',
+    'STATUS_COMMITTED',
+]:
+    if required not in upload_service:
+        errors.append(f'upload finalization is missing rollback compensation contract: {required}')
+if 'UploadStatus.EXPIRED' not in text('apps/platform-server/src/main/java/com/universalplatform/content/UploadCleanupWorker.java'):
+    errors.append('staging cleanup must retry files left behind by previously expired sessions')
+
 # Tenant isolation gate: require tenant-leading indexes for the high-frequency 0.15 query paths.
 required_indexes = {
     "ix_tenant_membership_tenant_status", "ix_enrollment_tenant_status_started",

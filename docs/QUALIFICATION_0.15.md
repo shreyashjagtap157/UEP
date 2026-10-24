@@ -20,6 +20,8 @@ Targets for production qualification are p95 HTTP latency below 750 ms for healt
 
 The server configures bounded Hikari connection acquisition, validation and lifetime. Migration V023 adds tenant-leading indexes for high-frequency operational, notification, session, recording and enrollment queries.
 
+Upload completion registers transaction-completion compensation for the remote object: if metadata/audit persistence rolls back, the provider object is deleted immediately, and a durable `storage_cleanup_outbox` job is created if compensation fails. Successful commits remove the local staging file after commit; the upload cleanup worker retries failed staging-file deletion. The CI unit tests exercise commit, rollback, provider-delete failure, and audit-failure paths. This protects handled transaction failures; a process crash in the narrow interval between provider acceptance and registering the completion callback remains a residual risk that should be covered by provider reconciliation/production restore drills.
+
 ## Security and isolation
 
 Existing tenant-isolation integration tests remain mandatory. The 0.15 gate additionally scans for response-level credential exposure and development-only production defaults. Any warning must be reviewed before declaring a production candidate.
