@@ -51,6 +51,11 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus,modulith
+  health:
+    # The optional mail transport should not fail aggregate health while delivery is disabled.
+    # Once email delivery is enabled, verify SMTP reachability as part of readiness.
+    mail:
+      enabled: ${EMAIL_NOTIFICATIONS_ENABLED:false}
   endpoint:
     health:
       probes:

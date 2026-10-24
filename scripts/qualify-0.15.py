@@ -12,6 +12,9 @@ if version != '0.15.0.0-SNAPSHOT': errors.append(f'VERSION is {version}, expecte
 app=text('apps/platform-server/src/main/resources/application.yaml')
 for needle in ['maximum-pool-size:', 'connection-timeout:', 'max-lifetime:', 'platform:', 'security:']:
     if needle not in app: errors.append(f'application.yaml missing {needle}')
+if 'enabled: ${EMAIL_NOTIFICATIONS_ENABLED:false}' not in app:
+    errors.append('mail health must be tied to EMAIL_NOTIFICATIONS_ENABLED so optional SMTP cannot make disabled mail unhealthy')
+
 # Production secret validation must fail closed on missing, blank, placeholder, or weak secrets.
 guard = text('apps/platform-server/src/main/java/com/universalplatform/security/ProductionSecretGuard.java')
 required_guard_contract = [
