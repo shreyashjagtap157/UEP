@@ -1,4 +1,25 @@
 package com.universalplatform.integration;
-import java.time.Instant; import java.util.*; import org.springframework.data.domain.Pageable; import org.springframework.data.jpa.repository.*; import org.springframework.data.repository.query.Param;
-interface WebhookSubscriptionRepository extends JpaRepository<WebhookSubscription,UUID>{ List<WebhookSubscription> findAllByTenantIdAndEnabledTrue(UUID tenantId); Optional<WebhookSubscription> findByTenantIdAndId(UUID tenantId,UUID id); }
-interface WebhookDeliveryRepository extends JpaRepository<WebhookDelivery,UUID>{ Optional<WebhookDelivery> findBySubscriptionIdAndEventId(UUID subscriptionId,UUID eventId); @Query("select d.id from WebhookDelivery d where d.deliveredAt is null and d.nextAttemptAt <= :now and d.attemptCount < 12 order by d.nextAttemptAt") List<UUID> findDue(@Param("now") Instant now, Pageable pageable); @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select d from WebhookDelivery d where d.id=:id") Optional<WebhookDelivery> lock(@Param("id") UUID id); }
+
+import jakarta.persistence.LockModeType;
+import java.time.Instant;
+import java.util.*;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.*;
+import org.springframework.data.repository.query.Param;
+
+interface WebhookSubscriptionRepository extends JpaRepository<WebhookSubscription, UUID> {
+    List<WebhookSubscription> findAllByTenantIdAndEnabledTrue(UUID tenantId);
+
+    Optional<WebhookSubscription> findByTenantIdAndId(UUID tenantId, UUID id);
+}
+
+interface WebhookDeliveryRepository extends JpaRepository<WebhookDelivery, UUID> {
+    Optional<WebhookDelivery> findBySubscriptionIdAndEventId(UUID subscriptionId, UUID eventId);
+
+    @Query("select d.id from WebhookDelivery d where d.deliveredAt is null and d.nextAttemptAt <= :now and d.attemptCount < 12 order by d.nextAttemptAt")
+    List<UUID> findDue(@Param("now") Instant now, Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from WebhookDelivery d where d.id=:id")
+    Optional<WebhookDelivery> lock(@Param("id") UUID id);
+}

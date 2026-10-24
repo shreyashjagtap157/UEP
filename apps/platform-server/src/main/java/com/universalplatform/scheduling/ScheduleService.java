@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -103,30 +104,38 @@ class ScheduleService {
     List<OccurrenceView> calendar(Instant from, Instant to) {
         validateRange(from, to);
         UUID tenantId = tenantContext.requireTenantId();
+        Pageable cap = PageRequest.of(0, MAX_CALENDAR_ITEMS + 1);
         List<ScheduleOccurrence> visible;
         AuthorizationService.AccessScope manageScope = authorization.currentScope(PermissionKey.SCHEDULE_MANAGE);
         if (manageScope.tenantWide()) {
-            visible = occurrenceRepository.findRange(tenantId, from, to);
+            visible = occurrenceRepository.findRangeCapped(tenantId, from, to, cap);
+            enforceCalendarCap(visible.size());
         } else if (!manageScope.branchIds().isEmpty()) {
-            visible = occurrenceRepository.findRangeForBranches(tenantId, manageScope.branchIds(), from, to);
+            visible = occurrenceRepository.findRangeForBranchesCapped(tenantId, manageScope.branchIds(), from, to, cap);
+            enforceCalendarCap(visible.size());
         } else {
             authorization.require(PermissionKey.SCHEDULE_VIEW);
             MembershipDirectory.MembershipReference current = memberships.current();
             Map<UUID, ScheduleOccurrence> unique = new LinkedHashMap<>();
-            add(unique, occurrenceRepository.findRangeForTeacher(tenantId, current.membershipId(), from, to));
+            add(unique, occurrenceRepository.findRangeForTeacherCapped(tenantId, current.membershipId(), from, to, cap));
             Set<UUID> batchIds = enrollment.activeBatchIdsForMembership(current.membershipId());
-            if (!batchIds.isEmpty()) add(unique, occurrenceRepository.findRangeForBatches(tenantId, batchIds, from, to));
+            if (!batchIds.isEmpty()) add(unique, occurrenceRepository.findRangeForBatchesCapped(tenantId, batchIds, from, to, cap));
             Set<UUID> courseIds = enrollment.activeCourseIdsForMembership(current.membershipId());
-            if (!courseIds.isEmpty()) add(unique, occurrenceRepository.findRangeForCourses(tenantId, courseIds, from, to));
+            if (!courseIds.isEmpty()) add(unique, occurrenceRepository.findRangeForCoursesCapped(tenantId, courseIds, from, to, cap));
             Set<UUID> subjectIds = enrollment.activeSubjectIdsForMembership(current.membershipId());
-            if (!subjectIds.isEmpty()) add(unique, occurrenceRepository.findRangeForSubjects(tenantId, subjectIds, from, to));
+            if (!subjectIds.isEmpty()) add(unique, occurrenceRepository.findRangeForSubjectsCapped(tenantId, subjectIds, from, to, cap));
             Set<UUID> moduleIds = enrollment.activeModuleIdsForMembership(current.membershipId());
-            if (!moduleIds.isEmpty()) add(unique, occurrenceRepository.findRangeForModules(tenantId, moduleIds, from, to));
-            add(unique, occurrenceRepository.findPublicRange(tenantId, current.primaryBranchId(), from, to));
+            if (!moduleIds.isEmpty()) add(unique, occurrenceRepository.findRangeForModulesCapped(tenantId, moduleIds, from, to, cap));
+            add(unique, occurrenceRepository.findPublicRangeCapped(tenantId, current.primaryBranchId(), from, to, cap));
             visible = unique.values().stream().sorted(Comparator.comparing(ScheduleOccurrence::startsAt)).toList();
+            enforceCalendarCap(visible.size());
         }
-        if (visible.size() > MAX_CALENDAR_ITEMS) throw new IllegalArgumentException("Calendar range contains too many events; request a smaller range");
         return occurrenceViews(tenantId, visible);
+    }
+
+    private static void enforceCalendarCap(int size) {
+        if (size > MAX_CALENDAR_ITEMS)
+            throw new IllegalArgumentException("Calendar range contains too many events; request a smaller range");
     }
 
     @Transactional(readOnly = true)

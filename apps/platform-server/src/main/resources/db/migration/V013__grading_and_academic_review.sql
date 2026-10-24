@@ -61,7 +61,7 @@ CREATE TABLE review_case (
     updated_at timestamptz NOT NULL,
     CONSTRAINT uq_review_case_tenant_id UNIQUE (tenant_id, id),
     CONSTRAINT fk_review_case_attempt FOREIGN KEY (tenant_id, attempt_id) REFERENCES attempt(tenant_id, id),
-    CONSTRAINT fk_review_case_membership FOREIGN KEY (tenant_id, membership_id) REFERENCES membership(tenant_id, id),
+    CONSTRAINT fk_review_case_membership FOREIGN KEY (tenant_id, membership_id) REFERENCES tenant_membership(tenant_id, id),
     CONSTRAINT fk_review_case_answer FOREIGN KEY (tenant_id, target_answer_id) REFERENCES answer(tenant_id, id),
     CONSTRAINT ck_review_case_version CHECK (version >= 0)
 );

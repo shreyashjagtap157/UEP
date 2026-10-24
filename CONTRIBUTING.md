@@ -25,3 +25,20 @@ business rules.
 Never write business logic equivalent to `if (plan == PRO)`. Check a capability
 through the licensing API, which evaluates subscription state, entitlement grant,
 limits, and recorded usage.
+
+## Review and change requirements
+
+- Every change must pass the CI pipeline (`mvn verify` on a fresh PostgreSQL —
+  which validates the full Flyway chain from zero — plus web lint/build,
+  repository policy incl. the milestone qualification script, and the OSV scan).
+- New tenant-facing behavior needs a tenant-isolation consideration: if it is a
+  repository or query, it must be tenant-parameterized; if it is a new table, use
+  composite `(tenant_id, id)` foreign keys.
+- Bug fixes to security-relevant flows (assessment packets, uploads/downloads,
+  webhooks, API credentials, entitlements) require a regression test in the same
+  change when the test environment can express it.
+- Keep the version surfaces (`VERSION`, pom.xml, application.yaml, openapi.yaml,
+  package.json) in sync by running `scripts/set-version.py` for version bumps
+  instead of hand-editing.
+- Sign commits with `git commit -s` (DCO-style sign-off) so authorship is
+  traceable; releases are tagged only from a clean, green CI run.

@@ -112,6 +112,20 @@ export interface CurrentIdentity {
   authenticationAssurance: AuthenticationAssurance
 }
 
+export const fetchLocalCurrentIdentity = async (): Promise<CurrentIdentity> => ({
+  userId: 'local-user',
+  membershipId: 'local-membership',
+  oidcSubject: 'local-subject',
+  email: 'local@example.test',
+  displayName: 'Local Demo User',
+  tenantId: 'local-tenant',
+  membershipStatus: 'ACTIVE',
+  roles: ['Student'],
+  permissions: ['ACADEMICS_VIEW', 'CURRICULUM_VIEW', 'SCHEDULE_VIEW', 'ANNOUNCEMENTS_VIEW', 'CONTENT_VIEW', 'ASSESSMENTS_VIEW', 'ASSIGNMENTS_VIEW', 'ASSIGNMENTS_TAKE', 'GRADEBOOK_VIEW', 'REVIEW_VIEW', 'REVIEW_SUBMIT', 'LIVE_CLASS_VIEW', 'LIVE_CLASS_CHAT', 'RECORDINGS_VIEW'],
+  primaryBranchPermissions: ['ACADEMICS_VIEW', 'CURRICULUM_VIEW', 'SCHEDULE_VIEW', 'ANNOUNCEMENTS_VIEW', 'CONTENT_VIEW'],
+  authenticationAssurance: { acr: 'local', methods: ['local'], otpEvidence: false, webAuthnEvidence: false, multiFactorEvidence: false },
+})
+
 export interface PageResult<T> {
   items: T[]
   page: number
@@ -182,28 +196,81 @@ export interface SessionView {
   current: boolean
 }
 
+export class PlatformApiError extends Error {
+  readonly status: number
+  readonly problemDetail: unknown
+
+  constructor(status: number, message: string, problemDetail?: unknown) {
+    super(message)
+    this.name = 'PlatformApiError'
+    this.status = status
+    this.problemDetail = problemDetail
+  }
+}
+
+function extractServerMessage(body: unknown, fallback: string): string {
+  if (body && typeof body === 'object') {
+    const detail = (body as { detail?: unknown }).detail
+    const message = (body as { message?: unknown }).message
+    const title = (body as { title?: unknown }).title
+    if (typeof detail === 'string' && detail.trim()) return detail
+    if (typeof message === 'string' && message.trim()) return message
+    if (typeof title === 'string' && title.trim()) return title
+  }
+  return fallback
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = await accessToken()
+  let token: string
+  try {
+    token = await accessToken()
+  } catch (error) {
+    const reason = error instanceof Error && error.message ? error.message : String(error)
+    throw new PlatformApiError(0, `Network error: the authentication session could not provide an access token (${reason})`)
+  }
   const headers = new Headers(init.headers)
   headers.set('Accept', 'application/json')
   headers.set('Authorization', `Bearer ${token}`)
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-  const response = await fetch(path, { ...init, headers })
-  if (response.status === 204) return undefined as T
-  const payload = await response.json().catch(() => undefined) as { message?: string } | T | undefined
-  if (!response.ok) {
-    const message = payload && typeof payload === 'object' && 'message' in payload ? payload.message : undefined
-    throw new Error(message ?? `Platform request failed: ${response.status}`)
+
+  let response: Response
+  try {
+    response = await fetch(path, { ...init, headers })
+  } catch (error) {
+    const reason = error instanceof Error && error.message ? error.message : String(error)
+    throw new PlatformApiError(0, `Network error: the platform service could not be reached for ${path} (${reason})`)
   }
-  return payload as T
+  if (response.status === 204) return undefined as T
+
+  const text = await response.text()
+  let body: unknown
+  if (text) {
+    try {
+      body = JSON.parse(text) as unknown
+    } catch {
+      body = text
+    }
+  }
+  if (!response.ok) {
+    throw new PlatformApiError(
+      response.status,
+      extractServerMessage(body, `Platform request failed: ${response.status} ${response.statusText}`),
+      body,
+    )
+  }
+  return body as T
 }
 
-export async function fetchPlatformVersion(signal?: AbortSignal): Promise<PlatformVersion> {
-  const init: RequestInit = { headers: { Accept: 'application/json' } }
-  if (signal) init.signal = signal
-  const response = await fetch('/api/v1/platform/version', init)
-  if (!response.ok) throw new Error(`Platform version request failed: ${response.status}`)
-  return response.json() as Promise<PlatformVersion>
+export async function fetchPlatformVersion(signal?: AbortSignal): Promise<PlatformVersion | undefined> {
+  try {
+    const init: RequestInit = { headers: { Accept: 'application/json' } }
+    if (signal) init.signal = signal
+    const response = await fetch('/api/v1/platform/version', init)
+    if (!response.ok) return undefined
+    return (await response.json()) as PlatformVersion
+  } catch {
+    return undefined
+  }
 }
 
 export const fetchCurrentIdentity = () => request<CurrentIdentity>('/api/v1/me')
@@ -671,18 +738,27 @@ export interface TodayView {
 
 export const fetchToday = () => request<TodayView>('/api/v1/today')
 
+export const fetchLocalToday = async (): Promise<TodayView> => ({
+  date: new Date().toISOString().slice(0, 10),
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  generatedAt: new Date().toISOString(),
+  mode: 'PERSONAL',
+  schedule: [],
+  summary: { classes: 0, exams: 0, scheduledLearners: 0, unreadNotifications: 0 },
+})
+
 export type ResourceVisibility = 'PRIVATE' | 'STAFF' | 'ENROLLED_LEARNERS' | 'TENANT'
 export type DownloadPolicy = 'DOWNLOAD_ALLOWED' | 'STREAM_ONLY' | 'NO_DOWNLOAD'
 export type ResourceKind = 'TEXT_NOTE' | 'DOCUMENT' | 'PRESENTATION' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'ARCHIVE' | 'OTHER'
-export interface LearningResourceView { id:string; stableKey:string; title:string; description?:string; kind:ResourceKind; courseId?:string; moduleId?:string; classSessionId?:string; language?:string; visibility:ResourceVisibility; downloadPolicy:DownloadPolicy; releaseAt?:string; expiresAt?:string; currentVersion:number; createdAt:string; version:number }
-export interface UploadView { id:string; fileName:string; contentType:string; expectedBytes:number; receivedBytes:number; provider:'LOCAL'|'S3_COMPATIBLE'|'GOOGLE_DRIVE'|'GOOGLE_SHARED_DRIVE'; status:string; expiresAt:string }
-export interface StorageView { id:string; provider:string; contentType:string; sizeBytes:number; sha256:string; scanStatus:string }
+export interface LearningResourceView { id: string; stableKey: string; title: string; description?: string; kind: ResourceKind; courseId?: string; moduleId?: string; classSessionId?: string; language?: string; visibility: ResourceVisibility; downloadPolicy: DownloadPolicy; releaseAt?: string; expiresAt?: string; currentVersion: number; createdAt: string; version: number }
+export interface UploadView { id: string; fileName: string; contentType: string; expectedBytes: number; receivedBytes: number; provider: 'LOCAL' | 'S3_COMPATIBLE' | 'GOOGLE_DRIVE' | 'GOOGLE_SHARED_DRIVE'; status: string; expiresAt: string }
+export interface StorageView { id: string; provider: string; contentType: string; sizeBytes: number; sha256: string; scanStatus: string }
 export const fetchResources = () => request<PageResult<LearningResourceView>>('/api/v1/resources?size=100')
-export const createTextResource = (input: {title:string;description?:string;text:string;changeNote?:string;courseId?:string;language?:string;visibility:ResourceVisibility;downloadPolicy:DownloadPolicy}) => request<LearningResourceView>('/api/v1/resources/text',{method:'POST',body:JSON.stringify(input)})
-export const initiateUpload = (input:{fileName:string;contentType:string;expectedBytes:number;sha256?:string;provider:UploadView['provider']}) => request<UploadView>('/api/v1/uploads',{method:'POST',body:JSON.stringify(input)})
-export async function uploadChunk(id:string, offset:number, bytes:Blob):Promise<UploadView>{ const token=await accessToken(); const response=await fetch(`/api/v1/uploads/${id}/content`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/octet-stream','Content-Length':String(bytes.size),'Upload-Offset':String(offset)},body:bytes}); if(!response.ok)throw new Error(`Upload failed (${response.status})`); return response.json() as Promise<UploadView> }
-export const completeUpload = (id:string) => request<StorageView>(`/api/v1/uploads/${id}/complete`,{method:'POST'})
-export const createFileResource = (input:{title:string;description?:string;kind:ResourceKind;storageObjectId:string;changeNote?:string;courseId?:string;language?:string;visibility:ResourceVisibility;downloadPolicy:DownloadPolicy}) => request<LearningResourceView>('/api/v1/resources/file',{method:'POST',body:JSON.stringify(input)})
+export const createTextResource = (input: { title: string; description?: string; text: string; changeNote?: string; courseId?: string; language?: string; visibility: ResourceVisibility; downloadPolicy: DownloadPolicy }) => request<LearningResourceView>('/api/v1/resources/text', { method: 'POST', body: JSON.stringify(input) })
+export const initiateUpload = (input: { fileName: string; contentType: string; expectedBytes: number; sha256?: string; provider: UploadView['provider'] }) => request<UploadView>('/api/v1/uploads', { method: 'POST', body: JSON.stringify(input) })
+export async function uploadChunk(id: string, offset: number, bytes: Blob): Promise<UploadView> { const token = await accessToken(); const response = await fetch(`/api/v1/uploads/${id}/content`, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream', 'Upload-Offset': String(offset) }, body: bytes }); if (!response.ok) throw new PlatformApiError(response.status, `Upload failed (${response.status} ${response.statusText})`); return response.json() as Promise<UploadView> }
+export const completeUpload = (id: string) => request<StorageView>(`/api/v1/uploads/${id}/complete`, { method: 'POST' })
+export const createFileResource = (input: { title: string; description?: string; kind: ResourceKind; storageObjectId: string; changeNote?: string; courseId?: string; language?: string; visibility: ResourceVisibility; downloadPolicy: DownloadPolicy }) => request<LearningResourceView>('/api/v1/resources/file', { method: 'POST', body: JSON.stringify(input) })
 
 export type QuestionType = 'SINGLE_MCQ' | 'MULTIPLE_SELECTION' | 'TRUE_FALSE' | 'NUMERIC' | 'FILL_BLANK' | 'SHORT_ANSWER' | 'LONG_ANSWER' | 'ESSAY' | 'MATCHING' | 'ORDERING' | 'FILE_SUBMISSION'
 export type AssessmentStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED'
@@ -704,41 +780,42 @@ export function createQuestion(input: { title: string; type: QuestionType; diffi
 export function createAssessment(input: { title: string }): Promise<AssessmentView> { return request('/api/v1/assessments', { method: 'POST', body: JSON.stringify(input) }) }
 export function createAssessmentVersion(assessmentId: string, input: { durationSeconds?: number; maxAttempts: number; totalMarks: number; passMarks: number; shuffleQuestions: boolean; allowBacktracking: boolean; availableFrom: string; availableUntil: string; settingsJson?: string }): Promise<AssessmentVersionView> { return request(`/api/v1/assessments/${assessmentId}/versions`, { method: 'POST', body: JSON.stringify(input) }) }
 export function assignAssessmentVersion(versionId: string, batchId: string) { return request(`/api/v1/assessment-versions/${versionId}/batches/${batchId}`, { method: 'POST' }) }
+export function publishAssessment(assessmentId: string, expectedVersion: number) { return request(`/api/v1/assessments/${assessmentId}/publish?expectedVersion=${expectedVersion}`, { method: 'POST' }) }
 export function startAttempt(versionId: string): Promise<AttemptView> { return request(`/api/v1/assessment-versions/${versionId}/attempts`, { method: 'POST' }) }
 export function getAttempt(attemptId: string): Promise<AttemptView> { return request(`/api/v1/attempts/${attemptId}`) }
 export function autosaveAnswer(attemptId: string, questionId: string, payloadJson: string, idempotencyKey: string, clientSequence: number): Promise<AnswerView> { return request(`/api/v1/attempts/${attemptId}/answers/${questionId}`, { method: 'PUT', body: JSON.stringify({ payloadJson, idempotencyKey, clientSequence }) }) }
 export function submitAttempt(attemptId: string): Promise<AttemptView> { return request(`/api/v1/attempts/${attemptId}/submit`, { method: 'POST' }) }
 
-export interface AttemptAdminView { id:string; assessmentVersionId:string; membershipId:string; attemptNumber:number; status:AttemptStatus; startedAt:string; expiresAt:string; submittedAt?:string }
-export interface AttemptGrade { attemptId:string; gradeRevisionId:string; revisionNumber:number; awardedMarks:number; maxMarks:number; passMarks:number; passed:boolean }
-export type GradeRevisionStatus = 'GENERATED'|'PUBLISHED'|'SUPERSEDED'
-export type GradeSource = 'SYSTEM'|'TEACHER'|'RECONCILIATION'|'REGRADE'
-export interface GradeRevisionView { id:string; revisionNumber:number; status:GradeRevisionStatus; source:GradeSource; awardedMarks:number; maxMarks:number; createdAt:string; actorSubject:string }
-export interface GradeItemView { id:string; answerId:string; assessmentQuestionId:string; maxMarks:number; negativeMarks:number; systemScore:number; teacherScore?:number; finalScore:number; explanationJson:string; rubricJson:string; createdAt:string }
-export type ReviewType = 'GRADE_CHALLENGE'|'ANSWER_REVISION'
-export type ReviewStatus = 'OPEN'|'UNDER_REVIEW'|'RESOLVED'|'REJECTED'|'WITHDRAWN'
-export type AnswerRevisionStatus = 'PROPOSED'|'ACCEPTED'|'REJECTED'
-export interface ReviewView { id:string; attemptId:string; membershipId:string; targetAnswerId?:string; type:ReviewType; status:ReviewStatus; subject:string; openingArgument:string; version:number; createdAt:string; updatedAt:string }
-export interface CommentView { id:string; actorSubject:string; body:string; createdAt:string }
-export interface ImpactView { id:string; previousScore:number; projectedScore:number; affectedRule:string; analysisJson:string; createdAt:string }
-export interface AnswerRevisionView { id:string; answerId:string; revisionNumber:number; status:AnswerRevisionStatus; proposedPayloadJson:string; actorSubject:string; createdAt:string }
+export interface AttemptAdminView { id: string; assessmentVersionId: string; membershipId: string; attemptNumber: number; status: AttemptStatus; startedAt: string; expiresAt: string; submittedAt?: string }
+export interface AttemptGrade { attemptId: string; gradeRevisionId: string; revisionNumber: number; awardedMarks: number; maxMarks: number; passMarks: number; passed: boolean }
+export type GradeRevisionStatus = 'GENERATED' | 'PUBLISHED' | 'SUPERSEDED'
+export type GradeSource = 'SYSTEM' | 'TEACHER' | 'RECONCILIATION' | 'REGRADE'
+export interface GradeRevisionView { id: string; revisionNumber: number; status: GradeRevisionStatus; source: GradeSource; awardedMarks: number; maxMarks: number; createdAt: string; actorSubject: string }
+export interface GradeItemView { id: string; answerId: string; assessmentQuestionId: string; maxMarks: number; negativeMarks: number; systemScore: number; teacherScore?: number; finalScore: number; explanationJson: string; rubricJson: string; createdAt: string }
+export type ReviewType = 'GRADE_CHALLENGE' | 'ANSWER_REVISION'
+export type ReviewStatus = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'REJECTED' | 'WITHDRAWN'
+export type AnswerRevisionStatus = 'PROPOSED' | 'ACCEPTED' | 'REJECTED'
+export interface ReviewView { id: string; attemptId: string; membershipId: string; targetAnswerId?: string; type: ReviewType; status: ReviewStatus; subject: string; openingArgument: string; version: number; createdAt: string; updatedAt: string }
+export interface CommentView { id: string; actorSubject: string; body: string; createdAt: string }
+export interface ImpactView { id: string; previousScore: number; projectedScore: number; affectedRule: string; analysisJson: string; createdAt: string }
+export interface AnswerRevisionView { id: string; answerId: string; revisionNumber: number; status: AnswerRevisionStatus; proposedPayloadJson: string; actorSubject: string; createdAt: string }
 export const fetchMyAttempts = () => request<PageResult<AttemptAdminView>>('/api/v1/attempts/me?size=100')
-export const fetchAssessmentAttempts = (versionId:string) => request<PageResult<AttemptAdminView>>(`/api/v1/assessment-versions/${versionId}/attempts?size=100`)
-export const fetchAttemptGrade = (attemptId:string) => request<AttemptGrade>(`/api/v1/attempts/${attemptId}/grade`)
-export const fetchGradeItems = (attemptId:string) => request<GradeItemView[]>(`/api/v1/attempts/${attemptId}/grade-items`)
-export const fetchGradeHistory = (attemptId:string) => request<GradeRevisionView[]>(`/api/v1/attempts/${attemptId}/grade-history`)
-export const gradeAttempt = (attemptId:string,publish=true) => request<AttemptGrade>(`/api/v1/attempts/${attemptId}/grade?publish=${publish}`,{method:'POST'})
-export const overrideGradeItem = (attemptId:string,answerId:string,input:{finalScore:number;explanationJson:string;rubricJson?:string;publish:boolean}) => request<GradeItemView>(`/api/v1/attempts/${attemptId}/grade-items/${answerId}/override`,{method:'POST',body:JSON.stringify(input)})
-export const fetchReviews = (attemptId:string) => request<ReviewView[]>(`/api/v1/attempts/${attemptId}/reviews`)
-export const openReview = (attemptId:string,input:{answerId?:string;type:ReviewType;subject:string;openingArgument:string}) => request<ReviewView>(`/api/v1/attempts/${attemptId}/reviews`,{method:'POST',body:JSON.stringify(input)})
-export const fetchDiscussion = (reviewId:string) => request<CommentView[]>(`/api/v1/reviews/${reviewId}/discussion`)
-export const commentReview = (reviewId:string,body:string) => request<CommentView>(`/api/v1/reviews/${reviewId}/comments`,{method:'POST',body:JSON.stringify({body})})
-export const analyzeReviewImpact = (reviewId:string) => request<ImpactView>(`/api/v1/reviews/${reviewId}/impact-analysis`,{method:'POST'})
-export const fetchAnswerRevisions = (reviewId:string) => request<AnswerRevisionView[]>(`/api/v1/reviews/${reviewId}/answer-revisions`)
-export const proposeAnswerRevision = (reviewId:string,answerId:string,payloadJson:string) => request<AnswerRevisionView>(`/api/v1/reviews/${reviewId}/answer-revisions`,{method:'POST',body:JSON.stringify({answerId,payloadJson})})
-export const decideAnswerRevision = (revisionId:string,status:AnswerRevisionStatus) => request<AnswerRevisionView>(`/api/v1/answer-revisions/${revisionId}/decide`,{method:'POST',body:JSON.stringify({status})})
-export const resolveReview = (reviewId:string,status:ReviewStatus) => request<ReviewView>(`/api/v1/reviews/${reviewId}/resolve`,{method:'POST',body:JSON.stringify({status})})
-export const regradeReview = (reviewId:string,publish=true) => request<AttemptGrade>(`/api/v1/reviews/${reviewId}/regrade?publish=${publish}`,{method:'POST'})
+export const fetchAssessmentAttempts = (versionId: string) => request<PageResult<AttemptAdminView>>(`/api/v1/assessment-versions/${versionId}/attempts?size=100`)
+export const fetchAttemptGrade = (attemptId: string) => request<AttemptGrade>(`/api/v1/attempts/${attemptId}/grade`)
+export const fetchGradeItems = (attemptId: string) => request<GradeItemView[]>(`/api/v1/attempts/${attemptId}/grade-items`)
+export const fetchGradeHistory = (attemptId: string) => request<GradeRevisionView[]>(`/api/v1/attempts/${attemptId}/grade-history`)
+export const gradeAttempt = (attemptId: string, publish = true) => request<AttemptGrade>(`/api/v1/attempts/${attemptId}/grade?publish=${publish}`, { method: 'POST' })
+export const overrideGradeItem = (attemptId: string, answerId: string, input: { finalScore: number; explanationJson: string; rubricJson?: string; publish: boolean }) => request<GradeItemView>(`/api/v1/attempts/${attemptId}/grade-items/${answerId}/override`, { method: 'POST', body: JSON.stringify(input) })
+export const fetchReviews = (attemptId: string) => request<ReviewView[]>(`/api/v1/attempts/${attemptId}/reviews`)
+export const openReview = (attemptId: string, input: { answerId?: string; type: ReviewType; subject: string; openingArgument: string }) => request<ReviewView>(`/api/v1/attempts/${attemptId}/reviews`, { method: 'POST', body: JSON.stringify(input) })
+export const fetchDiscussion = (reviewId: string) => request<CommentView[]>(`/api/v1/reviews/${reviewId}/discussion`)
+export const commentReview = (reviewId: string, body: string) => request<CommentView>(`/api/v1/reviews/${reviewId}/comments`, { method: 'POST', body: JSON.stringify({ body }) })
+export const analyzeReviewImpact = (reviewId: string) => request<ImpactView>(`/api/v1/reviews/${reviewId}/impact-analysis`, { method: 'POST' })
+export const fetchAnswerRevisions = (reviewId: string) => request<AnswerRevisionView[]>(`/api/v1/reviews/${reviewId}/answer-revisions`)
+export const proposeAnswerRevision = (reviewId: string, answerId: string, payloadJson: string) => request<AnswerRevisionView>(`/api/v1/reviews/${reviewId}/answer-revisions`, { method: 'POST', body: JSON.stringify({ answerId, payloadJson }) })
+export const decideAnswerRevision = (revisionId: string, status: AnswerRevisionStatus) => request<AnswerRevisionView>(`/api/v1/answer-revisions/${revisionId}/decide`, { method: 'POST', body: JSON.stringify({ status }) })
+export const resolveReview = (reviewId: string, status: ReviewStatus) => request<ReviewView>(`/api/v1/reviews/${reviewId}/resolve`, { method: 'POST', body: JSON.stringify({ status }) })
+export const regradeReview = (reviewId: string, publish = true) => request<AttemptGrade>(`/api/v1/reviews/${reviewId}/regrade?publish=${publish}`, { method: 'POST' })
 
 
 export type AssignmentStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED'
@@ -759,48 +836,48 @@ export const fetchAssignmentSubmissions = (id: string) => request<PageResult<Ass
 export const gradeAssignmentSubmission = (id: string, awardedPoints: number, feedback: string, rubricScoresJson: string, expectedVersion: number) => request<AssignmentSubmission>(`/api/v1/assignment-submissions/${id}/grade`, { method: 'PUT', body: JSON.stringify({ awardedPoints, feedback, rubricScoresJson, expectedVersion }) })
 export const fetchMyGradebook = (batchId: string) => request<GradebookView>(`/api/v1/gradebook/me/${batchId}`)
 
-export interface LiveClassView { id: string; classSessionId: string; batchId: string; roomName: string; status: 'SCHEDULED'|'LIVE'|'ENDED'|'CANCELLED'; attendancePolicy: 'MANUAL'|'JOIN_TIME'|'MINIMUM_DURATION'|'PERCENTAGE'; minimumAttendanceSeconds: number; attendanceThresholdBasisPoints: number; lowBandwidth: boolean; chatEnabled: boolean; startedAt?: string; endedAt?: string; version: number }
-export interface LiveClassToken { serverUrl: string; participantToken: string; liveClassId: string; roomName: string; role: 'HOST'|'MODERATOR'|'PRESENTER'|'PARTICIPANT'|'OBSERVER'; lowBandwidth: boolean; chatEnabled: boolean }
+export interface LiveClassView { id: string; classSessionId: string; batchId: string; roomName: string; status: 'SCHEDULED' | 'LIVE' | 'ENDED' | 'CANCELLED'; attendancePolicy: 'MANUAL' | 'JOIN_TIME' | 'MINIMUM_DURATION' | 'PERCENTAGE'; minimumAttendanceSeconds: number; attendanceThresholdBasisPoints: number; lowBandwidth: boolean; chatEnabled: boolean; startedAt?: string; endedAt?: string; version: number }
+export interface LiveClassToken { serverUrl: string; participantToken: string; liveClassId: string; roomName: string; role: 'HOST' | 'MODERATOR' | 'PRESENTER' | 'PARTICIPANT' | 'OBSERVER'; lowBandwidth: boolean; chatEnabled: boolean }
 export interface LiveParticipant { membershipId: string; role: string; status: string; joinedAt?: string; leftAt?: string; totalPresentSeconds: number; clientProfile?: string; moderationReason?: string; version: number }
-export interface AttendanceView { membershipId: string; status: 'PRESENT'|'PARTIAL'|'ABSENT'|'EXCUSED'; presentSeconds: number; finalizedAt: string; source: string; notes?: string }
+export interface AttendanceView { membershipId: string; status: 'PRESENT' | 'PARTIAL' | 'ABSENT' | 'EXCUSED'; presentSeconds: number; finalizedAt: string; source: string; notes?: string }
 export const fetchLiveClasses = () => request<PageResult<LiveClassView>>('/api/v1/live-classes?size=100')
-export const createLiveClass = (input: { classSessionId: string; attendancePolicy: LiveClassView['attendancePolicy']; minimumAttendanceSeconds?: number; attendanceThresholdBasisPoints?: number; lowBandwidth?: boolean; chatEnabled?: boolean }) => request<LiveClassView>('/api/v1/live-classes',{method:'POST',body:JSON.stringify(input)})
-export const startLiveClass = (id:string) => request<LiveClassView>(`/api/v1/live-classes/${id}/start`,{method:'POST'})
-export const endLiveClass = (id:string) => request<LiveClassView>(`/api/v1/live-classes/${id}/end`,{method:'POST'})
-export const joinLiveClass = (id:string,clientProfile:'LOW_BANDWIDTH'|'BALANCED'|'HIGH_QUALITY'='BALANCED') => request<LiveClassToken>(`/api/v1/live-classes/${id}/join`,{method:'POST',body:JSON.stringify({clientProfile})})
-export const leaveLiveClass = (id:string) => request<void>(`/api/v1/live-classes/${id}/leave`,{method:'POST'})
-export const heartbeatLiveClass = (id:string,clientProfile='BALANCED') => request<void>(`/api/v1/live-classes/${id}/heartbeat`,{method:'POST',body:JSON.stringify({clientProfile})})
-export const fetchLiveParticipants = (id:string) => request<PageResult<LiveParticipant>>(`/api/v1/live-classes/${id}/participants?size=100`)
-export const muteLiveParticipant = (id:string,membershipId:string) => request<void>(`/api/v1/live-classes/${id}/participants/${membershipId}/mute`,{method:'POST'})
-export const kickLiveParticipant = (id:string,membershipId:string,reason?:string) => request<void>(`/api/v1/live-classes/${id}/participants/${membershipId}/kick`,{method:'POST',body:JSON.stringify({reason})})
-export const fetchAttendance = (id:string) => request<AttendanceView[]>(`/api/v1/live-classes/${id}/attendance`)
-export const finalizeAttendance = (id:string) => request<void>(`/api/v1/live-classes/${id}/attendance/finalize`,{method:'POST'})
-export const setAttendance = (id:string,membershipId:string,status:AttendanceView['status'],notes?:string) => request<void>(`/api/v1/live-classes/${id}/attendance/${membershipId}`,{method:'POST',body:JSON.stringify({status,notes})})
+export const createLiveClass = (input: { classSessionId: string; attendancePolicy: LiveClassView['attendancePolicy']; minimumAttendanceSeconds?: number; attendanceThresholdBasisPoints?: number; lowBandwidth?: boolean; chatEnabled?: boolean }) => request<LiveClassView>('/api/v1/live-classes', { method: 'POST', body: JSON.stringify(input) })
+export const startLiveClass = (id: string) => request<LiveClassView>(`/api/v1/live-classes/${id}/start`, { method: 'POST' })
+export const endLiveClass = (id: string) => request<LiveClassView>(`/api/v1/live-classes/${id}/end`, { method: 'POST' })
+export const joinLiveClass = (id: string, clientProfile: 'LOW_BANDWIDTH' | 'BALANCED' | 'HIGH_QUALITY' = 'BALANCED') => request<LiveClassToken>(`/api/v1/live-classes/${id}/join`, { method: 'POST', body: JSON.stringify({ clientProfile }) })
+export const leaveLiveClass = (id: string) => request<void>(`/api/v1/live-classes/${id}/leave`, { method: 'POST' })
+export const heartbeatLiveClass = (id: string, clientProfile = 'BALANCED') => request<void>(`/api/v1/live-classes/${id}/heartbeat`, { method: 'POST', body: JSON.stringify({ clientProfile }) })
+export const fetchLiveParticipants = (id: string) => request<PageResult<LiveParticipant>>(`/api/v1/live-classes/${id}/participants?size=100`)
+export const muteLiveParticipant = (id: string, membershipId: string) => request<void>(`/api/v1/live-classes/${id}/participants/${membershipId}/mute`, { method: 'POST' })
+export const kickLiveParticipant = (id: string, membershipId: string, reason?: string) => request<void>(`/api/v1/live-classes/${id}/participants/${membershipId}/kick`, { method: 'POST', body: JSON.stringify({ reason }) })
+export const fetchAttendance = (id: string) => request<AttendanceView[]>(`/api/v1/live-classes/${id}/attendance`)
+export const finalizeAttendance = (id: string) => request<void>(`/api/v1/live-classes/${id}/attendance/finalize`, { method: 'POST' })
+export const setAttendance = (id: string, membershipId: string, status: AttendanceView['status'], notes?: string) => request<void>(`/api/v1/live-classes/${id}/attendance/${membershipId}`, { method: 'POST', body: JSON.stringify({ status, notes }) })
 
 export type RecordingQualityPreset = 'ECONOMY' | 'BALANCED' | 'HIGH_QUALITY' | 'SOURCE_ARCHIVE'
 export type RecordingProcessingStatus = 'REQUESTED' | 'STARTING' | 'RECORDING' | 'FINALIZING' | 'READY' | 'ARCHIVING' | 'ARCHIVED' | 'FAILED' | 'DELETED'
 export type RecordingStorageTier = 'HOT' | 'CACHE' | 'ARCHIVE'
-export interface RecordingView { id:string; liveClassId:string; classSessionId:string; qualityPreset:RecordingQualityPreset; status:RecordingProcessingStatus; storageTier:RecordingStorageTier; storageProvider:'LOCAL'|'S3_COMPATIBLE'|'GOOGLE_DRIVE'|'GOOGLE_SHARED_DRIVE'; sizeBytes?:number; durationSeconds?:number; requestedAt:string; startedAt?:string; endedAt?:string; readyAt?:string; archivedAt?:string; failureReason?:string; version:number }
-export interface PlaybackView { streamUrl:string; expiresAt:string; watermarkName:string; watermarkId:string; issuedAt:string }
-export interface RecordingStoragePolicyView { hotCacheDays:number; cacheDays:number; retentionDays?:number; hotProvider:string; cacheProvider:string; archiveProvider:string; deletedObjectGraceDays:number; version:number }
+export interface RecordingView { id: string; liveClassId: string; classSessionId: string; qualityPreset: RecordingQualityPreset; status: RecordingProcessingStatus; storageTier: RecordingStorageTier; storageProvider: 'LOCAL' | 'S3_COMPATIBLE' | 'GOOGLE_DRIVE' | 'GOOGLE_SHARED_DRIVE'; sizeBytes?: number; durationSeconds?: number; requestedAt: string; startedAt?: string; endedAt?: string; readyAt?: string; archivedAt?: string; failureReason?: string; version: number }
+export interface PlaybackView { streamUrl: string; expiresAt: string; watermarkName: string; watermarkId: string; issuedAt: string }
+export interface RecordingStoragePolicyView { hotCacheDays: number; cacheDays: number; retentionDays?: number; hotProvider: string; cacheProvider: string; archiveProvider: string; deletedObjectGraceDays: number; version: number }
 export const fetchRecordings = () => request<PageResult<RecordingView>>('/api/v1/recordings?size=100')
-export const requestRecording = (liveClassId:string,qualityPreset:RecordingQualityPreset='BALANCED') => request<RecordingView>(`/api/v1/live-classes/${liveClassId}/recordings`,{method:'POST',body:JSON.stringify({qualityPreset})})
-export const fetchRecording = (id:string) => request<RecordingView>(`/api/v1/recordings/${id}`)
-export const stopRecording = (id:string) => request<void>(`/api/v1/recordings/${id}/stop`,{method:'POST'})
-export const issueRecordingPlayback = (id:string) => request<PlaybackView>(`/api/v1/recordings/${id}/playback`,{method:'POST'})
+export const requestRecording = (liveClassId: string, qualityPreset: RecordingQualityPreset = 'BALANCED') => request<RecordingView>(`/api/v1/live-classes/${liveClassId}/recordings`, { method: 'POST', body: JSON.stringify({ qualityPreset }) })
+export const fetchRecording = (id: string) => request<RecordingView>(`/api/v1/recordings/${id}`)
+export const stopRecording = (id: string) => request<void>(`/api/v1/recordings/${id}/stop`, { method: 'POST' })
+export const issueRecordingPlayback = (id: string) => request<PlaybackView>(`/api/v1/recordings/${id}/playback`, { method: 'POST' })
 export const fetchRecordingStoragePolicy = () => request<RecordingStoragePolicyView>('/api/v1/recording-storage-policy')
-export const updateRecordingStoragePolicy = (input:{hotCacheDays:number;cacheDays:number;retentionDays?:number;hotProvider:string;cacheProvider:string;archiveProvider:string;deletedObjectGraceDays:number;expectedVersion:number}) => request<RecordingStoragePolicyView>('/api/v1/recording-storage-policy',{method:'PUT',body:JSON.stringify(input)})
+export const updateRecordingStoragePolicy = (input: { hotCacheDays: number; cacheDays: number; retentionDays?: number; hotProvider: string; cacheProvider: string; archiveProvider: string; deletedObjectGraceDays: number; expectedVersion: number }) => request<RecordingStoragePolicyView>('/api/v1/recording-storage-policy', { method: 'PUT', body: JSON.stringify(input) })
 
 export interface FinanceFee { id: string; name: string; amount: number; currency: string; status: 'ACTIVE' | 'INACTIVE'; version: number }
 export interface FinanceInstallment { id: string; sequenceNo: number; amount: number; dueOn: string; status: string; version: number }
 export interface FinanceInvoice { id: string; membershipId: string; invoiceNumber: string; totalAmount: number; paidAmount: number; currency: string; status: string; issuedOn?: string; dueOn: string; version: number; installments: FinanceInstallment[] }
 export interface FinanceInvoicePage { items: FinanceInvoice[]; page: number; size: number; totalElements: number }
 export const fetchFinanceFees = () => request<FinanceFee[]>('/api/v1/finance/fees')
-export const createFinanceFee = (input:{name:string;amount:number;currency:string;status:'ACTIVE'|'INACTIVE'}) => request<FinanceFee>('/api/v1/finance/fees',{method:'POST',body:JSON.stringify({...input,expectedVersion:0})})
+export const createFinanceFee = (input: { name: string; amount: number; currency: string; status: 'ACTIVE' | 'INACTIVE' }) => request<FinanceFee>('/api/v1/finance/fees', { method: 'POST', body: JSON.stringify({ ...input, expectedVersion: 0 }) })
 export const fetchFinanceInvoices = () => request<FinanceInvoicePage>('/api/v1/finance/invoices?size=100')
-export const createFinanceInvoice = (input:{membershipId:string;totalAmount:number;currency:string;dueOn:string}) => request<FinanceInvoice>('/api/v1/finance/invoices',{method:'POST',body:JSON.stringify(input)})
-export const issueFinanceInvoice = (id:string,expectedVersion:number) => request<FinanceInvoice>(`/api/v1/finance/invoices/${id}/issue`,{method:'POST',body:JSON.stringify({expectedVersion})})
-export const recordFinancePayment = (id:string,input:{amount:number;currency:string}) => request('/api/v1/finance/invoices/'+id+'/payments',{method:'POST',body:JSON.stringify(input)})
+export const createFinanceInvoice = (input: { membershipId: string; totalAmount: number; currency: string; dueOn: string }) => request<FinanceInvoice>('/api/v1/finance/invoices', { method: 'POST', body: JSON.stringify(input) })
+export const issueFinanceInvoice = (id: string, expectedVersion: number) => request<FinanceInvoice>(`/api/v1/finance/invoices/${id}/issue`, { method: 'POST', body: JSON.stringify({ expectedVersion }) })
+export const recordFinancePayment = (id: string, input: { amount: number; currency: string }) => request('/api/v1/finance/invoices/' + id + '/payments', { method: 'POST', body: JSON.stringify(input) })
 
 
 export interface AnalyticsOverview {
@@ -827,19 +904,19 @@ export interface AnalyticsForecast {
 }
 
 export async function getAnalyticsOverview(from?: string, to?: string) {
-  return request<AnalyticsOverview>(`/api/v1/analytics/overview${rangeQuery(from,to)}`)
+  return request<AnalyticsOverview>(`/api/v1/analytics/overview${rangeQuery(from, to)}`)
 }
 export async function getAnalyticsForecast() {
   return request<AnalyticsForecast>('/api/v1/analytics/forecast')
 }
 export async function exportAnalytics(report: string, from?: string, to?: string) {
-  return apiGetText(`/analytics/exports/${encodeURIComponent(report)}${rangeQuery(from,to)}`)
+  return apiGetText(`/analytics/exports/${encodeURIComponent(report)}${rangeQuery(from, to)}`)
 }
 function rangeQuery(from?: string, to?: string) {
   const p = new URLSearchParams()
   if (from) p.set('from', from)
   if (to) p.set('to', to)
-  const q=p.toString()
+  const q = p.toString()
   return q ? `?${q}` : ''
 }
 async function apiGetText(path: string): Promise<string> {

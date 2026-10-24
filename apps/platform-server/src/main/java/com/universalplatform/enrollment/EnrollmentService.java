@@ -88,6 +88,12 @@ class EnrollmentService {
         validateDates(startsOn, endsOn);
         validateCapacity(capacity);
         UUID tenantId = tenantContext.requireTenantId();
+        if (capacity != null) {
+            long activeEnrollments = enrollments.countActiveByBatch(tenantId, id);
+            if (capacity < activeEnrollments) {
+                throw new EnrollmentConflictException("Batch capacity cannot be reduced below the number of active enrollments");
+            }
+        }
         Batch batch = batch(tenantId, id);
         if (batch.version() != expectedVersion) throw new EnrollmentConflictException("Batch was modified by another request");
         String normalizedCode = code(code);
