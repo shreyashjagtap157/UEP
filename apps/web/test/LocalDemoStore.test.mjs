@@ -43,6 +43,8 @@ const localStorage = {
   },
 }
 
+globalThis.localStorage = localStorage
+
 globalThis.window = {
   localStorage,
   addEventListener(type, listener) {
