@@ -14,7 +14,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import com.universalplatform.tenancy.TenantDirectory;
 import com.universalplatform.tenancy.TenantStatus;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -26,7 +25,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * work wrap with TenantExecutionContext and do not traverse HTTP filters, so tenant-scoped jobs
  * remain unaffected.
  */
-@Component
 class TenantLifecycleFilter extends OncePerRequestFilter {
     private static final String API_PREFIX = "/api/";
     private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS");

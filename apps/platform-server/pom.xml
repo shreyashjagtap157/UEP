@@ -17,6 +17,9 @@
 
   <properties>
     <java.version>25</java.version>
+    <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
+    <jackson-bom.version>3.1.7</jackson-bom.version>
+    <tomcat.version>11.0.25</tomcat.version>
     <spring-modulith.version>2.1.1</spring-modulith.version>
     <aws-sdk.version>2.31.78</aws-sdk.version>
     <maven.compiler.release>25</maven.compiler.release>

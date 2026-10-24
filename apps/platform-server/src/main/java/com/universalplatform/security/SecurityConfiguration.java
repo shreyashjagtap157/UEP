@@ -11,8 +11,14 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 class SecurityConfiguration {
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtTenantContextFilter tenantFilter,
-            ApiCredentialFilter apiCredentialFilter, TenantLifecycleFilter tenantLifecycleFilter) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, ApiCredentialService credentials,
+            TenantContext tenantContext, com.universalplatform.tenancy.TenantDirectory tenants) throws Exception {
+        // These filters are deliberately owned by the security chain rather than registered as
+        // application Filter beans. AOP-proxying a GenericFilterBean breaks its final init()
+        // method because the proxy does not initialize GenericFilterBean's logger field.
+        ApiCredentialFilter apiCredentialFilter = new ApiCredentialFilter(credentials);
+        JwtTenantContextFilter tenantFilter = new JwtTenantContextFilter();
+        TenantLifecycleFilter tenantLifecycleFilter = new TenantLifecycleFilter(tenantContext, tenants);
         return http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
