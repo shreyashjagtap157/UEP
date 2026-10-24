@@ -12,9 +12,39 @@ if version != '0.15.0.0-SNAPSHOT': errors.append(f'VERSION is {version}, expecte
 app=text('apps/platform-server/src/main/resources/application.yaml')
 for needle in ['maximum-pool-size:', 'connection-timeout:', 'max-lifetime:', 'platform:', 'security:']:
     if needle not in app: errors.append(f'application.yaml missing {needle}')
-# Reject obvious production-secret placeholders in externally reachable configuration.
-# Development credentials are intentionally isolated to local infrastructure configuration;
-# production deployment is required to override all externally supplied secrets.
+# Production secret validation must fail closed on missing, blank, placeholder, or weak secrets.
+guard = text('apps/platform-server/src/main/java/com/universalplatform/security/ProductionSecretGuard.java')
+required_guard_contract = [
+    'validateProductionSecrets(environment)',
+    '"spring.datasource.password"',
+    '"platform.recording.playback-secret"',
+    '"platform.integrations.secret-key"',
+    '"platform.live-learning.livekit.api-key"',
+    '"platform.live-learning.livekit.api-secret"',
+    'value == null || value.isBlank()',
+    'value.equals(devDefault)',
+    'value.trim().length() < minimumLength',
+]
+for required in required_guard_contract:
+    if required not in guard:
+        errors.append(f'ProductionSecretGuard is missing fail-closed validation: {required}')
+if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/security/ProductionSecretGuardTest.java').exists():
+    errors.append('missing ProductionSecretGuard regression tests')
+
+# Webhook fan-out must be durable, idempotent, and processed independently of the source transaction.
+required_webhook_files = [
+    'apps/platform-server/src/main/resources/db/migration/V028__durable_webhook_event_outbox.sql',
+    'apps/platform-server/src/main/java/com/universalplatform/integration/WebhookEventOutbox.java',
+    'apps/platform-server/src/main/java/com/universalplatform/integration/WebhookEventOutboxService.java',
+    'apps/platform-server/src/main/java/com/universalplatform/integration/WebhookEventFanoutWorker.java',
+    'apps/platform-server/src/test/java/com/universalplatform/integration/WebhookEventOutboxIntegrationTest.java',
+]
+for rel in required_webhook_files:
+    if not (ROOT / rel).exists():
+        errors.append(f'missing durable webhook fan-out component: {rel}')
+listener = text('apps/platform-server/src/main/java/com/universalplatform/integration/WebhookNotificationListener.java')
+if 'WebhookEventOutboxService' not in listener or 'outbox.enqueue(event)' not in listener:
+    errors.append('WebhookNotificationListener must persist fan-out intent in the transactional outbox')
 
 # Tenant isolation gate: require tenant-leading indexes for the high-frequency 0.15 query paths.
 required_indexes = {

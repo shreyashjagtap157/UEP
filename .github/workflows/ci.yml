@@ -62,6 +62,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Verify repository policy
         run: bash scripts/verify-repository.sh
+      - name: Qualify 0.15 reliability and security contracts
+        run: python3 scripts/qualify-0.15.py
 
   vulnerability-scan:
     runs-on: ubuntu-latest
