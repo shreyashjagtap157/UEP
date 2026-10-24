@@ -160,7 +160,10 @@ if 'malwareRejectionCommitsTerminalAbortAndRemovesStagingFile' not in text('apps
 # Payment recording uses its dedicated permission separately from general finance management.
 finance_service_for_auth = text('apps/platform-server/src/main/java/com/universalplatform/finance/FinanceService.java')
 finance_ui_for_auth = text('apps/web/src/finance/FinanceWorkspace.tsx')
-if '@Transactional PaymentView pay(UUID invoiceId,BigDecimal amount,String currency,String settlementReference,boolean settlementConfirmed){auth.require(PermissionKey.PAYMENTS_MANAGE);' not in finance_service_for_auth:
+payment_method_start = finance_service_for_auth.find('PaymentView pay(UUID invoiceId,BigDecimal amount,String currency,String settlementReference,boolean settlementConfirmed)')
+payment_method_end = finance_service_for_auth.find('@Transactional(readOnly=true) PageView<InvoiceView> listInvoices', payment_method_start)
+payment_method = finance_service_for_auth[payment_method_start:payment_method_end] if payment_method_start >= 0 and payment_method_end > payment_method_start else ''
+if 'auth.require(PermissionKey.PAYMENTS_MANAGE);' not in payment_method:
     errors.append('recording a payment must require PAYMENTS_MANAGE, not just FINANCE_MANAGE')
 if "const canManagePayments = me.permissions.includes('PAYMENTS_MANAGE')" not in finance_ui_for_auth:
     errors.append('finance UI must gate payment recording on PAYMENTS_MANAGE')
