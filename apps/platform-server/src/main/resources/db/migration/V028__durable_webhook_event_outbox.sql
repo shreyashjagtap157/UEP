@@ -15,7 +15,10 @@ CREATE TABLE webhook_event_outbox (
     dead_lettered_at timestamptz,
     last_error varchar(1000),
     version bigint NOT NULL DEFAULT 0,
-    CONSTRAINT uq_webhook_event_outbox_source UNIQUE (tenant_id, source_outbox_id)
+    CONSTRAINT uq_webhook_event_outbox_source UNIQUE (tenant_id, source_outbox_id),
+    CONSTRAINT fk_webhook_event_outbox_source
+        FOREIGN KEY (tenant_id, source_outbox_id)
+        REFERENCES notification_outbox(tenant_id, id) ON DELETE CASCADE
 );
 
 CREATE INDEX ix_webhook_event_outbox_due

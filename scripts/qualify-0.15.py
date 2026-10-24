@@ -64,6 +64,10 @@ listener = text('apps/platform-server/src/main/java/com/universalplatform/integr
 if 'WebhookEventOutboxService' not in listener or 'outbox.enqueue(event)' not in listener:
     errors.append('WebhookNotificationListener must persist fan-out intent in the transactional outbox')
 
+outbox_migration = text('apps/platform-server/src/main/resources/db/migration/V028__durable_webhook_event_outbox.sql')
+if 'FOREIGN KEY (tenant_id, source_outbox_id)' not in outbox_migration:
+    errors.append('V028 must constrain webhook fan-out to a source notification outbox row in the same tenant')
+
 # Tenant isolation gate: require tenant-leading indexes for the high-frequency 0.15 query paths.
 required_indexes = {
     "ix_tenant_membership_tenant_status", "ix_enrollment_tenant_status_started",

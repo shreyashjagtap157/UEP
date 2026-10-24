@@ -36,6 +36,13 @@ class WebhookEventOutboxIntegrationTest {
                     id, tenant_id, callback_url, event_filter, secret_ciphertext, enabled
                 ) VALUES (?, ?, 'https://hooks.example.com/uep', '*', ?, true)
                 """, subscriptionId, tenantId, cipher.encrypt("test-webhook-secret"));
+        jdbc.update("""
+                INSERT INTO notification_outbox(
+                    id, tenant_id, event_type, aggregate_type, aggregate_id,
+                    title, body, priority, deduplication_key
+                ) VALUES (?, ?, 'CLASS_SCHEDULED', 'class_session', ?, 'Class created',
+                    'A class was created', 'NORMAL', ?)
+                """, sourceOutboxId, tenantId, aggregateId, "webhook-outbox:" + sourceOutboxId);
     }
 
     @AfterEach
