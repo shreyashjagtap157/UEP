@@ -131,6 +131,7 @@ required_cleanup_files = [
     'apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupOutboxService.java',
     'apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java',
     'apps/platform-server/src/test/java/com/universalplatform/content/UploadFinalizationCompensationTest.java',
+    'apps/platform-server/src/test/java/com/universalplatform/content/StorageCleanupWorkerIntegrationTest.java',
 ]
 for rel in required_cleanup_files:
     if not (ROOT / rel).exists():

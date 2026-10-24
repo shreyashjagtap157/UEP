@@ -68,6 +68,7 @@ class StorageCleanupJob {
     Instant nextAttemptAt() { return nextAttemptAt; }
     int attemptCount() { return attemptCount; }
     Instant deletedAt() { return deletedAt; }
+    String lastError() { return lastError; }
 
     void markDeleted(Instant now) {
         this.deletedAt = now;
