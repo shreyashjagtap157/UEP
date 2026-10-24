@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import {
-  DEMO_PROFILES, courseFor, createDemoProduct, gradeDemoSubmission, loadDemoState, percentage,
+  DEMO_PROFILES, activityForProfile, courseFor, createDemoProduct, gradeDemoSubmission, loadDemoState, percentage,
   submissionsForProfile,
   progressFor, publishDemoProduct, resetDemoState, saveDemoState, setDemoUserStatus, submitDemoAssignment,
   subscribeDemoState, updateDemoAttendance,
@@ -227,7 +227,7 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
         {profile.role === 'student' ? <CourseList state={state} courses={visibleCourses} userId={profile.userId} onOpen={() => setActiveSection('learn')} /> :
           ['teacher', 'evaluator', 'teaching-assistant'].includes(profile.role) ? <SubmissionList state={state} profile={profile} submissions={pendingSubmissions.slice(0, 4)} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} /> :
           profile.role === 'developer' ? <ProductList products={state.products.slice(0, 4)} onPublish={handlePublishProduct} /> :
-          profile.role === 'client' ? <ProductList products={publishedProducts.slice(0, 4)} onPublish={handlePublishProduct} readOnly /> : <ActivityList state={state} />}
+          profile.role === 'client' ? <ProductList products={publishedProducts.slice(0, 4)} onPublish={handlePublishProduct} readOnly /> : <ActivityList state={state} profile={profile} />}
       </section>
       <p className="local-data-notice">LOCAL DEMO DATA · Values are calculated from records stored in this browser. Records are synthetic sample data, not live institutional or production telemetry.</p>
     </div>
@@ -277,9 +277,9 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       case 'integrations':
       case 'api': return <IntegrationView state={state} />
       case 'communication':
-      case 'messages': return <section className="local-panel"><PanelHeading eyebrow="Communication" title="Recent communication activity" detail="These local events do not send an external message." /><ActivityList state={state} /></section>
+      case 'messages': return <section className="local-panel"><PanelHeading eyebrow="Communication" title="Recent communication activity" detail="These local events do not send an external message." /><ActivityList state={state} profile={profile} /></section>
       case 'operations':
-      case 'security': return <section className="local-panel"><PanelHeading eyebrow="Governance" title={sectionTitles[activeSection]} detail="Inspect local events; this is not the production audit service." /><ActivityList state={state} /><p className="local-data-notice">Production sessions, identity federation, authorization and immutable audit history require the connected platform server.</p></section>
+      case 'security': return <section className="local-panel"><PanelHeading eyebrow="Governance" title={sectionTitles[activeSection]} detail="Inspect local events; this is not the production audit service." /><ActivityList state={state} profile={profile} /><p className="local-data-notice">Production sessions, identity federation, authorization and immutable audit history require the connected platform server.</p></section>
       case 'billing':
       case 'finance':
       case 'invoices':
@@ -415,6 +415,8 @@ function ExamReportsView({ state, profile }: { state: DemoState; profile: DemoPr
 function IntegrationView({ state }: { state: DemoState }) {
   return <section className="local-panel"><PanelHeading eyebrow="Integration inventory" title="Configured demo integrations" detail="Endpoints and delivery totals are sample records. No HTTP requests are sent." /><div className="local-honest-state"><strong>Live connectivity is not tested in offline mode.</strong><p>Real API uptime and webhook delivery health are not fabricated; the figures below describe the local sample dataset only.</p></div><div className="local-record-list">{state.webhooks.map(hook => <article className="local-record" key={hook.id}><div className="local-record-main"><strong>{hook.name}</strong><p>{hook.endpoint}</p><small>{hook.successfulDeliveries} sample successes · {hook.failedDeliveries} sample failures</small></div><span className={'local-status status-' + hook.status.toLowerCase().replace(' ', '-')}>{hook.status} (sample)</span></article>)}</div></section>
 }
-function ActivityList({ state }: { state: DemoState }) {
-  return <div className="local-record-list">{state.activity.map(item => <article className="local-record" key={item.id}><div className="local-record-main"><strong>{item.action}</strong><p>{item.detail}</p><small>{item.actor} · {new Date(item.at).toLocaleString()}</small></div></article>)}</div>
+function ActivityList({ state, profile }: { state: DemoState; profile: DemoProfile }) {
+  const activity = activityForProfile(state, profile)
+  if (!activity.length) return <p className="local-empty">No activity is available in this persona's local data scope.</p>
+  return <div className="local-record-list">{activity.map(item => <article className="local-record" key={item.id}><div className="local-record-main"><strong>{item.action}</strong><p>{item.detail}</p><small>{item.actor} · {new Date(item.at).toLocaleString()}</small></div></article>)}</div>
 }
