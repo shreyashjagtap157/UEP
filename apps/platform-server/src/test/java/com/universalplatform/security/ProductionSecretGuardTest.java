@@ -21,7 +21,8 @@ class ProductionSecretGuardTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("DATABASE_PASSWORD")
                 .hasMessageContaining("PLATFORM_RECORDING_PLAYBACK_SECRET")
-                .doesNotHaveMessageContaining("integration-secret-that-is-long-enough");
+                .satisfies(exception -> assertThat(exception.getMessage())
+                        .doesNotContain("integration-secret-that-is-long-enough"));
     }
 
     @Test
