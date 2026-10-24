@@ -115,7 +115,7 @@ class IntegrationController {
     }
 
     record CredentialRequest(@NotNull UUID membershipId, @NotBlank @Size(max = 120) String name,
-            Set<PermissionKey> scopes, Instant expiresAt) {
+            @NotEmpty Set<PermissionKey> scopes, Instant expiresAt) {
     }
 
     record WebhookRequest(@NotBlank @Size(max = 1000) String callbackUrl, @Size(max = 64) String eventFilter) {

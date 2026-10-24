@@ -5044,11 +5044,15 @@ components:
         status: {$ref: '#/components/schemas/ReviewStatus'}
     ApiCredentialRequest:
       type: object
-      required: [membershipId, name]
+      required: [membershipId, name, scopes]
       properties:
         membershipId: {type: string, format: uuid}
         name: {type: string, maxLength: 120}
-        scopes: {type: array, items: {$ref: '#/components/schemas/PermissionKey'}}
+        scopes:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/PermissionKey'}
+          description: Explicit permission allowlist. Empty scopes are rejected; credentials never implicitly inherit all membership permissions.
         expiresAt: {type: string, format: date-time}
     ApiCredentialView:
       type: object

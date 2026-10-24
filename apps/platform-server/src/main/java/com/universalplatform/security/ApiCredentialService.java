@@ -36,7 +36,10 @@ public class ApiCredentialService {
         String normalized = name == null ? "" : name.trim();
         if (normalized.isEmpty() || normalized.length() > 120)
             throw new IllegalArgumentException("Credential name is required");
-        Set<String> effective = scopes == null || scopes.isEmpty() ? Set.of() : Set.copyOf(scopes);
+        if (scopes == null || scopes.isEmpty()) {
+            throw new IllegalArgumentException("At least one explicit API credential permission scope is required");
+        }
+        Set<String> effective = Set.copyOf(scopes);
         String raw = "upk_live_" + randomHex(32);
         ApiCredential saved = repo.save(new ApiCredential(UUID.randomUUID(), tenant, membershipId, normalized,
                 hash(raw), effective.stream().sorted().reduce((a, b) -> a + "," + b).orElse(""),
@@ -68,7 +71,11 @@ public class ApiCredentialService {
     public Optional<ApiCredential> authenticate(String rawKey) {
         if (rawKey == null || rawKey.isBlank())
             return Optional.empty();
-        return repo.findActiveByKeyHash(hash(rawKey)).filter(c -> c.active(clock.instant()));
+        // Fail closed for legacy credentials created before explicit scopes were required.
+        // An empty scope set used to mean "inherit every current membership permission".
+        return repo.findActiveByKeyHash(hash(rawKey))
+                .filter(c -> c.active(clock.instant()))
+                .filter(c -> !scopeSet(c.scopes()).isEmpty());
     }
 
     public void touch(ApiCredential c) {

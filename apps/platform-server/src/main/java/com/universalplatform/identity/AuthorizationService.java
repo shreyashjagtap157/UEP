@@ -113,7 +113,10 @@ public class AuthorizationService implements ApiCredentialAuthorizer {
         var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         UUID membershipId;
         Set<String> scopes;
-        if (authentication != null && authentication.getPrincipal() instanceof ScopedCredentialPrincipal api) {
+        boolean scopedCredential = authentication != null
+                && authentication.getPrincipal() instanceof ScopedCredentialPrincipal;
+        if (scopedCredential) {
+            ScopedCredentialPrincipal api = (ScopedCredentialPrincipal) authentication.getPrincipal();
             membershipId = api.membershipId();
             scopes = Set.copyOf(api.scopes());
         } else {
@@ -121,8 +124,11 @@ public class AuthorizationService implements ApiCredentialAuthorizer {
             scopes = Set.of();
         }
         EnumSet<PermissionKey> result = EnumSet.noneOf(PermissionKey.class);
-        for (String key : rolePermissions.findPermissionKeysForMembership(tenantId, membershipId, branchId)) result.add(PermissionKey.valueOf(key));
-        if (!scopes.isEmpty()) result.removeIf(p -> !scopes.contains(p.name()));
+        for (String key : rolePermissions.findPermissionKeysForMembership(tenantId, membershipId, branchId)) {
+            result.add(PermissionKey.valueOf(key));
+        }
+        // Empty scope sets must never be interpreted as unlimited access for an API credential.
+        if (scopedCredential) result.removeIf(permission -> !scopes.contains(permission.name()));
         return Set.copyOf(result);
     }
 

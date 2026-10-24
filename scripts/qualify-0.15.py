@@ -117,6 +117,29 @@ for runtime_contract in [
     if runtime_contract not in workflow:
         errors.append(f'CI is missing packaged-server runtime smoke contract: {runtime_contract}')
 
+# API credentials require explicit least-privilege permission scopes and never treat empty as unrestricted.
+api_credential_service = text('apps/platform-server/src/main/java/com/universalplatform/security/ApiCredentialService.java')
+authorization_service = text('apps/platform-server/src/main/java/com/universalplatform/identity/AuthorizationService.java')
+integration_controller = text('apps/platform-server/src/main/java/com/universalplatform/integration/IntegrationController.java')
+api_spec = text('docs/api/openapi.yaml')
+web_integration = text('apps/web/src/integration/IntegrationWorkspace.tsx')
+for required in [
+    'At least one explicit API credential permission scope is required',
+    'filter(c -> !scopeSet(c.scopes()).isEmpty())',
+]:
+    if required not in api_credential_service:
+        errors.append(f'API credential service is missing empty-scope rejection: {required}')
+if 'if (scopedCredential) result.removeIf' not in authorization_service:
+    errors.append('authorization must intersect scoped-credential permissions even when the scope set is empty')
+if '@NotEmpty Set<PermissionKey> scopes' not in integration_controller:
+    errors.append('API credential endpoint must require a non-empty scope set')
+if 'required: [membershipId, name, scopes]' not in api_spec or 'minItems: 1' not in api_spec:
+    errors.append('OpenAPI API credential schema must require at least one scope')
+if 'Select at least one explicit permission scope.' not in web_integration:
+    errors.append('integration UI must prevent empty-scope credential creation')
+if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/identity/IdentityAuthorizationIntegrationTest.java').exists():
+    errors.append('missing API credential explicit-scope regression tests')
+
 # Upload provider side effects must be compensated after rollback, with durable retry when delete fails.
 storage_cleanup_migration = text('apps/platform-server/src/main/resources/db/migration/V029__storage_cleanup_outbox.sql')
 for required in [

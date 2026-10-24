@@ -9,6 +9,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -220,6 +223,44 @@ class IdentityAuthorizationIntegrationTest {
     }
 
     @Test
+    void apiCredentialCreationRejectsAnEmptyScopeSet() throws Exception {
+        String body = """
+                {"membershipId":"%s","name":"empty-scope-key","scopes":[]}
+                """.formatted(DUAL_MEMBERSHIP);
+        mvc.perform(post("/api/v1/integrations/api-credentials")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void apiCredentialCreationRejectsMissingScopes() throws Exception {
+        String body = """
+                {"membershipId":"%s","name":"implicit-permissions-key"}
+                """.formatted(DUAL_MEMBERSHIP);
+        mvc.perform(post("/api/v1/integrations/api-credentials")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void legacyUnscopedApiCredentialCannotAuthenticate() throws Exception {
+        String raw = "upk_live_legacyunscoped";
+        jdbc.update("""
+                INSERT INTO api_credential(id, tenant_id, membership_id, name, key_hash, scopes, created_at)
+                VALUES (?, ?, ?, 'legacy-unscoped', ?, '', CURRENT_TIMESTAMP)
+                """, UUID.randomUUID(), TENANT, DUAL_MEMBERSHIP, hashForTest(raw));
+
+        mvc.perform(get("/api/v1/integrations/api-credentials")
+                        .param("membershipId", DUAL_MEMBERSHIP.toString())
+                        .header("X-API-Key", raw))
+                .andExpect(status().is4xxClientError());
+    }
+
+    @Test
     void nonOwnerCannotListAnotherMembershipsApiCredentials() throws Exception {
         String createBody = """
                 {"membershipId":"%s","name":"owner-private-key","scopes":["API_VIEW"]}
@@ -330,6 +371,15 @@ class IdentityAuthorizationIntegrationTest {
                         .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+    }
+
+    private static String hashForTest(String raw) {
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
     }
 
     private void insertSystemRole(UUID id, String key, String name) {

@@ -952,7 +952,7 @@ export interface IdentityProviderView { id: string; providerKey: string; issuer:
 export interface StorageBindingView { providerType: 'LOCAL' | 'S3_COMPATIBLE' | 'GOOGLE_DRIVE' | 'GOOGLE_SHARED_DRIVE'; objectPrefix: string; version: number }
 export interface NotificationProviderView { id: string; providerKey: string; providerType: string; endpoint: string; version: number }
 
-export const createApiCredential = (body: { membershipId: string; name: string; scopes?: PermissionKey[]; expiresAt?: string }) => request<ApiCredentialView>('/api/v1/integrations/api-credentials', { method: 'POST', body: JSON.stringify(body) })
+export const createApiCredential = (body: { membershipId: string; name: string; scopes: PermissionKey[]; expiresAt?: string }) => request<ApiCredentialView>('/api/v1/integrations/api-credentials', { method: 'POST', body: JSON.stringify(body) })
 export const fetchApiCredentials = (membershipId: string) => request<ApiCredentialView[]>(`/api/v1/integrations/api-credentials?membershipId=${encodeURIComponent(membershipId)}`)
 export const revokeApiCredential = (id: string, expectedVersion: number) => request<void>(`/api/v1/integrations/api-credentials/${id}?expectedVersion=${expectedVersion}`, { method: 'DELETE' })
 export const createWebhook = (body: { callbackUrl: string; eventFilter?: string }) => request<WebhookView>('/api/v1/integrations/webhooks', { method: 'POST', body: JSON.stringify(body) })
