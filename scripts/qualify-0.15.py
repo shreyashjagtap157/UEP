@@ -91,6 +91,17 @@ for timeout_contract in [
     if timeout_contract not in drive_storage:
         errors.append(f'Google Drive adapter is missing bounded HTTP timeout: {timeout_contract}')
 
+# The smoke helper must use a valid nearest-rank percentile and enforce optional latency bounds.
+load_probe = text('scripts/load-smoke.py')
+for required in [
+    'def percentile(sorted_values: list[float], quantile: float)',
+    'math.ceil(quantile * len(sorted_values))',
+    'if max_p95 is not None and p95 > max_p95',
+    'if max_p99 is not None and p99 > max_p99',
+]:
+    if required not in load_probe:
+        errors.append(f'load-smoke probe is missing a percentile/latency contract: {required}')
+
 # Tenant isolation gate: require tenant-leading indexes for the high-frequency 0.15 query paths.
 required_indexes = {
     "ix_tenant_membership_tenant_status", "ix_enrollment_tenant_status_started",

@@ -7,6 +7,7 @@ This milestone is a hardening release; it does not introduce a major business fe
 - `bash scripts/verify-repository.sh` — repository structure, permission/event parity, secret heuristics, Git diff checks.
 - `python3 scripts/qualify-0.15.py` — reliability configuration and tenant-isolation static checks.
 - `python3 scripts/load-smoke.py URL REQUESTS CONCURRENCY` — dependency-free HTTP smoke/load probe.
+- Backend CI starts the packaged server against a fresh PostgreSQL database and runs 30 concurrent health requests with conservative p95/p99 smoke bounds. This validates startup/migration/runtime wiring; it is not the production load target.
 - `k6 run scripts/load-smoke.k6.js` — repeatable service-level load profile when k6 is installed.
 - `scripts/backup-restore-drill.sh` — custom-format PostgreSQL backup/restore verification.
 
