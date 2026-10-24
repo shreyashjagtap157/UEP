@@ -15,6 +15,8 @@ import java.time.*;
 import java.util.*;
 import org.springframework.data.domain.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 class RecordingService {
+    private static final Logger log = LoggerFactory.getLogger(RecordingService.class);
+
     private final TenantContext tenants;
     private final ActorContext actors;
     private final AuthorizationService auth;
@@ -291,14 +295,52 @@ class RecordingService {
         }
     }
 
-    void purgeDue(Recording r) {
-        RecordingStoragePolicy p = policies.findById(r.tenantId()).orElse(null);
-        if (p == null || p.retentionDays() == null || r.readyAt() == null || r.readyAt().plus(Duration.ofDays((long) p.retentionDays() + p.deletedObjectGraceDays())).isAfter(clock.instant())) return;
+    @Transactional
+    void purgeDue(Recording candidate) {
+        // The scheduled worker supplied a detached snapshot. Reload it inside a transaction and
+        // serialize purge attempts for the tenant; otherwise the remote objects may be deleted
+        // while the database row remains READY/ARCHIVED and gets purged on every poll.
+        workerLock.acquire(candidate.tenantId());
+        Recording recording = recordings.findByTenantIdAndId(candidate.tenantId(), candidate.id()).orElse(null);
+        if (recording == null
+                || (recording.status() != RecordingProcessingStatus.READY
+                && recording.status() != RecordingProcessingStatus.ARCHIVED)) {
+            return;
+        }
+
+        RecordingStoragePolicy policy = policies.findById(recording.tenantId()).orElse(null);
+        if (policy == null || policy.retentionDays() == null || recording.readyAt() == null) return;
+        Instant purgeAfter = recording.readyAt().plus(Duration.ofDays(
+                (long) policy.retentionDays() + policy.deletedObjectGraceDays()));
+        if (purgeAfter.isAfter(clock.instant())) return;
+
+        List<RecordingAsset> recordingAssets = assets.findAllByTenantIdAndRecordingId(
+                recording.tenantId(), recording.id());
         try {
-            adapters.require(r.storageProvider()).delete(r.storageLocator());
-            for (RecordingAsset a : assets.findAllByTenantIdAndRecordingId(r.tenantId(), r.id())) { try { adapters.require(a.provider()).delete(a.locator()); } catch (Exception ignored) {} }
-            r.delete(clock.instant()); audit.record(r.tenantId(), "system", "RECORDING_PURGED", "recording", r.id().toString());
-        } catch (Exception ignored) {}
+            if (recording.storageLocator() != null) {
+                adapters.require(recording.storageProvider()).delete(recording.storageLocator());
+            }
+            for (RecordingAsset asset : recordingAssets) {
+                // The MASTER asset usually points at the same object as recording.storageLocator.
+                // Avoid issuing duplicate provider deletes for this canonical object.
+                if (asset.provider() == recording.storageProvider()
+                        && Objects.equals(asset.locator(), recording.storageLocator())) {
+                    continue;
+                }
+                adapters.require(asset.provider()).delete(asset.locator());
+            }
+
+            // Commit metadata only after every provider delete succeeded. If a later delete fails,
+            // leave the recording eligible for retry. Provider delete operations must be idempotent.
+            assets.deleteAll(recordingAssets);
+            recording.clearStoragePointer();
+            recording.delete(clock.instant());
+            recordings.save(recording);
+            audit.record(recording.tenantId(), "system", "RECORDING_PURGED", "recording", recording.id().toString());
+        } catch (Exception failure) {
+            log.warn("Recording retention purge failed for tenant {} recording {}; retrying on a later poll",
+                    recording.tenantId(), recording.id(), failure);
+        }
     }
 
     private void finalizeFile(Recording r, Path video, long duration) {

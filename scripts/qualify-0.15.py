@@ -68,6 +68,21 @@ outbox_migration = text('apps/platform-server/src/main/resources/db/migration/V0
 if 'FOREIGN KEY (tenant_id, source_outbox_id)' not in outbox_migration:
     errors.append('V028 must constrain webhook fan-out to a source notification outbox row in the same tenant')
 
+# Recording retention runs from a scheduled worker over detached JPA snapshots. Require an explicit
+# transactional reload/save boundary and regression tests so provider deletion cannot leave READY rows forever.
+recording_service = text('apps/platform-server/src/main/java/com/universalplatform/recording/RecordingService.java')
+if '@Transactional\n    void purgeDue(Recording candidate)' not in recording_service:
+    errors.append('recording retention purge must execute in a transaction')
+if 'recordings.findByTenantIdAndId(candidate.tenantId(), candidate.id())' not in recording_service:
+    errors.append('recording retention purge must reload its candidate inside the transaction')
+if 'recordings.save(recording)' not in recording_service:
+    errors.append('recording retention purge must persist the final deleted state')
+if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/recording/RecordingPurgeLifecycleTest.java').exists():
+    errors.append('missing recording purge lifecycle regression tests')
+drive_storage = text('apps/platform-server/src/main/java/com/universalplatform/storage/GoogleDriveStorageAdapter.java')
+if 'r.statusCode()!=404' not in drive_storage:
+    errors.append('Google Drive deletes must treat already-missing objects as idempotently deleted')
+
 # Tenant isolation gate: require tenant-leading indexes for the high-frequency 0.15 query paths.
 required_indexes = {
     "ix_tenant_membership_tenant_status", "ix_enrollment_tenant_status_started",

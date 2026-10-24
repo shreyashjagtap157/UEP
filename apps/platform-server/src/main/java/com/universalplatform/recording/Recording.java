@@ -56,5 +56,6 @@ class Recording {
     void fail(String reason){this.status=RecordingProcessingStatus.FAILED;this.failureReason=reason;}
     void markArchiving(){if(status==RecordingProcessingStatus.READY)status=RecordingProcessingStatus.ARCHIVING;}
     void restoreReady(){if(status==RecordingProcessingStatus.ARCHIVING)status=RecordingProcessingStatus.READY;}
+    void clearStoragePointer(){this.storageLocator=null;this.objectKey=null;}
     void delete(Instant now){this.status=RecordingProcessingStatus.DELETED;this.deletedAt=now;}
 }
