@@ -359,6 +359,43 @@ export function setDemoUserStatus(state: DemoState, userId: string, status: Demo
   return recordDemoActivity({ ...state, users }, actor.name, 'User status updated', target.name + ': ' + status)
 }
 
+export function submissionsForProfile(state: DemoState, profile: DemoProfile): DemoSubmission[] {
+  const currentUser = state.users.find(user =>
+    user.id === profile.userId
+    && user.status === 'Active'
+    && user.role === ROLE_RECORD_NAMES[profile.role])
+  if (!currentUser) return []
+
+  if (profile.role === 'student') {
+    return state.submissions.filter(item => item.studentId === profile.userId)
+  }
+  if (profile.role === 'guardian') {
+    return state.submissions.filter(item => item.studentId === 'student-asha')
+  }
+  if (profile.role === 'mentor') {
+    const assigned = new Set(currentUser.courseIds)
+    return state.submissions.filter(item => item.studentId === 'student-asha' && assigned.has(item.courseId))
+  }
+  if (['teacher', 'teaching-assistant', 'evaluator'].includes(profile.role)) {
+    const assigned = new Set(currentUser.courseIds)
+    return state.submissions.filter(item => assigned.has(item.courseId))
+  }
+  if (profile.role === 'exam-controller') {
+    const examCourseIds = new Set(state.schedule
+      .filter(item => item.kind === 'Exam' && item.participantIds.includes(profile.userId))
+      .map(item => item.courseId))
+    return state.submissions.filter(item => examCourseIds.has(item.courseId))
+  }
+  if (profile.role === 'client') {
+    const learners = new Set(state.users
+      .filter(user => user.role === 'Student' && user.status === 'Active' && user.organization === currentUser.organization)
+      .map(user => user.id))
+    return state.submissions.filter(item => learners.has(item.studentId))
+  }
+  if (profile.role === 'admin') return state.submissions
+  return []
+}
+
 export function courseFor(state: DemoState, courseId: string): DemoCourse | undefined { return state.courses.find(course => course.id === courseId) }
 export function progressFor(state: DemoState, userId: string, courseId: string): number { return state.courseProgress[userId + ':' + courseId] ?? 0 }
 export function percentage(numerator: number, denominator: number): number { return denominator > 0 ? Math.round((numerator / denominator) * 100) : 0 }

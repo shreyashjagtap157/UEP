@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import {
   DEMO_PROFILES, courseFor, createDemoProduct, gradeDemoSubmission, loadDemoState, percentage,
+  submissionsForProfile,
   progressFor, publishDemoProduct, resetDemoState, saveDemoState, setDemoUserStatus, submitDemoAssignment,
   subscribeDemoState, updateDemoAttendance,
 } from './LocalDemoStore'
@@ -300,31 +301,6 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       <section className="local-main"><header className="local-workspace-header"><div><p className="eyebrow">{profile.label} workspace</p><h2>{sectionTitles[activeSection]}</h2></div><span className="local-mode-badge">Saved in this browser</span></header>{notice && <div className="local-notice" role="status"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss message">×</button></div>}{renderSection()}</section>
     </div>
   </main>
-}
-
-function submissionsForProfile(state: DemoState, profile: DemoProfile): DemoSubmission[] {
-  const currentUser = state.users.find(user => user.id === profile.userId && user.status === 'Active')
-  if (!currentUser) return []
-  if (profile.role === 'student') return state.submissions.filter(item => item.studentId === profile.userId)
-  if (profile.role === 'guardian') return state.submissions.filter(item => item.studentId === 'student-asha')
-  if (profile.role === 'mentor') {
-    const assigned = new Set(currentUser.courseIds)
-    return state.submissions.filter(item => item.studentId === 'student-asha' && assigned.has(item.courseId))
-  }
-  if (['teacher', 'teaching-assistant', 'evaluator'].includes(profile.role)) {
-    const assigned = new Set(currentUser.courseIds)
-    return state.submissions.filter(item => assigned.has(item.courseId))
-  }
-  if (profile.role === 'exam-controller') {
-    const examCourseIds = new Set(state.schedule.filter(item => item.kind === 'Exam' && item.participantIds.includes(profile.userId)).map(item => item.courseId))
-    return state.submissions.filter(item => examCourseIds.has(item.courseId))
-  }
-  if (profile.role === 'client') {
-    const learners = new Set(state.users.filter(user => user.role === 'Student' && user.status === 'Active' && user.organization === currentUser.organization).map(user => user.id))
-    return state.submissions.filter(item => learners.has(item.studentId))
-  }
-  if (profile.role === 'admin') return state.submissions
-  return []
 }
 
 function welcomeFor(role: DemoRole): string {
