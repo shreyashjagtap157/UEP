@@ -396,6 +396,76 @@ export function submissionsForProfile(state: DemoState, profile: DemoProfile): D
   return []
 }
 
+export function activityForProfile(state: DemoState, profile: DemoProfile): DemoActivity[] {
+  const actor = activeActor(state, profile)
+  if (!actor) return []
+
+  // Platform administrators and auditors can review the complete synthetic audit feed.
+  if (profile.role === 'admin' || profile.role === 'auditor') return state.activity
+
+  // These personas must not infer individual learning details from a global event feed.
+  if (profile.role === 'support' || profile.role === 'finance-admin') return []
+
+  if (profile.role === 'developer') {
+    const productTitles = state.products.map(item => item.title.toLocaleLowerCase())
+    return state.activity.filter(item => item.action.toLocaleLowerCase().includes('product')
+      && productTitles.some(title => item.detail.toLocaleLowerCase().includes(title)))
+  }
+
+  const submissions = submissionsForProfile(state, profile)
+  const scopedSubmissionTitles = submissions.map(item => item.title.toLocaleLowerCase())
+  let scopedCourseIds = new Set(actor.courseIds)
+  let scopedLearnerIds = new Set<string>()
+
+  if (profile.role === 'student') {
+    scopedLearnerIds = new Set([profile.userId])
+  } else if (profile.role === 'guardian' || profile.role === 'mentor') {
+    scopedLearnerIds = new Set(['student-asha'])
+    const linked = state.users.find(item => item.id === 'student-asha')
+    if (profile.role === 'guardian') scopedCourseIds = new Set(linked?.courseIds ?? [])
+  } else if (profile.role === 'client') {
+    const learners = state.users.filter(item => item.role === 'Student'
+      && item.status === 'Active' && item.organization === actor.organization)
+    scopedLearnerIds = new Set(learners.map(item => item.id))
+    scopedCourseIds = new Set(learners.flatMap(item => item.courseIds))
+  } else if (profile.role === 'exam-controller') {
+    scopedCourseIds = new Set(state.schedule
+      .filter(item => item.kind === 'Exam' && item.participantIds.includes(profile.userId))
+      .map(item => item.courseId))
+  }
+
+  const scopedCourseTitles = state.courses
+    .filter(item => scopedCourseIds.has(item.id))
+    .map(item => item.title.toLocaleLowerCase())
+  const scopedLearnerNames = state.users
+    .filter(item => scopedLearnerIds.has(item.id))
+    .map(item => item.name.toLocaleLowerCase())
+
+  return state.activity.filter(item => {
+    const action = item.action.toLocaleLowerCase()
+    const detail = item.detail.toLocaleLowerCase()
+    if (action.includes('product')) return false
+
+    // Assignment and grading events are tied back to the learner/course records.
+    if (scopedSubmissionTitles.some(title => detail.includes(title))) return true
+
+    // Attendance/progress events include course context; learner-facing roles additionally
+    // require the linked learner name to be present in the event detail.
+    if (action.includes('attendance') || action.includes('learning progress')) {
+      const courseMatches = scopedCourseTitles.some(title => detail.includes(title))
+      const learnerMatches = ['student', 'guardian', 'mentor'].includes(profile.role)
+        ? scopedLearnerNames.some(name => detail.includes(name))
+        : profile.role === 'client'
+          ? scopedLearnerNames.some(name => detail.includes(name))
+          : true
+      return courseMatches && learnerMatches
+    }
+
+    // Do not leak unattributed events when their relationship cannot be established.
+    return false
+  })
+}
+
 export function courseFor(state: DemoState, courseId: string): DemoCourse | undefined { return state.courses.find(course => course.id === courseId) }
 export function progressFor(state: DemoState, userId: string, courseId: string): number { return state.courseProgress[userId + ':' + courseId] ?? 0 }
 export function percentage(numerator: number, denominator: number): number { return denominator > 0 ? Math.round((numerator / denominator) * 100) : 0 }
