@@ -6,6 +6,10 @@ server:
 spring:
   application:
     name: universal-education-platform
+  jackson:
+    deserialization:
+      # Preserve existing API behavior: omitted primitive request fields use Java defaults.
+      fail-on-null-for-primitives: false
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/education_platform}
     username: ${DATABASE_USERNAME:education}
