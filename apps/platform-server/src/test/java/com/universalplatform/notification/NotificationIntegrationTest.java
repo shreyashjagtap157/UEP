@@ -7,9 +7,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,11 +17,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Transactional
 class NotificationIntegrationTest {
     private static final UUID TENANT = UUID.fromString("01901234-8100-7000-8000-000000000001");
     private static final UUID USER = UUID.fromString("01901234-8100-7000-8000-000000000002");
@@ -35,7 +33,6 @@ class NotificationIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
-    @Autowired EntityManager entityManager;
     @Autowired NotificationPublisher publisher;
     @Autowired NotificationOutboxProcessor processor;
 
@@ -47,6 +44,22 @@ class NotificationIntegrationTest {
         jdbc.update("INSERT INTO role_definition(id, tenant_id, name, system_managed) VALUES (?, ?, 'Notification Operator', false)", OPS_ROLE, TENANT);
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'NOTIFICATION_OPERATIONS_VIEW')", OPS_ROLE);
         jdbc.update("INSERT INTO role_assignment(id, tenant_id, membership_id, role_id, scope_kind, assigned_by_subject) VALUES (uuidv7(), ?, ?, ?, 'TENANT', ?)", TENANT, MEMBER, OPS_ROLE, SUBJECT);
+    }
+
+    @AfterEach
+    void cleanup() {
+        jdbc.update("DELETE FROM audit_event WHERE tenant_id IN (?, ?)", TENANT, TENANT_2);
+        jdbc.update("DELETE FROM notification_delivery WHERE tenant_id IN (?, ?)", TENANT, TENANT_2);
+        jdbc.update("DELETE FROM notification WHERE tenant_id IN (?, ?)", TENANT, TENANT_2);
+        jdbc.update("DELETE FROM notification_outbox_recipient WHERE tenant_id IN (?, ?)", TENANT, TENANT_2);
+        jdbc.update("DELETE FROM notification_outbox WHERE tenant_id IN (?, ?)", TENANT, TENANT_2);
+        jdbc.update("DELETE FROM notification_preference WHERE tenant_id IN (?, ?)", TENANT, TENANT_2);
+        jdbc.update("DELETE FROM role_assignment WHERE tenant_id IN (?, ?)", TENANT, TENANT_2);
+        jdbc.update("DELETE FROM role_permission WHERE role_id IN (SELECT id FROM role_definition WHERE tenant_id IN (?, ?))", TENANT, TENANT_2);
+        jdbc.update("DELETE FROM role_definition WHERE tenant_id IN (?, ?)", TENANT, TENANT_2);
+        jdbc.update("DELETE FROM tenant_membership WHERE tenant_id IN (?, ?)", TENANT, TENANT_2);
+        jdbc.update("DELETE FROM tenant WHERE id IN (?, ?)", TENANT, TENANT_2);
+        jdbc.update("DELETE FROM user_account WHERE id IN (?, ?)", USER, USER_2);
     }
 
     @Test
@@ -95,7 +108,6 @@ class NotificationIntegrationTest {
                 "Tenant two", "Tenant two event", NotificationPriority.NORMAL, null, null, key, null,
                 List.of(new NotificationPublisher.Recipient(MEMBER_2, "two@example.test"))));
 
-        entityManager.flush();
         Integer count = jdbc.queryForObject("SELECT count(*) FROM notification_outbox WHERE deduplication_key = ?", Integer.class, key);
         org.assertj.core.api.Assertions.assertThat(count).isEqualTo(2);
 

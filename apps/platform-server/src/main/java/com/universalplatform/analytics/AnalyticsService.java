@@ -96,7 +96,7 @@ class AnalyticsService {
         long submitted=n("select count(*) from attempt where tenant_id=? and submitted_at>=? and submitted_at<?",tid,from,to);
         long published=n("select count(distinct gr.attempt_id) from grade_revision gr where gr.tenant_id=? and gr.status='PUBLISHED' and gr.created_at>=? and gr.created_at<?",tid,from,to);
         long passed=n("select count(*) from grade_revision gr join attempt a on a.id=gr.attempt_id and a.tenant_id=gr.tenant_id where gr.tenant_id=? and gr.status='PUBLISHED' and gr.awarded_marks>=gr.max_marks*0.5 and gr.created_at>=? and gr.created_at<?",tid,from,to);
-        BigDecimal avg=jdbc.queryForObject("select coalesce(avg(case when max_marks=0 then null else awarded_marks::numeric/max_marks*100 end),0) from grade_revision where tenant_id=? and status='PUBLISHED' and created_at>=? and created_at<?",BigDecimal.class,tid,from,to);
+        BigDecimal avg=jdbc.queryForObject("select coalesce(avg(case when max_marks=0 then null else awarded_marks::numeric/max_marks*100 end),0) from grade_revision where tenant_id=? and status='PUBLISHED' and created_at>=? and created_at<?",BigDecimal.class,tid,sqlTimestamp(from),sqlTimestamp(to));
         return new Assessment(attempts,submitted,published,passed,avg==null?BigDecimal.ZERO:avg);
     }
     private Recording recordingInternal(UUID tid,Instant from,Instant to){
