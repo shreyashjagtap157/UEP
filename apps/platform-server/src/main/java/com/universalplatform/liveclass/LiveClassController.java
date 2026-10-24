@@ -12,6 +12,7 @@ import jakarta.validation.constraints.*; import java.util.*; import org.springfr
  @PostMapping("/{id}/leave") void leave(@PathVariable UUID id){service.leave(id);}
  @GetMapping("/{id}/participants") LiveClassService.PageResult<LiveClassService.ParticipantView> participants(@PathVariable UUID id,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="50") int size){return service.participants(id,page,size);}
  @PostMapping("/{id}/participants/{membershipId}/mute") void mute(@PathVariable UUID id,@PathVariable UUID membershipId){service.mute(id,membershipId);}
+ @PostMapping("/{id}/participants/{membershipId}/unmute") void unmute(@PathVariable UUID id,@PathVariable UUID membershipId){service.unmute(id,membershipId);}
  @PostMapping("/{id}/participants/{membershipId}/kick") void kick(@PathVariable UUID id,@PathVariable UUID membershipId,@RequestBody(required=false) ReasonRequest r){service.kick(id,membershipId,r==null?null:r.reason());}
  record CreateRequest(UUID classSessionId,AttendancePolicy attendancePolicy,@Min(0) @Max(86400) Integer minimumAttendanceSeconds,@Min(0) @Max(10000) Integer attendanceThresholdBasisPoints,boolean lowBandwidth,boolean chatEnabled){}
  record JoinRequest(String clientProfile){} record ReasonRequest(@Size(max=500) String reason){}

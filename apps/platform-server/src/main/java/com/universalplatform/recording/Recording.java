@@ -45,7 +45,11 @@ class Recording {
     Instant endedAt(){return endedAt;} Instant readyAt(){return readyAt;} Instant archivedAt(){return archivedAt;} long version(){return version;}
     void markStarting(Instant now){if(status!=RecordingProcessingStatus.REQUESTED)throw new IllegalStateException("Recording cannot start from "+status);status=RecordingProcessingStatus.STARTING;failureReason=null;}
     void start(String egressId, Instant now){if(status!=RecordingProcessingStatus.STARTING&&status!=RecordingProcessingStatus.FAILED)throw new IllegalStateException("Recording cannot start from "+status);this.egressId=egressId;this.status=RecordingProcessingStatus.RECORDING;this.startedAt=now;this.failureReason=null;}
-    void markFinalizing(Instant now){if(status==RecordingProcessingStatus.RECORDING||status==RecordingProcessingStatus.STARTING)status=RecordingProcessingStatus.FINALIZING;endedAt=now;}
+    /** Strict state machine: finalizing is only valid from states where recording output may still be in flight (STARTING/RECORDING). */
+    void markFinalizing(Instant now){
+        if(status==RecordingProcessingStatus.STARTING||status==RecordingProcessingStatus.RECORDING){status=RecordingProcessingStatus.FINALIZING;endedAt=now;}
+        else throw new IllegalStateException("Recording cannot finalize from "+status);
+    }
     void ready(String locator,String key,String hash,long bytes,long duration,Instant now){this.storageLocator=locator;this.objectKey=key;this.sha256=hash;this.sizeBytes=bytes;this.durationSeconds=Math.max(0,duration);this.status=RecordingProcessingStatus.READY;this.readyAt=now;}
     void cached(com.universalplatform.storage.StorageProviderType provider,String locator,String key,Instant now){this.storageProvider=provider;this.storageLocator=locator;this.objectKey=key;this.storageTier=RecordingStorageTier.CACHE;this.status=RecordingProcessingStatus.READY;}
     void archived(com.universalplatform.storage.StorageProviderType provider,String locator,String key,Instant now){this.storageProvider=provider;this.storageLocator=locator;this.objectKey=key;this.storageTier=RecordingStorageTier.ARCHIVE;this.status=RecordingProcessingStatus.ARCHIVED;this.archivedAt=now;}

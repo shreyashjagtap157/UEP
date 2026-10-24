@@ -20,7 +20,7 @@ CREATE TABLE assignment_submission (
  CONSTRAINT uq_assignment_submission_tenant_id UNIQUE(tenant_id,id),
  CONSTRAINT uq_assignment_submission_attempt UNIQUE(tenant_id,assignment_id,membership_id,attempt_number),
  CONSTRAINT fk_assignment_submission_assignment FOREIGN KEY(tenant_id,assignment_id) REFERENCES assignment(tenant_id,id),
- CONSTRAINT fk_assignment_submission_membership FOREIGN KEY(tenant_id,membership_id) REFERENCES membership(tenant_id,id),
+ CONSTRAINT fk_assignment_submission_membership FOREIGN KEY(tenant_id,membership_id) REFERENCES tenant_membership(tenant_id,id),
  CONSTRAINT ck_assignment_submission_attempt CHECK(attempt_number>0),
  CONSTRAINT ck_assignment_submission_points CHECK(awarded_points IS NULL OR awarded_points>=0)
 );

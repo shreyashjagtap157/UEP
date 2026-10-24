@@ -1,4 +1,4 @@
-# ADR-0010 — Integration Platform and Interoperability Boundary
+# ADR-0013: Integration Platform and Interoperability Boundary
 
 ## Status
 Accepted — 0.14.0.0

@@ -15,12 +15,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationPublisher {
     private final NotificationOutboxRepository outbox;
     private final NotificationOutboxRecipientRepository recipients;
+    private final NotificationDedupLock dedupLock;
     private final Clock clock = Clock.systemUTC();
     private final ApplicationEventPublisher events;
 
-    NotificationPublisher(NotificationOutboxRepository outbox, NotificationOutboxRecipientRepository recipients, ApplicationEventPublisher events) {
+    NotificationPublisher(NotificationOutboxRepository outbox, NotificationOutboxRecipientRepository recipients, NotificationDedupLock dedupLock, ApplicationEventPublisher events) {
         this.outbox = outbox;
         this.recipients = recipients;
+        this.dedupLock = dedupLock;
         this.events = events;
     }
 
@@ -28,6 +30,12 @@ public class NotificationPublisher {
     public void enqueue(NotificationRequest request) {
         if (request.recipients() == null || request.recipients().isEmpty()) return;
         String deduplicationKey = required(request.deduplicationKey(), "Deduplication key", 240);
+        // Fast path: already enqueued -> drop silently. On a miss, take the tenant+key advisory
+        // transaction lock (see NotificationDedupLock) and re-check, so two concurrent enqueues of
+        // the same key serialize instead of racing into the unique constraint and rolling back the
+        // caller's business transaction with DataIntegrityViolationException.
+        if (outbox.findByTenantIdAndDeduplicationKey(request.tenantId(), deduplicationKey).isPresent()) return;
+        dedupLock.acquire(request.tenantId(), deduplicationKey);
         if (outbox.findByTenantIdAndDeduplicationKey(request.tenantId(), deduplicationKey).isPresent()) return;
         Instant now = clock.instant();
         UUID id = UUID.randomUUID();

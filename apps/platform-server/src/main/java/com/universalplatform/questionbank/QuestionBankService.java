@@ -33,9 +33,10 @@ public class QuestionBankService implements QuestionBankDirectory {
     @Transactional(readOnly = true)
     public PageResult<QuestionView> list(int page, int size) {
         authorization.require(PermissionKey.ASSESSMENTS_VIEW);
+        boolean includePayload = authorization.has(PermissionKey.ASSESSMENTS_MANAGE);
         var result = questions.findAllByTenantId(tenantContext.requireTenantId(),
                 PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100), Sort.by(Sort.Direction.DESC, "createdAt", "id")));
-        return new PageResult<>(result.getContent().stream().map(this::view).toList(), result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
+        return new PageResult<>(result.getContent().stream().map(q -> view(q, includePayload)).toList(), result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
     }
 
     @Transactional
@@ -48,7 +49,7 @@ public class QuestionBankService implements QuestionBankDirectory {
         QuestionVersion v = versions.save(new QuestionVersion(UUID.randomUUID(), tenantId, q.id(), 1, type,
                 normalize(difficulty, "medium"), language, payloadJson, positiveMarks, negativeMarks, now));
         audit.record(tenantId, actorContext.requireSubject(), "QUESTION_CREATED", "question", q.id().toString());
-        return view(q, v);
+        return view(q, v, true);
     }
 
     @Transactional
@@ -64,7 +65,7 @@ public class QuestionBankService implements QuestionBankDirectory {
         QuestionVersion v = versions.save(new QuestionVersion(UUID.randomUUID(), tenantId, questionId, next, type,
                 normalize(difficulty, "medium"), language, payloadJson, positiveMarks, negativeMarks, clock.instant()));
         audit.record(tenantId, actorContext.requireSubject(), "QUESTION_VERSION_CREATED", "question", q.id().toString());
-        return view(q, v);
+        return view(q, v, true);
     }
 
     @Transactional(readOnly = true)
@@ -72,7 +73,8 @@ public class QuestionBankService implements QuestionBankDirectory {
         authorization.require(PermissionKey.ASSESSMENTS_VIEW);
         UUID tenantId = tenantContext.requireTenantId();
         questions.findByTenantIdAndId(tenantId, questionId).orElseThrow(() -> new IllegalArgumentException("Question not found"));
-        return versions.findAllByTenantIdAndQuestionIdOrderByVersionNumberDesc(tenantId, questionId).stream().map(this::versionView).toList();
+        boolean includePayload = authorization.has(PermissionKey.ASSESSMENTS_MANAGE);
+        return versions.findAllByTenantIdAndQuestionIdOrderByVersionNumberDesc(tenantId, questionId).stream().map(v -> versionView(v, includePayload)).toList();
     }
 
     @Override
@@ -85,12 +87,17 @@ public class QuestionBankService implements QuestionBankDirectory {
         return new QuestionReference(v.id(), v.questionId(), v.type(), q.title(), v.difficulty(), v.payloadJson(), v.positiveMarks(), v.negativeMarks());
     }
 
-    private QuestionView view(Question q) {
+    private QuestionView view(Question q, boolean includePayload) {
         var v = versions.findTopByTenantIdAndQuestionIdOrderByVersionNumberDesc(q.tenantId(), q.id()).orElseThrow();
-        return view(q, v);
+        return view(q, v, includePayload);
     }
-    private QuestionView view(Question q, QuestionVersion v) { return new QuestionView(q.id(), q.title(), q.status(), q.version(), versionView(v)); }
-    private QuestionVersionView versionView(QuestionVersion v) { return new QuestionVersionView(v.id(), v.versionNumber(), v.type(), v.difficulty(), v.language(), v.payloadJson(), v.positiveMarks(), v.negativeMarks(), v.createdAt()); }
+    private QuestionView view(Question q, QuestionVersion v, boolean includePayload) {
+        return new QuestionView(q.id(), q.title(), q.status(), q.version(), versionView(v, includePayload));
+    }
+    private QuestionVersionView versionView(QuestionVersion v, boolean includePayload) {
+        return new QuestionVersionView(v.id(), v.versionNumber(), v.type(), v.difficulty(), v.language(),
+                includePayload ? v.payloadJson() : null, v.positiveMarks(), v.negativeMarks(), v.createdAt());
+    }
     private static void validate(QuestionType type, String payloadJson, int positiveMarks, int negativeMarks) {
         if (type == null || payloadJson == null || payloadJson.isBlank()) throw new IllegalArgumentException("Question type and payload are required");
         if (positiveMarks <= 0 || negativeMarks < 0) throw new IllegalArgumentException("Invalid marks configuration");

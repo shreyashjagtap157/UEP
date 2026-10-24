@@ -36,4 +36,29 @@ class LiveClassParticipantInvariantTest {
         assertEquals(ParticipantStatus.KICKED, p.status());
         assertThrows(IllegalStateException.class, () -> p.join(t0.plusSeconds(20), "BALANCED"));
     }
+
+    @Test
+    void moderatorMutePersistsAcrossReconnectionUntilExplicitUnmute() {
+        Instant t0 = Instant.parse("2026-09-02T08:00:00Z");
+        LiveClassParticipant p = new LiveClassParticipant(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), ParticipantRole.PARTICIPANT, t0);
+        p.join(t0, "BALANCED");
+        p.moderateMute();
+        assertEquals(ParticipantStatus.MUTED, p.status());
+
+        // C5: reconnecting must not silently lift the moderator mute.
+        p.join(t0.plusSeconds(60), "BALANCED");
+        assertEquals(ParticipantStatus.MUTED, p.status());
+        assertNotNull(p.joinedAt());
+        assertNull(p.leftAt());
+
+        p.leave(t0.plusSeconds(90));
+        assertEquals(ParticipantStatus.MUTED, p.status()); // mute survives a leave too
+        p.join(t0.plusSeconds(120), "LOW_BANDWIDTH");
+        assertEquals(ParticipantStatus.MUTED, p.status());
+
+        // Only an explicit moderator action restores voice.
+        p.moderateUnmute();
+        assertEquals(ParticipantStatus.JOINED, p.status());
+    }
 }

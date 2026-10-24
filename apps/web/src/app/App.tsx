@@ -1,12 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { enrollOtp, enrollPasskey, logout, openAccountManagement } from '../auth/keycloak'
+import {
+  enrollOtp,
+  enrollPasskey,
+  isAuthenticated as isOidcAuthenticated,
+  logout,
+  onOidcStatus,
+  openAccountManagement,
+  localMode,
+  signIn,
+} from '../auth/keycloak'
 import { AcademicOverview } from '../academic/AcademicOverview'
 import { AcademicWorkspace } from '../academic/AcademicWorkspace'
 import { EnrollmentWorkspace } from '../academic/EnrollmentWorkspace'
 import { AnnouncementWorkspace } from '../communication/AnnouncementWorkspace'
 import { TodayOverview } from '../dashboard/TodayOverview'
+import { LocalExperience } from '../dashboard/LocalExperience'
 import { NotificationWorkspace } from '../notifications/NotificationWorkspace'
 import { ScheduleWorkspace } from '../scheduling/ScheduleWorkspace'
 import { ContentWorkspace } from '../content/ContentWorkspace'
@@ -23,6 +33,7 @@ import {
   createRole,
   fetchBranches,
   fetchCurrentIdentity,
+  fetchLocalCurrentIdentity,
   fetchMembers,
   fetchMySessions,
   fetchOrganizationSettings,
@@ -50,11 +61,81 @@ const permissionOptions: PermissionKey[] = [
 
 export function App() {
   const [section, setSection] = useState<Section>('overview')
-  const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity })
-  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000 })
+  const [oidcAuthenticated, setOidcAuthenticated] = useState<boolean>(() => isOidcAuthenticated())
+  const [signInPending, setSignInPending] = useState(false)
+  const [signInError, setSignInError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const identity = useQuery({ queryKey: ['me'], queryFn: localMode ? fetchLocalCurrentIdentity : fetchCurrentIdentity, enabled: oidcAuthenticated })
+  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated && !localMode })
+
+  useEffect(() => onOidcStatus(setOidcAuthenticated), [])
+
+  // Determine initial dashboard section based on user role after authentication
+  useEffect(() => {
+    if (oidcAuthenticated && identity.data) {
+      setSection(determineInitialSection(identity.data))
+    }
+  }, [oidcAuthenticated, identity.data])
+
+  function determineInitialSection(me: CurrentIdentity): Section {
+    // Check for Student role - primary role for learners
+    const isStudent = me.roles.includes('Student')
+    const isTeacher = me.roles.includes('Teacher')
+    const isAdmin = me.roles.some(r => 
+      ['Organization Owner', 'Organization Administrator', 'Branch Administrator', 'Academic Administrator'].includes(r)
+    )
+
+    // Route based on user type
+    if (isAdmin) {
+      return 'overview' // Administrators see overview first with full navigation
+    }
+    if (isTeacher) {
+      return 'academics' // Teachers see academic content first
+    }
+    if (isStudent) {
+      return 'overview' // Students start with overview
+    }
+    return 'overview' // Default fallback
+  }
+
+  function handleSignIn() {
+    setSignInPending(true)
+    setSignInError(null)
+    void signIn()
+      .catch(error => {
+        setSignInError(error instanceof Error ? error.message : 'Sign-in could not be started')
+        setSignInPending(false)
+      })
+      .finally(() => setSignInPending(false))
+  }
+
+  function handleSignOut() {
+    queryClient.clear()
+    void logout()
+  }
+
+  if (!oidcAuthenticated) {
+    return (
+      <main className="centered-status">
+        <section className="hero-card">
+          <p className="eyebrow">Universal Education Platform</p>
+          <h1>Sign in required</h1>
+          <p>Your single sign-on session is not active. Continue to the identity provider to authenticate.</p>
+          <div className="button-row">
+            <button className="primary-button" disabled={signInPending} onClick={handleSignIn}>
+              Sign in with Keycloak
+            </button>
+          </div>
+          {signInError && <p className="error-text" role="alert">{signInError}</p>}
+        </section>
+      </main>
+    )
+  }
+
+  if (localMode) return <LocalExperience />
 
   if (identity.isPending) return <CenteredStatus title="Loading your workspace" detail="Resolving tenant identity and permissions…" />
-  if (identity.isError) return <CenteredStatus title="Access unavailable" detail={identity.error.message} />
+    if (identity.isError) return <CenteredStatus title="Access unavailable" detail={identity.error.message} />
 
   const me = identity.data
   const nav: Array<{ id: Section; label: string; visible: boolean }> = [
@@ -71,6 +152,7 @@ export function App() {
     { id: 'assignments', label: 'Assignments', visible: has(me, 'ASSIGNMENTS_VIEW') || has(me, 'ASSIGNMENTS_TAKE') || has(me, 'GRADEBOOK_VIEW') },
     { id: 'content', label: 'Learning Content', visible: has(me, 'CONTENT_VIEW') },
     { id: 'academics', label: 'Academics', visible: has(me, 'ACADEMICS_VIEW') || has(me, 'CURRICULUM_VIEW') },
+    { id: 'advanced', label: 'Advanced Academics', visible: has(me, 'LEARNING_OUTCOMES_MANAGE') || has(me, 'CREDENTIALS_MANAGE') || has(me, 'MENTORING_MANAGE') || has(me, 'SURVEYS_MANAGE') || has(me, 'LEARNING_OUTCOMES_VIEW') || has(me, 'CREDENTIALS_VIEW') || has(me, 'MENTORING_VIEW') || has(me, 'SURVEYS_VIEW') || has(me, 'FEEDBACK_MANAGE') },
     { id: 'enrollment', label: 'Enrollment', visible: has(me, 'ENROLLMENTS_VIEW') || has(me, 'TEACHING_ASSIGNMENTS_VIEW') },
     { id: 'people', label: 'People', visible: has(me, 'USERS_VIEW') },
     { id: 'roles', label: 'Roles', visible: has(me, 'ROLES_VIEW') },
@@ -86,7 +168,7 @@ export function App() {
           <h1 className="product-title">Operations Platform</h1>
         </div>
         <nav aria-label="Primary navigation" className="nav-list">
-          {nav.filter(item => item.visible).map(item => (
+          {nav.filter(item => item.visible && (!localMode || item.id === 'overview')).map(item => (
             <button key={item.id} className={section === item.id ? 'nav-item active' : 'nav-item'} onClick={() => setSection(item.id)}>
               {item.label}
             </button>
@@ -95,7 +177,7 @@ export function App() {
         <div className="sidebar-footer">
           <p className="signed-in">{me.displayName}</p>
           <p className="muted small">{me.roles.join(' · ') || 'No assigned role'}</p>
-          <button className="text-button" onClick={() => void logout()}>Sign out</button>
+          <button className="text-button" onClick={handleSignOut}>Switch Role / Sign out</button>
         </div>
       </aside>
 
@@ -113,7 +195,7 @@ export function App() {
         {section === 'integrations' && <IntegrationWorkspace me={me} />}
         {section === 'analytics' && <AnalyticsWorkspace me={me} />}
         {section === 'schedule' && <ScheduleWorkspace me={me} />}
-          {section === 'live' && <LiveLearningWorkspace me={me} />}
+        {section === 'live' && <LiveLearningWorkspace me={me} />}
         {section === 'recordings' && <RecordingWorkspace me={me} />}
         {section === 'finance' && <FinanceWorkspace me={me} />}
         {section === 'announcements' && <AnnouncementWorkspace me={me} />}
@@ -153,7 +235,12 @@ function Overview({ me }: { me: CurrentIdentity }) {
           {me.roles.length ? me.roles.map(role => <span className="chip" key={role}>{role}</span>) : <span className="muted">No roles assigned.</span>}
         </div>
       </section>
-      <AcademicOverview me={me} />
+      {localMode ? (
+        <section className="panel">
+          <div className="panel-heading"><div><p className="eyebrow">Offline preview</p><h3>Learning workspace</h3></div></div>
+          <p className="muted">Backend-backed course and enrollment data is disabled in local mode.</p>
+        </section>
+      ) : <AcademicOverview me={me} />}
     </div>
   )
 }
@@ -198,7 +285,7 @@ function People({ me }: { me: CurrentIdentity }) {
       <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">Directory</p><h3>Tenant people</h3></div><span className="count-badge">{members.data?.totalElements ?? 0}</span></div>
         {members.isPending ? <LoadingLine /> : members.isError ? <ErrorLine error={members.error} /> : (
-          <div className="table-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>Roles</th><th>Identity subject</th></tr></thead><tbody>
+          <div className="table-wrap"><table aria-label="Tenant member directory"><thead><tr><th>Name</th><th>Status</th><th>Roles</th><th>Identity subject</th></tr></thead><tbody>
             {members.data.items.map(member => <tr key={member.membershipId}><td><strong>{member.displayName}</strong><span>{member.email ?? 'No email'}</span></td><td>{member.membershipStatus}</td><td>{member.roles.map(role => role.name).join(', ') || '—'}</td><td><code>{member.oidcSubject}</code></td></tr>)}
           </tbody></table></div>
         )}
@@ -292,7 +379,7 @@ function BranchCards({ branches }: { branches: BranchView[] }) {
 }
 
 function SettingsForm({ settings, editable, onSubmit, pending, error }: { settings: OrganizationSettings; editable: boolean; onSubmit: (event: FormEvent<HTMLFormElement>) => void; pending: boolean; error: Error | null }) {
-  return <form className="form-grid" onSubmit={onSubmit} key={settings.version}><label>Default timezone<input name="defaultTimezone" defaultValue={settings.defaultTimezone} disabled={!editable} /></label><label>Locale<input name="defaultLocale" defaultValue={settings.defaultLocale} disabled={!editable} /></label><label>Week starts on<select name="weekStartsOn" defaultValue={settings.weekStartsOn} disabled={!editable}>{[1,2,3,4,5,6,7].map(day => <option key={day} value={day}>{day}</option>)}</select></label><label>Support email<input name="supportEmail" type="email" defaultValue={settings.supportEmail} disabled={!editable} /></label><label className="wide">Support URL<input name="supportUrl" type="url" defaultValue={settings.supportUrl} disabled={!editable} /></label>{editable && <div className="form-actions"><button className="primary-button" disabled={pending}>Save settings</button></div>}{error && <p className="error-text" role="alert">{error.message}</p>}</form>
+  return <form className="form-grid" onSubmit={onSubmit} key={settings.version}><label>Default timezone<input name="defaultTimezone" defaultValue={settings.defaultTimezone} disabled={!editable} /></label><label>Locale<input name="defaultLocale" defaultValue={settings.defaultLocale} disabled={!editable} /></label><label>Week starts on<select name="weekStartsOn" defaultValue={settings.weekStartsOn} disabled={!editable}>{[1, 2, 3, 4, 5, 6, 7].map(day => <option key={day} value={day}>{day}</option>)}</select></label><label>Support email<input name="supportEmail" type="email" defaultValue={settings.supportEmail} disabled={!editable} /></label><label className="wide">Support URL<input name="supportUrl" type="url" defaultValue={settings.supportUrl} disabled={!editable} /></label>{editable && <div className="form-actions"><button className="primary-button" disabled={pending}>Save settings</button></div>}{error && <p className="error-text" role="alert">{error.message}</p>}</form>
 }
 
 function Security({ me }: { me: CurrentIdentity }) {
@@ -311,4 +398,4 @@ function has(me: CurrentIdentity, permission: PermissionKey) { return me.permiss
 function hasScoped(me: CurrentIdentity, permission: PermissionKey) { return me.permissions.includes(permission) || me.primaryBranchPermissions.includes(permission) }
 function shortId(value: string) { return value.slice(0, 8) }
 function humanize(value: string) { return value.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()) }
-function sectionTitle(section: Section) { return ({ overview: 'Today', integrations: 'Integrations', analytics: 'Analytics & Operations', live: 'Live Learning', finance: 'Finance', content: 'Learning Content', schedule: 'Schedule', announcements: 'Announcements', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }
+function sectionTitle(section: Section) { return ({ overview: 'Today', advanced: 'Advanced academics', integrations: 'Integrations', analytics: 'Analytics & Operations', live: 'Live Learning', recordings: 'Classroom recordings', finance: 'Finance', assessment: 'Assessments & grading', assignments: 'Assignments & gradebook', content: 'Learning Content', schedule: 'Schedule', announcements: 'Announcements', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }

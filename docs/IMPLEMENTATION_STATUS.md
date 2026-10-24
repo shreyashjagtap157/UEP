@@ -2,11 +2,19 @@
 
 ## Current development version
 
-`0.12.0.0-SNAPSHOT` — Analytics and Operations.
+`0.15.0.0-SNAPSHOT` — Reliability and Performance Qualification.
 
-The source implementation through the 0.5 milestone is integrated across the backend and web application. It remains a snapshot because this execution environment cannot run the complete JDK 25 / Maven / PostgreSQL 18 / dependency-backed web release gate.
+The source implementation through the 0.14 milestone is integrated across the backend and web application. It remains a snapshot because this execution environment cannot run the complete JDK 25 / Maven / PostgreSQL 18 / dependency-backed web release gate.
 
-## Current milestone — 0.14 Integration Platform
+## Current milestone — 0.15 Reliability and Performance Qualification
+
+- Repeatable load probes (`scripts/load-smoke.py`, k6 profile) and explicit p95/p99 targets.
+- Database reliability and performance indexes (`V023__reliability_performance_indexes.sql`, `V020__analytics_operations_indexes.sql`).
+- Connection-pool bounds, graceful shutdown, and backup/restore drill tooling (`scripts/backup-restore-drill.sh`).
+- Tenant-isolation checks and identity security/configuration qualification tests.
+- Repository verification scripts and qualification harness (`scripts/qualify-0.15.py`).
+
+## Previous milestone — 0.14 Integration Platform
 
 - LiveKit Egress-backed asynchronous recording orchestration with durable processing states and reconciliation.
 - Quality presets: Economy 720p, Balanced 720p, High Quality 1080p, and Source Archive 1080p composite.

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ReasonDialog } from '../app/ReasonDialog'
 import {
   cancelScheduleOccurrence,
   checkScheduleConflicts,
@@ -161,6 +162,7 @@ function OccurrenceManagement({ items, members, reschedule, cancel }: {
   cancel: { mutate: (value: { id: string; reason: string; expectedVersion: number }) => void; isPending: boolean; isError: boolean; error: Error | null }
 }) {
   const [selectedId, setSelectedId] = useState(items[0]?.id ?? '')
+  const [cancelOpen, setCancelOpen] = useState(false)
   const selected = items.find(item => item.id === selectedId) ?? items[0]
   if (!selected) return null
   const active = selected
@@ -176,7 +178,16 @@ function OccurrenceManagement({ items, members, reschedule, cancel }: {
       ...(roomCode ? { roomCode } : {}) }
     reschedule.mutate({ id: active.id, input })
   }
-  return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Exceptions</p><h3>Reschedule, substitute, or cancel</h3></div></div><form className="form-grid" onSubmit={submit} key={`${active.id}-${active.version}`}><label className="wide">Occurrence<select value={active.id} onChange={event => setSelectedId(event.target.value)}>{items.map(item => <option key={item.id} value={item.id}>{item.title} — {new Date(item.startsAt).toLocaleString()}</option>)}</select></label><label>New local start<input name="startLocal" type="datetime-local" required /></label><label>Substitute teacher<select name="substituteTeacherMembershipId"><option value="">Keep primary teacher</option>{members.map(item => <option key={item.membershipId} value={item.membershipId}>{item.displayName}</option>)}</select></label><label>Room override<input name="roomCode" maxLength={120} /></label><label>Reason<input name="reason" maxLength={500} required /></label><div className="form-actions button-row"><button className="secondary-button danger-action" type="button" disabled={cancel.isPending} onClick={() => { const reason = window.prompt('Cancellation reason'); if (reason) cancel.mutate({ id: active.id, reason, expectedVersion: active.version }) }}>Cancel occurrence</button><button className="primary-button" disabled={reschedule.isPending}>Apply exception</button></div>{reschedule.isError && <p className="error-text wide" role="alert">{reschedule.error?.message}</p>}{cancel.isError && <p className="error-text wide" role="alert">{cancel.error?.message}</p>}</form></section>
+  return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Exceptions</p><h3>Reschedule, substitute, or cancel</h3></div></div><form className="form-grid" onSubmit={submit} key={`${active.id}-${active.version}`}><label className="wide">Occurrence<select value={active.id} onChange={event => setSelectedId(event.target.value)}>{items.map(item => <option key={item.id} value={item.id}>{item.title} — {new Date(item.startsAt).toLocaleString()}</option>)}</select></label><label>New local start<input name="startLocal" type="datetime-local" required /></label><label>Substitute teacher<select name="substituteTeacherMembershipId"><option value="">Keep primary teacher</option>{members.map(item => <option key={item.membershipId} value={item.membershipId}>{item.displayName}</option>)}</select></label><label>Room override<input name="roomCode" maxLength={120} /></label><label>Reason<input name="reason" maxLength={500} required /></label><div className="form-actions button-row"><button className="secondary-button danger-action" type="button" disabled={cancel.isPending} onClick={() => setCancelOpen(true)}>Cancel occurrence</button><button className="primary-button" disabled={reschedule.isPending}>Apply exception</button></div>{reschedule.isError && <p className="error-text wide" role="alert">{reschedule.error?.message}</p>}{cancel.isError && <p className="error-text wide" role="alert">{cancel.error?.message}</p>}</form>{cancelOpen && active && <ReasonDialog
+  title="Cancellation reason"
+  description={`Cancel the occurrence “${active.title}” starting ${new Date(active.startsAt).toLocaleString()}? The reason is retained for the audit trail.`}
+  confirmLabel="Cancel occurrence"
+  onCancel={() => setCancelOpen(false)}
+  onConfirm={reason => {
+    cancel.mutate({ id: active.id, reason, expectedVersion: active.version })
+    setCancelOpen(false)
+  }}
+/>}</section>
 }
 
 function defaultRange() {

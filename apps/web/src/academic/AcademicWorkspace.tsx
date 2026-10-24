@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
+import { handleTabArrowKeys } from '../app/tabNavigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { UseQueryResult } from '@tanstack/react-query'
 import {
@@ -46,19 +47,31 @@ export function AcademicWorkspace({ me }: { me: CurrentIdentity }) {
         <div className="panel-heading"><div><p className="eyebrow">Academic model</p><h3>Structure & curriculum</h3></div></div>
         <div className="tab-row" role="tablist" aria-label="Academic catalog sections">
           {tabs.filter(item => item.visible).map(item => (
-            <button key={item.id} role="tab" aria-selected={tab === item.id} className={tab === item.id ? 'tab-button active' : 'tab-button'} onClick={() => setTab(item.id)}>
+            <button
+              key={item.id}
+              id={`academic-tab-${item.id}`}
+              role="tab"
+              aria-controls={`academic-panel-${item.id}`}
+              aria-selected={tab === item.id}
+              tabIndex={tab === item.id ? 0 : -1}
+              className={tab === item.id ? 'tab-button active' : 'tab-button'}
+              onKeyDown={handleTabArrowKeys}
+              onClick={() => setTab(item.id)}
+            >
               {item.label}<span>{item.count ?? '—'}</span>
             </button>
           ))}
         </div>
       </section>
 
-      {tab === 'periods' && <Periods me={me} data={periods} />}
-      {tab === 'programs' && <Programs me={me} data={programs} periods={periods.data?.items ?? []} />}
-      {tab === 'courses' && <Courses me={me} data={courses} programs={programs.data?.items ?? []} />}
-      {tab === 'subjects' && <Subjects me={me} data={subjects} courses={courses.data?.items ?? []} />}
-      {tab === 'modules' && <Modules me={me} data={modules} programs={programs.data?.items ?? []} courses={courses.data?.items ?? []} subjects={subjects.data?.items ?? []} />}
-      {tab === 'batches' && <Batches me={me} data={batches} periods={periods.data?.items ?? []} programs={programs.data?.items ?? []} courses={courses.data?.items ?? []} branches={branches.data?.items ?? []} />}
+      <div id={`academic-panel-${tab}`} role="tabpanel" aria-labelledby={`academic-tab-${tab}`}>
+        {tab === 'periods' && <Periods me={me} data={periods} />}
+        {tab === 'programs' && <Programs me={me} data={programs} periods={periods.data?.items ?? []} />}
+        {tab === 'courses' && <Courses me={me} data={courses} programs={programs.data?.items ?? []} />}
+        {tab === 'subjects' && <Subjects me={me} data={subjects} courses={courses.data?.items ?? []} />}
+        {tab === 'modules' && <Modules me={me} data={modules} programs={programs.data?.items ?? []} courses={courses.data?.items ?? []} subjects={subjects.data?.items ?? []} />}
+        {tab === 'batches' && <Batches me={me} data={batches} periods={periods.data?.items ?? []} programs={programs.data?.items ?? []} courses={courses.data?.items ?? []} branches={branches.data?.items ?? []} />}
+      </div>
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 ## 0.15.0.0 — Reliability and Performance Qualification
 
-Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification.
+Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification. (Tracked by the milestone gate in `docs/QUALIFICATION_0.15.md`.)
 
 ## 0.15.0.0-SNAPSHOT - 2026-09-02
 
@@ -126,6 +126,6 @@ The project uses `stable.major.minor.patch` product versioning. Snapshot entries
 - Added tenant-scoped synchronization of federated subjects, profile attributes, branch/external references, group-to-system-role mappings, membership activation, and membership deprovisioning.
 - Added removal of previously federated role assignments before applying the current mapped group set, preventing stale external-group permissions.
 - Added `POST /api/v1/integrations/identity-providers/{key}/synchronize` and its OpenAPI contract.
-- Added migration `V034__federated_role_source.sql` for role-assignment provenance and indexing.
+- Added migration `V024__federated_role_source.sql` for role-assignment provenance and indexing.
 - Preserved the architectural boundary `CLIENTS -> CONTRACTS/APIs -> DOMAIN PLATFORM -> DATA/STORAGE/MEDIA -> INFRASTRUCTURE ADAPTERS`; integration code uses the public identity boundary rather than package-private persistence.
 - Qualification: source structure, permission parity, notification parity, 0.15 qualification, OpenAPI parsing, and whitespace checks pass. Full Maven/JDK 25/PostgreSQL runtime qualification remains environment-dependent.

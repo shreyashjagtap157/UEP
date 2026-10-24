@@ -14,6 +14,9 @@ import {
   updateAssignmentStatus,
 } from '../platform/api'
 
+/** Controlled draft for the grader inputs of one submission row. */
+interface GradeDraft { points: string; feedback: string; rubric: string }
+
 export function AssignmentWorkspace({ me }: { me: CurrentIdentity }) {
   const queryClient = useQueryClient()
   const [selected, setSelected] = useState<AssignmentView>()
@@ -78,13 +81,24 @@ export function AssignmentWorkspace({ me }: { me: CurrentIdentity }) {
     }, 800)
     return () => window.clearTimeout(timer)
   }, [selected, submissionText, me.permissions, saveDraft])
+
+  const [gradeDrafts, setGradeDrafts] = useState<Record<string, GradeDraft>>({})
+
+  function draftFor(submission: AssignmentSubmission): GradeDraft {
+    return gradeDrafts[submission.id] ?? {
+      points: String(submission.awardedPoints ?? 0),
+      feedback: submission.graderFeedback ?? '',
+      rubric: submission.rubricScoresJson ?? '{}',
+    }
+  }
+
+  function updateDraft(submission: AssignmentSubmission, patch: Partial<GradeDraft>, base: GradeDraft) {
+    setGradeDrafts(current => ({ ...current, [submission.id]: { ...base, ...current[submission.id], ...patch } }))
+  }
+
   const grade = useMutation({
-    mutationFn: ({ sub }: { sub: AssignmentSubmission }) => {
-      const points = Number((document.getElementById(`points-${sub.id}`) as HTMLInputElement | null)?.value ?? 0)
-      const feedback = (document.getElementById(`feedback-${sub.id}`) as HTMLTextAreaElement | null)?.value ?? ''
-      const rubricScoresJson = (document.getElementById(`rubric-${sub.id}`) as HTMLTextAreaElement | null)?.value ?? '{}'
-      return gradeAssignmentSubmission(sub.id, points, feedback, rubricScoresJson, sub.version)
-    },
+    mutationFn: ({ sub, draft }: { sub: AssignmentSubmission; draft: GradeDraft }) =>
+      gradeAssignmentSubmission(sub.id, Number(draft.points), draft.feedback, draft.rubric, sub.version),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['assignment-submissions-admin', selected?.id] }),
   })
 
@@ -198,21 +212,16 @@ export function AssignmentWorkspace({ me }: { me: CurrentIdentity }) {
           {submissions.isPending && <p className="muted">Loading submissions…</p>}
           {submissions.isError && <p className="error-text" role="alert">{submissions.error.message}</p>}
           {submissions.data?.items.map(submission => (
-            <div key={submission.id} className="list-row">
-              <div>
-                <strong>Attempt {submission.attemptNumber}</strong>
-                <span>{submission.status}{submission.late ? ' · Late' : ''} · {submission.awardedPoints == null ? 'Ungraded' : `${submission.awardedPoints}/${selected.maxPoints}`}</span>
-                <p className="muted">{submission.textBody ?? 'File-backed submission'}</p>
-              </div>
-              {(submission.status === 'SUBMITTED' || submission.status === 'RESUBMITTED') && (
-                <div>
-                  <input id={`points-${submission.id}`} aria-label="Awarded points" type="number" min="0" max={selected.maxPoints} defaultValue={submission.awardedPoints ?? 0} />
-                  <textarea id={`feedback-${submission.id}`} aria-label="Feedback" rows={2} placeholder="Feedback" />
-                  <textarea id={`rubric-${submission.id}`} aria-label="Rubric scores JSON" rows={2} defaultValue={submission.rubricScoresJson} placeholder='Rubric scores JSON, e.g. {"criterion-1":4}' />
-                  <button className="primary-button" disabled={grade.isPending} onClick={() => grade.mutate({ sub: submission })}>Save grade</button>
-                </div>
-              )}
-            </div>
+            <SubmissionRow
+              key={submission.id}
+              submission={submission}
+              maxPoints={selected.maxPoints}
+              draft={draftFor(submission)}
+              onDraft={patch => updateDraft(submission, patch, draftFor(submission))}
+              onGrade={() => grade.mutate({ sub: submission, draft: draftFor(submission) })}
+              grading={grade.isPending}
+              gradeError={grade.error}
+            />
           ))}
         </section>
       )}
@@ -231,7 +240,7 @@ export function AssignmentWorkspace({ me }: { me: CurrentIdentity }) {
                 <div><strong>{gradebook.data.completedAssignments}/{gradebook.data.totalAssignments}</strong><span>Assignments graded</span></div>
               </div>
               <div className="table-wrap">
-                <table><thead><tr><th>Assignment</th><th>Weight</th><th>Score</th></tr></thead><tbody>
+                <table aria-label="My gradebook by assignment"><thead><tr><th>Assignment</th><th>Weight</th><th>Score</th></tr></thead><tbody>
                   {gradebook.data.entries.map(entry => <tr key={entry.assignmentId}><td>{entry.title}</td><td>{(entry.weightBasisPoints / 100).toFixed(2)}%</td><td>{entry.awardedPoints == null ? '—' : `${entry.awardedPoints}/${entry.maxPoints}`}</td></tr>)}
                 </tbody></table>
               </div>
@@ -245,6 +254,61 @@ export function AssignmentWorkspace({ me }: { me: CurrentIdentity }) {
           <div className="panel-heading"><div><p className="eyebrow">History</p><h3>My submissions</h3></div></div>
           {mine.data?.items.map(submission => <div key={submission.id} className="list-row"><div><strong>{submission.assignmentId}</strong><span>{submission.status}{submission.late ? ' · Late' : ''} · {submission.gradeStatus} · {submission.awardedPoints == null ? 'Not graded' : `${submission.awardedPoints} points`}</span></div></div>)}
         </section>
+      )}
+    </div>
+  )
+}
+
+function SubmissionRow({ submission, maxPoints, draft, onDraft, onGrade, grading, gradeError }: {
+  submission: AssignmentSubmission
+  maxPoints: number
+  draft: GradeDraft
+  onDraft: (patch: Partial<GradeDraft>) => void
+  onGrade: () => void
+  grading: boolean
+  gradeError: Error | null
+}) {
+  const gradable = submission.status === 'SUBMITTED' || submission.status === 'RESUBMITTED'
+  return (
+    <div className="list-row">
+      <div>
+        <strong>Attempt {submission.attemptNumber}</strong>
+        <span>{submission.status}{submission.late ? ' · Late' : ''} · {submission.awardedPoints == null ? 'Ungraded' : `${submission.awardedPoints}/${maxPoints}`}</span>
+        <p className="muted">{submission.textBody ?? 'File-backed submission'}</p>
+      </div>
+      {gradable && (
+        <div>
+          <label>
+            Awarded points
+            <input
+              type="number"
+              min="0"
+              max={maxPoints}
+              value={draft.points}
+              onChange={event => onDraft({ points: event.target.value })}
+            />
+          </label>
+          <label>
+            Feedback
+            <textarea
+              rows={2}
+              placeholder="Feedback"
+              value={draft.feedback}
+              onChange={event => onDraft({ feedback: event.target.value })}
+            />
+          </label>
+          <label>
+            Rubric scores JSON
+            <textarea
+              rows={2}
+              placeholder='Rubric scores JSON, e.g. {"criterion-1":4}'
+              value={draft.rubric}
+              onChange={event => onDraft({ rubric: event.target.value })}
+            />
+          </label>
+          <button className="primary-button" disabled={grading} onClick={onGrade}>Save grade</button>
+          {gradeError && <p className="error-text" role="alert">{gradeError.message}</p>}
+        </div>
       )}
     </div>
   )

@@ -54,7 +54,8 @@ public class Subscription {
     @Version
     private long version;
 
-    protected Subscription() {}
+    protected Subscription() {
+    }
 
     Subscription(UUID id, UUID tenantId, SubscriptionStatus status, Instant startsAt) {
         this.id = id;
@@ -65,34 +66,92 @@ public class Subscription {
         this.licenseRevision = 0;
     }
 
-    public UUID tenantId() { return tenantId; }
-    public SubscriptionStatus status() { return status; }
-    public Instant graceEndsAt() { return graceEndsAt; }
-    public Instant expiresAt() { return expiresAt; }
-    public LicenseAuthorityKind authorityKind() { return authorityKind; }
-    public String externalLicenseId() { return externalLicenseId; }
-    public long licenseRevision() { return licenseRevision; }
-    public String planCode() { return planCode; }
-    public String currency() { return currency; }
-    public java.math.BigDecimal recurringAmount() { return recurringAmount; }
-    public boolean autoRenew() { return autoRenew; }
-    public Instant trialEndsAt() { return trialEndsAt; }
+    public UUID tenantId() {
+        return tenantId;
+    }
+
+    public Instant startsAt() {
+        return startsAt;
+    }
+
+    public SubscriptionStatus status() {
+        return status;
+    }
+
+    public Instant graceEndsAt() {
+        return graceEndsAt;
+    }
+
+    public Instant expiresAt() {
+        return expiresAt;
+    }
+
+    public LicenseAuthorityKind authorityKind() {
+        return authorityKind;
+    }
+
+    public String externalLicenseId() {
+        return externalLicenseId;
+    }
+
+    public long licenseRevision() {
+        return licenseRevision;
+    }
+
+    public String planCode() {
+        return planCode;
+    }
+
+    public String currency() {
+        return currency;
+    }
+
+    public java.math.BigDecimal recurringAmount() {
+        return recurringAmount;
+    }
+
+    public boolean autoRenew() {
+        return autoRenew;
+    }
+
+    public Instant trialEndsAt() {
+        return trialEndsAt;
+    }
+
     public void configurePlan(String plan, java.math.BigDecimal amount, String currencyCode, boolean renew) {
         java.util.Objects.requireNonNull(plan, "planCode");
-        if (plan.isBlank()) throw new IllegalArgumentException("planCode must not be blank");
-        if (amount == null || amount.signum() < 0 || amount.scale() > 2) throw new IllegalArgumentException("Invalid recurring amount");
-        if (currencyCode == null || !currencyCode.matches("[A-Za-z]{3}")) throw new IllegalArgumentException("Invalid currency");
+        if (plan.isBlank())
+            throw new IllegalArgumentException("planCode must not be blank");
+        if (amount == null || amount.signum() < 0 || amount.scale() > 2)
+            throw new IllegalArgumentException("Invalid recurring amount");
+        if (currencyCode == null || !currencyCode.matches("[A-Za-z]{3}"))
+            throw new IllegalArgumentException("Invalid currency");
         planCode = plan.trim().toUpperCase(java.util.Locale.ROOT);
         recurringAmount = amount.setScale(2, java.math.RoundingMode.HALF_UP);
         currency = currencyCode.toUpperCase(java.util.Locale.ROOT);
         autoRenew = renew;
         licenseRevision = Math.addExact(licenseRevision, 1);
     }
+
     public void configureTrial(Instant trialEnds) {
         trialEndsAt = trialEnds;
-        if (trialEnds != null) status = SubscriptionStatus.TRIAL;
+        if (trialEnds != null)
+            status = SubscriptionStatus.TRIAL;
     }
-    public void activate(Instant expires) { status = SubscriptionStatus.ACTIVE; expiresAt = expires; }
-    public void enterGrace(Instant ends) { if (status == SubscriptionStatus.ACTIVE || status == SubscriptionStatus.EXPIRED) { status = SubscriptionStatus.GRACE; graceEndsAt = ends; } }
-    public void suspend() { status = SubscriptionStatus.SUSPENDED; }
+
+    public void activate(Instant expires) {
+        status = SubscriptionStatus.ACTIVE;
+        expiresAt = expires;
+    }
+
+    public void enterGrace(Instant ends) {
+        if (status == SubscriptionStatus.ACTIVE || status == SubscriptionStatus.EXPIRED) {
+            status = SubscriptionStatus.GRACE;
+            graceEndsAt = ends;
+        }
+    }
+
+    public void suspend() {
+        status = SubscriptionStatus.SUSPENDED;
+    }
 }

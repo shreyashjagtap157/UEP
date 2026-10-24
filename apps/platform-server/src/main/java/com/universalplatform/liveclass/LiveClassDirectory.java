@@ -8,6 +8,10 @@ public interface LiveClassDirectory {
  void heartbeat(UUID liveClassId, UUID membershipId);
  void leave(UUID liveClassId, UUID membershipId);
  java.util.List<ParticipantSnapshot> participantSnapshots(UUID liveClassId);
+
+ /** IDs of live classes the given batches attend; read-only lookup for sibling modules (e.g. recording listing scoping). */
+ java.util.List<UUID> liveClassIdsForBatches(java.util.Collection<UUID> batchIds);
+
  record ParticipantSnapshot(UUID membershipId, ParticipantRole role, ParticipantStatus status, java.time.Instant joinedAt, java.time.Instant leftAt, long totalPresentSeconds, java.time.Instant lastHeartbeatAt) {}
  record LiveClassReference(UUID id,UUID classSessionId,UUID batchId,String roomName,LiveClassStatus status,AttendancePolicy attendancePolicy,int minimumAttendanceSeconds,int attendanceThresholdBasisPoints,boolean lowBandwidth,boolean chatEnabled,java.time.Instant startedAt,java.time.Instant endedAt){}
 }
