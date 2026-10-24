@@ -26,7 +26,7 @@ class UploadCleanupWorker {
     @Transactional
     void expire() {
         var now = clock.instant();
-        for (UploadSession upload : uploads.findTop100ByStatusInAndExpiresAtBeforeOrderByExpiresAtAsc(
+        for (UploadSession upload : uploads.findTop100ByStatusInAndStagingCleanedAtIsNullAndExpiresAtBeforeOrderByExpiresAtAsc(
                 List.of(UploadStatus.INITIATED, UploadStatus.UPLOADING, UploadStatus.VERIFYING, UploadStatus.EXPIRED), now)) {
             upload.status = UploadStatus.EXPIRED;
             deleteStaging(upload, "expired upload");
@@ -34,7 +34,7 @@ class UploadCleanupWorker {
 
         // If staging deletion failed in an after-commit callback, retry it without touching the
         // already-committed provider object. Keep the session row as the durable cleanup reference.
-        for (UploadSession upload : uploads.findTop100ByStatusAndCompletedAtBeforeOrderByCompletedAtAsc(
+        for (UploadSession upload : uploads.findTop100ByStatusAndStagingCleanedAtIsNullAndCompletedAtBeforeOrderByCompletedAtAsc(
                 UploadStatus.COMPLETED, now.minus(Duration.ofHours(1)))) {
             deleteStaging(upload, "completed upload");
         }
