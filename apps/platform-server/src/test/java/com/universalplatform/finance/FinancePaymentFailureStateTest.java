@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -58,18 +59,17 @@ class FinancePaymentFailureStateTest {
         invoice = new Invoice(invoiceId, tenantId, membershipId, "INV-TEST-01",
                 new BigDecimal("100.00"), "USD", LocalDate.now().plusDays(7), Instant.now());
         invoice.issue(LocalDate.now());
-        when(tenants.requireTenantId()).thenReturn(tenantId);
-        when(invoices.findByTenantIdAndId(tenantId, invoiceId)).thenReturn(Optional.of(invoice));
-        when(entitlements.decide(tenantId, FeatureKey.PAYMENTS)).thenReturn(EntitlementDecision.allow(FeatureKey.PAYMENTS));
-        when(provider.name()).thenReturn("TEST_PROVIDER");
-        when(payments.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(tenants.requireTenantId()).thenReturn(tenantId);
+        lenient().when(invoices.findByTenantIdAndId(tenantId, invoiceId)).thenReturn(Optional.of(invoice));
+        lenient().when(entitlements.decide(tenantId, FeatureKey.PAYMENTS)).thenReturn(EntitlementDecision.allow(FeatureKey.PAYMENTS));
+        lenient().when(provider.name()).thenReturn("TEST_PROVIDER");
+        lenient().when(payments.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
     void authorizationDeclineRetainsFailedPaymentStateAndDoesNotIssueReceipt() {
         when(provider.authorize(any(UUID.class), any(BigDecimal.class), any(String.class), any(String.class)))
                 .thenReturn(new PaymentProvider.PaymentResult(false, null, "declined"));
-        when(actors.requireSubject()).thenReturn("finance-operator");
 
         assertThatThrownBy(() -> service.pay(invoiceId, new BigDecimal("25.00"), "USD",
                 "bank-reference-1", true))
