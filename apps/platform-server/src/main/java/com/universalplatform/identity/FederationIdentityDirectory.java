@@ -1,6 +1,7 @@
 package com.universalplatform.identity;
 
 import com.universalplatform.audit.AuditService;
+import com.universalplatform.security.ActorContext;
 import com.universalplatform.security.TenantContext;
 import java.time.Clock;
 import java.time.Instant;
@@ -13,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class FederationIdentityDirectory {
     private final TenantContext tenantContext;
+    private final ActorContext actorContext;
+    private final OwnershipGuard ownershipGuard;
     private final TenantMembershipRepository memberships;
     private final UserAccountRepository users;
     private final RoleDefinitionRepository roles;
@@ -20,10 +23,12 @@ public class FederationIdentityDirectory {
     private final AuditService audit;
     private final Clock clock = Clock.systemUTC();
 
-    FederationIdentityDirectory(TenantContext tenantContext, TenantMembershipRepository memberships,
+    FederationIdentityDirectory(TenantContext tenantContext, ActorContext actorContext,
+                                OwnershipGuard ownershipGuard, TenantMembershipRepository memberships,
                                 UserAccountRepository users, RoleDefinitionRepository roles,
                                 RoleAssignmentRepository assignments, AuditService audit) {
-        this.tenantContext = tenantContext; this.memberships = memberships; this.users = users;
+        this.tenantContext = tenantContext; this.actorContext = actorContext;
+        this.ownershipGuard = ownershipGuard; this.memberships = memberships; this.users = users;
         this.roles = roles; this.assignments = assignments; this.audit = audit;
     }
 
@@ -40,6 +45,7 @@ public class FederationIdentityDirectory {
         if (!active) {
             TenantMembership membership = memberships.findByTenantIdAndUserId(tenantId, user.id()).orElse(null);
             if (membership == null) return new SyncResult(null, user.id(), false, Set.of());
+            ownershipGuard.assertCanDeactivateMembership(tenantId, membership.id());
             membership.changeStatus(MembershipStatus.ENDED, now);
             assignments.deleteAllByTenantIdAndMembershipIdAndSource(tenantId, membership.id(), RoleAssignmentSource.FEDERATED);
             audit.record(tenantId, "federation:" + providerKey, "FEDERATION_MEMBERSHIP_DEPROVISIONED", "tenant_membership", membership.id().toString());
@@ -61,6 +67,10 @@ public class FederationIdentityDirectory {
             if (roleKey == null) continue;
             RoleDefinition role = roles.findByTenantIdAndSystemKey(tenantId, roleKey.name())
                     .orElseThrow(() -> new IdentityNotFoundException("System role not found: " + roleKey));
+            if (roleKey == SystemRoleKey.ORGANIZATION_OWNER) {
+                ownershipGuard.assertCanAssignOwner(tenantId, role, actorContext.requireSubject(),
+                        actorContext.hasRealmRole(AuthorizationService.PLATFORM_SUPER_ADMIN_ROLE));
+            }
             assignments.save(new RoleAssignment(UUID.randomUUID(), tenantId, membership.id(), role.id(),
                     AssignmentScopeKind.TENANT, null, "federation:" + providerKey, now, RoleAssignmentSource.FEDERATED));
             mapped.add(roleKey);

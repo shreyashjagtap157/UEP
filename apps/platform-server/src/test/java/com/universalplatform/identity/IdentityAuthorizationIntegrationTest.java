@@ -52,6 +52,15 @@ class IdentityAuthorizationIntegrationTest {
         jdbc.update("INSERT INTO role_definition(id, tenant_id, name, system_managed) VALUES (?, ?, 'Delegated Administrator', false)", DELEGATED_ADMIN_ROLE, TENANT);
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'ROLES_ASSIGN')", DELEGATED_ADMIN_ROLE);
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'USERS_MANAGE')", DELEGATED_ADMIN_ROLE);
+        jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'FEDERATION_MANAGE')", DELEGATED_ADMIN_ROLE);
+        jdbc.update("""
+                INSERT INTO identity_provider(
+                    tenant_id, provider_key, issuer, authorization_endpoint, client_id, redirect_uri, scopes, enabled
+                ) VALUES (
+                    ?, 'trusted-test', 'https://idp.example.test', 'https://idp.example.test/authorize',
+                    'uep-test-client', 'https://uep.example.test/callback', 'openid profile email', true
+                )
+                """, TENANT);
         for (String permission : new String[]{"ROLES_VIEW", "ROLES_MANAGE", "ROLES_ASSIGN", "USERS_VIEW", "USERS_MANAGE", "FEDERATION_MANAGE"}) {
             jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, ?)", OWNER_ROLE, permission);
         }
@@ -109,6 +118,46 @@ class IdentityAuthorizationIntegrationTest {
                         .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+    }
+
+    @Test
+    void nonOwnerCannotGrantOrganizationOwnerThroughFederationSync() throws Exception {
+        String body = """
+                {
+                  "subject": "federated-escalation",
+                  "email": "federated@example.test",
+                  "displayName": "Federated Escalation",
+                  "groups": ["owners"],
+                  "roleMappings": {"owners": "ORGANIZATION_OWNER"},
+                  "active": true
+                }
+                """;
+        mvc.perform(post("/api/v1/integrations/identity-providers/trusted-test/synchronize")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+    }
+
+    @Test
+    void federationSyncCannotDeactivateTheLastActiveOrganizationOwner() throws Exception {
+        String body = """
+                {
+                  "subject": "owner-subject",
+                  "email": "owner@example.test",
+                  "displayName": "Owner",
+                  "groups": [],
+                  "roleMappings": {},
+                  "active": false
+                }
+                """;
+        mvc.perform(post("/api/v1/integrations/identity-providers/trusted-test/synchronize")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDENTITY_CONFLICT"));
     }
 
     @Test
