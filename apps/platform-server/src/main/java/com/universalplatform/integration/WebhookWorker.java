@@ -7,7 +7,9 @@ import java.util.*;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 class WebhookWorker {
@@ -16,6 +18,7 @@ class WebhookWorker {
     private final IntegrationSecretCipher cipher;
     private final WebhookWorkerLock workerLock;
     private final OutboundEndpointValidator endpointValidator;
+    private final TransactionTemplate deliveryTransaction;
     private final java.net.http.HttpClient http = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NEVER)
             .connectTimeout(Duration.ofSeconds(5))
@@ -23,23 +26,29 @@ class WebhookWorker {
     private final Clock clock = Clock.systemUTC();
 
     WebhookWorker(WebhookDeliveryRepository d, WebhookSubscriptionRepository s, IntegrationSecretCipher c,
-            WebhookWorkerLock workerLock, OutboundEndpointValidator endpointValidator) {
+            WebhookWorkerLock workerLock, OutboundEndpointValidator endpointValidator,
+            PlatformTransactionManager transactionManager) {
         deliveries = d;
         subs = s;
         cipher = c;
         this.workerLock = workerLock;
         this.endpointValidator = endpointValidator;
+        this.deliveryTransaction = new TransactionTemplate(transactionManager);
+        this.deliveryTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Scheduled(fixedDelayString = "${platform.integrations.webhooks.poll-ms:2000}")
     void poll() {
         Instant n = clock.instant();
         for (UUID id : deliveries.findDue(n, PageRequest.of(0, 25)))
-            deliver(id);
+            processOne(id);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    void deliver(UUID id) {
+    void processOne(UUID id) {
+        deliveryTransaction.executeWithoutResult(status -> deliverInTransaction(id));
+    }
+
+    private void deliverInTransaction(UUID id) {
         WebhookDelivery d = deliveries.lock(id).orElse(null);
         if (d == null || d.deliveredAt() != null)
             return;
