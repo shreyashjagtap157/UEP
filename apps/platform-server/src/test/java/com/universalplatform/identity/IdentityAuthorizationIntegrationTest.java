@@ -2,6 +2,7 @@ package com.universalplatform.identity;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -56,6 +57,7 @@ class IdentityAuthorizationIntegrationTest {
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'USERS_MANAGE')", DELEGATED_ADMIN_ROLE);
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'FEDERATION_MANAGE')", DELEGATED_ADMIN_ROLE);
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'API_MANAGE')", DELEGATED_ADMIN_ROLE);
+        jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'API_VIEW')", DELEGATED_ADMIN_ROLE);
         jdbc.update("""
                 INSERT INTO identity_provider(
                     tenant_id, provider_key, issuer, authorization_endpoint, client_id, redirect_uri, scopes, enabled
@@ -215,6 +217,46 @@ class IdentityAuthorizationIntegrationTest {
                 .andExpect(jsonPath("$.name").value("personal-reporting-key"))
                 .andExpect(jsonPath("$.scopes[0]").value("API_VIEW"))
                 .andExpect(jsonPath("$.secret").value(org.hamcrest.Matchers.startsWith("upk_live_")));
+    }
+
+    @Test
+    void nonOwnerCannotListAnotherMembershipsApiCredentials() throws Exception {
+        String createBody = """
+                {"membershipId":"%s","name":"owner-private-key","scopes":["API_VIEW"]}
+                """.formatted(OWNER_MEMBERSHIP);
+        mvc.perform(post("/api/v1/integrations/api-credentials")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/integrations/api-credentials")
+                        .param("membershipId", OWNER_MEMBERSHIP.toString())
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+    }
+
+    @Test
+    void nonOwnerCannotRevokeAnotherMembershipsApiCredential() throws Exception {
+        String createBody = """
+                {"membershipId":"%s","name":"owner-revocation-protected-key","scopes":["API_VIEW"]}
+                """.formatted(OWNER_MEMBERSHIP);
+        var created = mvc.perform(post("/api/v1/integrations/api-credentials")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk())
+                .andReturn();
+        var json = new com.fasterxml.jackson.databind.ObjectMapper().readTree(created.getResponse().getContentAsString());
+        String credentialId = json.path("id").asText();
+        long version = json.path("version").asLong();
+
+        mvc.perform(delete("/api/v1/integrations/api-credentials/{id}", credentialId)
+                        .param("expectedVersion", Long.toString(version))
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
     }
 
     @Test

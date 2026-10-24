@@ -48,6 +48,7 @@ public class ApiCredentialService {
     public List<CredentialView> list(UUID membershipId) {
         auth.requireApiView();
         UUID tenant = tenants.requireTenantId();
+        auth.requireApiCredentialTarget(membershipId);
         return repo.findAllByTenantIdAndMembershipIdOrderByCreatedAtDesc(tenant, membershipId).stream()
                 .map(c -> new CredentialView(c.id(), c.name(), scopeSet(c.scopes()), c.expiresAt(), null, c.version()))
                 .toList();
@@ -58,6 +59,7 @@ public class ApiCredentialService {
         auth.requireApiManage();
         ApiCredential c = repo.findById(id).filter(x -> x.tenantId().equals(tenants.requireTenantId()))
                 .orElseThrow(() -> new IllegalArgumentException("API credential not found"));
+        auth.requireApiCredentialTarget(c.membershipId());
         if (c.version() != expectedVersion)
             throw new IllegalArgumentException("API credential was modified by another request");
         c.revoke(clock.instant());
