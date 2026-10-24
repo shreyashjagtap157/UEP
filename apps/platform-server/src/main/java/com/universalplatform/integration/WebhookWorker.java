@@ -50,13 +50,16 @@ class WebhookWorker {
 
     private void deliverInTransaction(UUID id) {
         WebhookDelivery d = deliveries.lock(id).orElse(null);
-        if (d == null || d.deliveredAt() != null)
+        if (d == null || !isDue(d, clock.instant()))
             return;
         // Cross-instance co-claim per tenant: two workers seeing the same due row are serialized by
         // the transaction-scoped advisory lock before either performs delivery work.
         workerLock.acquire(d.tenantId());
         d = deliveries.lock(id).orElse(null);
-        if (d == null || d.deliveredAt() != null)
+        // Another worker may have completed a failed attempt and moved nextAttemptAt into the
+        // future while this worker waited for the advisory lock. Recheck the persisted state under
+        // the row lock or concurrent pollers can defeat backoff and duplicate a delivery attempt.
+        if (d == null || !isDue(d, clock.instant()))
             return;
         WebhookSubscription s = subs.findById(d.subscriptionId()).orElse(null);
         if (s == null || !s.enabled()) {
@@ -84,5 +87,11 @@ class WebhookWorker {
             d.failed(e.getMessage(), clock.instant());
             s.failed(clock.instant(), e.getMessage());
         }
+    }
+
+    private static boolean isDue(WebhookDelivery delivery, Instant now) {
+        return delivery.deliveredAt() == null
+                && delivery.attemptCount() < 12
+                && !delivery.nextAttemptAt().isAfter(now);
     }
 }
