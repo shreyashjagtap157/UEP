@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import jakarta.persistence.EntityManager;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ class SessionRevocationIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired EntityManager entityManager;
 
     @BeforeEach
     void seed() {
@@ -42,6 +44,7 @@ class SessionRevocationIntegrationTest {
                         .claim("tenant_id", TENANT.toString()).claim("sid", SESSION_ID).claim("jti", "token-1"))))
                 .andExpect(status().isOk());
 
+        entityManager.flush();
         UUID sessionRecordId = jdbc.queryForObject(
                 "SELECT id FROM platform_session WHERE tenant_id = ? AND membership_id = ? AND oidc_session_id = ?",
                 UUID.class, TENANT, MEMBERSHIP, SESSION_ID);

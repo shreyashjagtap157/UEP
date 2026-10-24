@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,6 +28,7 @@ class IdentityBootstrapIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired EntityManager entityManager;
 
     @BeforeEach
     void seed() {
@@ -47,6 +49,7 @@ class IdentityBootstrapIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roles[*].name", hasItem("Organization Owner")));
 
+        entityManager.flush();
         Integer systemRoleCount = jdbc.queryForObject(
                 "SELECT count(*) FROM role_definition WHERE tenant_id = ? AND system_managed = true", Integer.class, TENANT);
         org.assertj.core.api.Assertions.assertThat(systemRoleCount).isEqualTo(SystemRoleKey.values().length);

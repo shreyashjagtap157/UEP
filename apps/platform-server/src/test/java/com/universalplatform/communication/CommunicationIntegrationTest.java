@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.universalplatform.security.TenantExecutionContext;
 import jakarta.persistence.EntityManager;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
@@ -65,6 +67,7 @@ class CommunicationIntegrationTest {
     }
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void scheduledAnnouncementResolvesAudienceAtPublicationTime() throws Exception {
         String response = mvc.perform(post("/api/v1/announcements")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -98,6 +101,11 @@ class CommunicationIntegrationTest {
         Integer outboxRecipientCount = jdbc.queryForObject("SELECT count(*) FROM notification_outbox_recipient r JOIN notification_outbox o ON o.id = r.outbox_id WHERE o.tenant_id = ? AND o.aggregate_id = ?", Integer.class, TENANT, announcementId);
         org.assertj.core.api.Assertions.assertThat(recipientCount).isEqualTo(2);
         org.assertj.core.api.Assertions.assertThat(outboxRecipientCount).isEqualTo(2);
+    }
+
+    @AfterEach
+    void cleanup() {
+        jdbc.update("DELETE FROM tenant WHERE id = ?", TENANT);
     }
 
     private void seedUser(UUID userId, UUID membershipId, String subject, String name, String email, UUID branchId) {

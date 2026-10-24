@@ -141,6 +141,8 @@ class SchedulingIntegrationTest {
     }
 
     private String seriesJson(UUID branchId, UUID batchId, boolean allow, String reason, String title) {
+        String roomCode = BRANCH_B.equals(branchId) ? "B-101" : "A-101";
+        String startLocal = BRANCH_B.equals(branchId) ? "2026-09-01T12:00:00" : "2026-09-01T10:00:00";
         return "{" +
                 "\"kind\":\"CLASS\"," +
                 "\"title\":\"" + title + "\"," +
@@ -148,8 +150,8 @@ class SchedulingIntegrationTest {
                 "\"branchId\":\"" + branchId + "\"," +
                 (batchId == null ? "" : "\"batchId\":\"" + batchId + "\",") +
                 "\"primaryTeacherMembershipId\":\"" + TEACHER_MEMBER + "\"," +
-                "\"roomCode\":\"A-101\"," +
-                "\"startLocal\":\"2026-09-01T10:00:00\"," +
+                "\"roomCode\":\"" + roomCode + "\"," +
+                "\"startLocal\":\"" + startLocal + "\"," +
                 "\"durationMinutes\":60," +
                 "\"recurrenceFrequency\":\"NONE\"," +
                 "\"allowConflicts\":" + allow +

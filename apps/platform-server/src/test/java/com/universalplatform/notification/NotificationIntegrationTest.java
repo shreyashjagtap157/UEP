@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +35,7 @@ class NotificationIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired EntityManager entityManager;
     @Autowired NotificationPublisher publisher;
     @Autowired NotificationOutboxProcessor processor;
 
@@ -93,6 +95,7 @@ class NotificationIntegrationTest {
                 "Tenant two", "Tenant two event", NotificationPriority.NORMAL, null, null, key, null,
                 List.of(new NotificationPublisher.Recipient(MEMBER_2, "two@example.test"))));
 
+        entityManager.flush();
         Integer count = jdbc.queryForObject("SELECT count(*) FROM notification_outbox WHERE deduplication_key = ?", Integer.class, key);
         org.assertj.core.api.Assertions.assertThat(count).isEqualTo(2);
 
@@ -117,6 +120,7 @@ class NotificationIntegrationTest {
                 List.of(new NotificationPublisher.Recipient(MEMBER, "learner@example.test"))));
         UUID outboxId = jdbc.queryForObject("SELECT id FROM notification_outbox WHERE deduplication_key = ?", UUID.class, "test:announcement:" + RESOURCE);
         processor.processOne(outboxId);
+        entityManager.flush();
         UUID notificationId = jdbc.queryForObject("SELECT id FROM notification WHERE tenant_id = ? AND membership_id = ?", UUID.class, TENANT, MEMBER);
 
         mvc.perform(post("/api/v1/notifications/" + notificationId + "/read")

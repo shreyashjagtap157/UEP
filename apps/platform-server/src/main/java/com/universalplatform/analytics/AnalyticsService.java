@@ -51,7 +51,7 @@ class AnalyticsService {
         requirePermission(PermissionKey.OPERATIONS_VIEW); UUID tid=tenant.requireTenantId(); window(from,to);
         long auditEvents=n("select count(*) from audit_event where tenant_id=? and occurred_at>=? and occurred_at<?",tid,from,to);
         long notifications=n("select count(*) from notification where tenant_id=? and created_at>=? and created_at<?",tid,from,to);
-        long deadletters=n("select count(*) from notification_outbox where tenant_id=? and status='DEAD_LETTER'",tid);
+        long deadletters=n("select count(*) from notification_outbox where tenant_id=? and dead_lettered_at is not null",tid);
         long activeSessions=n("select count(*) from platform_session where tenant_id=? and revoked_at is null and (expires_at is null or expires_at>?)",tid,clock.instant());
         return new OperationsReport(from,to,auditEvents,notifications,deadletters,activeSessions);
     }
