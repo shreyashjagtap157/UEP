@@ -25,16 +25,20 @@ type MutableDemoData = {
   releases: DemoStore['releases']
 }
 
+// Snapshot pristine module data once. The dashboard-facing arrays are intentionally mutable,
+// so deriving reset state from localDemoData after actions would preserve the mutated values.
+const INITIAL_DEMO_SEED = structuredClone({
+  assignments: localDemoData.assignments,
+  submissions: localDemoData.submissions,
+  students: localDemoData.students,
+  sessions: localDemoData.sessions,
+  organizations: localDemoData.organizations,
+  products: localDemoData.products,
+  releases: localDemoData.releases,
+}) as unknown as DemoStore
+
 function seed(): DemoStore {
-  return structuredClone({
-    assignments: localDemoData.assignments,
-    submissions: localDemoData.submissions,
-    students: localDemoData.students,
-    sessions: localDemoData.sessions,
-    organizations: localDemoData.organizations,
-    products: localDemoData.products,
-    releases: localDemoData.releases,
-  }) as unknown as DemoStore
+  return structuredClone(INITIAL_DEMO_SEED) as DemoStore
 }
 
 function applyToDashboard(store: DemoStore) {

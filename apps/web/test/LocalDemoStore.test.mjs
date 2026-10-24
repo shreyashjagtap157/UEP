@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { administratorStats, developerStats, localDemoData } from '../src/dashboard/localDemoData.ts'
+import {
+  loadDemoStore as loadPresentationStore,
+  markApiReleaseReady as markPresentationReleaseReady,
+  publishDataEngineeringProduct as publishPresentationProduct,
+  resetDemoStore as resetPresentationStore,
+  resolveOrganizationAction as resolvePresentationOrganizationAction,
+} from '../src/dashboard/LocalDemoWorkflowStore.ts'
 import {
   DEMO_PROFILES,
   activityForProfile,
@@ -237,6 +245,31 @@ test('activity feeds do not expose global details to unrelated personas', () => 
   assert.deepEqual(events('finance-admin'), [])
   assert.equal(events('admin').length, state.activity.length)
   assert.equal(events('auditor').length, state.activity.length)
+})
+
+test('presentation controls update dashboard metrics and reset the pristine seed', () => {
+  resetPresentationStore()
+  assert.equal(administratorStats().pendingApprovals, 1)
+  assert.equal(developerStats().failing, 4)
+  assert.equal(localDemoData.organizations.find((item) => item.id === 'org-001')?.actions, 7)
+
+  publishPresentationProduct()
+  assert.equal(administratorStats().pendingApprovals, 0)
+  assert.equal(loadPresentationStore().products.find((item) => item.id === 'product-002')?.status, 'Published')
+
+  markPresentationReleaseReady()
+  assert.equal(developerStats().failing, 0)
+  assert.equal(loadPresentationStore().releases.find((item) => item.id === 'release-002')?.passed, 18)
+
+  resolvePresentationOrganizationAction()
+  assert.equal(localDemoData.organizations.find((item) => item.id === 'org-001')?.actions, 6)
+
+  resetPresentationStore()
+  assert.equal(administratorStats().pendingApprovals, 1)
+  assert.equal(developerStats().failing, 4)
+  assert.equal(localDemoData.organizations.find((item) => item.id === 'org-001')?.actions, 7)
+  assert.equal(loadPresentationStore().products.find((item) => item.id === 'product-002')?.status, 'In review')
+  assert.equal(loadPresentationStore().releases.find((item) => item.id === 'release-002')?.passed, 14)
 })
 
 test('reset restores seeded records after mutations', () => {

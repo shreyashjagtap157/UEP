@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   administratorStats,
   clientStats,
@@ -26,7 +26,8 @@ export function LocalDashboard({ account, onSignOut }: { account: LocalAccount; 
     setNotice(`${sectionTitle(role, next)} workspace opened.`)
   }
 
-  const stats = useMemo(() => statsFor(role, account.name), [role, account.name])
+  // The shared presentation store mutates localDemoData in place; recompute metrics on every subscribed rerender.
+  const stats = statsFor(role, account.name)
 
   return (
     <div className="app-frame">
