@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import {
   DEMO_PROFILES, courseFor, createDemoProduct, gradeDemoSubmission, loadDemoState, percentage,
-  progressFor, publishDemoProduct, saveDemoState, setDemoUserStatus, submitDemoAssignment,
+  progressFor, publishDemoProduct, resetDemoState, saveDemoState, setDemoUserStatus, submitDemoAssignment,
+  subscribeDemoState, updateDemoAttendance,
 } from './LocalDemoStore'
 import type { DemoProfile, DemoRole, DemoState, DemoSubmission } from './LocalDemoStore'
 
@@ -18,7 +19,7 @@ const navigation: Record<DemoRole, Array<{ id: Section; label: string }>> = {
     { id: 'overview', label: 'Today' }, { id: 'classes', label: 'My Classes' }, { id: 'learners', label: 'My Learners' },
     { id: 'content', label: 'Learning Content' }, { id: 'assignments', label: 'Assignments' }, { id: 'grading', label: 'Grading Queue' },
     { id: 'assessments', label: 'Assessments' }, { id: 'reviews', label: 'Academic Reviews' }, { id: 'communication', label: 'Announcements' },
-    { id: 'analytics', label: 'Class Analytics' }, { id: 'calendar', label: 'Calendar' },
+    { id: 'analytics', label: 'Class Analytics' }, { id: 'attendance', label: 'Attendance Register' }, { id: 'calendar', label: 'Calendar' },
   ],
   client: [
     { id: 'overview', label: 'Organization Overview' }, { id: 'programs', label: 'Programs & Products' }, { id: 'learners', label: 'Organization Members' },
@@ -30,7 +31,7 @@ const navigation: Record<DemoRole, Array<{ id: Section; label: string }>> = {
   ],
   admin: [
     { id: 'overview', label: 'Platform Overview' }, { id: 'academics', label: 'Academics & Curriculum' }, { id: 'people', label: 'People & Roles' },
-    { id: 'schedule', label: 'Scheduling' }, { id: 'assessments', label: 'Assessments' }, { id: 'operations', label: 'Operations & Audit' },
+    { id: 'schedule', label: 'Scheduling' }, { id: 'attendance', label: 'Attendance Register' }, { id: 'assessments', label: 'Assessments' }, { id: 'operations', label: 'Operations & Audit' },
     { id: 'finance', label: 'Finance & Licensing' }, { id: 'reports', label: 'Platform Reports' }, { id: 'settings', label: 'Configuration' }, { id: 'security', label: 'Security' },
   ],
   guardian: [
@@ -74,13 +75,21 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
   const profile = DEMO_PROFILES.find(item => item.role === initialRole) ?? DEMO_PROFILES.find(item => item.role === 'student')!
   const [activeSection, setActiveSection] = useState<Section>('overview')
   const [state, setState] = useState<DemoState>(() => loadDemoState())
+  useEffect(() => subscribeDemoState(() => setState(loadDemoState())), [])
   const [notice, setNotice] = useState('')
   const [productTitle, setProductTitle] = useState('')
   const [productDescription, setProductDescription] = useState('')
   const nav = navigation[profile.role]
   const visibleCourses = useMemo(() => {
-    const ids = state.users.find(user => user.id === (profile.role === 'guardian' ? 'student-asha' : profile.userId))?.courseIds ?? []
-    if (['student', 'guardian', 'teacher', 'teaching-assistant', 'mentor', 'evaluator'].includes(profile.role)) return state.courses.filter(course => ids.includes(course.id) && course.status === 'Published')
+    const linkedLearnerId = ['guardian', 'mentor'].includes(profile.role) ? 'student-asha' : profile.userId
+    const courseIds = state.users.find(user => user.id === linkedLearnerId)?.courseIds ?? []
+    const assignedCourseIds = new Set(state.users.find(user => user.id === profile.userId)?.courseIds ?? [])
+    if (['student', 'guardian', 'teacher', 'teaching-assistant', 'mentor', 'evaluator'].includes(profile.role)) {
+      return state.courses.filter(course => courseIds.includes(course.id)
+        && (profile.role !== 'mentor' || assignedCourseIds.has(course.id))
+        && course.status === 'Published')
+    }
+    if (profile.role === 'client') return state.courses.filter(course => course.status === 'Published')
     return state.courses
   }, [profile, state])
 
@@ -114,16 +123,37 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
     const next = publishDemoProduct(state, id, profile)
     if (next !== state) commit(next, 'Product published in the local demo catalog. The client product list now reflects this change.')
   }
+  function handleAttendanceUpdate(id: string, status: 'Present' | 'Late' | 'Absent') {
+    const next = updateDemoAttendance(state, id, status, profile)
+    if (next === state) {
+      setNotice('No attendance change was made. Verify the role, learner status and assigned course.')
+      return
+    }
+    commit(next, 'Attendance updated and saved. Learner and guardian summaries now use the updated record.')
+  }
+  function handleResetDemo() {
+    if (!window.confirm('Reset the shared local demo dataset to its seed records? This clears workflow changes saved in this browser.')) return
+    const next = resetDemoState()
+    setState(next)
+    setActiveSection('overview')
+    setNotice('The shared local demo dataset has been reset to its seed records.')
+  }
 
   function renderOverview(): ReactNode {
-    const activeLearners = state.users.filter(user => user.role === 'Student' && user.status === 'Active')
+    const activeLearners = state.users.filter(user => user.role === 'Student' && user.status === 'Active'
+      && (profile.role !== 'client' || user.organization === 'Northstar Learning Institute'))
+    const assignedCourseIds = new Set(state.users.find(user => user.id === profile.userId)?.courseIds ?? [])
+    const studentId = ['guardian', 'mentor'].includes(profile.role) ? 'student-asha' : profile.userId
     const ownSubmissions = state.submissions.filter(item => item.studentId === profile.userId)
-    const linkedSubmissions = state.submissions.filter(item => item.studentId === (profile.role === 'guardian' ? 'student-asha' : profile.userId))
-    const pendingSubmissions = state.submissions.filter(item => item.status === 'Submitted')
+    const linkedSubmissions = state.submissions.filter(item => item.studentId === studentId
+      && (profile.role !== 'mentor' || assignedCourseIds.has(item.courseId)))
+    const staffRoles = ['teacher', 'teaching-assistant', 'evaluator']
+    const pendingSubmissions = state.submissions.filter(item => item.status === 'Submitted'
+      && (!staffRoles.includes(profile.role) || assignedCourseIds.has(item.courseId)))
     const publishedProducts = state.products.filter(item => item.status === 'Published')
-    const studentId = profile.role === 'guardian' ? 'student-asha' : profile.userId
-    const studentCourses = state.users.find(user => user.id === studentId)?.courseIds ?? []
-    const attendanceEntries = state.attendance.filter(item => item.studentId === studentId)
+    const studentCourses = (state.users.find(user => user.id === studentId)?.courseIds ?? [])
+      .filter(id => profile.role !== 'mentor' || assignedCourseIds.has(id))
+    const attendanceEntries = state.attendance.filter(item => item.studentId === studentId && studentCourses.includes(item.courseId))
     const attendanceRate = percentage(attendanceEntries.filter(item => item.status !== 'Absent').length, attendanceEntries.length)
     const averageProgress = percentage(studentCourses.reduce((sum, id) => sum + progressFor(state, studentId, id), 0), studentCourses.length)
     let metrics: Array<{ label: string; value: string; detail: string }> = []
@@ -216,7 +246,7 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       case 'submissions': return <section className="local-panel"><PanelHeading eyebrow="Learning workflow" title={sectionTitles[activeSection]} detail="Submission and grade changes persist across separate demo sign-ins." /><SubmissionList state={state} profile={profile} submissions={state.submissions.filter(item => profile.role === 'student' ? item.studentId === profile.userId : profile.role === 'guardian' ? item.studentId === 'student-asha' : item.status === 'Submitted' || item.status === 'Graded')} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} /></section>
       case 'results':
       case 'progress': return <section className="local-panel"><PanelHeading eyebrow="Learning outcomes" title={sectionTitles[activeSection]} detail="Only the current learner or linked learner results are shown." /><CourseList state={state} courses={visibleCourses} userId={profile.role === 'guardian' ? 'student-asha' : profile.userId} onOpen={() => setNotice('Progress reflects the saved learner-course record.')} /><SubmissionList state={state} profile={profile} submissions={state.submissions.filter(item => item.status === 'Graded' && (profile.role === 'guardian' ? item.studentId === 'student-asha' : profile.role === 'student' ? item.studentId === profile.userId : true))} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} readOnly /></section>
-      case 'attendance': return <AttendanceView state={state} profile={profile} />
+      case 'attendance': return <AttendanceView state={state} profile={profile} onUpdate={handleAttendanceUpdate} />
       case 'learners':
       case 'people': return <PeopleView state={state} profile={profile} onStatus={(id, status) => commit(setDemoUserStatus(state, id, status, profile), 'Membership status saved to the demo dataset.')} />
       case 'products':
@@ -225,7 +255,10 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       case 'content': return <section className="local-panel"><PanelHeading eyebrow="Teaching resources" title="Learning content" detail="Published course records and their lesson counts." /><CourseList state={state} courses={visibleCourses} userId={profile.userId} onOpen={() => setNotice('Lesson selected from the local demo course.')} /></section>
       case 'assessments': return <section className="local-panel"><PanelHeading eyebrow="Assessment center" title="Assessment schedule and readiness" detail="Events come from saved class and exam records." /><ScheduleView state={state} profile={profile} examsOnly /><SubmissionList state={state} profile={profile} submissions={state.submissions} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} readOnly={profile.role === 'student' || profile.role === 'guardian'} /></section>
       case 'analytics':
-      case 'reports': return <AnalyticsView state={state} />
+      case 'reports':
+        if (profile.role === 'finance-admin') return <section className="local-panel"><PanelHeading eyebrow="Finance boundary" title="Finance reports" detail="Financial reports require authoritative backend records." /><div className="local-honest-state"><strong>Finance API not connected in offline demo mode</strong><p>No invoice totals, payment states or account balances are fabricated.</p></div></section>
+        if (profile.role === 'exam-controller') return <ExamReportsView state={state} profile={profile} />
+        return <AnalyticsView state={state} profile={profile} />
       case 'integrations':
       case 'api': return <IntegrationView state={state} />
       case 'communication':
@@ -236,8 +269,8 @@ export function LocalDashboard({ initialRole = 'student', onSignOut }: { initial
       case 'finance':
       case 'invoices':
       case 'payments': return <section className="local-panel"><PanelHeading eyebrow="Finance boundary" title={sectionTitles[activeSection]} detail="Financial records must come from the authenticated platform API." /><div className="local-honest-state"><strong>Finance API not connected in offline demo mode</strong><p>No fabricated invoice, payment, receipt, balance or subscription status is shown. Start the platform backend and sign in with an authorized finance account to use the production workspace.</p></div></section>
+      case 'settings': return <section className="local-panel"><PanelHeading eyebrow="Workspace configuration" title="Configuration" detail="Local-only controls for this demonstration profile." /><dl className="local-definition-list"><dt>Name</dt><dd>{profile.name}</dd><dt>Role</dt><dd>{profile.label}</dd><dt>Email</dt><dd>{profile.email}</dd><dt>Data environment</dt><dd>Browser-persisted sample data</dd><dt>Identity provider</dt><dd>Not connected</dd></dl>{profile.role === 'admin' && <div className="local-reset-zone"><h3>Reset demo data</h3><p>Restore seed records and clear saved workflow changes across browser demo sign-ins.</p><button className="text-button" type="button" onClick={handleResetDemo}>Reset to seed data</button></div>}</section>
       case 'account':
-      case 'settings':
       case 'profile': return <section className="local-panel"><PanelHeading eyebrow="Workspace details" title={sectionTitles[activeSection]} detail="Current signed-in demo identity." /><dl className="local-definition-list"><dt>Name</dt><dd>{profile.name}</dd><dt>Role</dt><dd>{profile.label}</dd><dt>Email</dt><dd>{profile.email}</dd><dt>Data environment</dt><dd>Browser-persisted sample data</dd><dt>Identity provider</dt><dd>Not connected</dd></dl></section>
       case 'reviews': return <section className="local-panel"><PanelHeading eyebrow="Review workflow" title="Academic reviews" detail="Submitted and graded records available for this demo." /><SubmissionList state={state} profile={profile} submissions={state.submissions.filter(item => item.status !== 'Assigned')} onGrade={handleGrade} onSubmit={handleAssignmentSubmit} readOnly={profile.role !== 'teacher' && profile.role !== 'evaluator'} /></section>
       default: return <section className="local-panel"><PanelHeading eyebrow={profile.label} title={sectionTitles[activeSection]} detail="Restricted to this signed-in demo persona." /><p>Select an available workspace item from your navigation.</p></section>
@@ -288,35 +321,66 @@ function SubmissionList({ state, profile, submissions, onGrade, onSubmit, readOn
   })}</div>
 }
 function ScheduleView({ state, profile, examsOnly = false }: { state: DemoState; profile: DemoProfile; examsOnly?: boolean }) {
-  const items = state.schedule.filter(item => (item.participantIds.includes(profile.userId) || ['client', 'admin', 'exam-controller', 'finance-admin', 'support', 'auditor'].includes(profile.role)) && (!examsOnly || item.kind === 'Exam')).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-  return <section className="local-panel"><PanelHeading eyebrow="Schedule records" title={examsOnly ? 'Assessment schedule' : 'Your upcoming schedule'} detail="Times are taken from saved local schedule records." />{items.length ? <div className="local-record-list">{items.map(item => <article className="local-record" key={item.id}><div className="local-record-main"><strong>{item.title}</strong><p>{item.kind} · {courseFor(state, item.courseId)?.title ?? 'Program activity'}</p><small>{new Date(item.startsAt).toLocaleString()} · {item.durationMinutes} minutes</small></div><span className={'local-status status-' + item.status.toLowerCase()}>{item.status}</span></article>)}</div> : <p className="local-empty">No scheduled items are linked to this profile.</p>}</section>
+  const assignedCourseIds = new Set(state.users.find(user => user.id === profile.userId)?.courseIds ?? [])
+  const scopedExamsOnly = examsOnly || profile.role === 'exam-controller'
+  const items = state.schedule.filter(item => {
+    if (scopedExamsOnly && item.kind !== 'Exam') return false
+    if (profile.role === 'guardian') return item.participantIds.includes('student-asha')
+    if (profile.role === 'mentor') return item.participantIds.includes('student-asha') && assignedCourseIds.has(item.courseId)
+    if (['client', 'admin', 'auditor'].includes(profile.role)) return true
+    return item.participantIds.includes(profile.userId)
+  }).sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+  return <section className="local-panel"><PanelHeading eyebrow="Schedule records" title={scopedExamsOnly ? 'Assessment schedule' : 'Your upcoming schedule'} detail="Times are taken from saved local schedule records and restricted to this persona's scope." />{items.length ? <div className="local-record-list">{items.map(item => <article className="local-record" key={item.id}><div className="local-record-main"><strong>{item.title}</strong><p>{item.kind} · {courseFor(state, item.courseId)?.title ?? 'Program activity'}</p><small>{new Date(item.startsAt).toLocaleString()} · {item.durationMinutes} minutes</small></div><span className={'local-status status-' + item.status.toLowerCase()}>{item.status}</span></article>)}</div> : <p className="local-empty">No scheduled items are linked to this profile.</p>}</section>
 }
-function AttendanceView({ state, profile }: { state: DemoState; profile: DemoProfile }) {
-  const studentId = profile.role === 'guardian' ? 'student-asha' : profile.userId
-  const items = ['student', 'guardian'].includes(profile.role) ? state.attendance.filter(item => item.studentId === studentId) : state.attendance
-  const present = items.filter(item => item.status !== 'Absent').length
-  return <section className="local-panel"><PanelHeading eyebrow="Attendance register" title="Attendance summary" detail={items.length + ' saved attendance entries'} /><div className="local-metric-grid"><article className="local-metric"><span>Attendance rate</span><strong>{percentage(present, items.length)}%</strong><small>Present and late entries divided by recorded sessions.</small></article><article className="local-metric"><span>Absent</span><strong>{items.filter(item => item.status === 'Absent').length}</strong><small>Count from attendance records.</small></article></div><div className="local-record-list">{items.slice().sort((a, b) => b.date.localeCompare(a.date)).map(item => <article className="local-record" key={item.id}><div className="local-record-main"><strong>{state.users.find(user => user.id === item.studentId)?.name ?? 'Learner'}</strong><p>{courseFor(state, item.courseId)?.title ?? 'Course'}</p><small>{item.date}</small></div><span className={'local-status status-' + item.status.toLowerCase()}>{item.status}</span></article>)}</div></section>
+function AttendanceView({ state, profile, onUpdate }: { state: DemoState; profile: DemoProfile; onUpdate: (id: string, status: 'Present' | 'Late' | 'Absent') => void }) {
+  const assignedCourseIds = new Set(state.users.find(user => user.id === profile.userId)?.courseIds ?? [])
+  const linkedLearnerId = ['guardian', 'mentor'].includes(profile.role) ? 'student-asha' : profile.userId
+  const linkedCourses = new Set(state.users.find(user => user.id === linkedLearnerId)?.courseIds ?? [])
+  const canManage = ['teacher', 'admin'].includes(profile.role)
+  const items = ['student', 'guardian'].includes(profile.role)
+    ? state.attendance.filter(item => item.studentId === linkedLearnerId)
+    : profile.role === 'mentor'
+      ? state.attendance.filter(item => item.studentId === linkedLearnerId && assignedCourseIds.has(item.courseId))
+      : profile.role === 'teacher'
+        ? state.attendance.filter(item => assignedCourseIds.has(item.courseId))
+        : profile.role === 'admin' ? state.attendance : []
+  const scopedItems = profile.role === 'guardian' ? items.filter(item => linkedCourses.has(item.courseId)) : items
+  const present = scopedItems.filter(item => item.status !== 'Absent').length
+  return <section className="local-panel"><PanelHeading eyebrow="Attendance register" title="Attendance summary" detail={scopedItems.length + ' saved attendance entries in this profile scope'} /><div className="local-metric-grid"><article className="local-metric"><span>Attendance rate</span><strong>{percentage(present, scopedItems.length)}%</strong><small>Present and late entries divided by recorded sessions.</small></article><article className="local-metric"><span>Absent</span><strong>{scopedItems.filter(item => item.status === 'Absent').length}</strong><small>Count from attendance records.</small></article></div><div className="local-record-list">{scopedItems.slice().sort((a, b) => b.date.localeCompare(a.date)).map(item => <article className="local-record" key={item.id}><div className="local-record-main"><strong>{state.users.find(user => user.id === item.studentId)?.name ?? 'Learner'}</strong><p>{courseFor(state, item.courseId)?.title ?? 'Course'}</p><small>{item.date}</small></div><div className="local-record-side"><span className={'local-status status-' + item.status.toLowerCase()}>{item.status}</span>{canManage && <div className="local-attendance-actions"><button type="button" className="text-button" disabled={item.status === 'Present'} onClick={() => onUpdate(item.id, 'Present')}>Present</button><button type="button" className="text-button" disabled={item.status === 'Late'} onClick={() => onUpdate(item.id, 'Late')}>Late</button><button type="button" className="text-button" disabled={item.status === 'Absent'} onClick={() => onUpdate(item.id, 'Absent')}>Absent</button></div>}</div></article>)}</div>{canManage && <p className="local-data-notice">Only attendance records for this staff member's assigned courses can be changed in this local demo.</p>}</section>
 }
 function PeopleView({ state, profile, onStatus }: { state: DemoState; profile: DemoProfile; onStatus: (id: string, status: 'Active' | 'Suspended') => void }) {
-  const users = ['teacher', 'teaching-assistant'].includes(profile.role) ? state.users.filter(user => user.role === 'Student' && user.courseIds.some(id => state.users.find(me => me.id === profile.userId)?.courseIds.includes(id))) :
-    profile.role === 'client' ? state.users.filter(user => user.organization === 'Northstar Learning Institute') :
-    profile.role === 'guardian' ? state.users.filter(user => user.id === 'student-asha') : state.users
+  const assignedCourseIds = new Set(state.users.find(user => user.id === profile.userId)?.courseIds ?? [])
+  const users = ['teacher', 'teaching-assistant'].includes(profile.role)
+    ? state.users.filter(user => user.role === 'Student' && user.courseIds.some(id => assignedCourseIds.has(id)))
+    : profile.role === 'client'
+      ? state.users.filter(user => user.organization === 'Northstar Learning Institute')
+      : profile.role === 'guardian'
+        ? state.users.filter(user => user.id === 'student-asha')
+        : profile.role === 'mentor'
+          ? state.users.filter(user => user.id === 'student-asha' && user.courseIds.some(id => assignedCourseIds.has(id)))
+          : profile.role === 'support'
+            ? state.users.filter(user => user.organization === 'UEP Platform')
+            : profile.role === 'admin' ? state.users : []
   const canManage = profile.role === 'admin'
-  return <section className="local-panel"><PanelHeading eyebrow="People directory" title={profile.role === 'guardian' ? 'Linked learner' : 'Authorized directory'} detail={users.length + ' records in this profile scope'} /><div className="local-record-list">{users.map(user => <article className="local-record" key={user.id}><div className="local-record-main"><strong>{user.name}</strong><p>{user.role} · {user.organization}</p><small>{user.email} · {user.courseIds.length} course associations</small></div><div className="local-record-side"><span className={'local-status status-' + user.status.toLowerCase()}>{user.status}</span>{canManage && user.id !== profile.userId && <button className="text-button" onClick={() => onStatus(user.id, user.status === 'Active' ? 'Suspended' : 'Active')}>{user.status === 'Active' ? 'Suspend demo user' : 'Reactivate demo user'}</button>}</div></article>)}</div>{!canManage && <p className="local-data-notice">Contact details are synthetic demo identities. Production directory access is enforced by the backend.</p>}</section>
+  const redactDetails = profile.role === 'support'
+  return <section className="local-panel"><PanelHeading eyebrow="People directory" title={['guardian', 'mentor'].includes(profile.role) ? 'Linked learner' : 'Authorized directory'} detail={users.length + ' records in this profile scope'} /><div className="local-record-list">{users.map(user => <article className="local-record" key={user.id}><div className="local-record-main"><strong>{user.name}</strong><p>{user.role} · {user.organization}</p>{redactDetails ? <small>Contact and course details are redacted for support lookup.</small> : <small>{user.email} · {user.courseIds.length} course associations</small>}</div><div className="local-record-side"><span className={'local-status status-' + user.status.toLowerCase()}>{user.status}</span>{canManage && user.id !== profile.userId && <button className="text-button" onClick={() => onStatus(user.id, user.status === 'Active' ? 'Suspended' : 'Active')}>{user.status === 'Active' ? 'Suspend demo user' : 'Reactivate demo user'}</button>}</div></article>)}</div>{!canManage && <p className="local-data-notice">Contact details are synthetic demo identities. Production directory access is enforced by the backend.</p>}</section>
 }
-function ProductList({ products, onPublish, readOnly = false }: { products: DemoState['products']; onPublish: (id: string) => void; readOnly?: boolean }) {
-  if (!products.length) return <p className="local-empty">No product records yet. Create a product draft to begin.</p>
-  return <div className="local-record-list">{products.map(product => <article className="local-record" key={product.id}><div className="local-record-main"><strong>{product.title}</strong><p>{product.description}</p><small>Version {product.version} · Updated {new Date(product.updatedAt).toLocaleString()}</small></div><div className="local-record-side"><span className={'local-status status-' + product.status.toLowerCase().replace(' ', '-')}>{product.status}</span>{!readOnly && product.status !== 'Published' && <button className="primary-button small-button" onClick={() => onPublish(product.id)}>Publish</button>}</div></article>)}</div>
+function AnalyticsView({ state, profile }: { state: DemoState; profile: DemoProfile }) {
+  const students = state.users.filter(user => user.role === 'Student' && (profile.role !== 'client' || user.organization === 'Northstar Learning Institute'))
+  const courseIds = new Set(students.flatMap(student => student.courseIds))
+  const courses = state.courses.filter(course => profile.role !== 'client' || courseIds.has(course.id))
+  const values = students.flatMap(student => student.courseIds.filter(courseId => courses.some(course => course.id === courseId)).map(courseId => progressFor(state, student.id, courseId)))
+  const pending = state.submissions.filter(item => item.status === 'Submitted' && (profile.role !== 'client' || students.some(student => student.id === item.studentId))).length
+  return <section className="local-panel"><PanelHeading eyebrow="Computed report" title="Learning outcomes and operations" detail={profile.role === 'client' ? 'Institution-scoped aggregates computed from synthetic learner-course records.' : 'Aggregates are calculated from records stored in browser storage.'} /><div className="local-metric-grid"><article className="local-metric"><span>Learner records</span><strong>{students.length}</strong><small>Counted from records in this report scope.</small></article><article className="local-metric"><span>Enrollment records</span><strong>{values.length}</strong><small>Student-course associations in scope.</small></article><article className="local-metric"><span>Average progress</span><strong>{percentage(values.reduce((sum, value) => sum + value, 0), values.length)}%</strong><small>Average of enrolled learner progress records.</small></article><article className="local-metric"><span>Pending grading</span><strong>{pending}</strong><small>Submitted items awaiting a result.</small></article></div><div className="local-record-list">{courses.map(course => { const enrolled = students.filter(student => student.courseIds.includes(course.id)); const avg = percentage(enrolled.reduce((sum, student) => sum + progressFor(state, student.id, course.id), 0), enrolled.length); return <article className="local-record" key={course.id}><div className="local-record-main"><strong>{course.title}</strong><p>{enrolled.length} learner-course records</p><small>{course.category} · {course.status}</small></div><div className="local-record-side"><strong>{avg}%</strong><small>Average progress</small></div></article> })}</div></section>
 }
-function AnalyticsView({ state }: { state: DemoState }) {
-  const students = state.users.filter(user => user.role === 'Student')
-  const values = students.flatMap(student => student.courseIds.map(courseId => progressFor(state, student.id, courseId)))
-  const pending = state.submissions.filter(item => item.status === 'Submitted').length
-  return <section className="local-panel"><PanelHeading eyebrow="Computed report" title="Learning outcomes and operations" detail="Aggregates are calculated from records stored in browser storage." /><div className="local-metric-grid"><article className="local-metric"><span>Learner records</span><strong>{students.length}</strong><small>Counted from user records.</small></article><article className="local-metric"><span>Enrollment records</span><strong>{values.length}</strong><small>Student-course associations.</small></article><article className="local-metric"><span>Average progress</span><strong>{percentage(values.reduce((sum, value) => sum + value, 0), values.length)}%</strong><small>Average of enrolled learner progress records.</small></article><article className="local-metric"><span>Pending grading</span><strong>{pending}</strong><small>Submitted items awaiting a result.</small></article></div><div className="local-record-list">{state.courses.map(course => { const enrolled = students.filter(student => student.courseIds.includes(course.id)); const avg = percentage(enrolled.reduce((sum, student) => sum + progressFor(state, student.id, course.id), 0), enrolled.length); return <article className="local-record" key={course.id}><div className="local-record-main"><strong>{course.title}</strong><p>{enrolled.length} learner-course records</p></div><div className="local-record-side"><strong>{avg}%</strong><small>Average progress</small></div></article> })}</div></section>
+function ExamReportsView({ state, profile }: { state: DemoState; profile: DemoProfile }) {
+  const exams = state.schedule.filter(item => item.kind === 'Exam' && item.participantIds.includes(profile.userId))
+  const courseIds = new Set(exams.map(item => item.courseId))
+  const submissions = state.submissions.filter(item => courseIds.has(item.courseId))
+  const pending = submissions.filter(item => item.status === 'Submitted').length
+  return <section className="local-panel"><PanelHeading eyebrow="Assessment operations" title="Exam readiness and submissions" detail="Only exam events linked to this exam-controller profile are included." /><div className="local-metric-grid"><article className="local-metric"><span>Assigned exams</span><strong>{exams.length}</strong><small>Scoped schedule entries.</small></article><article className="local-metric"><span>Course submissions</span><strong>{submissions.length}</strong><small>Submissions in assigned exam-course scope.</small></article><article className="local-metric"><span>Awaiting review</span><strong>{pending}</strong><small>Submitted items without a published result.</small></article></div><div className="local-record-list">{exams.map(item => <article className="local-record" key={item.id}><div className="local-record-main"><strong>{item.title}</strong><p>{courseFor(state, item.courseId)?.title ?? 'Course'}</p><small>{new Date(item.startsAt).toLocaleString()} · {item.durationMinutes} minutes</small></div><span className={'local-status status-' + item.status.toLowerCase()}>{item.status}</span></article>)}</div></section>
 }
-function IntegrationView({ state }: { state: DemoState }) {
-  return <section className="local-panel"><PanelHeading eyebrow="Integration inventory" title="Configured demo integrations" detail="Endpoints and delivery totals are sample records. No HTTP requests are sent." /><div className="local-honest-state"><strong>Live connectivity is not tested in offline mode.</strong><p>Real API uptime and webhook delivery health are not fabricated; the figures below describe the local sample dataset only.</p></div><div className="local-record-list">{state.webhooks.map(hook => <article className="local-record" key={hook.id}><div className="local-record-main"><strong>{hook.name}</strong><p>{hook.endpoint}</p><small>{hook.successfulDeliveries} sample successes · {hook.failedDeliveries} sample failures</small></div><span className={'local-status status-' + hook.status.toLowerCase().replace(' ', '-')}>{hook.status} (sample)</span></article>)}</div></section>
-}
+
 function ActivityList({ state }: { state: DemoState }) {
   return <div className="local-record-list">{state.activity.map(item => <article className="local-record" key={item.id}><div className="local-record-main"><strong>{item.action}</strong><p>{item.detail}</p><small>{item.actor} · {new Date(item.at).toLocaleString()}</small></div></article>)}</div>
 }
