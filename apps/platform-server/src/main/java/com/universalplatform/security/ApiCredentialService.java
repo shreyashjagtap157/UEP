@@ -78,9 +78,12 @@ public class ApiCredentialService {
                 .filter(c -> !scopeSet(c.scopes()).isEmpty());
     }
 
+    @Transactional
     public void touch(ApiCredential c) {
-        c.used(clock.instant());
-        repo.save(c);
+        // last_used_at is observability metadata, not credential configuration. A direct atomic
+        // UPDATE avoids optimistic-lock conflicts when many requests use the same key concurrently
+        // and does not invalidate the version an administrator uses for revoke operations.
+        repo.touchLastUsedAt(c.id(), clock.instant());
     }
 
     static String hash(String raw) {

@@ -140,6 +140,12 @@ if 'Select at least one explicit permission scope.' not in web_integration:
 if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/identity/IdentityAuthorizationIntegrationTest.java').exists():
     errors.append('missing API credential explicit-scope regression tests')
 
+if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/security/ApiCredentialLastUsedConcurrencyIntegrationTest.java').exists():
+    errors.append('missing concurrent API credential last-used update regression test')
+credential_repository = text('apps/platform-server/src/main/java/com/universalplatform/security/ApiCredentialRepository.java')
+if 'int touchLastUsedAt(' not in credential_repository:
+    errors.append('API credential last-used metadata must update atomically without optimistic-lock contention')
+
 # Upload provider side effects must be compensated after rollback, with durable retry when delete fails.
 storage_cleanup_migration = text('apps/platform-server/src/main/resources/db/migration/V029__storage_cleanup_outbox.sql')
 for required in [
