@@ -7,10 +7,13 @@ import org.springframework.stereotype.Service;
 class OwnershipGuard {
     private final RoleDefinitionRepository roles;
     private final RoleAssignmentRepository assignments;
+    private final TenantMembershipRepository memberships;
 
-    OwnershipGuard(RoleDefinitionRepository roles, RoleAssignmentRepository assignments) {
+    OwnershipGuard(RoleDefinitionRepository roles, RoleAssignmentRepository assignments,
+                   TenantMembershipRepository memberships) {
         this.roles = roles;
         this.assignments = assignments;
+        this.memberships = memberships;
     }
 
     void assertCanDeactivateMembership(UUID tenantId, UUID membershipId) {
@@ -22,6 +25,21 @@ class OwnershipGuard {
     void assertCanRemoveAssignment(RoleAssignment assignment, RoleDefinition role) {
         if (role.systemManaged() && SystemRoleKey.ORGANIZATION_OWNER.name().equals(role.systemKey())) {
             assertAnotherActiveOwnerExists(assignment.tenantId(), role);
+        }
+    }
+
+    void assertCanAssignOwner(UUID tenantId, RoleDefinition ownerRole, String actorSubject,
+                              boolean platformSuperAdmin) {
+        if (platformSuperAdmin) return;
+        TenantMembership actorMembership = memberships.findByTenantAndSubject(tenantId, actorSubject)
+                .filter(membership -> membership.status() == MembershipStatus.ACTIVE)
+                .orElseThrow(() -> new IdentityAccessDeniedException(
+                        "An active tenant Organization Owner is required to assign the Organization Owner role"));
+        boolean isOwner = assignments.existsByTenantIdAndMembershipIdAndRoleIdAndScopeKind(
+                tenantId, actorMembership.id(), ownerRole.id(), AssignmentScopeKind.TENANT);
+        if (!isOwner) {
+            throw new IdentityAccessDeniedException(
+                    "Only an existing Organization Owner or platform super administrator can assign the Organization Owner role");
         }
     }
 

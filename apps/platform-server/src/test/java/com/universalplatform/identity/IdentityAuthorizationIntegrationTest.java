@@ -31,6 +31,7 @@ class IdentityAuthorizationIntegrationTest {
     private static final UUID OWNER_ROLE = UUID.fromString("01901234-1111-7000-8000-000000000006");
     private static final UUID TEACHER_ROLE = UUID.fromString("01901234-1111-7000-8000-000000000007");
     private static final UUID STUDENT_ROLE = UUID.fromString("01901234-1111-7000-8000-000000000008");
+    private static final UUID DELEGATED_ADMIN_ROLE = UUID.fromString("01901234-1111-7000-8000-000000000009");
     private static final String OWNER_SUBJECT = "owner-subject";
     private static final String DUAL_SUBJECT = "dual-role-subject";
 
@@ -48,6 +49,9 @@ class IdentityAuthorizationIntegrationTest {
         insertSystemRole(OWNER_ROLE, "ORGANIZATION_OWNER", "Organization Owner");
         insertSystemRole(TEACHER_ROLE, "TEACHER", "Teacher");
         insertSystemRole(STUDENT_ROLE, "STUDENT", "Student");
+        jdbc.update("INSERT INTO role_definition(id, tenant_id, name, system_managed) VALUES (?, ?, 'Delegated Administrator', false)", DELEGATED_ADMIN_ROLE, TENANT);
+        jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'ROLES_ASSIGN')", DELEGATED_ADMIN_ROLE);
+        jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'USERS_MANAGE')", DELEGATED_ADMIN_ROLE);
         for (String permission : new String[]{"ROLES_VIEW", "ROLES_MANAGE", "ROLES_ASSIGN", "USERS_VIEW", "USERS_MANAGE", "FEDERATION_MANAGE"}) {
             jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, ?)", OWNER_ROLE, permission);
         }
@@ -56,6 +60,7 @@ class IdentityAuthorizationIntegrationTest {
         assign(OWNER_MEMBERSHIP, OWNER_ROLE, OWNER_SUBJECT);
         assign(DUAL_MEMBERSHIP, TEACHER_ROLE, OWNER_SUBJECT);
         assign(DUAL_MEMBERSHIP, STUDENT_ROLE, OWNER_SUBJECT);
+        assign(DUAL_MEMBERSHIP, DELEGATED_ADMIN_ROLE, OWNER_SUBJECT);
     }
 
     @Test
@@ -81,7 +86,33 @@ class IdentityAuthorizationIntegrationTest {
     }
 
     @Test
-    void ownerCanCreateCustomRoleButUnprivilegedMemberCannot() throws Exception {
+    void nonOwnerWithRoleAssignmentPermissionCannotAssignOrganizationOwner() throws Exception {
+        String body = """
+                {"membershipId":"%s","roleId":"%s","scopeKind":"TENANT"}
+                """.formatted(DUAL_MEMBERSHIP, OWNER_ROLE);
+        mvc.perform(post("/api/v1/identity/roles/assignments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+    }
+
+    @Test
+    void nonOwnerCannotProvisionMembershipWithOrganizationOwnerRole() throws Exception {
+        String body = """
+                {"subject":"escalation-target","email":"escalation@example.test","displayName":"Escalation Target","roleIds":["%s"]}
+                """.formatted(OWNER_ROLE);
+        mvc.perform(post("/api/v1/identity/memberships")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+    }
+
+    @Test
+    void ownerCanCreateCustomRoleButMemberWithoutRoleManagementCannot() throws Exception {
         String body = """
                 {"name":"Lab Coordinator","description":"Lab operations","permissions":["USERS_VIEW","BRANCHES_VIEW"],"expectedVersion":0}
                 """;
