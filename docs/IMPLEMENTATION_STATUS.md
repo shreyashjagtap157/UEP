@@ -97,6 +97,16 @@ The source implementation through the 0.14 milestone is integrated across the ba
 - notification inbox and per-event channel preferences;
 - branch-effective permissions surfaced separately from tenant-wide permissions so the UI can expose branch administration without broadening authority.
 
+### Browser-only demonstration workspaces
+
+- Synthetic local personas cover Student, Teacher, Client/Institution, Product Developer, Platform Administrator, Guardian, Exam Controller, Finance Administrator, Teaching Assistant, Evaluator, Mentor, Support Operator, and Auditor.
+- Shared browser-persisted state supports cross-tab updates and repeatable reset to seeded records.
+- Assignment submission, authorized grading, attendance recording, product publishing, calculated demo reports, and activity history are represented as linked workflows across separate persona sign-ins.
+- Submission/result lists use one shared persona/course scope function, covered by native Node tests. Guardian and mentor views are restricted to the seeded linked learner; staff views use their assigned courses; support lookup redacts contact and course details.
+- The offline demo deliberately identifies finance APIs and live integrations as not connected instead of presenting fabricated production balances, uptime, or delivery status.
+- Demo profile selection and client-side scope filtering are **not production authentication or a security boundary**. All records are synthetic, and production authorization remains the responsibility of the authenticated server.
+- Web CI runs `npm --prefix apps/web test` in addition to lint and the production build.
+
 ### Contract and verification encoded in the repository
 
 - OpenAPI 3.1 synchronized with all 0.4 endpoints and permission keys;
