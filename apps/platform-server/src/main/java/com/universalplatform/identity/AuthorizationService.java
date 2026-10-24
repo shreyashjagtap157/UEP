@@ -18,13 +18,18 @@ public class AuthorizationService implements ApiCredentialAuthorizer {
     private final ActorContext actorContext;
     private final IdentitySecurityService identitySecurity;
     private final RolePermissionRepository rolePermissions;
+    private final MembershipDirectory membershipDirectory;
+    private final OwnershipGuard ownershipGuard;
 
     AuthorizationService(TenantContext tenantContext, ActorContext actorContext,
-                         IdentitySecurityService identitySecurity, RolePermissionRepository rolePermissions) {
+                         IdentitySecurityService identitySecurity, RolePermissionRepository rolePermissions,
+                         MembershipDirectory membershipDirectory, OwnershipGuard ownershipGuard) {
         this.tenantContext = tenantContext;
         this.actorContext = actorContext;
         this.identitySecurity = identitySecurity;
         this.rolePermissions = rolePermissions;
+        this.membershipDirectory = membershipDirectory;
+        this.ownershipGuard = ownershipGuard;
     }
 
     @Override
@@ -35,6 +40,26 @@ public class AuthorizationService implements ApiCredentialAuthorizer {
     @Override
     public void requireApiView() {
         require(PermissionKey.API_VIEW);
+    }
+
+    @Override
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void requireApiCredentialTarget(UUID membershipId) {
+        UUID tenantId = tenantContext.requireTenantId();
+        if (actorContext.hasRealmRole(PLATFORM_SUPER_ADMIN_ROLE)) {
+            membershipDirectory.requireActive(membershipId);
+            return;
+        }
+
+        ActiveIdentity actor = identitySecurity.requireCurrentIdentity();
+        if (actor.membershipId().equals(membershipId)) {
+            membershipDirectory.requireActive(membershipId);
+            return;
+        }
+
+        ownershipGuard.assertCanManageCredentialsForAnotherMembership(
+                tenantId, actorContext.requireSubject(), false);
+        membershipDirectory.requireActive(membershipId);
     }
 
     @Transactional(readOnly = true)

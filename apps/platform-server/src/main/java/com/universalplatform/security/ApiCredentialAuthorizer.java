@@ -9,4 +9,7 @@ package com.universalplatform.security;
 public interface ApiCredentialAuthorizer {
     void requireApiManage();
     void requireApiView();
+
+    /** Validate that credential issuance cannot silently impersonate another tenant member. */
+    void requireApiCredentialTarget(java.util.UUID membershipId);
 }

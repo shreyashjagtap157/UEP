@@ -38,6 +38,24 @@ class OwnershipGuard {
                 || SystemRoleKey.ORGANIZATION_ADMINISTRATOR.name().equals(role.systemKey()));
     }
 
+    void assertCanManageCredentialsForAnotherMembership(UUID tenantId, String actorSubject,
+                                                               boolean platformSuperAdmin) {
+        tenantMutationLock.lockTenant(tenantId);
+        if (platformSuperAdmin) return;
+        RoleDefinition ownerRole = roles.findByTenantIdAndSystemKey(tenantId, SystemRoleKey.ORGANIZATION_OWNER.name())
+                .orElseThrow(() -> new IdentityConflictException("Organization Owner role is not configured"));
+        TenantMembership actorMembership = memberships.findByTenantAndSubject(tenantId, actorSubject)
+                .filter(membership -> membership.status() == MembershipStatus.ACTIVE)
+                .orElseThrow(() -> new IdentityAccessDeniedException(
+                        "An active Organization Owner is required to create an API credential for another membership"));
+        boolean isOwner = assignments.existsByTenantIdAndMembershipIdAndRoleIdAndScopeKind(
+                tenantId, actorMembership.id(), ownerRole.id(), AssignmentScopeKind.TENANT);
+        if (!isOwner) {
+            throw new IdentityAccessDeniedException(
+                    "Only an active Organization Owner or platform super administrator can create an API credential for another membership");
+        }
+    }
+
     void assertCanAssignPrivilegedRole(UUID tenantId, RoleDefinition requestedRole, String actorSubject,
                                        boolean platformSuperAdmin) {
         tenantMutationLock.lockTenant(tenantId);

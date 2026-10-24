@@ -4,7 +4,7 @@ The integration platform is an adapter layer around the canonical Universal Educ
 
 ## Public APIs
 
-Tenant administrators can mint API credentials for a real tenant membership. Secrets are shown once, only a SHA-256 hash is persisted, credentials can expire or be revoked, and requests inherit the membership role permissions before an optional credential scope intersection is applied.
+Tenant administrators can mint API credentials for a real, active tenant membership. A member may create a credential only for their own active membership; only an active Organization Owner or platform super-administrator may issue one for another membership. This prevents a caller with `API_MANAGE` from using a target membership ID to impersonate another user. Secrets are shown once, only a SHA-256 hash is persisted, credentials can expire or be revoked, and requests inherit the membership role permissions before an optional credential scope intersection is applied.
 
 ## Webhooks
 

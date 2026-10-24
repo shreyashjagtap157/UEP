@@ -32,6 +32,7 @@ public class ApiCredentialService {
         UUID tenant = tenants.requireTenantId();
         if (membershipId == null)
             throw new IllegalArgumentException("Membership is required");
+        auth.requireApiCredentialTarget(membershipId);
         String normalized = name == null ? "" : name.trim();
         if (normalized.isEmpty() || normalized.length() > 120)
             throw new IllegalArgumentException("Credential name is required");

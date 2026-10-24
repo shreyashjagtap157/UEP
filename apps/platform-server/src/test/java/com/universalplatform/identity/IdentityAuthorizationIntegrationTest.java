@@ -55,6 +55,7 @@ class IdentityAuthorizationIntegrationTest {
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'ROLES_ASSIGN')", DELEGATED_ADMIN_ROLE);
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'USERS_MANAGE')", DELEGATED_ADMIN_ROLE);
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'FEDERATION_MANAGE')", DELEGATED_ADMIN_ROLE);
+        jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'API_MANAGE')", DELEGATED_ADMIN_ROLE);
         jdbc.update("""
                 INSERT INTO identity_provider(
                     tenant_id, provider_key, issuer, authorization_endpoint, client_id, redirect_uri, scopes, enabled
@@ -63,7 +64,7 @@ class IdentityAuthorizationIntegrationTest {
                     'uep-test-client', 'https://uep.example.test/callback', 'openid profile email', true
                 )
                 """, TENANT);
-        for (String permission : new String[]{"ROLES_VIEW", "ROLES_MANAGE", "ROLES_ASSIGN", "USERS_VIEW", "USERS_MANAGE", "FEDERATION_MANAGE"}) {
+        for (String permission : new String[]{"ROLES_VIEW", "ROLES_MANAGE", "ROLES_ASSIGN", "USERS_VIEW", "USERS_MANAGE", "FEDERATION_MANAGE", "API_MANAGE"}) {
             jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, ?)", OWNER_ROLE, permission);
         }
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'ORGANIZATION_VIEW')", TEACHER_ROLE);
@@ -186,6 +187,48 @@ class IdentityAuthorizationIntegrationTest {
                         .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+    }
+
+    @Test
+    void nonOwnerCannotCreateApiCredentialForAnotherMembership() throws Exception {
+        String body = """
+                {"membershipId":"%s","name":"owner-impersonation-key","scopes":["API_VIEW"]}
+                """.formatted(OWNER_MEMBERSHIP);
+        mvc.perform(post("/api/v1/integrations/api-credentials")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+    }
+
+    @Test
+    void memberCanCreateApiCredentialForOwnActiveMembership() throws Exception {
+        String body = """
+                {"membershipId":"%s","name":"personal-reporting-key","scopes":["API_VIEW"]}
+                """.formatted(DUAL_MEMBERSHIP);
+        mvc.perform(post("/api/v1/integrations/api-credentials")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("personal-reporting-key"))
+                .andExpect(jsonPath("$.scopes[0]").value("API_VIEW"))
+                .andExpect(jsonPath("$.secret").value(org.hamcrest.Matchers.startsWith("upk_live_")));
+    }
+
+    @Test
+    void ownerCanCreateApiCredentialForAnotherActiveMembership() throws Exception {
+        String body = """
+                {"membershipId":"%s","name":"managed-service-key","scopes":["API_VIEW"]}
+                """.formatted(DUAL_MEMBERSHIP);
+        mvc.perform(post("/api/v1/integrations/api-credentials")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("managed-service-key"))
+                .andExpect(jsonPath("$.secret").value(org.hamcrest.Matchers.startsWith("upk_live_")));
     }
 
     @Test
