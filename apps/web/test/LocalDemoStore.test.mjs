@@ -189,7 +189,6 @@ test('submission visibility is restricted to each persona learner/course scope',
   assert.ok(examRows.every((item) => item.courseId === 'course-data' && item.examScheduleId === 'schedule-sql-exam'))
   assert.ok(examRows.every((item) => state.schedule.some(session => session.id === item.examScheduleId && session.kind === 'Exam' && session.participantIds.includes('exam-aarav'))))
   assert.ok(!examRows.some((item) => ['submission-asha-sql', 'submission-ravi-sql'].includes(item.id)))
-  const evaluatorRows = state.submissions.filter((item) => ids('evaluator').includes(item.id))
   assert.ok(evaluatorRows.every((item) => !item.examScheduleId))
 
   assert.equal(ids('admin').length, state.submissions.length)
