@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { demoAccounts, isCoreLocalAccount } from '../src/dashboard/localDemoAccounts.ts'
 import {
   administratorStats,
   clientStats,
@@ -72,6 +73,26 @@ globalThis.window = {
     return true
   },
 }
+
+test('local demo sign-in exposes all thirteen personas with unique accounts and role-scoped routes', () => {
+  assert.equal(demoAccounts.length, 13)
+  assert.equal(new Set(demoAccounts.map((account) => account.email)).size, 13)
+
+  const core = demoAccounts.filter(isCoreLocalAccount)
+  assert.deepEqual(core.map((account) => account.role).sort(), [
+    'administrator', 'client', 'developer', 'guardian', 'student', 'teacher',
+  ])
+
+  const specialist = demoAccounts.filter((account) => 'profile' in account)
+  assert.deepEqual(specialist.map((account) => account.profile.role).sort(), [
+    'auditor', 'exam-controller', 'evaluator', 'finance-admin',
+    'mentor', 'support', 'teaching-assistant',
+  ])
+  for (const account of specialist) {
+    assert.equal(account.email, account.profile.email)
+    assert.equal(account.name, account.profile.name)
+  }
+})
 
 function profile(role) {
   const result = DEMO_PROFILES.find((item) => item.role === role)
