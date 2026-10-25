@@ -53,7 +53,19 @@ class LearningService {
             default -> throw new IllegalArgumentException("Unsupported learning target type");
         };
     }
-    @Transactional void recordProgress(UUID pathId,UUID membershipId,double progress){auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE); UUID t=tenant.requireTenantId(); require(t,pathId,"learning_path"); require(t,membershipId,"tenant_membership"); if(progress<0||progress>1)throw new IllegalArgumentException("progress must be 0..1"); jdbc.update("insert into learning_path_progress(tenant_id,path_id,membership_id,progress,updated_at) values(?,?,?,?,?) on conflict (tenant_id,path_id,membership_id) do update set progress=excluded.progress,updated_at=excluded.updated_at",t,pathId,membershipId,progress,clock.instant());}
+    @Transactional void recordProgress(UUID pathId, UUID membershipId, double progress) {
+        auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE);
+        UUID t = tenant.requireTenantId();
+        require(t, pathId, "learning_path");
+        require(t, membershipId, "tenant_membership");
+        if (!Double.isFinite(progress) || progress < 0 || progress > 1) {
+            throw new IllegalArgumentException("progress must be finite and between 0 and 1");
+        }
+        jdbc.update("insert into learning_path_progress(tenant_id,path_id,membership_id,progress,updated_at) values(?,?,?,?,?) on conflict (tenant_id,path_id,membership_id) do update set progress=excluded.progress,updated_at=excluded.updated_at",
+                t, pathId, membershipId, progress, clock.instant());
+        audit.record(t, actor.requireSubject(), "LEARNING_PATH_PROGRESS_RECORDED",
+                "learning_path_progress", pathId + ":" + membershipId);
+    }
     @Transactional void recordMastery(UUID outcomeId, UUID competencyId, UUID membershipId, double mastery, String evidence) {
         auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE);
         UUID t = tenant.requireTenantId();
@@ -65,6 +77,8 @@ class LearningService {
         }
         jdbc.update("insert into competency_mastery(id,tenant_id,outcome_id,competency_id,membership_id,mastery,evidence,updated_at) values(?,?,?,?,?,?,?,?) on conflict (tenant_id,competency_id,membership_id) do update set outcome_id=excluded.outcome_id,mastery=excluded.mastery,evidence=excluded.evidence,updated_at=excluded.updated_at",
                 UUID.randomUUID(), t, outcomeId, competencyId, membershipId, mastery, nullable(evidence), clock.instant());
+        audit.record(t, actor.requireSubject(), "COMPETENCY_MASTERY_RECORDED",
+                "competency_mastery", competencyId + ":" + membershipId);
     }
 
     private void requireCompetencyForOutcome(UUID tenantId, UUID competencyId, UUID outcomeId) {
