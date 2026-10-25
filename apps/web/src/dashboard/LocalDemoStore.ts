@@ -472,7 +472,6 @@ export function updateDemoAttendance(state: DemoState, attendanceId: string, sta
       || (actor.role === 'teacher' && (learner.organization !== user.organization || !user.courseIds.includes(target.courseId)))) return state
   if (target.status === status) return state
   const attendance = state.attendance.map(item => item.id === attendanceId ? { ...item, status } : item)
-  const course = courseFor(state, target.courseId)
   return recordDemoActivity({ ...state, attendance }, actor.name, 'Attendance recorded', learner.name + ' · ' + course.title + ' · ' + status + ' (' + target.date + ')', {
     subjectUserId: learner.id,
     courseId: target.courseId,
