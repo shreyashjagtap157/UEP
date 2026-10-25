@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { administratorStats, developerStats, localDemoData } from '../src/dashboard/localDemoData.ts'
+import {
+  administratorStats,
+  clientStats,
+  coursesForOrganization,
+  developerStats,
+  learnersForOrganization,
+  localDemoData,
+  organizationMetrics,
+  studentStats,
+  teacherStats,
+} from '../src/dashboard/localDemoData.ts'
 import {
   loadDemoStore as loadPresentationStore,
   markApiReleaseReady as markPresentationReleaseReady,
@@ -272,6 +282,56 @@ test('presentation controls update dashboard metrics and reset the pristine seed
   assert.equal(localDemoData.organizations.find((item) => item.id === 'org-001')?.actions, 7)
   assert.equal(loadPresentationStore().products.find((item) => item.id === 'product-002')?.status, 'In review')
   assert.equal(loadPresentationStore().releases.find((item) => item.id === 'release-002')?.passed, 14)
+})
+
+test('learner, course, and organization metrics are derived from scoped seed records', () => {
+  const puneLearners = learnersForOrganization('Pune Technology Academy')
+  assert.deepEqual(puneLearners.map((learner) => learner.name).sort(), ['Aarav Mehta', 'Ananya Shah', 'Isha Kulkarni'].sort())
+  assert.ok(puneLearners.every((learner) => learner.organization === 'Pune Technology Academy'))
+  assert.equal(coursesForOrganization('Pune Technology Academy').length, 2)
+  assert.equal(coursesForOrganization('Maharashtra Digital Skills').length, 1)
+
+  const pune = organizationMetrics('Pune Technology Academy')
+  assert.equal(pune.learners, 3)
+  assert.equal(pune.activeLearners, 2)
+  assert.equal(pune.courses, 2)
+  assert.equal(pune.completion, Math.round((72 + 88 + 100) / 3))
+
+  const all = clientStats()
+  assert.equal(all.learners, localDemoData.students.length)
+  assert.equal(all.courses, localDemoData.courses.length)
+  assert.equal(all.completion, Math.round(localDemoData.students.reduce((sum, learner) => sum + learner.completion, 0) / localDemoData.students.length))
+  assert.equal(studentStats('Aarav Mehta').activeCourses, 1)
+  assert.equal(studentStats('Aarav Mehta').pendingAssignments, 0)
+  assert.equal(teacherStats('Priya Nair').learners, 3)
+  assert.equal(teacherStats('Priya Nair').pendingGrading, 2)
+  assert.equal(administratorStats().learners, localDemoData.students.length)
+  assert.equal(administratorStats().courses, localDemoData.courses.length)
+})
+
+test('legacy presentation state migrates to ownership-aware records without losing workflow changes', () => {
+  resetPresentationStore()
+  const oldState = loadPresentationStore()
+  const assignment = oldState.assignments.find((item) => item.id === 'assignment-001')
+  assert.ok(assignment)
+  assignment.status = 'Submitted'
+  for (const learner of oldState.students) {
+    delete learner.organization
+    delete learner.courseIds
+    delete learner.guardianName
+  }
+  for (const course of oldState.courses) delete course.organization
+  for (const item of oldState.assignments) delete item.studentNames
+  localStorage.setItem('uep-local-demo-store-v1', JSON.stringify(oldState))
+  localStorage.removeItem('uep-local-demo-store-v2')
+
+  const migrated = loadPresentationStore()
+  assert.equal(migrated.assignments.find((item) => item.id === 'assignment-001')?.status, 'Submitted')
+  assert.equal(migrated.students.find((item) => item.id === 'stu-001')?.organization, 'Pune Technology Academy')
+  assert.deepEqual(migrated.students.find((item) => item.id === 'stu-001')?.courseIds, ['course-001', 'course-003'])
+  assert.equal(migrated.courses.find((item) => item.id === 'course-002')?.organization, 'Maharashtra Digital Skills')
+  assert.deepEqual(migrated.assignments.find((item) => item.id === 'assignment-001')?.studentNames, ['Aarav Mehta', 'Ananya Shah'])
+  assert.ok(localStorage.getItem('uep-local-demo-store-v2'))
 })
 
 test('reset restores seeded records after mutations', () => {
