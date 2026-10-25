@@ -8,7 +8,6 @@ import com.universalplatform.security.TenantContext;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -26,13 +25,55 @@ class LearningService {
     @Transactional(readOnly=true) List<LearningPathView> paths(){auth.require(PermissionKey.LEARNING_OUTCOMES_VIEW); UUID t=tenant.requireTenantId(); return jdbc.query("select id,code,name,description,status,version from learning_path where tenant_id=? order by name",(rs,n)->new LearningPathView(rs.getObject(1,UUID.class),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5),rs.getLong(6)),t);}
     @Transactional LearningPathView createPath(String code,String name,String desc){auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE); UUID t=tenant.requireTenantId(); UUID id=UUID.randomUUID(); jdbc.update("insert into learning_path(id,tenant_id,code,name,description,status) values(?,?,?,?,?,'ACTIVE')",id,t,code.trim(),name.trim(),nullable(desc)); audit.record(t,actor.requireSubject(),"LEARNING_PATH_CREATED","learning_path",id.toString()); return path(id);}
     @Transactional PathItemView addPathItem(UUID pathId,int sequence,String itemType,UUID itemId,String title,boolean required){auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE); UUID t=tenant.requireTenantId(); require(t,pathId,"learning_path"); if(sequence<1)throw new IllegalArgumentException("sequence must be positive"); UUID id=UUID.randomUUID(); jdbc.update("insert into learning_path_item(id,tenant_id,path_id,sequence_number,item_type,item_id,title,required) values(?,?,?,?,?,?,?,?)",id,t,pathId,sequence,itemType,itemId,title.trim(),required); audit.record(t,actor.requireSubject(),"LEARNING_PATH_ITEM_ADDED","learning_path_item",id.toString()); return pathItem(id);}
-    @Transactional void mapOutcome(String targetType,UUID targetId,UUID outcomeId,double weight){auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE); UUID t=tenant.requireTenantId(); require(t,outcomeId,"learning_outcome"); if(weight<=0||weight>1)throw new IllegalArgumentException("weight must be >0 and <=1"); if(!Set.of("CLASS","QUESTION","ASSIGNMENT","COURSE","CREDENTIAL").contains(targetType))throw new IllegalArgumentException("Unsupported learning target type"); UUID id=UUID.randomUUID(); jdbc.update("insert into learning_outcome_mapping(id,tenant_id,outcome_id,target_type,target_id,weight) values(?,?,?,?,?,?) on conflict (tenant_id,outcome_id,target_type,target_id) do update set weight=excluded.weight",id,t,outcomeId,targetType,targetId,weight); audit.record(t,actor.requireSubject(),"LEARNING_OUTCOME_MAPPED","learning_outcome_mapping",id.toString());}
+    @Transactional void mapOutcome(String targetType, UUID targetId, UUID outcomeId, double weight) {
+        auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE);
+        UUID t = tenant.requireTenantId();
+        require(t, outcomeId, "learning_outcome");
+        if (!Double.isFinite(weight) || weight <= 0 || weight > 1) {
+            throw new IllegalArgumentException("weight must be finite, >0 and <=1");
+        }
+        String targetTable = mappingTargetTable(targetType);
+        require(t, targetId, targetTable);
+        UUID id = UUID.randomUUID();
+        jdbc.update("insert into learning_outcome_mapping(id,tenant_id,outcome_id,target_type,target_id,weight) values(?,?,?,?,?,?) on conflict (tenant_id,outcome_id,target_type,target_id) do update set weight=excluded.weight",
+                id, t, outcomeId, targetType, targetId, weight);
+        audit.record(t, actor.requireSubject(), "LEARNING_OUTCOME_MAPPED", "learning_outcome_mapping", id.toString());
+    }
+
+    static String mappingTargetTable(String targetType) {
+        if (targetType == null) {
+            throw new IllegalArgumentException("Unsupported learning target type");
+        }
+        return switch (targetType) {
+            case "CLASS" -> "class_session";
+            case "QUESTION" -> "question";
+            case "ASSIGNMENT" -> "assignment";
+            case "COURSE" -> "course";
+            case "CREDENTIAL" -> "credential";
+            default -> throw new IllegalArgumentException("Unsupported learning target type");
+        };
+    }
     @Transactional void recordProgress(UUID pathId,UUID membershipId,double progress){auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE); UUID t=tenant.requireTenantId(); require(t,pathId,"learning_path"); require(t,membershipId,"tenant_membership"); if(progress<0||progress>1)throw new IllegalArgumentException("progress must be 0..1"); jdbc.update("insert into learning_path_progress(tenant_id,path_id,membership_id,progress,updated_at) values(?,?,?,?,?) on conflict (tenant_id,path_id,membership_id) do update set progress=excluded.progress,updated_at=excluded.updated_at",t,pathId,membershipId,progress,clock.instant());}
     @Transactional void recordMastery(UUID outcomeId, UUID competencyId, UUID membershipId, double mastery, String evidence) {
-        auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE); UUID t=tenant.requireTenantId();
-        require(t,outcomeId,"learning_outcome"); require(t,competencyId,"competency"); require(t,membershipId,"tenant_membership");
-        if (mastery<0 || mastery>1) throw new IllegalArgumentException("mastery must be 0..1");
-        jdbc.update("insert into competency_mastery(id,tenant_id,outcome_id,competency_id,membership_id,mastery,evidence,updated_at) values(?,?,?,?,?,?,?,?) on conflict (tenant_id,competency_id,membership_id) do update set outcome_id=excluded.outcome_id,mastery=excluded.mastery,evidence=excluded.evidence,updated_at=excluded.updated_at",UUID.randomUUID(),t,outcomeId,competencyId,membershipId,mastery,nullable(evidence),clock.instant());
+        auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE);
+        UUID t = tenant.requireTenantId();
+        require(t, outcomeId, "learning_outcome");
+        require(t, membershipId, "tenant_membership");
+        requireCompetencyForOutcome(t, competencyId, outcomeId);
+        if (!Double.isFinite(mastery) || mastery < 0 || mastery > 1) {
+            throw new IllegalArgumentException("mastery must be finite and between 0 and 1");
+        }
+        jdbc.update("insert into competency_mastery(id,tenant_id,outcome_id,competency_id,membership_id,mastery,evidence,updated_at) values(?,?,?,?,?,?,?,?) on conflict (tenant_id,competency_id,membership_id) do update set outcome_id=excluded.outcome_id,mastery=excluded.mastery,evidence=excluded.evidence,updated_at=excluded.updated_at",
+                UUID.randomUUID(), t, outcomeId, competencyId, membershipId, mastery, nullable(evidence), clock.instant());
+    }
+
+    private void requireCompetencyForOutcome(UUID tenantId, UUID competencyId, UUID outcomeId) {
+        if (competencyId == null
+                || jdbc.queryForObject(
+                        "select count(*) from competency where tenant_id=? and id=? and outcome_id=?",
+                        Long.class, tenantId, competencyId, outcomeId) == 0) {
+            throw new IllegalArgumentException("competency not found for learning outcome");
+        }
     }
     @Transactional(readOnly=true) MasteryView mastery(UUID outcomeId,UUID membershipId){auth.require(PermissionKey.LEARNING_OUTCOMES_VIEW); UUID t=tenant.requireTenantId(); require(t,outcomeId,"learning_outcome"); require(t,membershipId,"tenant_membership"); var row=jdbc.queryForObject("select count(*) filter(where mastery>=0.8),coalesce(avg(mastery),0),count(*) from competency_mastery where tenant_id=? and outcome_id=? and membership_id=?",(rs,n)->new MasteryView(outcomeId,membershipId,rs.getLong(1),rs.getDouble(2),rs.getLong(3)),t,outcomeId,membershipId); return row;}
     private OutcomeView outcome(UUID id){return jdbc.queryForObject("select id,code,name,description,status,version from learning_outcome where tenant_id=? and id=?",(rs,n)->new OutcomeView(rs.getObject(1,UUID.class),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5),rs.getLong(6)),tenant.requireTenantId(),id);}
