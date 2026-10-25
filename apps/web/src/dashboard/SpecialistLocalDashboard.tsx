@@ -228,11 +228,11 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
 
 function SubmissionPanel({ state, profile, submissions, onGrade }: { state: DemoState; profile: DemoProfile; submissions: ReturnType<typeof submissionsForProfile>; onGrade: (id: string) => void }) {
   const canGrade = profile.role === 'teaching-assistant' || profile.role === 'evaluator'
-  return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Assigned learning evidence</p><h3>{profile.role === 'exam-controller' ? 'Exam-linked submissions' : profile.role === 'mentor' ? 'Mentee submissions' : 'Submission queue'}</h3></div><span className="count-badge">{submissions.length}</span></div>
+  return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Assigned learning evidence</p><h3>{profile.role === 'exam-controller' ? 'Exam-linked records' : profile.role === 'mentor' ? 'Mentee submissions' : 'Submission queue'}</h3></div><span className="count-badge">{submissions.length}</span></div>
     {submissions.length ? <div className="local-module-list">{submissions.map(item => {
       const student = state.users.find(person => person.id === item.studentId)
       const course = courseFor(state, item.courseId)
-      return <article className="local-module" key={item.id}><div><strong>{item.title}</strong><p>{course?.title ?? 'Assigned course'} · {student?.name ?? 'Learner'} · due {new Date(item.dueAt).toLocaleDateString()}</p>{item.feedback && <small className="muted">Feedback: {item.feedback}</small>}</div><div><span className="chip">{item.status === 'Graded' ? `${item.score}/100` : item.status}</span>{canGrade && item.status === 'Submitted' && <button type="button" className="text-button" onClick={() => onGrade(item.id)}>Grade {profile.role === 'evaluator' ? '90%' : '85%'}</button>}</div></article>
+      return <article className="local-module" key={item.id}><div><strong>{item.title}</strong><p>{item.examScheduleId ? state.schedule.find(session => session.id === item.examScheduleId)?.title ?? 'Assigned examination' : course?.title ?? 'Assigned course'} · {student?.name ?? 'Learner'} · due {new Date(item.dueAt).toLocaleDateString()}</p>{item.feedback && <small className="muted">Feedback: {item.feedback}</small>}</div><div><span className="chip">{item.status === 'Graded' ? `${item.score}/100` : item.status}</span>{canGrade && item.status === 'Submitted' && <button type="button" className="text-button" onClick={() => onGrade(item.id)}>Grade {profile.role === 'evaluator' ? '90%' : '85%'}</button>}</div></article>
     })}</div> : <p className="muted">No submissions are assigned to this persona.</p>}
   </section>
 }
