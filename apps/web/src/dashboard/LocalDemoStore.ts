@@ -185,6 +185,64 @@ const ROLE_RECORD_NAMES: Record<DemoRole, string> = {
 function activeActor(state: DemoState, actor: DemoProfile): DemoUser | undefined {
   return state.users.find(user => user.id === actor.userId && user.status === 'Active' && user.role === ROLE_RECORD_NAMES[actor.role])
 }
+
+export function activeUserForProfile(state: DemoState, profile: DemoProfile): DemoUser | undefined {
+  return activeActor(state, profile)
+}
+
+export function linkedLearnerForProfile(state: DemoState, profile: DemoProfile): DemoUser | undefined {
+  const actor = activeActor(state, profile)
+  if (!actor || (profile.role !== 'guardian' && profile.role !== 'mentor')) return undefined
+  return state.users.find(user => user.id === 'student-asha'
+    && user.role === 'Student'
+    && user.status === 'Active'
+    && user.organization === actor.organization)
+}
+
+export function learnersForProfile(state: DemoState, profile: DemoProfile): DemoUser[] {
+  const actor = activeActor(state, profile)
+  if (!actor) return []
+  if (profile.role === 'admin') return state.users
+  if (profile.role === 'client') {
+    return state.users.filter(user => user.role === 'Student'
+      && user.status === 'Active'
+      && user.organization === actor.organization)
+  }
+  if (profile.role === 'teacher') {
+    const assignedPublishedCourses = new Set(actor.courseIds.filter(courseId => courseFor(state, courseId)?.status === 'Published'))
+    return state.users.filter(user => user.role === 'Student'
+      && user.status === 'Active'
+      && user.organization === actor.organization
+      && user.courseIds.some(courseId => assignedPublishedCourses.has(courseId)))
+  }
+  return []
+}
+
+export function coursesForProfile(state: DemoState, profile: DemoProfile): DemoCourse[] {
+  const actor = activeActor(state, profile)
+  if (!actor) return []
+  if (profile.role === 'admin') return state.courses
+  if (profile.role === 'student') {
+    return state.courses.filter(course => course.status === 'Published' && actor.courseIds.includes(course.id))
+  }
+  if (profile.role === 'teacher') {
+    return state.courses.filter(course => actor.courseIds.includes(course.id))
+  }
+  if (profile.role === 'guardian' || profile.role === 'mentor') {
+    const learner = linkedLearnerForProfile(state, profile)
+    if (!learner) return []
+    const allowedCourseIds = profile.role === 'guardian'
+      ? new Set(learner.courseIds)
+      : new Set(actor.courseIds.filter(courseId => learner.courseIds.includes(courseId)))
+    return state.courses.filter(course => course.status === 'Published' && allowedCourseIds.has(course.id))
+  }
+  if (profile.role === 'client') {
+    const learners = learnersForProfile(state, profile)
+    const enrolledCourseIds = new Set(learners.flatMap(learner => learner.courseIds))
+    return state.courses.filter(course => course.status === 'Published' && enrolledCourseIds.has(course.id))
+  }
+  return []
+}
 function dateAt(dayOffset: number, hour: number, minute = 0): string {
   const date = new Date()
   date.setDate(date.getDate() + dayOffset)
@@ -568,7 +626,7 @@ export function invoicesForFinanceProfile(state: DemoState, profile: DemoProfile
   const financeUser = profile.role === 'finance-admin' ? activeActor(state, profile) : undefined
   if (!financeUser) return []
   const studentIds = new Set(state.users
-    .filter(user => user.role === 'Student' && user.organization === financeUser.organization)
+    .filter(user => user.role === 'Student' && user.status === 'Active' && user.organization === financeUser.organization)
     .map(user => user.id))
   return state.invoices.filter(invoice => invoice.organization === financeUser.organization
     && studentIds.has(invoice.studentId))
@@ -825,9 +883,7 @@ export function scheduleForProfile(state: DemoState, profile: DemoProfile): Demo
       && publishedCourse(item.courseId))
   }
   if (profile.role === 'guardian' || profile.role === 'mentor') {
-    const learner = state.users.find(item => item.id === 'student-asha'
-      && item.role === 'Student' && item.status === 'Active'
-      && item.organization === user.organization)
+    const learner = linkedLearnerForProfile(state, profile)
     if (!learner) return []
     const linkedCourses = new Set(learner.courseIds)
     if (profile.role === 'guardian') {
@@ -870,9 +926,7 @@ export function attendanceForProfile(state: DemoState, profile: DemoProfile): De
 
   if (profile.role === 'student') return enrolledAttendance(user, new Set(user.courseIds))
   if (profile.role === 'guardian' || profile.role === 'mentor') {
-    const learner = state.users.find(item => item.id === 'student-asha'
-      && item.role === 'Student' && item.status === 'Active'
-      && item.organization === user.organization)
+    const learner = linkedLearnerForProfile(state, profile)
     if (!learner) return []
     const allowedCourses = profile.role === 'guardian'
       ? new Set(learner.courseIds)

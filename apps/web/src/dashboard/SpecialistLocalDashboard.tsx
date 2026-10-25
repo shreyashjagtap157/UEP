@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  activeUserForProfile,
   activityForProfile,
   advanceDemoProgress,
   courseFor,
@@ -7,6 +8,9 @@ import {
   gradeDemoSubmission,
   invoicesForFinanceProfile,
   attendanceForProfile,
+  coursesForProfile,
+  learnersForProfile,
+  linkedLearnerForProfile,
   scheduleForProfile,
   loadDemoState,
   markDemoMessageRead,
@@ -318,7 +322,7 @@ function summaryTitle(role: DemoRole) {
 }
 
 function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnType<typeof submissionsForProfile>, schedule: ReturnType<typeof scheduleForProfile>, attendanceCount: number, activityCount: number): PanelItem[] {
-  const currentUser = state.users.find(item => item.id === profile.userId && item.status === 'Active')
+  const currentUser = activeUserForProfile(state, profile)
   if (profile.role === 'student') {
     const courseIds = currentUser?.courseIds ?? []
     return [
@@ -333,7 +337,7 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
     { title: 'Attendance rows', status: String(attendanceCount), detail: 'Records within assigned course scope' },
   ]
   if (profile.role === 'client') {
-    const learners = state.users.filter(item => item.role === 'Student' && item.organization === currentUser?.organization)
+    const learners = learnersForProfile(state, profile)
     const actions = state.organizationActions.filter(item => item.organization === currentUser?.organization && item.status === 'Open')
     return [
       { title: 'Organization learners', status: String(learners.length), detail: currentUser?.organization ?? 'No organization linked' },
@@ -352,7 +356,7 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
     { title: 'Operational cases', status: String(state.supportCases.filter(item => item.status !== 'Resolved').length), detail: 'Support cases not yet resolved' },
   ]
   if (profile.role === 'guardian') {
-    const learner = state.users.find(item => item.id === 'student-asha' && item.status === 'Active')
+    const learner = linkedLearnerForProfile(state, profile)
     return [
       { title: 'Linked learner', status: learner?.name ?? 'Not linked', detail: 'Explicit guardian-to-learner relationship' },
       { title: 'Assigned work', status: String(submissions.length), detail: 'Assignments visible for the linked learner' },
@@ -419,23 +423,21 @@ function SubmissionPanel({ state, profile, submissions, onGrade, onSubmit }: { s
 
 function MenteePanel({ state, profile }: { state: DemoState; profile: DemoProfile }) {
   if (profile.role !== 'mentor' && profile.role !== 'guardian') return <PanelList eyebrow="Relationship" title="Linked learner" items={[]} />
-  const mentee = state.users.find(item => item.id === 'student-asha' && item.status === 'Active')
+  const mentee = linkedLearnerForProfile(state, profile)
   if (!mentee) return <PanelList eyebrow="Relationship" title="No active mentee" items={[]} />
-  const courses = mentee.courseIds.map(courseId => {
-    const course = courseFor(state, courseId)
-    const progress = progressFor(state, mentee.id, courseId)
-    return { title: course?.title ?? courseId, detail: `${mentee.name} · recorded progress ${progress}%`, status: progress >= 100 ? 'Completed' : 'In progress' }
+  const courses = coursesForProfile(state, profile).map(course => {
+    const progress = progressFor(state, mentee.id, course.id)
+    return { title: course.title, detail: `${mentee.name} · recorded progress ${progress}%`, status: progress >= 100 ? 'Completed' : 'In progress' }
   })
   return <PanelList eyebrow="Mentorship relationship" title={`${mentee.name} · learning progress`} items={courses} />
 }
 
 function LearningPanel({ state, profile, onProgress }: { state: DemoState; profile: DemoProfile; onProgress: (courseId: string) => void }) {
-  const learnerId = profile.role === 'guardian' || profile.role === 'mentor' ? 'student-asha' : profile.userId
-  const learner = state.users.find(item => item.id === learnerId && item.role === 'Student' && item.status === 'Active')
-  const allowedCourseIds = profile.role === 'teacher'
-    ? new Set(state.users.find(item => item.id === profile.userId)?.courseIds ?? [])
-    : new Set(learner?.courseIds ?? [])
-  const courses = state.courses.filter(course => allowedCourseIds.has(course.id) && (profile.role !== 'student' || course.status === 'Published'))
+  const learner = profile.role === 'guardian' || profile.role === 'mentor'
+    ? linkedLearnerForProfile(state, profile)
+    : activeUserForProfile(state, profile)
+  const learnerId = learner?.id ?? ''
+  const courses = coursesForProfile(state, profile)
   return <section className="panel">
     <div className="panel-heading"><div><p className="eyebrow">Learning progress</p><h3>{profile.role === 'guardian' || profile.role === 'mentor' ? (learner?.name ?? 'Linked learner') + ' · learning progress' : 'My enrolled courses'}</h3></div><span className="count-badge">{courses.length}</span></div>
     {courses.length ? <div className="local-module-list">{courses.map(course => {
@@ -456,11 +458,7 @@ function AttendancePanel({ state, profile, attendance, onMarkPresent }: { state:
 }
 
 function PeoplePanel({ state, profile, onUserStatus }: { state: DemoState; profile: DemoProfile; onUserStatus: (userId: string, status: 'Active' | 'Suspended') => void }) {
-  const currentUser = state.users.find(item => item.id === profile.userId && item.status === 'Active')
-  let users = state.users.filter(item => item.role === 'Student' && item.status === 'Active' && item.organization === currentUser?.organization)
-  if (profile.role === 'admin') users = state.users
-  else if (profile.role === 'teacher') users = state.users.filter(item => item.role === 'Student' && item.courseIds.some(courseId => (currentUser?.courseIds ?? []).includes(courseId)))
-  else if (profile.role !== 'client') users = []
+  const users = learnersForProfile(state, profile)
   return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">People & role scope</p><h3>{profile.role === 'admin' ? 'Platform user directory' : profile.role === 'teacher' ? 'Assigned learner roster' : 'Organization learners'}</h3></div><span className="count-badge">{users.length}</span></div>
     {users.length ? <div className="local-module-list">{users.map(item => <article className="local-module" key={item.id}><div><strong>{item.name}</strong><p>{item.role} · {item.organization}</p></div><div><span className="chip">{item.status}</span>{profile.role === 'admin' && item.id !== profile.userId && <button type="button" className="text-button" onClick={() => onUserStatus(item.id, item.status === 'Active' ? 'Suspended' : 'Active')}>{item.status === 'Active' ? 'Suspend' : 'Reactivate'}</button>}</div></article>)}</div> : <p className="muted">No people are available in this role's scope.</p>}
   </section>
@@ -483,12 +481,10 @@ function OrganizationPanel({ state, profile, onResolve }: { state: DemoState; pr
 }
 
 function AnalyticsPanel({ state, profile, submissions, attendance, schedule }: { state: DemoState; profile: DemoProfile; submissions: ReturnType<typeof submissionsForProfile>; attendance: DemoState['attendance']; schedule: ReturnType<typeof scheduleForProfile> }) {
-  const currentUser = state.users.find(item => item.id === profile.userId)
-  const learners = profile.role === 'client'
-    ? state.users.filter(item => item.role === 'Student' && item.organization === currentUser?.organization)
-    : profile.role === 'teacher'
-      ? state.users.filter(item => item.role === 'Student' && item.courseIds.some(courseId => (currentUser?.courseIds ?? []).includes(courseId)))
-      : state.users.filter(item => item.role === 'Student' && item.status === 'Active')
+  const currentUser = activeUserForProfile(state, profile)
+  const learners = profile.role === 'client' || profile.role === 'teacher'
+    ? learnersForProfile(state, profile)
+    : []
   let items: PanelItem[]
   if (profile.role === 'student' || profile.role === 'guardian') {
     items = [
@@ -537,17 +533,7 @@ function ContentPanel({ state, profile, onCreateProduct, onProductTitle, onProdu
       <div className="local-module-list">{state.products.map(product => <article className="local-module" key={product.id}><div><strong>{product.title} · v{product.version}</strong><p>{product.description} · updated {new Date(product.updatedAt).toLocaleDateString()}</p></div><div><span className="chip">{product.status}</span>{product.status !== 'Published' && <button type="button" className="text-button" onClick={() => onPublishProduct(product.id)}>Publish</button>}</div></article>)}</div>
     </section>
   }
-  const currentUser = state.users.find(item => item.id === profile.userId)
-  const linkedStudent = profile.role === 'guardian' ? state.users.find(item => item.id === 'student-asha') : undefined
-  const visibleCourses = profile.role === 'student'
-    ? state.courses.filter(course => course.status === 'Published' && (currentUser?.courseIds ?? []).includes(course.id))
-    : profile.role === 'guardian'
-      ? state.courses.filter(course => course.status === 'Published' && (linkedStudent?.courseIds ?? []).includes(course.id))
-      : profile.role === 'teacher'
-        ? state.courses.filter(course => (currentUser?.courseIds ?? []).includes(course.id))
-        : profile.role === 'client'
-          ? state.courses.filter(course => state.users.some(item => item.role === 'Student' && item.organization === currentUser?.organization && item.courseIds.includes(course.id)))
-          : state.courses
+  const visibleCourses = coursesForProfile(state, profile)
   return <section className="panel">
     <div className="panel-heading"><div><p className="eyebrow">Course catalog</p><h3>{profile.role === 'admin' ? 'Manage courses' : 'Courses available in role scope'}</h3></div><span className="count-badge">{visibleCourses.length}</span></div>
     {visibleCourses.length ? <div className="local-module-list">{visibleCourses.map(course => <article className="local-module" key={course.id}>

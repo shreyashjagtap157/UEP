@@ -4,7 +4,11 @@ import { demoAccounts } from '../src/dashboard/localDemoAccounts.ts'
 import {
   DEMO_PROFILES,
   activityForProfile,
+  activeUserForProfile,
   attendanceForProfile,
+  coursesForProfile,
+  learnersForProfile,
+  linkedLearnerForProfile,
   scheduleForProfile,
   advanceDemoProgress,
   publishDemoCourse,
@@ -208,6 +212,35 @@ test('submission visibility is restricted to each persona learner/course scope',
   assert.deepEqual(ids('auditor'), [])
   assert.deepEqual(ids('developer'), [])
   assert.deepEqual(ids('finance-admin'), [])
+})
+
+test('learner and course catalog queries enforce active organization and relationship scope', () => {
+  const state = resetDemoState()
+  const polluted = {
+    ...state,
+    users: state.users.map(item => {
+      if (item.id === 'student-ravi') return { ...item, organization: 'East Valley Academy' }
+      if (item.id === 'student-meera') return { ...item, status: 'Suspended' }
+      return item
+    }).concat([
+      { id: 'student-unassigned', name: 'Uma Singh', email: 'uma@demo.uep', role: 'Student', status: 'Active', organization: 'Northstar Learning Institute', courseIds: ['course-product-draft'] },
+    ]),
+  }
+
+  assert.deepEqual(learnersForProfile(polluted, profile('teacher')).map(item => item.id), ['student-asha'])
+  assert.deepEqual(learnersForProfile(polluted, profile('client')).map(item => item.id), ['student-asha'])
+  assert.ok(learnersForProfile(polluted, profile('admin')).some(item => item.id === 'student-ravi'))
+  const suspendedTeacher = { ...state, users: state.users.map(item => item.id === 'teacher-rahul' ? { ...item, status: 'Suspended' } : item) }
+  assert.deepEqual(learnersForProfile(suspendedTeacher, profile('teacher')), [])
+
+  assert.deepEqual(coursesForProfile(polluted, profile('student')).map(item => item.id), ['course-web', 'course-data', 'course-cloud'])
+  assert.deepEqual(coursesForProfile(polluted, profile('client')).map(item => item.id), ['course-web', 'course-data', 'course-cloud'])
+  assert.deepEqual(coursesForProfile(polluted, profile('teacher')).map(item => item.id), ['course-web', 'course-data', 'course-cloud'])
+  assert.deepEqual(coursesForProfile(polluted, profile('guardian')).map(item => item.id), ['course-web', 'course-data', 'course-cloud'])
+  assert.deepEqual(coursesForProfile(polluted, { ...profile('guardian'), userId: 'student-asha' }), [])
+  assert.deepEqual(coursesForProfile({ ...state, users: state.users.map(item => item.id === 'guardian-nina' ? { ...item, organization: 'East Valley Academy' } : item) }, profile('guardian')), [])
+  assert.ok(!coursesForProfile(polluted, profile('client')).some(item => item.id === 'course-product-draft'))
+  assert.deepEqual(coursesForProfile({ ...state, users: state.users.map(item => item.id === 'student-asha' ? { ...item, status: 'Suspended' } : item) }, profile('student')), [])
 })
 
 test('schedule and attendance queries enforce active identity, enrollment and organization scope', () => {

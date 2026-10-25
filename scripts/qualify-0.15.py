@@ -449,6 +449,14 @@ if 'invoice-owner-not-student' not in local_demo_tests or 'invoice-owner-other-o
     errors.append('missing invoice owner and organization isolation regression')
 if 'export function scheduleForProfile' not in local_demo_store or 'export function attendanceForProfile' not in local_demo_store:
     errors.append('schedule and attendance access must use central role-scoped query helpers')
+for helper in ['activeUserForProfile', 'linkedLearnerForProfile', 'learnersForProfile', 'coursesForProfile']:
+    if f'export function {helper}' not in local_demo_store:
+        errors.append(f'missing centralized profile access query: {helper}')
+for helper in ['learnersForProfile(state, profile)', 'coursesForProfile(state, profile)', 'linkedLearnerForProfile(state, profile)']:
+    if helper not in local_specialist:
+        errors.append(f'shared dashboard bypasses centralized identity/course scope helper: {helper}')
+if 'learner and course catalog queries enforce active organization and relationship scope' not in local_demo_tests:
+    errors.append('missing learner/catalog organization and relationship isolation regression')
 if 'scheduleForProfile(state, profile)' not in local_specialist or 'attendanceForProfile(state, profile)' not in local_specialist:
     errors.append('the shared dashboard must consume central schedule and attendance scope helpers')
 if 'schedule and attendance queries enforce active identity, enrollment and organization scope' not in local_demo_tests:
