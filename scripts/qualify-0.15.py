@@ -342,6 +342,15 @@ v023 = text('apps/platform-server/src/main/resources/db/migration/V023__reliabil
 for index_name in sorted(required_indexes):
     if index_name not in v023:
         errors.append(f'V023 is missing required performance index {index_name}')
+# Local demo authentication must remain separate from the real OIDC identity query.
+app_source = text('apps/web/src/app/App.tsx')
+if 'queryFn: localMode ? fetchLocalCurrentIdentity : fetchCurrentIdentity' in app_source or 'fetchLocalCurrentIdentity' in app_source:
+    errors.append('local demo must not reuse the mock identity through the main authenticated query')
+if 'enabled: oidcAuthenticated && !localMode' not in app_source or 'if (localMode) return <LocalExperience />' not in app_source:
+    errors.append('local demo must have an isolated entry point and disabled real-identity query')
+if "nav.filter(item => item.visible && (!localMode || item.id === 'overview'))" in app_source or '{localMode ? (' in app_source:
+    errors.append('unreachable local-mode dashboard branches should not remain in authenticated UI')
+
 # Learning outcomes and mastery records must preserve tenant and domain ownership coherence.
 learning_service = text('apps/platform-server/src/main/java/com/universalplatform/learning/LearningService.java')
 if 'mappingTargetTable(targetType)' not in learning_service or 'require(t, targetId, targetTable)' not in learning_service:
