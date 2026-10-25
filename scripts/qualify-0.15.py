@@ -452,6 +452,10 @@ if 'export function messagesForProfile' not in local_demo_store or 'export funct
     errors.append('shared inbox must use role-scoped message queries and recipient-level read state')
 if 'studentIds.has(invoice.studentId)' not in local_demo_store or 'invoice.organization === financeUser.organization' not in local_demo_store:
     errors.append('finance demo invoices must match both organization and student owner scope')
+if "courseFor(state, item.courseId)?.status === 'Published'" not in local_demo_store:
+    errors.append('learner academic queries must hide unpublished course records')
+if 'draft-course records are hidden from learner workflows and cannot be mutated' not in local_demo_tests:
+    errors.append('missing draft-course academic record visibility and mutation regression')
 if 'invoice-owner-not-student' not in local_demo_tests or 'invoice-owner-other-org' not in local_demo_tests:
     errors.append('missing invoice owner and organization isolation regression')
 if 'export function scheduleForProfile' not in local_demo_store or 'export function attendanceForProfile' not in local_demo_store:

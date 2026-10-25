@@ -15,7 +15,7 @@ Hardening milestone covering repeatable load probes, database indexes, connectio
 
 ### Fixed
 - renumbered the newer learning/mastery integrity migration to V032 to preserve the existing V029 storage-cleanup migration and enforce unique Flyway versions; added a static uniqueness gate;
-- tightened staff and client submission, schedule, attendance, learner roster, catalog and invoice queries to active same-organization learners enrolled in each course; guardian/mentor learner links now enforce the active identity and organization relationship; exam-controller access requires the exact assigned exam session and matching course;
+- tightened staff and client submission, schedule, attendance, learner roster, catalog and invoice queries to active same-organization learners enrolled in each course; unpublished-course academic records are hidden from learner-facing queries and mutation paths; guardian/mentor learner links now enforce the active identity and organization relationship; exam-controller access requires the exact assigned exam session and matching course;
 - blocked exam-linked records from the generic student assignment-submit action and made grading reject cross-organization learners;
 - replaced activity-title-only ownership inference with submission identity checks and conservative resolution of legacy events, preventing duplicate assignment names from crossing learner boundaries;
 - corrected the pending notification-outbox index to use columns actually present in the schema;

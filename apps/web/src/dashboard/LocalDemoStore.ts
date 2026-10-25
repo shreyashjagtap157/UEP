@@ -526,7 +526,7 @@ export function updateDemoAttendance(state: DemoState, attendanceId: string, sta
   const target = state.attendance.find(item => item.id === attendanceId)
   const learner = target && state.users.find(item => item.id === target.studentId && item.role === 'Student' && item.status === 'Active')
   const course = target && courseFor(state, target.courseId)
-  if (!user || !target || !learner || !course || !learner.courseIds.includes(target.courseId)
+  if (!user || !target || !learner || !course || course.status !== 'Published' || !learner.courseIds.includes(target.courseId)
       || (actor.role === 'teacher' && (learner.organization !== user.organization || !user.courseIds.includes(target.courseId)))) return state
   if (target.status === status) return state
   const attendance = state.attendance.map(item => item.id === attendanceId ? { ...item, status } : item)
@@ -652,17 +652,23 @@ export function submissionsForProfile(state: DemoState, profile: DemoProfile): D
 
   if (profile.role === 'student') {
     const enrolledCourseIds = new Set(currentUser.courseIds)
-    return state.submissions.filter(item => item.studentId === profile.userId && enrolledCourseIds.has(item.courseId))
+    return state.submissions.filter(item => item.studentId === profile.userId
+      && enrolledCourseIds.has(item.courseId)
+      && courseFor(state, item.courseId)?.status === 'Published')
   }
   if (profile.role === 'guardian' || profile.role === 'mentor') {
     const linkedLearner = state.users.find(user => user.id === 'student-asha' && user.role === 'Student' && user.status === 'Active')
     if (!linkedLearner || linkedLearner.organization !== currentUser.organization) return []
     const enrolledCourseIds = new Set(linkedLearner.courseIds)
     if (profile.role === 'guardian') {
-      return state.submissions.filter(item => item.studentId === linkedLearner.id && enrolledCourseIds.has(item.courseId))
+      return state.submissions.filter(item => item.studentId === linkedLearner.id
+        && enrolledCourseIds.has(item.courseId)
+        && courseFor(state, item.courseId)?.status === 'Published')
     }
     const assignedCourseIds = new Set(currentUser.courseIds.filter(courseId => enrolledCourseIds.has(courseId)))
-    return state.submissions.filter(item => item.studentId === linkedLearner.id && assignedCourseIds.has(item.courseId))
+    return state.submissions.filter(item => item.studentId === linkedLearner.id
+      && assignedCourseIds.has(item.courseId)
+      && courseFor(state, item.courseId)?.status === 'Published')
   }
   if (['teacher', 'teaching-assistant', 'evaluator'].includes(profile.role)) {
     const assigned = new Set(currentUser.courseIds)
@@ -673,6 +679,7 @@ export function submissionsForProfile(state: DemoState, profile: DemoProfile): D
       const learner = activeLearners.get(item.studentId)
       return !item.examScheduleId
         && assigned.has(item.courseId)
+        && courseFor(state, item.courseId)?.status === 'Published'
         && learner !== undefined
         && learner.courseIds.includes(item.courseId)
     })
@@ -689,13 +696,15 @@ export function submissionsForProfile(state: DemoState, profile: DemoProfile): D
         && learner !== undefined
         && learner.organization === currentUser.organization
         && learner.courseIds.includes(item.courseId)
+        && courseFor(state, item.courseId)?.status === 'Published'
     })
   }
   if (profile.role === 'client') {
     const learners = new Map<string, DemoUser>(state.users
       .filter(user => user.role === 'Student' && user.status === 'Active' && user.organization === currentUser.organization)
       .map(user => [user.id, user] as const))
-    return state.submissions.filter(item => learners.get(item.studentId)?.courseIds.includes(item.courseId) === true)
+    return state.submissions.filter(item => learners.get(item.studentId)?.courseIds.includes(item.courseId) === true
+      && courseFor(state, item.courseId)?.status === 'Published')
   }
   if (profile.role === 'admin') return state.submissions
   return []
@@ -935,7 +944,8 @@ export function attendanceForProfile(state: DemoState, profile: DemoProfile): De
   const enrolledAttendance = (learner: DemoUser, courseIds: Set<string>) =>
     state.attendance.filter(item => item.studentId === learner.id
       && courseIds.has(item.courseId)
-      && learner.courseIds.includes(item.courseId))
+      && learner.courseIds.includes(item.courseId)
+      && courseFor(state, item.courseId)?.status === 'Published')
 
   if (profile.role === 'student') return enrolledAttendance(user, new Set(user.courseIds))
   if (profile.role === 'guardian' || profile.role === 'mentor') {
@@ -951,14 +961,16 @@ export function attendanceForProfile(state: DemoState, profile: DemoProfile): De
       && item.status === 'Active' && item.organization === user.organization)
     const assignedCourses = new Set(user.courseIds)
     return state.attendance.filter(item => assignedCourses.has(item.courseId)
+      && courseFor(state, item.courseId)?.status === 'Published'
       && activeLearners.some(learner => learner.id === item.studentId
         && learner.courseIds.includes(item.courseId)))
   }
   if (profile.role === 'client') {
     const activeLearners = state.users.filter(item => item.role === 'Student'
       && item.status === 'Active' && item.organization === user.organization)
-    return state.attendance.filter(item => activeLearners.some(learner => learner.id === item.studentId
-      && learner.courseIds.includes(item.courseId)))
+    return state.attendance.filter(item => courseFor(state, item.courseId)?.status === 'Published'
+      && activeLearners.some(learner => learner.id === item.studentId
+        && learner.courseIds.includes(item.courseId)))
   }
   return []
 }

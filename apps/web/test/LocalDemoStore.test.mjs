@@ -243,6 +243,46 @@ test('learner and course catalog queries enforce active organization and relatio
   assert.deepEqual(coursesForProfile({ ...state, users: state.users.map(item => item.id === 'student-asha' ? { ...item, status: 'Suspended' } : item) }, profile('student')), [])
 })
 
+test('draft-course records are hidden from learner workflows and cannot be mutated', () => {
+  const state = resetDemoState()
+  const draftLearner = {
+    id: 'student-draft-only',
+    name: 'Uma Singh',
+    email: 'uma.draft@demo.uep',
+    role: 'Student',
+    status: 'Active',
+    organization: 'Northstar Learning Institute',
+    courseIds: ['course-product-draft'],
+  }
+  const draftProfile = { ...profile('student'), userId: draftLearner.id, name: draftLearner.name, email: draftLearner.email }
+  const polluted = {
+    ...state,
+    users: [...state.users, draftLearner],
+    submissions: [...state.submissions, {
+      id: 'submission-draft-course',
+      title: 'Draft course assignment',
+      courseId: 'course-product-draft',
+      studentId: draftLearner.id,
+      dueAt: new Date().toISOString(),
+      status: 'Assigned',
+    }],
+    attendance: [...state.attendance, {
+      id: 'attendance-draft-course',
+      studentId: draftLearner.id,
+      courseId: 'course-product-draft',
+      date: '2026-10-25',
+      status: 'Absent',
+    }],
+  }
+
+  assert.deepEqual(submissionsForProfile(polluted, draftProfile), [])
+  assert.deepEqual(attendanceForProfile(polluted, draftProfile), [])
+  assert.deepEqual(scheduleForProfile(polluted, draftProfile), [])
+  assert.strictEqual(submitDemoAssignment(polluted, 'submission-draft-course', draftProfile), polluted)
+  assert.strictEqual(advanceDemoProgress(polluted, 'course-product-draft', draftProfile), polluted)
+  assert.strictEqual(updateDemoAttendance(polluted, 'attendance-draft-course', 'Present', profile('admin')), polluted)
+})
+
 test('schedule and attendance queries enforce active identity, enrollment and organization scope', () => {
   const state = resetDemoState()
   const polluted = {
