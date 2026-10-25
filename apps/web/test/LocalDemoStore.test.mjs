@@ -142,6 +142,24 @@ test('authorized attendance changes propagate through the shared persisted state
 })
 
 
+test('student, guardian and mentor submission lists exclude non-enrolled course records', () => {
+  const state = resetDemoState()
+  const outOfScope = {
+    ...state.submissions[0],
+    id: 'submission-asha-unenrolled',
+    title: 'Unexpected draft-course submission',
+    courseId: 'course-product-draft',
+    studentId: 'student-asha',
+  }
+  const pollutedState = { ...state, submissions: [...state.submissions, outOfScope] }
+
+  assert.ok(!submissionsForProfile(pollutedState, profile('student')).some(item => item.id === outOfScope.id))
+  assert.ok(!submissionsForProfile(pollutedState, profile('guardian')).some(item => item.id === outOfScope.id))
+  assert.ok(!submissionsForProfile(pollutedState, profile('mentor')).some(item => item.id === outOfScope.id))
+  assert.ok(submissionsForProfile(state, profile('student')).every(item =>
+    state.users.find(user => user.id === 'student-asha')?.courseIds.includes(item.courseId)))
+})
+
 test('submission visibility is restricted to each persona learner/course scope', () => {
   const state = resetDemoState()
   const ids = (role) => submissionsForProfile(state, profile(role)).map((item) => item.id)
