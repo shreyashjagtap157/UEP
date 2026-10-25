@@ -8,6 +8,7 @@ import {
   saveDemoState,
   submissionsForProfile,
   subscribeDemoState,
+  updateDemoSupportCase,
 } from './LocalDemoStore'
 import type { DemoProfile, DemoRole, DemoState } from './LocalDemoStore'
 
@@ -101,6 +102,18 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
     setNotice('Grade saved to shared demo state.')
   }
 
+  function updateSupportCase(caseId: string, status: 'In progress' | 'Resolved') {
+    const fresh = loadDemoState()
+    const next = updateDemoSupportCase(fresh, caseId, status, profile)
+    if (next === fresh) {
+      setNotice('No change was made; this case may be outside the support role’s allowed scope.')
+      return
+    }
+    saveDemoState(next)
+    setState(next)
+    setNotice(`Support case updated: ${caseId} · ${status}.`)
+  }
+
   const summaryItems = summaryFor(profile, state, submissions, schedule, attendance.length, activity.length)
 
   return (
@@ -142,8 +155,8 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
         {section === 'attendance' && <PanelList eyebrow="Assigned class records" title="Attendance register" items={attendance.map(item => ({ title: state.users.find(person => person.id === item.studentId)?.name ?? 'Learner', detail: `${courseFor(state, item.courseId)?.title ?? 'Assigned course'} · ${item.date}`, status: item.status }))} />}
         {section === 'mentee' && <MenteePanel state={state} profile={profile} />}
         {section === 'activity' && <PanelList eyebrow={profile.role === 'auditor' ? 'Compliance' : 'Scoped activity'} title={profile.role === 'auditor' ? 'Audit log' : 'Relevant recorded activity'} items={activity.map(item => ({ title: item.action, detail: `${item.at} · ${item.actor} · ${item.detail}`, status: 'Recorded' }))} />}
-        {section === 'finance' && <FinanceScopePanel />}
-        {section === 'support' && <SupportScopePanel state={state} />}
+        {section === 'finance' && <FinanceScopePanel state={state} />}
+        {section === 'support' && <SupportScopePanel state={state} profile={profile} onStatus={updateSupportCase} />}
         <section className="panel" aria-live="polite"><p className="eyebrow">Walkthrough status</p><p>{notice}</p><small className="muted">Data shown here is seeded browser state. This mode does not call the production API or settle real payments.</small></section>
       </main>
     </div>
@@ -170,11 +183,15 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
     { title: 'Submission records', status: String(submissions.length), detail: 'Records attached to assigned exam courses' },
     { title: 'Open sessions', status: String(schedule.filter(item => item.status === 'Scheduled').length), detail: 'Exams not yet completed or cancelled' },
   ]
-  if (profile.role === 'finance-admin') return [
-    { title: 'Finance ledger', status: 'Not seeded', detail: 'No invoice/payment ledger is present in the local demo store' },
-    { title: 'Settlement actions', status: 'Disabled', detail: 'No payment action is simulated in presentation mode' },
-    { title: 'Tenant context', status: currentUser?.organization ?? 'Unavailable', detail: 'Organization associated with this local persona' },
-  ]
+  if (profile.role === 'finance-admin') {
+    const outstanding = state.invoices.filter(invoice => invoice.status !== 'Paid')
+    const overdue = state.invoices.filter(invoice => invoice.status === 'Overdue')
+    return [
+      { title: 'Outstanding invoices', status: String(outstanding.length), detail: `${outstanding.reduce((sum, invoice) => sum + invoice.amountInr, 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR' })} outstanding in the local ledger` },
+      { title: 'Overdue invoices', status: String(overdue.length), detail: 'Synthetic ledger records requiring finance review' },
+      { title: 'Tenant context', status: currentUser?.organization ?? 'Unavailable', detail: 'Organization associated with this local persona' },
+    ]
+  }
   if (profile.role === 'teaching-assistant') return [
     { title: 'Assigned courses', status: String(currentUser?.courseIds.length ?? 0), detail: 'Course scope for submission triage and attendance' },
     { title: 'Needs grading', status: String(submissions.filter(item => item.status === 'Submitted').length), detail: 'Submitted work in assigned courses' },
@@ -195,9 +212,9 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
     ]
   }
   if (profile.role === 'support') return [
-    { title: 'Active accounts', status: String(state.users.filter(item => item.status === 'Active').length), detail: 'Count only; individual academic records are not exposed' },
-    { title: 'Course catalog', status: String(state.courses.length), detail: 'Platform catalog count' },
-    { title: 'Support tickets', status: 'Not seeded', detail: 'No support ticket records exist in the local demo dataset' },
+    { title: 'Open support cases', status: String(state.supportCases.filter(item => item.status === 'Open').length), detail: 'Cases ready for triage' },
+    { title: 'In progress', status: String(state.supportCases.filter(item => item.status === 'In progress').length), detail: 'Cases currently being handled' },
+    { title: 'Active accounts', status: String(state.users.filter(item => item.status === 'Active').length), detail: 'Aggregate count only; individual academic records are not exposed' },
   ]
   return [
     { title: 'Audit events', status: String(activityCount), detail: 'Events visible to the read-only auditor persona' },
@@ -229,20 +246,38 @@ function MenteePanel({ state, profile }: { state: DemoState; profile: DemoProfil
   return <PanelList eyebrow="Mentorship relationship" title={`${mentee.name} · learning progress`} items={courses} />
 }
 
-function FinanceScopePanel() {
-  return <PanelList eyebrow="Finance boundary" title="Invoices and payments" items={[
-    { title: 'Ledger availability', detail: 'No invoice/payment ledger is seeded in the local presentation dataset.', status: 'Unavailable' },
-    { title: 'Real payments', detail: 'No payment, refund, or settlement action can be invoked from local mode.', status: 'Disabled' },
-    { title: 'Production finance workspace', detail: 'Use the authenticated platform finance API for persisted account and transaction records.', status: 'Production API' },
-  ]} />
+function FinanceScopePanel({ state }: { state: DemoState }) {
+  const invoices = state.invoices
+  const totalOutstanding = invoices.filter(invoice => invoice.status !== 'Paid').reduce((sum, invoice) => sum + invoice.amountInr, 0)
+  return (
+    <section className="panel">
+      <div className="panel-heading"><div><p className="eyebrow">Synthetic finance ledger</p><h3>Invoices and account status</h3></div><span className="count-badge">{invoices.length} invoices</span></div>
+      <p className="muted">Outstanding demo balance: {totalOutstanding.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}. This is presentation data only; no payment, refund, or settlement occurs here.</p>
+      {invoices.length ? <div className="local-module-list">{invoices.map(invoice => {
+        const student = state.users.find(user => user.id === invoice.studentId)
+        return <article className="local-module" key={invoice.id}>
+          <div><strong>{invoice.invoiceNumber} · {student?.name ?? 'Learner'}</strong><p>{invoice.description} · due {new Date(invoice.dueAt).toLocaleDateString()}</p><small className="muted">{invoice.organization}</small></div>
+          <div><strong>{invoice.amountInr.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</strong><span className="chip">{invoice.status}</span></div>
+        </article>
+      })}</div> : <p className="muted">No invoices are seeded.</p>}
+    </section>
+  )
 }
 
-function SupportScopePanel({ state }: { state: DemoState }) {
-  return <PanelList eyebrow="Privacy boundary" title="Support queue" items={[
-    { title: 'Active account count', detail: 'Aggregate only; contact and learning details are not exposed.', status: String(state.users.filter(item => item.status === 'Active').length) },
-    { title: 'Ticket dataset', detail: 'No support ticket records are currently seeded for this local persona.', status: 'No records' },
-    { title: 'Role limit', detail: 'This persona cannot read student submissions, individual progress, or the full audit feed.', status: 'Restricted' },
-  ]} />
+function SupportScopePanel({ state, profile, onStatus }: { state: DemoState; profile: DemoProfile; onStatus: (id: string, status: 'In progress' | 'Resolved') => void }) {
+  const canManage = profile.role === 'support'
+  return (
+    <section className="panel">
+      <div className="panel-heading"><div><p className="eyebrow">Privacy-scoped service desk</p><h3>Support cases</h3></div><span className="count-badge">{state.supportCases.length} cases</span></div>
+      <p className="muted">Cases contain synthetic operational summaries only, not learner submissions or private contact details.</p>
+      {state.supportCases.length ? <div className="local-module-list">{state.supportCases.map(item => (
+        <article className="local-module" key={item.id}>
+          <div><strong>{item.reference} · {item.category}</strong><p>{item.summary}</p><small className="muted">{item.organization} · opened {new Date(item.createdAt).toLocaleDateString()}</small></div>
+          <div><span className="chip">{item.priority} · {item.status}</span>{canManage && item.status === 'Open' && <button type="button" className="text-button" onClick={() => onStatus(item.id, 'In progress')}>Start triage</button>}{canManage && item.status !== 'Resolved' && <button type="button" className="text-button" onClick={() => onStatus(item.id, 'Resolved')}>Resolve case</button>}</div>
+        </article>
+      ))}</div> : <p className="muted">No support cases are available.</p>}
+    </section>
+  )
 }
 
 function PanelList({ eyebrow, title, items }: { eyebrow: string; title: string; items: PanelItem[] }) {
