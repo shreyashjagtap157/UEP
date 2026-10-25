@@ -130,8 +130,18 @@ export interface DemoSupportCase {
   updatedAt: string
 }
 
+export interface DemoMessage {
+  id: string
+  senderId: string
+  recipientIds: string[]
+  subject: string
+  body: string
+  sentAt: string
+  readBy: string[]
+}
+
 export interface DemoState {
-  schemaVersion: 3
+  schemaVersion: 4
   users: DemoUser[]
   courses: DemoCourse[]
   submissions: DemoSubmission[]
@@ -142,12 +152,13 @@ export interface DemoState {
   organizationActions: DemoOrganizationAction[]
   invoices: DemoInvoice[]
   supportCases: DemoSupportCase[]
+  messages: DemoMessage[]
   courseProgress: Record<string, number>
   activity: DemoActivity[]
 }
 
-const STORAGE_KEY = 'uep.local-demo-data.v3'
-const LEGACY_STORAGE_KEYS = ['uep.local-demo-data.v2', 'uep.local-demo-data.v1'] as const
+const STORAGE_KEY = 'uep.local-demo-data.v4'
+const LEGACY_STORAGE_KEYS = ['uep.local-demo-data.v3', 'uep.local-demo-data.v2', 'uep.local-demo-data.v1'] as const
 const STORE_CHANGED_EVENT = 'uep:local-demo-data-updated'
 
 const ROLE_RECORD_NAMES: Record<DemoRole, string> = {
@@ -254,13 +265,19 @@ function seedDemoState(): DemoState {
     { id: 'support-425', reference: 'UEP-425', organization: 'Northstar Learning Institute', category: 'Live learning', summary: 'Video playback buffers during a low-bandwidth session.', priority: 'Medium', status: 'In progress', createdAt: dateAt(-2, 13, 5), updatedAt: dateAt(-1, 15, 10) },
     { id: 'support-431', reference: 'UEP-431', organization: 'Northstar Learning Institute', category: 'Accessibility', summary: 'An attendance table needs a clearer screen-reader label.', priority: 'Low', status: 'Open', createdAt: dateAt(-3, 11, 30), updatedAt: dateAt(-3, 11, 30) },
   ]
+  const messages: DemoMessage[] = [
+    { id: 'message-student-weekly', senderId: 'teacher-rahul', recipientIds: ['student-asha', 'guardian-nina'], subject: 'Weekly learning update', body: 'Asha has made progress across her enrolled courses. Review course progress and latest feedback in the learning workspace.', sentAt: dateAt(-1, 9), readBy: [] },
+    { id: 'message-student-feedback', senderId: 'teacher-rahul', recipientIds: ['student-asha'], subject: 'Feedback on SQL query challenge', body: 'Your SQL query has been graded. Review the result and feedback in your submissions panel.', sentAt: dateAt(-2, 12), readBy: [] },
+    { id: 'message-client-delivery', senderId: 'client-priya', recipientIds: ['teacher-rahul', 'admin-platform'], subject: 'Delivery review reminder', body: 'Please review the current attendance exceptions and note follow-up actions for the academic team.', sentAt: dateAt(-1, 11), readBy: [] },
+    { id: 'message-support-update', senderId: 'support-alex', recipientIds: ['client-priya'], subject: 'Support case update', body: 'The low-bandwidth video playback case is being investigated by support.', sentAt: dateAt(-1, 16), readBy: [] },
+  ]
   const webhooks: DemoWebhook[] = [
     { id: 'webhook-enrollment', name: 'Enrollment events', endpoint: 'https://client.example.test/hooks/enrollment', status: 'Healthy', successfulDeliveries: 142, failedDeliveries: 1 },
     { id: 'webhook-results', name: 'Published results', endpoint: 'https://client.example.test/hooks/results', status: 'Healthy', successfulDeliveries: 86, failedDeliveries: 0 },
     { id: 'webhook-attendance', name: 'Attendance updates', endpoint: 'https://client.example.test/hooks/attendance', status: 'Needs attention', successfulDeliveries: 39, failedDeliveries: 4 },
   ]
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     users,
     courses,
     submissions,
@@ -271,6 +288,7 @@ function seedDemoState(): DemoState {
     organizationActions,
     invoices,
     supportCases,
+    messages,
     courseProgress: {
       'student-asha:course-web': 68, 'student-asha:course-data': 82, 'student-asha:course-cloud': 34,
       'student-ravi:course-web': 54, 'student-ravi:course-data': 61,
@@ -284,11 +302,12 @@ function seedDemoState(): DemoState {
   }
 }
 
-type PersistedDemoState = Omit<DemoState, 'schemaVersion' | 'organizationActions' | 'invoices' | 'supportCases'> & {
-  schemaVersion: 1 | 2 | 3
+type PersistedDemoState = Omit<DemoState, 'schemaVersion' | 'organizationActions' | 'invoices' | 'supportCases' | 'messages'> & {
+  schemaVersion: 1 | 2 | 3 | 4
   organizationActions?: DemoOrganizationAction[]
   invoices?: DemoInvoice[]
   supportCases?: DemoSupportCase[]
+  messages?: DemoMessage[]
 }
 
 export function loadDemoState(): DemoState {
@@ -302,17 +321,17 @@ export function loadDemoState(): DemoState {
       const seed = seedDemoState()
       const state: DemoState = {
         ...parsed,
-        schemaVersion: 3,
-        organizationActions: Array.isArray(parsed.organizationActions)
-          ? parsed.organizationActions
-          : seed.organizationActions,
+        schemaVersion: 4,
+        organizationActions: Array.isArray(parsed.organizationActions) ? parsed.organizationActions : seed.organizationActions,
         invoices: Array.isArray(parsed.invoices) ? parsed.invoices : seed.invoices,
         supportCases: Array.isArray(parsed.supportCases) ? parsed.supportCases : seed.supportCases,
+        messages: Array.isArray(parsed.messages) ? parsed.messages : seed.messages,
       }
-      if (stored.key !== STORAGE_KEY || parsed.schemaVersion !== 3
+      if (stored.key !== STORAGE_KEY || parsed.schemaVersion !== 4
           || !Array.isArray(parsed.organizationActions)
           || !Array.isArray(parsed.invoices)
-          || !Array.isArray(parsed.supportCases)) {
+          || !Array.isArray(parsed.supportCases)
+          || !Array.isArray(parsed.messages)) {
         saveDemoState(state)
       }
       return state
@@ -328,7 +347,7 @@ export function loadDemoState(): DemoState {
 function isPersistedDemoState(value: unknown): value is PersistedDemoState {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Partial<PersistedDemoState>
-  return (candidate.schemaVersion === 1 || candidate.schemaVersion === 2 || candidate.schemaVersion === 3)
+  return (candidate.schemaVersion === 1 || candidate.schemaVersion === 2 || candidate.schemaVersion === 3 || candidate.schemaVersion === 4)
     && Array.isArray(candidate.users)
     && Array.isArray(candidate.courses)
     && Array.isArray(candidate.submissions)
@@ -460,6 +479,23 @@ export function resolveDemoOrganizationAction(state: DemoState, actionId: string
     'Organization action resolved',
     target.title,
   )
+}
+
+export function messagesForProfile(state: DemoState, profile: DemoProfile): DemoMessage[] {
+  if (!activeActor(state, profile)) return []
+  return state.messages.filter(message => message.recipientIds.includes(profile.userId))
+}
+
+export function markDemoMessageRead(state: DemoState, messageId: string, actor: DemoProfile): DemoState {
+  if (!activeActor(state, actor)) return state
+  const target = state.messages.find(message => message.id === messageId
+    && message.recipientIds.includes(actor.userId)
+    && !message.readBy.includes(actor.userId))
+  if (!target) return state
+  const messages = state.messages.map(message => message.id === messageId
+    ? { ...message, readBy: [...message.readBy, actor.userId] }
+    : message)
+  return { ...state, messages }
 }
 
 export function updateDemoSupportCase(state: DemoState, caseId: string, status: DemoSupportCase['status'], actor: DemoProfile): DemoState {
