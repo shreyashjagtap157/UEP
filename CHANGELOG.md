@@ -18,6 +18,8 @@ Hardening milestone covering repeatable load probes, database indexes, connectio
 - tightened staff and client submission, schedule, attendance, learner roster, catalog and invoice queries to active same-organization learners enrolled in each course; unpublished-course academic records are hidden from learner-facing queries and mutation paths; guardian/mentor learner links now enforce the active identity and organization relationship; exam-controller access requires the exact assigned exam session and matching course;
 - blocked exam-linked records from the generic student assignment-submit action and made grading reject cross-organization learners;
 - replaced activity-title-only ownership inference with submission identity checks and conservative resolution of legacy events, preventing duplicate assignment names from crossing learner boundaries;
+- revalidate local demo identities on fresh sign-in and session restore, and revoke open demo sessions when a shared-state account becomes inactive;
+- make the scheduled storage-cleanup poller configurable (enabled by default) and disable it only in its targeted integration test to prevent scheduler races from affecting deterministic worker assertions;
 - corrected the pending notification-outbox index to use columns actually present in the schema;
 - added forward-only V026/V027 migrations for the live-class batch scope and schedule recurrence column type expected by JPA;
 - removed the API-credential authorization package cycle through a narrow security-owned authorization port;
