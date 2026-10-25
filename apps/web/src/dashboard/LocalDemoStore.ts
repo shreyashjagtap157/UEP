@@ -604,9 +604,9 @@ export function submissionsForProfile(state: DemoState, profile: DemoProfile): D
   }
   if (['teacher', 'teaching-assistant', 'evaluator'].includes(profile.role)) {
     const assigned = new Set(currentUser.courseIds)
-    const activeLearners = new Map(state.users
+    const activeLearners = new Map<string, DemoUser>(state.users
       .filter(user => user.role === 'Student' && user.status === 'Active' && user.organization === currentUser.organization)
-      .map(user => [user.id, user]))
+      .map(user => [user.id, user] as const))
     return state.submissions.filter(item => {
       const learner = activeLearners.get(item.studentId)
       return !item.examScheduleId
@@ -616,9 +616,9 @@ export function submissionsForProfile(state: DemoState, profile: DemoProfile): D
     })
   }
   if (profile.role === 'exam-controller') {
-    const assignedExamSessions = new Map(state.schedule
+    const assignedExamSessions = new Map<string, DemoScheduleItem>(state.schedule
       .filter(item => item.kind === 'Exam' && item.participantIds.includes(profile.userId))
-      .map(item => [item.id, item]))
+      .map(item => [item.id, item] as const))
     return state.submissions.filter(item => {
       const session = item.examScheduleId ? assignedExamSessions.get(item.examScheduleId) : undefined
       const learner = state.users.find(user => user.id === item.studentId && user.role === 'Student' && user.status === 'Active')
@@ -630,9 +630,9 @@ export function submissionsForProfile(state: DemoState, profile: DemoProfile): D
     })
   }
   if (profile.role === 'client') {
-    const learners = new Map(state.users
+    const learners = new Map<string, DemoUser>(state.users
       .filter(user => user.role === 'Student' && user.status === 'Active' && user.organization === currentUser.organization)
-      .map(user => [user.id, user]))
+      .map(user => [user.id, user] as const))
     return state.submissions.filter(item => learners.get(item.studentId)?.courseIds.includes(item.courseId) === true)
   }
   if (profile.role === 'admin') return state.submissions
