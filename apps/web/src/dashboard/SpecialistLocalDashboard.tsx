@@ -298,9 +298,14 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
           <div className="content-stack">
             <section className="hero-card"><p className="eyebrow">{profile.label}</p><h3>{summaryTitle(profile.role)}</h3><p>{profile.description} This workspace is restricted to the current persona's assigned records and actions.</p></section>
             <section className="metric-grid" aria-label="Role-scoped metrics">{summaryItems.map(item => <article className="metric" key={item.title}><span>{item.title}</span><strong>{item.status}</strong><small>{item.detail}</small></article>)}</section>
-            {profile.role === 'teaching-assistant' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} />}
-            {profile.role === 'evaluator' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} />}
-            {profile.role === 'mentor' && <MenteePanel state={state} profile={profile} />}
+            {profile.role === 'student' && <><LearningPanel state={state} profile={profile} onProgress={advanceProgress} /><SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} /></>}
+            {profile.role === 'teacher' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} />}
+            {profile.role === 'client' && <OrganizationPanel state={state} profile={profile} onResolve={resolveOrganizationAction} />}
+            {profile.role === 'developer' && <IntegrationsPanel state={state} profile={profile} />}
+            {profile.role === 'admin' && <OperationsPanel state={state} profile={profile} onResolve={resolveOrganizationAction} onSupportStatus={updateSupportCase} />}
+            {profile.role === 'teaching-assistant' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} />}
+            {profile.role === 'evaluator' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} />}
+            {(profile.role === 'mentor' || profile.role === 'guardian') && <MenteePanel state={state} profile={profile} />}
             {profile.role === 'auditor' && <PanelList eyebrow="Read-only" title="Audit coverage" items={[{ title: 'Recorded events', detail: 'Synthetic local event history; no mutations are available from this workspace.', status: String(activity.length) }, { title: 'Academic records', detail: 'Audit access is read-only.', status: 'Read-only' }]} />}
           </div>
         )}
@@ -329,6 +334,12 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
 
 function summaryTitle(role: DemoRole) {
   switch (role) {
+    case 'student': return 'Student learning workspace'
+    case 'teacher': return 'Teaching and assessment workspace'
+    case 'client': return 'Institution overview'
+    case 'developer': return 'Product and integration control room'
+    case 'admin': return 'Platform administration'
+    case 'guardian': return 'Linked learner overview'
     case 'exam-controller': return 'Examination operations'
     case 'finance-admin': return 'Finance and account context'
     case 'teaching-assistant': return 'Assigned teaching support'
@@ -429,7 +440,7 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
 }
 
 function SubmissionPanel({ state, profile, submissions, onGrade, onSubmit }: { state: DemoState; profile: DemoProfile; submissions: ReturnType<typeof submissionsForProfile>; onGrade: (id: string) => void; onSubmit: (id: string) => void }) {
-  const canGrade = profile.role === 'teaching-assistant' || profile.role === 'evaluator'
+  const canGrade = profile.role === 'teacher' || profile.role === 'teaching-assistant' || profile.role === 'evaluator'
   const canSubmit = profile.role === 'student'
   return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Assigned learning evidence</p><h3>{profile.role === 'exam-controller' ? 'Exam-linked records' : profile.role === 'mentor' ? 'Mentee submissions' : 'Submission queue'}</h3></div><span className="count-badge">{submissions.length}</span></div>
     {submissions.length ? <div className="local-module-list">{submissions.map(item => {
