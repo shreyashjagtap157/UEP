@@ -377,6 +377,17 @@ for role in ['exam-controller', 'finance-admin', 'teaching-assistant', 'evaluato
 if 'local demo sign-in exposes all thirteen personas' not in text('apps/web/test/LocalDemoStore.test.mjs'):
     errors.append('missing regression test proving all thirteen local demo personas are reachable')
 
+# Exam-controller access must be tied to an explicitly linked exam session, not merely its course.
+local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
+if 'examScheduleId?: string' not in local_demo_store:
+    errors.append('exam submissions must have an explicit exam session link')
+if "item.examScheduleId !== undefined && assignedExamIds.has(item.examScheduleId)" not in local_demo_store:
+    errors.append('exam-controller submission queries must require an assigned exam-session link')
+if "!item.examScheduleId && assigned.has(item.courseId)" not in local_demo_store:
+    errors.append('ordinary staff grading must not include dedicated exam records')
+if "examRows.every((item) => item.courseId === 'course-data' && item.examScheduleId === 'schedule-sql-exam')" not in text('apps/web/test/LocalDemoStore.test.mjs'):
+    errors.append('missing regression test for strict exam-session submission scope')
+
 # Specialist local personas must have real seeded finance/support records and safe schema migration.
 local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
 local_specialist = text('apps/web/src/dashboard/SpecialistLocalDashboard.tsx')
