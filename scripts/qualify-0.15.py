@@ -390,6 +390,14 @@ if "item.studentId === linkedLearner.id && enrolledCourseIds.has(item.courseId)"
     errors.append('guardian submissions must be restricted to the linked learner enrollment')
 if 'student, guardian and mentor submission lists exclude non-enrolled course records' not in local_demo_tests:
     errors.append('missing regression test for student/guardian enrollment-scoped submissions')
+if "item.status === 'Assigned' && !item.examScheduleId" not in local_demo_store:
+    errors.append('generic student assignment submission must not mutate dedicated exam records')
+if 'learner.organization !== user.organization' not in local_demo_store:
+    errors.append('grading and attendance mutations must enforce the active instructor organization')
+if 'item.submissionId !== undefined' not in local_demo_store or 'legacySubmissionMatches' not in local_demo_store:
+    errors.append('activity timelines must use record identity instead of duplicate display titles')
+if 'activity timelines bind repeated assignment titles to learner and submission identity' not in local_demo_tests:
+    errors.append('missing duplicate-title activity isolation regression test')
 
 # Exam-controller access must be tied to an explicitly linked exam session, not merely its course.
 local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
