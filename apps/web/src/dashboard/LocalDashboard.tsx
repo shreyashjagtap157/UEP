@@ -236,7 +236,8 @@ function Analytics({ role, accountName }: { role: LocalRole; accountName: string
     return <PanelList eyebrow="Analytics" title="Calculated teaching metrics" items={[{ title: 'Learner completion', detail: `${s.averageCompletion}% average across assigned roster`, status: 'Current' }, { title: 'Attendance', detail: `${s.averageAttendance}% average across assigned roster`, status: 'Current' }, { title: 'Learner risk', detail: `${s.atRiskLearners} learners currently at risk`, status: 'Attention' }]} />
   }
   if (role === 'client') {
-    const org = localDemoData.organizations.find(item => item.name === accountName) ?? localDemoData.organizations[0]
+    const org = localDemoData.organizations.find(item => item.name === accountName)
+    if (!org) return <PanelList eyebrow="Analytics" title="Organization scope unavailable" items={[]} />
     const s = organizationMetrics(org.name)
     return <PanelList eyebrow="Analytics" title="Calculated organization metrics" items={[{ title: 'Program completion', detail: `${s.completion}% average across ${s.learners} learner records`, status: 'Current' }, { title: 'Learner population', detail: `${s.activeLearners} active learners across ${s.courses} scoped courses`, status: 'Current' }, { title: 'Open actions', detail: `${org.actions} actions requiring follow-up`, status: org.actions ? 'Attention' : 'Clear' }]} />
   }
