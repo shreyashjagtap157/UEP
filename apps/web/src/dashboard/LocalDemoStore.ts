@@ -721,54 +721,45 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
   }
 
   const submissions = submissionsForProfile(state, profile)
+  const visibleAttendanceIds = new Set(attendanceForProfile(state, profile).map(item => item.id))
   const scopedOrganizationActionTitles = profile.role === 'client'
     ? state.organizationActions.filter(item => item.organization === actor.organization).map(item => item.title.toLocaleLowerCase())
     : []
   let scopedCourseIds = new Set(actor.courseIds)
-  let scopedLearnerIds = new Set<string>()
 
-  if (profile.role === 'student') {
-    scopedLearnerIds = new Set([profile.userId])
-  } else if (profile.role === 'guardian' || profile.role === 'mentor') {
-    scopedLearnerIds = new Set(['student-asha'])
-    const linked = state.users.find(item => item.id === 'student-asha')
-    if (profile.role === 'guardian') scopedCourseIds = new Set(linked?.courseIds ?? [])
+  if (profile.role === 'guardian' || profile.role === 'mentor') {
+    const linked = linkedLearnerForProfile(state, profile)
+    scopedCourseIds = new Set((linked?.courseIds ?? []).filter(courseId =>
+      profile.role === 'guardian' || actor.courseIds.includes(courseId)))
   } else if (profile.role === 'client') {
-    const learners = state.users.filter(item => item.role === 'Student'
-      && item.status === 'Active' && item.organization === actor.organization)
-    scopedLearnerIds = new Set(learners.map(item => item.id))
-    scopedCourseIds = new Set(learners.flatMap(item => item.courseIds))
+    scopedCourseIds = new Set(learnersForProfile(state, profile).flatMap(learner => learner.courseIds))
   } else if (profile.role === 'exam-controller') {
     scopedCourseIds = new Set(state.schedule
       .filter(item => item.kind === 'Exam' && item.participantIds.includes(profile.userId))
       .map(item => item.courseId))
   }
 
-  const scopedCourseTitles = state.courses
-    .filter(item => scopedCourseIds.has(item.id))
-    .map(item => item.title.toLocaleLowerCase())
-  const scopedLearnerNames = state.users
-    .filter(item => scopedLearnerIds.has(item.id))
-    .map(item => item.name.toLocaleLowerCase())
-  const clientCourseIds = new Set(state.users
-    .filter(item => profile.role === 'client' && item.role === 'Student'
-      && item.status === 'Active' && item.organization === actor.organization)
-    .flatMap(item => item.courseIds))
+  const clientCourseIds = new Set(profile.role === 'client'
+    ? learnersForProfile(state, profile).flatMap(learner => learner.courseIds)
+    : [])
   const assignedExamSessions = state.schedule.filter(item => item.kind === 'Exam'
     && item.participantIds.includes(profile.userId))
 
   const legacySubmissionMatches = (item: DemoActivity): boolean => {
     const action = item.action.toLocaleLowerCase()
     if (action.includes('assignment submitted')) {
-      const learner = state.users.find(user => user.role === 'Student'
+      const matchingLearners = state.users.filter(user => user.role === 'Student'
         && user.status === 'Active'
         && user.name.toLocaleLowerCase() === item.actor.toLocaleLowerCase())
+      if (matchingLearners.length !== 1) return false
+      const learner = matchingLearners[0]
       if (!learner) return false
       const title = item.detail.trim().toLocaleLowerCase()
-      return state.submissions.some(submission => submission.studentId === learner.id
+      const candidates = state.submissions.filter(submission => submission.studentId === learner.id
         && submission.title.toLocaleLowerCase() === title
-        && submission.status !== 'Assigned'
-        && submissions.some(visible => visible.id === submission.id))
+        && submission.status !== 'Assigned')
+      return candidates.length === 1
+        && submissions.some(visible => visible.id === candidates[0]?.id)
     }
     if (action.includes('grade published')) {
       const match = item.detail.match(/^(.+?)\s+·\s+(\d+(?:\.\d+)?)\/100(?:\s+for\s+(.+))?$/i)
@@ -789,6 +780,50 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
       return candidates.length === 1 && candidate !== undefined
         && submissions.some(visible => visible.id === candidate.id)
     }
+    return false
+  }
+
+  const legacyAttendanceMatches = (item: DemoActivity): boolean => {
+    const match = item.detail.match(/^(.+?)\s+·\s+(.+?)\s+·\s+(Present|Late|Absent)\s+\((\d{4}-\d{2}-\d{2})\)$/i)
+    if (!match) return false
+    const learnerName = match[1].trim().toLocaleLowerCase()
+    const courseTitle = match[2].trim().toLocaleLowerCase()
+    const status = match[3].toLocaleLowerCase()
+    const date = match[4]
+    const candidates = state.attendance.filter(record => record.date === date
+      && record.status.toLocaleLowerCase() === status
+      && state.users.some(user => user.id === record.studentId
+        && user.role === 'Student'
+        && user.name.toLocaleLowerCase() === learnerName)
+      && courseFor(state, record.courseId)?.title.toLocaleLowerCase() === courseTitle)
+    return candidates.length === 1 && candidates[0] !== undefined
+      && visibleAttendanceIds.has(candidates[0].id)
+  }
+
+  const legacyProgressMatches = (item: DemoActivity): boolean => {
+    const action = item.action.toLocaleLowerCase()
+    if (!action.includes('learning progress')) return false
+    const match = item.detail.match(/^(.+?)\s+·\s+(\d+(?:\.\d+)?)%\s+complete$/i)
+    if (!match?.[1] || !match[2]) return false
+    const courseTitle = match[1].trim().toLocaleLowerCase()
+    const matchingLearners = state.users.filter(user => user.role === 'Student'
+      && user.status === 'Active'
+      && user.name.toLocaleLowerCase() === item.actor.toLocaleLowerCase())
+    if (matchingLearners.length !== 1) return false
+    const learner = matchingLearners[0]
+    if (!learner) return false
+    const matchingCourses = state.courses.filter(course => course.title.toLocaleLowerCase() === courseTitle
+      && scopedCourseIds.has(course.id)
+      && learner.courseIds.includes(course.id))
+    if (matchingCourses.length !== 1) return false
+    const course = matchingCourses[0]
+    if (!course) return false
+    if (profile.role === 'student') return learner.id === profile.userId
+    if (profile.role === 'guardian' || profile.role === 'mentor') {
+      const linked = linkedLearnerForProfile(state, profile)
+      return learner.id === linked?.id && learner.organization === actor.organization
+    }
+    if (profile.role === 'client') return learner.organization === actor.organization
     return false
   }
 
@@ -835,30 +870,8 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
     }
 
     if (legacySubmissionMatches(item)) return true
-
-    // Legacy attendance entries must include a scoped course; learner-facing views also
-    // require the learner identity in the detail because historical events lack record IDs.
-    if (action.includes('attendance')) {
-      const courseMatches = scopedCourseTitles.some(title => detail.includes(title))
-      const learnerMatches = ['student', 'guardian', 'mentor', 'client'].includes(profile.role)
-        ? scopedLearnerNames.some(name => detail.includes(name))
-        : true
-      return courseMatches && learnerMatches
-    }
-
-    if (action.includes('learning progress')) {
-      const learner = state.users.find(user => user.role === 'Student' && user.status === 'Active'
-        && user.name.toLocaleLowerCase() === item.actor.toLocaleLowerCase())
-      const courseMatches = scopedCourseTitles.some(title => detail.includes(title))
-      if (!learner || !courseMatches || !learner.courseIds.some(courseId => scopedCourseIds.has(courseId))) return false
-      if (profile.role === 'student') return learner.id === profile.userId
-      if (profile.role === 'guardian') return learner.id === 'student-asha' && learner.organization === actor.organization
-      if (profile.role === 'mentor') return learner.id === 'student-asha'
-        && learner.organization === actor.organization
-        && learner.courseIds.some(courseId => actor.courseIds.includes(courseId) && scopedCourseIds.has(courseId))
-      if (profile.role === 'client') return learner.organization === actor.organization
-      return false
-    }
+    if (action.includes('attendance')) return legacyAttendanceMatches(item)
+    if (legacyProgressMatches(item)) return true
 
     // Do not leak unattributed events when their relationship cannot be established.
     return false

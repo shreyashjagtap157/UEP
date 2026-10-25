@@ -413,6 +413,13 @@ if 'item.submissionId !== undefined' not in local_demo_store or 'legacySubmissio
     errors.append('activity timelines must use record identity instead of duplicate display titles')
 if 'activity timelines bind repeated assignment titles to learner and submission identity' not in local_demo_tests:
     errors.append('missing duplicate-title activity isolation regression test')
+if 'const legacyAttendanceMatches = (item: DemoActivity): boolean =>' not in local_demo_store:
+    errors.append('legacy attendance events must be resolved through unique attendance records')
+if 'const legacyProgressMatches = (item: DemoActivity): boolean =>' not in local_demo_store:
+    errors.append('legacy progress events must be resolved through unique learner/course records')
+for test_name in ['legacy attendance activity hides ambiguous duplicate learner and course titles', 'legacy learning-progress activity requires a unique learner and scoped course match']:
+    if test_name not in local_demo_tests:
+        errors.append(f'missing legacy activity ambiguity regression: {test_name}')
 
 # Exam-controller access must be tied to an explicitly linked exam session, not merely its course.
 local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')

@@ -513,6 +513,62 @@ test('activity feeds do not expose global details to unrelated personas', () => 
   assert.equal(events('auditor').length, state.activity.length)
 })
 
+test('legacy attendance activity hides ambiguous duplicate learner and course titles', () => {
+  const state = resetDemoState()
+  const legacyEvent = {
+    id: 'legacy-cross-org-attendance',
+    at: new Date().toISOString(),
+    actor: 'Rahul Deshmukh',
+    action: 'Attendance recorded',
+    detail: 'Ravi Nair · Full Stack Web Development · Absent (2026-10-24)',
+  }
+  const polluted = {
+    ...state,
+    users: [
+      ...state.users,
+      { id: 'student-ravi-other-org', name: 'Ravi Nair', email: 'ravi.other@demo.uep', role: 'Student', status: 'Active', organization: 'East Valley Academy', courseIds: ['course-web-other-org'] },
+    ],
+    courses: [
+      ...state.courses,
+      { ...state.courses.find(item => item.id === 'course-web'), id: 'course-web-other-org', teacherId: 'teacher-other-org' },
+    ],
+    attendance: [
+      ...state.attendance,
+      { id: 'attendance-other-org', studentId: 'student-ravi-other-org', courseId: 'course-web-other-org', date: '2026-10-24', status: 'Absent' },
+    ],
+    activity: [legacyEvent, ...state.activity],
+  }
+
+  assert.ok(!activityForProfile(polluted, profile('teacher')).some(item => item.id === legacyEvent.id),
+    'ambiguous legacy attendance must be hidden from staff when names/course titles collide')
+  assert.ok(!activityForProfile(polluted, profile('client')).some(item => item.id === legacyEvent.id))
+})
+
+test('legacy learning-progress activity requires a unique learner and scoped course match', () => {
+  const state = resetDemoState()
+  const event = {
+    id: 'legacy-ambiguous-progress',
+    at: new Date().toISOString(),
+    actor: 'Asha Sharma',
+    action: 'Learning progress updated',
+    detail: 'Full Stack Web Development · 30% complete',
+  }
+  const polluted = {
+    ...state,
+    courses: [
+      ...state.courses,
+      { ...state.courses.find(item => item.id === 'course-web'), id: 'course-web-duplicate-title', teacherId: 'teacher-other-org' },
+    ],
+    users: [
+      ...state.users,
+      { id: 'student-asha-duplicate-name', name: 'Asha Sharma', email: 'asha.other@demo.uep', role: 'Student', status: 'Active', organization: 'East Valley Academy', courseIds: ['course-web-duplicate-title'] },
+    ],
+    activity: [event, ...state.activity],
+  }
+  assert.ok(!activityForProfile(polluted, profile('student')).some(item => item.id === event.id))
+  assert.ok(!activityForProfile(polluted, profile('guardian')).some(item => item.id === event.id))
+})
+
 test('activity timelines bind repeated assignment titles to learner and submission identity', () => {
   const state = resetDemoState()
   const polluted = {
