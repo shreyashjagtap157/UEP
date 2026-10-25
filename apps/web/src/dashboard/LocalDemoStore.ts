@@ -731,7 +731,10 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
     const productIds = new Set(state.products.map(item => item.id))
     const legacyProductActivityMatches = (item: DemoActivity): boolean => {
       const title = item.detail.trim().toLocaleLowerCase()
-      const candidates = state.products.filter(product => product.title.trim().toLocaleLowerCase() === title)
+      const candidates = state.products.filter(product => {
+        const productTitle = product.title.trim().toLocaleLowerCase()
+        return productTitle === title || title === productTitle + ' draft'
+      })
       return candidates.length === 1 && candidates[0] !== undefined
     }
     return state.activity.filter(item => item.action.toLocaleLowerCase().includes('product')
