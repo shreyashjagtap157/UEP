@@ -33,7 +33,6 @@ import {
   createRole,
   fetchBranches,
   fetchCurrentIdentity,
-  fetchLocalCurrentIdentity,
   fetchMembers,
   fetchMySessions,
   fetchOrganizationSettings,
@@ -65,7 +64,7 @@ export function App() {
   const [signInPending, setSignInPending] = useState(false)
   const [signInError, setSignInError] = useState<string | null>(null)
   const queryClient = useQueryClient()
-  const identity = useQuery({ queryKey: ['me'], queryFn: localMode ? fetchLocalCurrentIdentity : fetchCurrentIdentity, enabled: oidcAuthenticated })
+  const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: oidcAuthenticated && !localMode })
   const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated && !localMode })
 
   useEffect(() => onOidcStatus(setOidcAuthenticated), [])
@@ -168,7 +167,7 @@ export function App() {
           <h1 className="product-title">Operations Platform</h1>
         </div>
         <nav aria-label="Primary navigation" className="nav-list">
-          {nav.filter(item => item.visible && (!localMode || item.id === 'overview')).map(item => (
+          {nav.filter(item => item.visible).map(item => (
             <button key={item.id} className={section === item.id ? 'nav-item active' : 'nav-item'} onClick={() => setSection(item.id)}>
               {item.label}
             </button>
@@ -235,12 +234,7 @@ function Overview({ me }: { me: CurrentIdentity }) {
           {me.roles.length ? me.roles.map(role => <span className="chip" key={role}>{role}</span>) : <span className="muted">No roles assigned.</span>}
         </div>
       </section>
-      {localMode ? (
-        <section className="panel">
-          <div className="panel-heading"><div><p className="eyebrow">Offline preview</p><h3>Learning workspace</h3></div></div>
-          <p className="muted">Backend-backed course and enrollment data is disabled in local mode.</p>
-        </section>
-      ) : <AcademicOverview me={me} />}
+      <AcademicOverview me={me} />
     </div>
   )
 }
