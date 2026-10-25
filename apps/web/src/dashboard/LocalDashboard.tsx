@@ -13,13 +13,13 @@ import {
   teacherStats,
 } from './localDemoData'
 import type { LocalRole } from './localDemoData'
-import type { LocalAccount } from './LocalExperience'
+import type { CoreLocalAccount } from './localDemoAccounts'
 
 type LocalSection = string
 type Stat = { label: string; value: string; note: string }
 type QuickAction = [id: string, label: string]
 
-export function LocalDashboard({ account, onSignOut }: { account: LocalAccount; onSignOut: () => void }) {
+export function LocalDashboard({ account, onSignOut }: { account: CoreLocalAccount; onSignOut: () => void }) {
   const [section, setSection] = useState<LocalSection>('today')
   const [notice, setNotice] = useState('Ready for the walkthrough.')
   const role = account.role
