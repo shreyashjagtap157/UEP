@@ -6,6 +6,7 @@ import {
   courseFor,
   createDemoProduct,
   gradeDemoSubmission,
+  gradeDemoExamSubmission,
   invoicesForFinanceProfile,
   attendanceForProfile,
   coursesForProfile,
@@ -23,6 +24,7 @@ import {
   setDemoUserStatus,
   submissionsForProfile,
   submitDemoAssignment,
+  submitDemoExam,
   subscribeDemoState,
   updateDemoAttendance,
   updateDemoSupportCase,
@@ -190,6 +192,17 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
     changeState(submitDemoAssignment(fresh, submissionId, profile), 'Assignment submitted and saved.', fresh)
   }
 
+  function submitExamAttempt(submissionId: string) {
+    const fresh = loadDemoState()
+    changeState(submitDemoExam(fresh, submissionId, profile), 'Exam attempt submitted and saved.', fresh)
+  }
+
+  function gradeExamAttempt(submissionId: string) {
+    const fresh = loadDemoState()
+    changeState(gradeDemoExamSubmission(fresh, submissionId, 80, 'Reviewed in the assigned local exam session.', profile),
+      'Exam result published to the shared state.', fresh)
+  }
+
   function advanceProgress(courseId: string) {
     const fresh = loadDemoState()
     changeState(advanceDemoProgress(fresh, courseId, profile), 'Learning progress updated and saved.', fresh)
@@ -267,20 +280,20 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
           <div className="content-stack">
             <section className="hero-card"><p className="eyebrow">{profile.label}</p><h3>{summaryTitle(profile.role)}</h3><p>{profile.description} This workspace is restricted to the current persona's assigned records and actions.</p></section>
             <section className="metric-grid" aria-label="Role-scoped metrics">{summaryItems.map(item => <article className="metric" key={item.title}><span>{item.title}</span><strong>{item.status}</strong><small>{item.detail}</small></article>)}</section>
-            {profile.role === 'student' && <><LearningPanel state={state} profile={profile} onProgress={advanceProgress} /><SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} /></>}
-            {profile.role === 'teacher' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} />}
+            {profile.role === 'student' && <><LearningPanel state={state} profile={profile} onProgress={advanceProgress} /><SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} onGradeExam={gradeExamAttempt} onSubmitExam={submitExamAttempt} /></>}
+            {profile.role === 'teacher' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} onGradeExam={gradeExamAttempt} onSubmitExam={submitExamAttempt} />}
             {profile.role === 'client' && <OrganizationPanel state={state} profile={profile} onResolve={resolveOrganizationAction} />}
             {profile.role === 'developer' && <IntegrationsPanel state={state} profile={profile} />}
             {profile.role === 'admin' && <OperationsPanel state={state} profile={profile} onResolve={resolveOrganizationAction} onSupportStatus={updateSupportCase} />}
-            {profile.role === 'teaching-assistant' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} />}
-            {profile.role === 'evaluator' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} />}
+            {profile.role === 'teaching-assistant' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} onGradeExam={gradeExamAttempt} onSubmitExam={submitExamAttempt} />}
+            {profile.role === 'evaluator' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} onGradeExam={gradeExamAttempt} onSubmitExam={submitExamAttempt} />}
             {(profile.role === 'mentor' || profile.role === 'guardian') && <MenteePanel state={state} profile={profile} />}
             {profile.role === 'auditor' && <PanelList eyebrow="Read-only" title="Audit coverage" items={[{ title: 'Recorded events', detail: 'Synthetic local event history; no mutations are available from this workspace.', status: String(activity.length) }, { title: 'Academic records', detail: 'Audit access is read-only.', status: 'Read-only' }]} />}
           </div>
         )}
         {section === 'learning' && <LearningPanel state={state} profile={profile} onProgress={advanceProgress} />}
         {section === 'schedule' && <PanelList eyebrow="Assigned schedule" title={profile.role === 'exam-controller' ? 'Examination sessions' : 'Assigned classes'} items={schedule.map(item => ({ title: item.title, detail: `${courseFor(state, item.courseId)?.title ?? 'Assigned course'} · ${new Date(item.startsAt).toLocaleString()} · ${item.durationMinutes} min`, status: `${item.kind} · ${item.status}` }))} />}
-        {section === 'submissions' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} />}
+        {section === 'submissions' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} onGradeExam={gradeExamAttempt} onSubmitExam={submitExamAttempt} />}
         {section === 'results' && <PanelList eyebrow="Academic results" title="Graded submissions" items={submissions.filter(item => item.status === 'Graded').map(item => ({ title: item.title, detail: `${courseFor(state, item.courseId)?.title ?? 'Assigned course'} · ${state.users.find(person => person.id === item.studentId)?.name ?? 'Learner'}${item.feedback ? ' · ' + item.feedback : ''}`, status: typeof item.score === 'number' ? `${item.score}/100` : 'Graded' }))} />}
         {section === 'people' && <PeoplePanel state={state} profile={profile} onUserStatus={changeUserStatus} />}
         {section === 'organization' && <OrganizationPanel state={state} profile={profile} onResolve={resolveOrganizationAction} />}
@@ -408,14 +421,16 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
   ]
 }
 
-function SubmissionPanel({ state, profile, submissions, onGrade, onSubmit }: { state: DemoState; profile: DemoProfile; submissions: ReturnType<typeof submissionsForProfile>; onGrade: (id: string) => void; onSubmit: (id: string) => void }) {
+function SubmissionPanel({ state, profile, submissions, onGrade, onSubmit, onGradeExam, onSubmitExam }: { state: DemoState; profile: DemoProfile; submissions: ReturnType<typeof submissionsForProfile>; onGrade: (id: string) => void; onSubmit: (id: string) => void; onGradeExam: (id: string) => void; onSubmitExam: (id: string) => void }) {
   const canGrade = profile.role === 'teacher' || profile.role === 'teaching-assistant' || profile.role === 'evaluator'
+  const canGradeExam = profile.role === 'exam-controller'
   const canSubmit = profile.role === 'student'
+  const canSubmitExam = profile.role === 'student'
   return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Assigned learning evidence</p><h3>{profile.role === 'exam-controller' ? 'Exam-linked records' : profile.role === 'mentor' ? 'Mentee submissions' : 'Submission queue'}</h3></div><span className="count-badge">{submissions.length}</span></div>
     {submissions.length ? <div className="local-module-list">{submissions.map(item => {
       const student = state.users.find(person => person.id === item.studentId)
       const course = courseFor(state, item.courseId)
-      return <article className="local-module" key={item.id}><div><strong>{item.title}</strong><p>{item.examScheduleId ? state.schedule.find(session => session.id === item.examScheduleId)?.title ?? 'Assigned examination' : course?.title ?? 'Assigned course'} · {student?.name ?? 'Learner'} · due {new Date(item.dueAt).toLocaleDateString()}</p>{item.feedback && <small className="muted">Feedback: {item.feedback}</small>}</div><div><span className="chip">{item.status === 'Graded' ? `${item.score}/100` : item.status}</span>{canGrade && item.status === 'Submitted' && <button type="button" className="text-button" onClick={() => onGrade(item.id)}>Grade {profile.role === 'evaluator' ? '90%' : '85%'}</button>}{canSubmit && item.status === 'Assigned' && <button type="button" className="text-button" onClick={() => onSubmit(item.id)}>Submit work</button>}</div></article>
+      return <article className="local-module" key={item.id}><div><strong>{item.title}</strong><p>{item.examScheduleId ? state.schedule.find(session => session.id === item.examScheduleId)?.title ?? 'Assigned examination' : course?.title ?? 'Assigned course'} · {student?.name ?? 'Learner'} · due {new Date(item.dueAt).toLocaleDateString()}</p>{item.feedback && <small className="muted">Feedback: {item.feedback}</small>}</div><div><span className="chip">{item.status === 'Graded' ? `${item.score}/100` : item.status}</span>{canGrade && !item.examScheduleId && item.status === 'Submitted' && <button type="button" className="text-button" onClick={() => onGrade(item.id)}>Grade {profile.role === 'evaluator' ? '90%' : '85%'}</button>}{canGradeExam && item.examScheduleId && item.status === 'Submitted' && <button type="button" className="text-button" onClick={() => onGradeExam(item.id)}>Publish exam result (80%)</button>}{canSubmit && !item.examScheduleId && item.status === 'Assigned' && <button type="button" className="text-button" onClick={() => onSubmit(item.id)}>Submit work</button>}{canSubmitExam && item.examScheduleId && item.status === 'Assigned' && <button type="button" className="text-button" onClick={() => onSubmitExam(item.id)}>Submit exam attempt</button>}</div></article>
     })}</div> : <p className="muted">No submissions are assigned to this persona.</p>}
   </section>
 }

@@ -15,6 +15,7 @@ import {
   resolveDemoOrganizationAction,
   submissionsForProfile,
   gradeDemoSubmission,
+  gradeDemoExamSubmission,
   invoicesForFinanceProfile,
   loadDemoState,
   markDemoMessageRead,
@@ -23,6 +24,7 @@ import {
   saveDemoState,
   setDemoUserStatus,
   submitDemoAssignment,
+  submitDemoExam,
   subscribeDemoState,
   updateDemoAttendance,
   updateDemoSupportCase,
@@ -314,6 +316,46 @@ test('draft-course records are hidden from learner workflows and cannot be mutat
   assert.strictEqual(submitDemoAssignment(polluted, 'submission-draft-course', draftProfile), polluted)
   assert.strictEqual(advanceDemoProgress(polluted, 'course-product-draft', draftProfile), polluted)
   assert.strictEqual(updateDemoAttendance(polluted, 'attendance-draft-course', 'Present', profile('admin')), polluted)
+})
+
+test('exam attempts and results use the exact assigned exam session', () => {
+  const state = resetDemoState()
+  const student = profile('student')
+  const controller = profile('exam-controller')
+
+  assert.strictEqual(submitDemoAssignment(state, 'submission-exam-asha', student), state,
+    'exam attempts must not pass through the generic assignment submit path')
+
+  const mismatchedSession = {
+    ...state,
+    schedule: state.schedule.map(item => item.id === 'schedule-sql-exam' ? { ...item, courseId: 'course-web' } : item),
+  }
+  assert.strictEqual(submitDemoExam(mismatchedSession, 'submission-exam-asha', student), mismatchedSession,
+    'attempt submission must reject a session/course mismatch')
+
+  const submitted = submitDemoExam(state, 'submission-exam-asha', student)
+  assert.notStrictEqual(submitted, state)
+  assert.equal(submitted.submissions.find(item => item.id === 'submission-exam-asha')?.status, 'Submitted')
+  assert.ok(submissionsForProfile(submitted, student).some(item => item.id === 'submission-exam-asha'))
+  assert.ok(submissionsForProfile(submitted, controller).some(item => item.id === 'submission-exam-asha'))
+  assert.ok(!submissionsForProfile(submitted, profile('teacher')).some(item => item.id === 'submission-exam-asha'))
+  assert.strictEqual(gradeDemoSubmission(submitted, 'submission-exam-asha', 99, 'wrong workflow', profile('teacher')), submitted)
+
+  const crossOrganization = {
+    ...submitted,
+    users: submitted.users.map(item => item.id === 'student-asha' ? { ...item, organization: 'East Valley Academy' } : item),
+  }
+  assert.strictEqual(gradeDemoExamSubmission(crossOrganization, 'submission-exam-asha', 88, 'Cross-org', controller), crossOrganization)
+
+  const graded = gradeDemoExamSubmission(submitted, 'submission-exam-asha', 88, 'Exam reviewed.', controller)
+  assert.notStrictEqual(graded, submitted)
+  assert.equal(graded.submissions.find(item => item.id === 'submission-exam-asha')?.status, 'Graded')
+  assert.equal(graded.submissions.find(item => item.id === 'submission-exam-asha')?.score, 88)
+  assert.ok(activityForProfile(graded, student).some(item => item.submissionId === 'submission-exam-asha'))
+  assert.ok(activityForProfile(graded, controller).some(item => item.submissionId === 'submission-exam-asha'))
+
+  const unauthorizedController = { ...controller, userId: 'exam-controller-rogue' }
+  assert.strictEqual(gradeDemoExamSubmission(submitted, 'submission-exam-ravi', 80, 'Unauthorised', unauthorizedController), submitted)
 })
 
 test('schedule and attendance queries enforce active identity, enrollment and organization scope', () => {

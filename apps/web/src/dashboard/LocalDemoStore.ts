@@ -485,6 +485,33 @@ export function submitDemoAssignment(state: DemoState, submissionId: string, act
   })
 }
 
+export function submitDemoExam(state: DemoState, submissionId: string, actor: DemoProfile): DemoState {
+  if (actor.role !== 'student') return state
+  const user = activeActor(state, actor)
+  const target = state.submissions.find(item => item.id === submissionId
+    && item.studentId === actor.userId
+    && item.status === 'Assigned'
+    && item.examScheduleId !== undefined)
+  const course = target && courseFor(state, target.courseId)
+  const session = target?.examScheduleId
+    ? state.schedule.find(item => item.id === target.examScheduleId)
+    : undefined
+  if (!user || !target || !course || course.status !== 'Published'
+      || !session || session.kind !== 'Exam' || session.courseId !== target.courseId
+      || !session.participantIds.includes(user.id)
+      || !user.courseIds.includes(target.courseId)) return state
+
+  const submissions = state.submissions.map(item => item.id === target.id
+    ? { ...item, status: 'Submitted' as const, submittedAt: new Date().toISOString() }
+    : item)
+  return recordDemoActivity({ ...state, submissions }, actor.name, 'Exam attempt submitted', target.title, {
+    subjectUserId: user.id,
+    courseId: target.courseId,
+    submissionId: target.id,
+    organization: user.organization,
+  })
+}
+
 export function gradeDemoSubmission(state: DemoState, submissionId: string, score: number, feedback: string, actor: DemoProfile): DemoState {
   if (!['teacher', 'evaluator', 'teaching-assistant'].includes(actor.role)) return state
   const user = activeActor(state, actor)
@@ -502,6 +529,39 @@ export function gradeDemoSubmission(state: DemoState, submissionId: string, scor
     submissionId: target.id,
     organization: learner.organization,
   })
+}
+
+export function gradeDemoExamSubmission(state: DemoState, submissionId: string, score: number, feedback: string, actor: DemoProfile): DemoState {
+  if (actor.role !== 'exam-controller') return state
+  const user = activeActor(state, actor)
+  const target = state.submissions.find(item => item.id === submissionId
+    && item.status === 'Submitted'
+    && item.examScheduleId !== undefined)
+  const session = target?.examScheduleId
+    ? state.schedule.find(item => item.id === target.examScheduleId)
+    : undefined
+  const learner = target && state.users.find(item => item.id === target.studentId
+    && item.role === 'Student' && item.status === 'Active')
+  const course = target && courseFor(state, target.courseId)
+  if (!user || !target || !session || session.kind !== 'Exam'
+      || !session.participantIds.includes(user.id)
+      || session.courseId !== target.courseId
+      || !learner || learner.organization !== user.organization
+      || !learner.courseIds.includes(target.courseId)
+      || !user.courseIds.includes(target.courseId)
+      || !course || course.status !== 'Published'
+      || !Number.isFinite(score) || score < 0 || score > 100) return state
+
+  const submissions = state.submissions.map(item => item.id === target.id
+    ? { ...item, status: 'Graded' as const, score: Math.round(score), feedback: feedback.trim() || 'Exam reviewed.', gradedAt: new Date().toISOString() }
+    : item)
+  return recordDemoActivity({ ...state, submissions }, actor.name, 'Exam result published',
+    target.title + ' · ' + Math.round(score) + '/100 for ' + learner.name, {
+      subjectUserId: learner.id,
+      courseId: target.courseId,
+      submissionId: target.id,
+      organization: learner.organization,
+    })
 }
 
 export function advanceDemoProgress(state: DemoState, courseId: string, actor: DemoProfile): DemoState {

@@ -421,6 +421,12 @@ if 'student, guardian and mentor submission lists exclude non-enrolled course re
     errors.append('missing regression test for student/guardian enrollment-scoped submissions')
 if "item.status === 'Assigned' && !item.examScheduleId" not in local_demo_store:
     errors.append('generic student assignment submission must not mutate dedicated exam records')
+if 'export function submitDemoExam' not in local_demo_store or 'export function gradeDemoExamSubmission' not in local_demo_store:
+    errors.append('dedicated exam submit and result workflows must be implemented in the shared store')
+if 'Submit exam attempt' not in local_specialist or 'Publish exam result (80%)' not in local_specialist:
+    errors.append('student and exam-controller dashboards must wire the dedicated exam workflows')
+if 'exam attempts and results use the exact assigned exam session' not in local_demo_tests:
+    errors.append('missing dedicated exam submit/result authorization regression')
 if 'learner.organization !== user.organization' not in local_demo_store:
     errors.append('grading and attendance mutations must enforce the active instructor organization')
 if 'item.submissionId !== undefined' not in local_demo_store or 'legacySubmissionMatches' not in local_demo_store:
