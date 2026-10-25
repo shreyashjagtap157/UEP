@@ -12,7 +12,7 @@ class GradebookFormulaTest {
  }
  @Test void missingGradeDoesNotCountAsComplete(){var f=GradebookFormula.compute(List.of(new GradebookFormula.GradeEntry(100,10000,null)));assertEquals(new BigDecimal("0.00"),f.weightedPoints());assertEquals(0,f.completedAssignments());}
  @Test void dropLowestRenormalizesRemainingWeight(){
-  var policy = new GradebookPolicy(1,0,BigDecimal.ZERO,0,BigDecimal.ZERO,2,RoundingMode.HALF_UP);
+  var policy = new GradebookPolicy(1,0,BigDecimal.ZERO,0,2,RoundingMode.HALF_UP);
   var f = GradebookFormula.compute(List.of(
     new GradebookFormula.GradeEntry(100,4000,100),
     new GradebookFormula.GradeEntry(100,3000,50),
@@ -20,7 +20,7 @@ class GradebookFormulaTest {
   assertEquals(new BigDecimal("78.57"), f.weightedPoints());
  }
  @Test void bestOfSelectsHighestPercentages(){
-  var policy = new GradebookPolicy(0,2,BigDecimal.ZERO,0,BigDecimal.ZERO,2,RoundingMode.HALF_UP);
+  var policy = new GradebookPolicy(0,2,BigDecimal.ZERO,0,2,RoundingMode.HALF_UP);
   var f = GradebookFormula.compute(List.of(
     new GradebookFormula.GradeEntry(100,3000,100),
     new GradebookFormula.GradeEntry(100,3000,80),
@@ -28,7 +28,7 @@ class GradebookFormulaTest {
   assertEquals(new BigDecimal("90.00"), f.weightedPoints());
  }
  @Test void extraCreditAndMinimumCompletionAreDeterministic(){
-  var policy = new GradebookPolicy(0,0,new BigDecimal("5.00"),2,BigDecimal.ZERO,2,RoundingMode.HALF_UP);
+  var policy = new GradebookPolicy(0,0,new BigDecimal("5.00"),2,2,RoundingMode.HALF_UP);
   var incomplete = GradebookFormula.compute(List.of(new GradebookFormula.GradeEntry(100,10000,80)), policy);
   assertEquals(new BigDecimal("0.00"), incomplete.weightedPoints());
   var complete = GradebookFormula.compute(List.of(
@@ -41,6 +41,6 @@ class GradebookFormulaTest {
   assertThrows(IllegalArgumentException.class, () -> GradebookFormula.compute(List.of(new GradebookFormula.GradeEntry(100,10000,101))));
  }
  @Test void mutuallyExclusiveDropAndBestOfPoliciesAreRejected(){
-  assertThrows(IllegalArgumentException.class, () -> new GradebookPolicy(1,2,BigDecimal.ZERO,0,BigDecimal.ZERO,2,RoundingMode.HALF_UP));
+  assertThrows(IllegalArgumentException.class, () -> new GradebookPolicy(1,2,BigDecimal.ZERO,0,2,RoundingMode.HALF_UP));
  }
 }
