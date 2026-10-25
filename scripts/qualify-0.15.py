@@ -410,12 +410,25 @@ for required in [
         errors.append(f'local specialist state is missing migration or authorization invariant: {required}')
 if 'export function messagesForProfile' not in local_demo_store or 'export function markDemoMessageRead' not in local_demo_store:
     errors.append('shared inbox must use role-scoped message queries and recipient-level read state')
-for required in ['invoices.map', 'state.supportCases.map', 'updateDemoSupportCase(fresh, caseId, status, profile)', 'messagesForProfile(state, profile)', 'markDemoMessageRead(loadDemoState(), messageId, profile)']:
+for required in ['invoices.map', 'state.supportCases.map', 'updateDemoSupportCase(fresh, caseId, status, profile)', 'messagesForProfile(state, profile)', 'markDemoMessageRead(fresh, messageId, profile)']:
     if required not in local_specialist:
         errors.append(f'specialist dashboard is not wired to finance/support state: {required}')
 for required in ['legacy browser state migrates to v4 with finance, support and inbox backfills', 'shared inbox is recipient-scoped and read state persists per recipient', 'finance ledger is seeded and support case transitions are role-scoped and persistent']:
     if required not in local_demo_tests:
         errors.append(f'missing finance/support regression test: {required}')
+
+# Retire the disconnected six-role local demo implementation after consolidation.
+obsolete_local_demo_sources = [
+    'LocalDashboard.tsx',
+    'LocalDemoControls.tsx',
+    'LocalDemoWorkflowStore.ts',
+    'localDemoData.ts',
+]
+for filename in obsolete_local_demo_sources:
+    if (ROOT / 'apps/web/src/dashboard' / filename).exists():
+        errors.append(f'obsolete split-store demo source must be removed: {filename}')
+if 'LocalDashboard' in local_experience or 'LocalDemoWorkflowStore' in local_experience:
+    errors.append('the local demo entry point must not import disconnected core-role components')
 
 # Learning outcomes and mastery records must preserve tenant and domain ownership coherence.
 learning_service = text('apps/platform-server/src/main/java/com/universalplatform/learning/LearningService.java')
