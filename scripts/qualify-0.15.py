@@ -456,6 +456,10 @@ if "examRows.every((item) => item.courseId === 'course-data' && item.examSchedul
 local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
 local_specialist = text('apps/web/src/dashboard/SpecialistLocalDashboard.tsx')
 local_demo_tests = text('apps/web/test/LocalDemoStore.test.mjs')
+if 'while (state.products.some(existing => existing.id === id))' not in local_demo_store:
+    errors.append('product creation must avoid duplicate IDs within the shared dataset')
+if 'rapid product creation allocates unique IDs even when the clock has not advanced' not in local_demo_tests:
+    errors.append('missing rapid product ID collision regression')
 for required in [
     "const STORAGE_KEY = 'uep.local-demo-data.v4'",
     'invoices: Array.isArray(parsed.invoices) ? parsed.invoices : seed.invoices',

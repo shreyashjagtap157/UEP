@@ -4,6 +4,7 @@ import { demoAccounts } from '../src/dashboard/localDemoAccounts.ts'
 import {
   DEMO_PROFILES,
   activityForProfile,
+  createDemoProduct,
   activeUserForProfile,
   attendanceForProfile,
   coursesForProfile,
@@ -356,6 +357,25 @@ test('schedule and attendance queries enforce active identity, enrollment and or
   const suspendedAsha = { ...polluted, users: polluted.users.map(item => item.id === 'student-asha' ? { ...item, status: 'Suspended' } : item) }
   assert.deepEqual(scheduleForProfile(suspendedAsha, profile('student')), [])
   assert.deepEqual(attendanceForProfile(suspendedAsha, profile('student')), [])
+})
+
+test('rapid product creation allocates unique IDs even when the clock has not advanced', () => {
+  const originalNow = Date.now
+  Date.now = () => 1740000000000
+  try {
+    const developer = profile('developer')
+    const initial = resetDemoState()
+    const first = createDemoProduct(initial, 'Demo product one', 'First draft', developer)
+    const second = createDemoProduct(first, 'Demo product two', 'Second draft', developer)
+    const created = second.products.filter(item => item.title.startsWith('Demo product '))
+
+    assert.equal(created.length, 2)
+    assert.equal(new Set(created.map(item => item.id)).size, 2)
+    assert.ok(created.some(item => item.id === 'product-1740000000000'))
+    assert.ok(created.some(item => item.id === 'product-1740000000000-1'))
+  } finally {
+    Date.now = originalNow
+  }
 })
 
 test('student progress advances and administrator course publication changes the shared catalog', () => {

@@ -542,7 +542,14 @@ export function createDemoProduct(state: DemoState, title: string, description: 
   if (actor.role !== 'developer' || !user) return state
   const cleanTitle = title.trim()
   if (!cleanTitle) return state
-  const product: DemoProduct = { id: 'product-' + Date.now(), title: cleanTitle, description: description.trim() || 'New educational product draft.', version: 1, status: 'Draft', updatedAt: new Date().toISOString() }
+  const baseId = 'product-' + Date.now()
+  let id = baseId
+  let suffix = 1
+  while (state.products.some(existing => existing.id === id)) {
+    id = baseId + '-' + suffix
+    suffix += 1
+  }
+  const product: DemoProduct = { id, title: cleanTitle, description: description.trim() || 'New educational product draft.', version: 1, status: 'Draft', updatedAt: new Date().toISOString() }
   return recordDemoActivity({ ...state, products: [product, ...state.products] }, actor.name, 'Product created', cleanTitle, {
     productId: product.id,
     organization: user.organization,
