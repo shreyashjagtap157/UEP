@@ -10,7 +10,6 @@ import {
   attendanceForProfile,
   coursesForProfile,
   learnersForProfile,
-  linkedLearnerForProfile,
   scheduleForProfile,
   loadDemoState,
   markDemoMessageRead,
@@ -133,7 +132,6 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
   const [productTitle, setProductTitle] = useState('')
   const [productDescription, setProductDescription] = useState('')
   const nav = NAVIGATION[profile.role]
-  const user = state.users.find(item => item.id === profile.userId && item.status === 'Active')
   const submissions = submissionsForProfile(state, profile)
   const schedule = scheduleForProfile(state, profile)
   const attendance = attendanceForProfile(state, profile)
