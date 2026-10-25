@@ -82,7 +82,7 @@ const NAVIGATION: Record<DemoRole, NavigationItem[]> = {
     { id: 'attendance', label: 'Attendance' },
     { id: 'messages', label: 'Inbox' },
   ],
-  'exam-controller': [  'exam-controller': [
+  'exam-controller': [
     { id: 'today', label: 'Exam overview' },
     { id: 'schedule', label: 'Exam schedule' },
     { id: 'submissions', label: 'Exam submissions' },
