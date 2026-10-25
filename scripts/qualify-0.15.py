@@ -384,6 +384,7 @@ if 'local demo sign-in exposes all thirteen canonical profiles through one share
     errors.append('missing regression test proving all thirteen profiles use the shared demo state')
 
 # Student and guardian academic records must always be constrained by enrollment/course scope.
+local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
 if "item.studentId === profile.userId && enrolledCourseIds.has(item.courseId)" not in local_demo_store:
     errors.append('student submissions must be restricted to their own enrolled courses')
 if "item.studentId === linkedLearner.id && enrolledCourseIds.has(item.courseId)" not in local_demo_store:
