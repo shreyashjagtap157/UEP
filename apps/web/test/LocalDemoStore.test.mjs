@@ -515,12 +515,15 @@ test('activity feeds do not expose global details to unrelated personas', () => 
 
 test('legacy attendance activity hides ambiguous duplicate learner and course titles', () => {
   const state = resetDemoState()
+  const existingRaviAttendance = state.attendance.find(item =>
+    item.studentId === 'student-ravi' && item.courseId === 'course-web' && item.status === 'Absent')
+  assert.ok(existingRaviAttendance, 'seed must contain an absent Ravi web-course attendance row')
   const legacyEvent = {
     id: 'legacy-cross-org-attendance',
     at: new Date().toISOString(),
     actor: 'Rahul Deshmukh',
     action: 'Attendance recorded',
-    detail: 'Ravi Nair · Full Stack Web Development · Absent (2026-10-24)',
+    detail: `Ravi Nair · Full Stack Web Development · Absent (${existingRaviAttendance.date})`,
   }
   const polluted = {
     ...state,
