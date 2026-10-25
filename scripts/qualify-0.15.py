@@ -273,6 +273,19 @@ for rel in [
     if not (ROOT / rel).exists():
         errors.append(f'missing webhook failure-redaction regression test: {rel}')
 
+external_notification_service = text('apps/platform-server/src/main/java/com/universalplatform/integration/ExternalNotificationService.java')
+for required in [
+    'Thread.currentThread().interrupt()',
+    'External notification delivery failed for tenant {} provider {} (failure type {})',
+    'throw new IllegalStateException("External notification delivery failed");',
+]:
+    if required not in external_notification_service:
+        errors.append(f'external notification failure handling is missing safe logging contract: {required}')
+if 'throw new IllegalStateException("External notification delivery failed", x)' in external_notification_service:
+    errors.append('external notification failures must not attach raw transport exceptions as logged causes')
+if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/integration/ExternalNotificationFailurePrivacyTest.java').exists():
+    errors.append('missing external notification failure privacy regression test')
+
 # Upload provider side effects must be compensated after rollback, with durable retry when delete fails.
 storage_cleanup_migration = text('apps/platform-server/src/main/resources/db/migration/V029__storage_cleanup_outbox.sql')
 for required in [

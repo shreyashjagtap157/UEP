@@ -7,11 +7,15 @@ import java.net.*;
 import java.net.http.*;
 import java.time.*;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ExternalNotificationService {
+    private static final Logger log = LoggerFactory.getLogger(ExternalNotificationService.class);
+
     private final TenantContext tenants;
     private final ActorContext actor;
     private final AuthorizationService auth;
@@ -67,7 +71,8 @@ public class ExternalNotificationService {
 
     public void send(String key, String title, String body) {
         auth.require(PermissionKey.EXTERNAL_NOTIFICATIONS_MANAGE);
-        ExternalNotificationProvider p = repo.findByTenantIdAndProviderKey(tenants.requireTenantId(), key)
+        UUID tenantId = tenants.requireTenantId();
+        ExternalNotificationProvider p = repo.findByTenantIdAndProviderKey(tenantId, key)
                 .filter(ExternalNotificationProvider::enabled)
                 .orElseThrow(() -> new IllegalArgumentException("Notification provider not found"));
         try {
@@ -84,8 +89,16 @@ public class ExternalNotificationService {
             HttpResponse<Void> r = http.send(b.POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload))).build(), HttpResponse.BodyHandlers.discarding());
             if (r.statusCode() / 100 != 2)
                 throw new IllegalStateException("External notification HTTP " + r.statusCode());
-        } catch (Exception x) {
-            throw new IllegalStateException("External notification delivery failed", x);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            log.warn("External notification delivery interrupted for tenant {} provider {}", tenantId, p.id());
+            throw new IllegalStateException("External notification delivery interrupted");
+        } catch (Exception failure) {
+            // Do not attach the raw exception as a cause: HTTP client exceptions can include a full
+            // callback URL and query-string credentials, which error loggers may otherwise print.
+            log.warn("External notification delivery failed for tenant {} provider {} (failure type {})",
+                    tenantId, p.id(), failure.getClass().getSimpleName());
+            throw new IllegalStateException("External notification delivery failed");
         }
     }
 
