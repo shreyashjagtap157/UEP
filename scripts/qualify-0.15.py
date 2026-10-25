@@ -398,7 +398,7 @@ if local_experience.count('activeUserForProfile(loadDemoState(), account.profile
     errors.append('fresh sign-in and restored sessions must both reject inactive demo accounts')
 if 'This demo account is inactive.' not in local_experience:
     errors.append('inactive demo sign-in must explain the account status to the user')
-if 'suspended demo profiles fail the centralized active-user guard' not in local_demo_tests:
+if 'suspended demo profiles fail the centralized active-user guard' not in text('apps/web/test/LocalDemoStore.test.mjs'):
     errors.append('missing suspended-account identity regression test')
 if 'subscribeDemoState(() =>' not in local_experience or "sessionStorage.removeItem('uep-local-account')" not in local_experience:
     errors.append('an active demo session must be revoked when the shared store suspends its account')
