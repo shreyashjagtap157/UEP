@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { demoAccounts, isCoreLocalAccount } from '../src/dashboard/localDemoAccounts.ts'
+import { demoAccounts } from '../src/dashboard/localDemoAccounts.ts'
 import {
   administratorStats,
   clientStats,
@@ -76,24 +76,26 @@ globalThis.window = {
   },
 }
 
-test('local demo sign-in exposes all thirteen personas with unique accounts and role-scoped routes', () => {
+test('local demo sign-in exposes all thirteen canonical profiles through one shared workspace', () => {
   assert.equal(demoAccounts.length, 13)
   assert.equal(new Set(demoAccounts.map((account) => account.email)).size, 13)
+  assert.equal(new Set(demoAccounts.map((account) => account.role)).size, 13)
 
-  const core = demoAccounts.filter(isCoreLocalAccount)
-  assert.deepEqual(core.map((account) => account.role).sort(), [
-    'administrator', 'client', 'developer', 'guardian', 'student', 'teacher',
+  assert.deepEqual(demoAccounts.map((account) => account.role).sort(), [
+    'admin', 'auditor', 'client', 'developer', 'exam-controller', 'evaluator',
+    'finance-admin', 'guardian', 'mentor', 'student', 'support',
+    'teacher', 'teaching-assistant',
   ])
 
-  const specialist = demoAccounts.filter((account) => 'profile' in account)
-  assert.deepEqual(specialist.map((account) => account.profile.role).sort(), [
-    'auditor', 'exam-controller', 'evaluator', 'finance-admin',
-    'mentor', 'support', 'teaching-assistant',
-  ])
-  for (const account of specialist) {
-    assert.equal(account.email, account.profile.email)
+  for (const account of demoAccounts) {
+    assert.ok(account.email.length > 0)
     assert.equal(account.name, account.profile.name)
+    assert.equal(account.role, account.profile.role)
+    assert.ok(DEMO_PROFILES.some((profile) => profile === account.profile))
   }
+  assert.equal(demoAccounts.find((account) => account.email === 'student@demo.uep')?.profile.userId, 'student-asha')
+  assert.equal(demoAccounts.find((account) => account.email === 'teacher@demo.uep')?.profile.userId, 'teacher-rahul')
+  assert.equal(demoAccounts.find((account) => account.email === 'guardian@demo.uep')?.profile.userId, 'guardian-nina')
 })
 
 function profile(role) {
