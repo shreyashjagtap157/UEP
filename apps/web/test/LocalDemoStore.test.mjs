@@ -119,6 +119,7 @@ test('unauthorized role, learner and course mutations are rejected', () => {
   const teacher = profile('teacher')
 
   assert.strictEqual(submitDemoAssignment(state, 'submission-ravi-sql', student), state)
+  assert.strictEqual(submitDemoAssignment(state, 'submission-exam-asha', student), state, 'exam records must not enter the generic assignment submission flow')
   assert.strictEqual(gradeDemoSubmission(state, 'submission-asha-api', 95, 'Out of scope.', evaluator), state)
   assert.strictEqual(gradeDemoSubmission(state, 'submission-asha-api', 101, 'Invalid score.', teacher), state)
   assert.strictEqual(updateDemoAttendance(state, 'student-ravi-attendance--6', 'Present', client), state)
@@ -396,6 +397,36 @@ test('activity feeds do not expose global details to unrelated personas', () => 
   assert.deepEqual(events('finance-admin'), [])
   assert.equal(events('admin').length, state.activity.length)
   assert.equal(events('auditor').length, state.activity.length)
+})
+
+test('activity timelines bind repeated assignment titles to learner and submission identity', () => {
+  const state = resetDemoState()
+  const polluted = {
+    ...state,
+    activity: [
+      { id: 'activity-ravi-api-duplicate-title', at: new Date().toISOString(), actor: 'Ravi Nair', action: 'Assignment submitted', detail: 'REST API design exercise' },
+      { id: 'activity-meera-grade-duplicate-title', at: new Date().toISOString(), actor: 'Rahul Deshmukh', action: 'Grade published', detail: 'REST API design exercise · 94/100 for Meera Iyer' },
+      ...state.activity,
+    ],
+  }
+
+  const studentEvents = activityForProfile(polluted, profile('student'))
+  const guardianEvents = activityForProfile(polluted, profile('guardian'))
+  const teacherEvents = activityForProfile(polluted, profile('teacher'))
+
+  assert.ok(!studentEvents.some((item) => item.id === 'activity-ravi-api-duplicate-title'))
+  assert.ok(!studentEvents.some((item) => item.id === 'activity-meera-grade-duplicate-title'))
+  assert.ok(!guardianEvents.some((item) => item.id === 'activity-ravi-api-duplicate-title'))
+  assert.ok(!guardianEvents.some((item) => item.id === 'activity-meera-grade-duplicate-title'))
+  assert.ok(teacherEvents.some((item) => item.id === 'activity-ravi-api-duplicate-title'))
+  assert.ok(teacherEvents.some((item) => item.id === 'activity-meera-grade-duplicate-title'))
+
+  const submitted = submitDemoAssignment(state, 'submission-asha-cloud', profile('student'))
+  const event = submitted.activity[0]
+  assert.equal(event.submissionId, 'submission-asha-cloud')
+  assert.equal(event.subjectUserId, 'student-asha')
+  assert.equal(event.courseId, 'course-cloud')
+  assert.ok(activityForProfile(submitted, profile('student')).some((item) => item.id === event.id))
 })
 
 test('reset restores seeded records after mutations', () => {
