@@ -342,6 +342,23 @@ v023 = text('apps/platform-server/src/main/resources/db/migration/V023__reliabil
 for index_name in sorted(required_indexes):
     if index_name not in v023:
         errors.append(f'V023 is missing required performance index {index_name}')
+# Learning outcomes and mastery records must preserve tenant and domain ownership coherence.
+learning_service = text('apps/platform-server/src/main/java/com/universalplatform/learning/LearningService.java')
+if 'mappingTargetTable(targetType)' not in learning_service or 'require(t, targetId, targetTable)' not in learning_service:
+    errors.append('learning outcome mappings must validate the target within the active tenant')
+if 'requireCompetencyForOutcome(t, competencyId, outcomeId)' not in learning_service:
+    errors.append('competency mastery must reject competencies owned by a different outcome')
+learning_integrity_migration = ROOT / 'apps/platform-server/src/main/resources/db/migration/V029__enforce_learning_mastery_outcome_coherence.sql'
+if not learning_integrity_migration.exists():
+    errors.append('missing V029 learning mastery outcome-coherence constraints')
+else:
+    migration_text = learning_integrity_migration.read_text(encoding='utf-8')
+    for required in ['fk_mastery_competency_outcome', 'UPDATE competency_mastery AS cm', 'uq_competency_tenant_outcome_id']:
+        if required not in migration_text:
+            errors.append(f'V029 missing integrity contract: {required}')
+if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/learning/LearningServiceIntegrityTest.java').exists():
+    errors.append('missing learning mapping/mastery ownership regression tests')
+
 # All integration tests that exercise tenant isolation must remain present.
 required_tests = [
     'apps/platform-server/src/test/java/com/universalplatform/tenancy/TenantIsolationIntegrationTest.java',
