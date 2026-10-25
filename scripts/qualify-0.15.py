@@ -351,12 +351,17 @@ if 'enabled: oidcAuthenticated && !localMode' not in app_source or 'if (localMod
 if "nav.filter(item => item.visible && (!localMode || item.id === 'overview'))" in app_source or '{localMode ? (' in app_source:
     errors.append('unreachable local-mode dashboard branches should not remain in authenticated UI')
 
-# Teacher quick actions must route submission review to the ungraded assessment queue, not graded results.
-local_dashboard = text('apps/web/src/dashboard/LocalDashboard.tsx')
-if "['assessments', 'Review submissions']" not in local_dashboard:
-    errors.append('teacher review submissions shortcut must open assessments')
-if "['results', 'Review submissions']" in local_dashboard:
-    errors.append('teacher review submissions shortcut must not route to graded results')
+# Shared workspace exposes a grading action only for authorized teaching roles.
+shared_dashboard = text('apps/web/src/dashboard/SpecialistLocalDashboard.tsx')
+submission_panel_start = shared_dashboard.find('function SubmissionPanel(')
+submission_panel_end = shared_dashboard.find('function MenteePanel(', submission_panel_start)
+submission_panel = shared_dashboard[submission_panel_start:submission_panel_end] if submission_panel_start >= 0 and submission_panel_end > submission_panel_start else ''
+if "profile.role === 'teacher' || profile.role === 'teaching-assistant' || profile.role === 'evaluator'" not in submission_panel:
+    errors.append('teacher, teaching assistant, and evaluator must have role-authorized grade controls')
+if 'onSubmit={submitAssignment}' not in shared_dashboard or 'function submitAssignment(' not in shared_dashboard:
+    errors.append('student submission flow must be wired into the shared workspace')
+if "case 'student': return 'Student learning workspace'" not in shared_dashboard:
+    errors.append('every core persona must receive a meaningful shared-workspace heading')
 
 # Every advertised local demo persona must be reachable through the sign-in registry.
 local_accounts = text('apps/web/src/dashboard/localDemoAccounts.ts')
