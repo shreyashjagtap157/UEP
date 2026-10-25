@@ -89,7 +89,6 @@ class FinancePaymentFailureStateTest {
                 .thenReturn(new PaymentProvider.PaymentResult(true, "provider-reference", "authorized"));
         when(provider.capture("provider-reference"))
                 .thenReturn(new PaymentProvider.PaymentResult(false, "provider-reference", "capture rejected"));
-        when(actors.requireSubject()).thenReturn("finance-operator");
 
         assertThatThrownBy(() -> service.pay(invoiceId, new BigDecimal("25.00"), "USD",
                 "bank-reference-2", true))

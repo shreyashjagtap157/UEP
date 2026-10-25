@@ -75,6 +75,7 @@ class ConcurrentInvoicePaymentIntegrationTest {
 
     @AfterEach
     void cleanup() {
+        jdbc.update("DELETE FROM audit_event WHERE tenant_id = ?", tenantId);
         jdbc.update("DELETE FROM payment_receipt WHERE tenant_id = ?", tenantId);
         jdbc.update("DELETE FROM payment WHERE tenant_id = ?", tenantId);
         jdbc.update("DELETE FROM invoice WHERE tenant_id = ?", tenantId);
