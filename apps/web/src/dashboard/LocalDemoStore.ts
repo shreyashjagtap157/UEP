@@ -856,7 +856,6 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
 
   return state.activity.filter(item => {
     const action = item.action.toLocaleLowerCase()
-    const detail = item.detail.toLocaleLowerCase()
     if (action.includes('product')) return false
 
     // New events carry stable record IDs. Never infer ownership from a shared display title.
