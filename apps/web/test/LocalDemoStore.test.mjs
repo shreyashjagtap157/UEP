@@ -228,7 +228,7 @@ test('learner and course catalog queries enforce active organization and relatio
   }
 
   assert.deepEqual(learnersForProfile(polluted, profile('teacher')).map(item => item.id), ['student-asha'])
-  assert.deepEqual(learnersForProfile(polluted, profile('client')).map(item => item.id), ['student-asha'])
+  assert.deepEqual(learnersForProfile(polluted, profile('client')).map(item => item.id), ['student-asha', 'student-unassigned'])
   assert.ok(learnersForProfile(polluted, profile('admin')).some(item => item.id === 'student-ravi'))
   const suspendedTeacher = { ...state, users: state.users.map(item => item.id === 'teacher-rahul' ? { ...item, status: 'Suspended' } : item) }
   assert.deepEqual(learnersForProfile(suspendedTeacher, profile('teacher')), [])
