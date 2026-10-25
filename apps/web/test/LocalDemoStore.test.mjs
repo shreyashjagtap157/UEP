@@ -9,7 +9,6 @@ import {
   attendanceForProfile,
   coursesForProfile,
   learnersForProfile,
-  linkedLearnerForProfile,
   scheduleForProfile,
   advanceDemoProgress,
   publishDemoCourse,
