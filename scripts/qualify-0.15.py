@@ -383,6 +383,14 @@ for role in ['student', 'teacher', 'client', 'developer', 'admin', 'guardian', '
 if 'local demo sign-in exposes all thirteen canonical profiles through one shared workspace' not in text('apps/web/test/LocalDemoStore.test.mjs'):
     errors.append('missing regression test proving all thirteen profiles use the shared demo state')
 
+# Student and guardian academic records must always be constrained by enrollment/course scope.
+if "item.studentId === profile.userId && enrolledCourseIds.has(item.courseId)" not in local_demo_store:
+    errors.append('student submissions must be restricted to their own enrolled courses')
+if "item.studentId === linkedLearner.id && enrolledCourseIds.has(item.courseId)" not in local_demo_store:
+    errors.append('guardian submissions must be restricted to the linked learner enrollment')
+if 'student, guardian and mentor submission lists exclude non-enrolled course records' not in local_demo_tests:
+    errors.append('missing regression test for student/guardian enrollment-scoped submissions')
+
 # Exam-controller access must be tied to an explicitly linked exam session, not merely its course.
 local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
 if 'examScheduleId?: string' not in local_demo_store:
