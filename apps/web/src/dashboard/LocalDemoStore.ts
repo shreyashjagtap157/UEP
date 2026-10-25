@@ -774,14 +774,15 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
       const match = item.detail.match(/^(.+?)\s+·\s+(\d+(?:\.\d+)?)\/100(?:\s+for\s+(.+))?$/i)
       const rawTitle = match?.[1]
       const rawScore = match?.[2]
+      const rawLearnerName = match?.[3]
       if (!rawTitle || !rawScore) return false
       const title = rawTitle.trim().toLocaleLowerCase()
       const score = Number(rawScore)
       let candidates = state.submissions.filter(submission => submission.status === 'Graded'
         && submission.title.toLocaleLowerCase() === title
         && submission.score === score)
-      if (match[3]) {
-        const learnerName = match[3].trim().toLocaleLowerCase()
+      if (rawLearnerName) {
+        const learnerName = rawLearnerName.trim().toLocaleLowerCase()
         candidates = candidates.filter(submission => state.users.some(user =>
           user.id === submission.studentId && user.name.toLocaleLowerCase() === learnerName))
       }
@@ -794,11 +795,15 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
 
   const legacyAttendanceMatches = (item: DemoActivity): boolean => {
     const match = item.detail.match(/^(.+?)\s+·\s+(.+?)\s+·\s+(Present|Late|Absent)\s+\((\d{4}-\d{2}-\d{2})\)$/i)
-    if (!match) return false
-    const learnerName = match[1].trim().toLocaleLowerCase()
-    const courseTitle = match[2].trim().toLocaleLowerCase()
-    const status = match[3].toLocaleLowerCase()
-    const date = match[4]
+    const rawLearnerName = match?.[1]
+    const rawCourseTitle = match?.[2]
+    const rawStatus = match?.[3]
+    const rawDate = match?.[4]
+    if (!rawLearnerName || !rawCourseTitle || !rawStatus || !rawDate) return false
+    const learnerName = rawLearnerName.trim().toLocaleLowerCase()
+    const courseTitle = rawCourseTitle.trim().toLocaleLowerCase()
+    const status = rawStatus.toLocaleLowerCase()
+    const date = rawDate
     const candidates = state.attendance.filter(record => record.date === date
       && record.status.toLocaleLowerCase() === status
       && state.users.some(user => user.id === record.studentId
@@ -813,8 +818,10 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
     const action = item.action.toLocaleLowerCase()
     if (!action.includes('learning progress')) return false
     const match = item.detail.match(/^(.+?)\s+·\s+(\d+(?:\.\d+)?)%\s+complete$/i)
-    if (!match?.[1] || !match[2]) return false
-    const courseTitle = match[1].trim().toLocaleLowerCase()
+    const rawCourseTitle = match?.[1]
+    const rawProgress = match?.[2]
+    if (!rawCourseTitle || !rawProgress) return false
+    const courseTitle = rawCourseTitle.trim().toLocaleLowerCase()
     const matchingLearners = state.users.filter(user => user.role === 'Student'
       && user.status === 'Active'
       && user.name.toLocaleLowerCase() === item.actor.toLocaleLowerCase())

@@ -577,7 +577,7 @@ test('legacy attendance activity hides ambiguous duplicate learner and course ti
     ],
     attendance: [
       ...state.attendance,
-      { id: 'attendance-other-org', studentId: 'student-ravi-other-org', courseId: 'course-web-other-org', date: '2026-10-24', status: 'Absent' },
+      { id: 'attendance-other-org', studentId: 'student-ravi-other-org', courseId: 'course-web-other-org', date: existingRaviAttendance.date, status: 'Absent' },
     ],
     activity: [legacyEvent, ...state.activity],
   }
