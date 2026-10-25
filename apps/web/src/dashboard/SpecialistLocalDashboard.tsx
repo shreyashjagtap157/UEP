@@ -482,6 +482,7 @@ function OrganizationPanel({ state, profile, onResolve }: { state: DemoState; pr
 function AnalyticsPanel({ state, profile, submissions, attendance, schedule }: { state: DemoState; profile: DemoProfile; submissions: ReturnType<typeof submissionsForProfile>; attendance: DemoState['attendance']; schedule: ReturnType<typeof scheduleForProfile> }) {
   const currentUser = activeUserForProfile(state, profile)
   const learners = profile.role === 'client' || profile.role === 'teacher'
+    || profile.role === 'teaching-assistant' || profile.role === 'evaluator'
     ? learnersForProfile(state, profile)
     : []
   let items: PanelItem[]

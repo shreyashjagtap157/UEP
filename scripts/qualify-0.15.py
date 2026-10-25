@@ -497,6 +497,12 @@ if 'const linkedLearner = linkedLearnerForProfile(state, profile)' not in local_
 for helper in ['activeUserForProfile', 'linkedLearnerForProfile', 'learnersForProfile', 'coursesForProfile']:
     if f'export function {helper}' not in local_demo_store:
         errors.append(f'missing centralized profile access query: {helper}')
+if "['teacher', 'teaching-assistant', 'evaluator'].includes(profile.role)" not in local_demo_store:
+    errors.append('assigned learner scope must include teachers, teaching assistants and evaluators')
+if "profile.role === 'teaching-assistant' || profile.role === 'evaluator'" not in local_specialist:
+    errors.append('teaching assistant and evaluator analytics must use their scoped learner query')
+if 'teaching assistants and evaluators receive scoped learner counts' not in local_demo_tests:
+    errors.append('missing scoped learner-count regression for teaching assistants and evaluators')
 for helper in ['learnersForProfile(state, profile)', 'coursesForProfile(state, profile)', 'linkedLearnerForProfile(state, profile)']:
     if helper not in local_specialist:
         errors.append(f'shared dashboard bypasses centralized identity/course scope helper: {helper}')

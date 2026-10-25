@@ -226,6 +226,27 @@ test('submission visibility is restricted to each persona learner/course scope',
   assert.deepEqual(ids('finance-admin'), [])
 })
 
+test('teaching assistants and evaluators receive scoped learner counts', () => {
+  const state = resetDemoState()
+  assert.deepEqual(learnersForProfile(state, profile('teaching-assistant')).map(item => item.id), [
+    'student-asha', 'student-ravi', 'student-meera',
+  ])
+  assert.deepEqual(learnersForProfile(state, profile('evaluator')).map(item => item.id), [
+    'student-asha', 'student-ravi', 'student-meera',
+  ])
+
+  const outOfScope = {
+    ...state,
+    users: state.users.map(item => {
+      if (item.id === 'student-ravi') return { ...item, organization: 'East Valley Academy' }
+      if (item.id === 'student-meera') return { ...item, status: 'Suspended' }
+      return item
+    }),
+  }
+  assert.deepEqual(learnersForProfile(outOfScope, profile('teaching-assistant')).map(item => item.id), ['student-asha'])
+  assert.deepEqual(learnersForProfile(outOfScope, profile('evaluator')).map(item => item.id), ['student-asha'])
+})
+
 test('learner and course catalog queries enforce active organization and relationship scope', () => {
   const state = resetDemoState()
   const polluted = {

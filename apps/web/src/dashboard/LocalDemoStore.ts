@@ -208,7 +208,7 @@ export function learnersForProfile(state: DemoState, profile: DemoProfile): Demo
       && user.status === 'Active'
       && user.organization === actor.organization)
   }
-  if (profile.role === 'teacher') {
+  if (['teacher', 'teaching-assistant', 'evaluator'].includes(profile.role)) {
     const assignedPublishedCourses = new Set(actor.courseIds.filter(courseId => courseFor(state, courseId)?.status === 'Published'))
     return state.users.filter(user => user.role === 'Student'
       && user.status === 'Active'
