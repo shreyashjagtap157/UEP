@@ -363,19 +363,20 @@ local_accounts = text('apps/web/src/dashboard/localDemoAccounts.ts')
 local_experience = text('apps/web/src/dashboard/LocalExperience.tsx')
 specialist_dashboard = text('apps/web/src/dashboard/SpecialistLocalDashboard.tsx')
 for required in [
-    'export const demoAccounts: LocalAccount[] = [...coreAccounts, ...specialistAccounts]',
-    "profile.role))",
-    "'teaching-assistant'",
+    'export const demoAccounts: LocalAccount[] = DEMO_PROFILES.map(profile => ({',
+    'familiarLoginAliases[profile.role] ?? profile.email',
 ]:
     if required not in local_accounts:
-        errors.append(f'local demo registry is missing required persona wiring: {required}')
+        errors.append(f'local demo registry is missing canonical identity wiring: {required}')
 if 'SpecialistLocalDashboard profile={account.profile}' not in local_experience:
-    errors.append('specialist demo profiles must route to their separate role-scoped workspace')
-for role in ['exam-controller', 'finance-admin', 'teaching-assistant', 'evaluator', 'mentor', 'support', 'auditor']:
+    errors.append('every local demo account must route to the common role-aware workspace')
+if 'LocalDashboard' in local_experience or 'LocalDemoWorkflowStore' in local_experience:
+    errors.append('local demo entry point still splits roles across separate stores')
+for role in ['student', 'teacher', 'client', 'developer', 'admin', 'guardian', 'exam-controller', 'finance-admin', 'teaching-assistant', 'evaluator', 'mentor', 'support', 'auditor']:
     if f"'{role}'" not in specialist_dashboard:
-        errors.append(f'missing specialist local dashboard navigation or scope: {role}')
-if 'local demo sign-in exposes all thirteen personas' not in text('apps/web/test/LocalDemoStore.test.mjs'):
-    errors.append('missing regression test proving all thirteen local demo personas are reachable')
+        errors.append(f'missing shared dashboard scope for role: {role}')
+if 'local demo sign-in exposes all thirteen canonical profiles through one shared workspace' not in text('apps/web/test/LocalDemoStore.test.mjs'):
+    errors.append('missing regression test proving all thirteen profiles use the shared demo state')
 
 # Exam-controller access must be tied to an explicitly linked exam session, not merely its course.
 local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
