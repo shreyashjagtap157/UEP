@@ -4,15 +4,19 @@
 
 Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification. (Tracked by the milestone gate in `docs/QUALIFICATION_0.15.md`.)
 
-## 0.15.0.0-SNAPSHOT — 2026-10-24
+## 0.15.0.0-SNAPSHOT — 2026-10-25
 
 ### Added
 - local, browser-only demonstration workspaces for student, teacher, institution client, product developer, platform administrator, guardian, exam controller, finance administrator, teaching assistant, evaluator, mentor, support, and auditor personas;
 - shared local demo state with same-tab/cross-tab updates and a reset-to-seed workflow;
 - cross-persona assignment submission, course-scoped grading, attendance updates, product publishing, and synthetic-data reporting;
-- native Node test coverage for assignment/grade propagation, attendance persistence, persona submission scope, rejected mutations, and dataset reset.
+- native Node test coverage for assignment/grade propagation, attendance persistence, persona submission scope, rejected mutations, duplicate-title activity isolation, and dataset reset.
+- stable record identifiers on new local activity events so assignment/result feeds can verify submission, learner, course, organization, and product relationships.
 
 ### Fixed
+- tightened staff and client submission queues to active same-organization learners who are enrolled in each course; exam-controller access now requires the exact assigned exam session and matching course;
+- blocked exam-linked records from the generic student assignment-submit action and made grading reject cross-organization learners;
+- replaced activity-title-only ownership inference with submission identity checks and conservative resolution of legacy events, preventing duplicate assignment names from crossing learner boundaries;
 - corrected the pending notification-outbox index to use columns actually present in the schema;
 - added forward-only V026/V027 migrations for the live-class batch scope and schedule recurrence column type expected by JPA;
 - removed the API-credential authorization package cycle through a narrow security-owned authorization port;
