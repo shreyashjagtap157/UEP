@@ -710,9 +710,11 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
     }
     if (action.includes('grade published')) {
       const match = item.detail.match(/^(.+?)\s+·\s+(\d+(?:\.\d+)?)\/100(?:\s+for\s+(.+))?$/i)
-      if (!match) return false
-      const title = match[1].trim().toLocaleLowerCase()
-      const score = Number(match[2])
+      const rawTitle = match?.[1]
+      const rawScore = match?.[2]
+      if (!rawTitle || !rawScore) return false
+      const title = rawTitle.trim().toLocaleLowerCase()
+      const score = Number(rawScore)
       let candidates = state.submissions.filter(submission => submission.status === 'Graded'
         && submission.title.toLocaleLowerCase() === title
         && submission.score === score)
@@ -721,7 +723,9 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
         candidates = candidates.filter(submission => state.users.some(user =>
           user.id === submission.studentId && user.name.toLocaleLowerCase() === learnerName))
       }
-      return candidates.length === 1 && submissions.some(visible => visible.id === candidates[0].id)
+      const [candidate] = candidates
+      return candidates.length === 1 && candidate !== undefined
+        && submissions.some(visible => visible.id === candidate.id)
     }
     return false
   }

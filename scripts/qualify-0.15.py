@@ -388,7 +388,7 @@ for required in [
         errors.append(f'local demo registry is missing canonical identity wiring: {required}')
 if 'SpecialistLocalDashboard profile={account.profile}' not in local_experience:
     errors.append('every local demo account must route to the common role-aware workspace')
-if 'LocalDashboard' in local_experience or 'LocalDemoWorkflowStore' in local_experience:
+if "from './LocalDashboard'" in local_experience or 'from "./LocalDashboard"' in local_experience or 'LocalDemoWorkflowStore' in local_experience:
     errors.append('local demo entry point still splits roles across separate stores')
 for role in ['student', 'teacher', 'client', 'developer', 'admin', 'guardian', 'exam-controller', 'finance-admin', 'teaching-assistant', 'evaluator', 'mentor', 'support', 'auditor']:
     if f"'{role}'" not in specialist_dashboard:
@@ -460,7 +460,7 @@ obsolete_local_demo_sources = [
 for filename in obsolete_local_demo_sources:
     if (ROOT / 'apps/web/src/dashboard' / filename).exists():
         errors.append(f'obsolete split-store demo source must be removed: {filename}')
-if 'LocalDashboard' in local_experience or 'LocalDemoWorkflowStore' in local_experience:
+if "from './LocalDashboard'" in local_experience or 'from "./LocalDashboard"' in local_experience or 'LocalDemoWorkflowStore' in local_experience:
     errors.append('the local demo entry point must not import disconnected core-role components')
 
 # Learning outcomes and mastery records must preserve tenant and domain ownership coherence.
