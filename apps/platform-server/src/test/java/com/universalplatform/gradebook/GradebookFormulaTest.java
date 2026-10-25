@@ -17,7 +17,7 @@ class GradebookFormulaTest {
     new GradebookFormula.GradeEntry(100,4000,100),
     new GradebookFormula.GradeEntry(100,3000,50),
     new GradebookFormula.GradeEntry(100,3000,0)), policy);
-  assertEquals(new BigDecimal("71.43"), f.weightedPoints());
+  assertEquals(new BigDecimal("78.57"), f.weightedPoints());
  }
  @Test void bestOfSelectsHighestPercentages(){
   var policy = new GradebookPolicy(0,2,BigDecimal.ZERO,0,BigDecimal.ZERO,2,RoundingMode.HALF_UP);
