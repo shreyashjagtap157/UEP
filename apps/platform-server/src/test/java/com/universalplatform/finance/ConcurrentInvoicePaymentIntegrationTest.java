@@ -75,6 +75,15 @@ class ConcurrentInvoicePaymentIntegrationTest {
 
     @AfterEach
     void cleanup() {
+        jdbc.update("DELETE FROM payment_receipt WHERE tenant_id = ?", tenantId);
+        jdbc.update("DELETE FROM payment WHERE tenant_id = ?", tenantId);
+        jdbc.update("DELETE FROM invoice WHERE tenant_id = ?", tenantId);
+        jdbc.update("DELETE FROM subscription WHERE tenant_id = ?", tenantId);
+        jdbc.update("DELETE FROM entitlement_grant WHERE tenant_id = ?", tenantId);
+        jdbc.update("DELETE FROM role_assignment WHERE tenant_id = ?", tenantId);
+        jdbc.update("DELETE FROM role_permission WHERE role_id IN (SELECT id FROM role_definition WHERE tenant_id = ?)", tenantId);
+        jdbc.update("DELETE FROM role_definition WHERE tenant_id = ?", tenantId);
+        jdbc.update("DELETE FROM tenant_membership WHERE tenant_id = ?", tenantId);
         jdbc.update("DELETE FROM tenant WHERE id = ?", tenantId);
         jdbc.update("DELETE FROM user_account WHERE id = ?", userId);
     }

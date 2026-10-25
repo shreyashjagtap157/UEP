@@ -60,7 +60,7 @@ class FinancePaymentFailureStateTest {
                 new BigDecimal("100.00"), "USD", LocalDate.now().plusDays(7), Instant.now());
         invoice.issue(LocalDate.now());
         lenient().when(tenants.requireTenantId()).thenReturn(tenantId);
-        lenient().when(invoices.findByTenantIdAndId(tenantId, invoiceId)).thenReturn(Optional.of(invoice));
+        lenient().when(invoices.lockByTenantIdAndId(tenantId, invoiceId)).thenReturn(Optional.of(invoice));
         lenient().when(entitlements.decide(tenantId, FeatureKey.PAYMENTS)).thenReturn(EntitlementDecision.allow(FeatureKey.PAYMENTS));
         lenient().when(provider.name()).thenReturn("TEST_PROVIDER");
         lenient().when(payments.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
