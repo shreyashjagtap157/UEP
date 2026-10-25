@@ -399,9 +399,9 @@ if 'local demo sign-in exposes all thirteen canonical profiles through one share
 # Student and guardian academic records must always be constrained by enrollment/course scope.
 local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
 local_demo_tests = text('apps/web/test/LocalDemoStore.test.mjs')
-if "item.studentId === profile.userId && enrolledCourseIds.has(item.courseId)" not in local_demo_store:
+if "item.studentId === profile.userId" not in local_demo_store or "enrolledCourseIds.has(item.courseId)" not in local_demo_store:
     errors.append('student submissions must be restricted to their own enrolled courses')
-if "item.studentId === linkedLearner.id && enrolledCourseIds.has(item.courseId)" not in local_demo_store:
+if "item.studentId === linkedLearner.id" not in local_demo_store or "enrolledCourseIds.has(item.courseId)" not in local_demo_store:
     errors.append('guardian submissions must be restricted to the linked learner enrollment')
 if 'student, guardian and mentor submission lists exclude non-enrolled course records' not in local_demo_tests:
     errors.append('missing regression test for student/guardian enrollment-scoped submissions')
