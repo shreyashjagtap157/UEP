@@ -389,7 +389,7 @@ for required in [
 ]:
     if required not in local_demo_store:
         errors.append(f'local specialist state is missing migration or authorization invariant: {required}')
-for required in ['state.invoices.map', 'state.supportCases.map', 'updateDemoSupportCase(fresh, caseId, status, profile)']:
+for required in ['invoices.map', 'state.supportCases.map', 'updateDemoSupportCase(fresh, caseId, status, profile)']:
     if required not in local_specialist:
         errors.append(f'specialist dashboard is not wired to finance/support state: {required}')
 for required in ['legacy browser state migrates to v3 with finance and support seed backfills', 'finance ledger is seeded and support case transitions are role-scoped and persistent']:
