@@ -255,6 +255,24 @@ for rel in [
     if not (ROOT / rel).exists():
         errors.append(f'missing durable payment failure-state component/test: {rel}')
 
+# Persisted webhook failures must use safe categories, not raw transport exceptions/URLs.
+webhook_worker = text('apps/platform-server/src/main/java/com/universalplatform/integration/WebhookWorker.java')
+for required in [
+    'safeFailureMessage(e)',
+    'Thread.currentThread().interrupt()',
+    'Outbound endpoint validation failed',
+    'HTTP transport error',
+    'HTTP request timed out',
+]:
+    if required not in webhook_worker:
+        errors.append(f'webhook worker is missing safe failure handling: {required}')
+for rel in [
+    'apps/platform-server/src/test/java/com/universalplatform/integration/WebhookWorkerFailureRedactionTest.java',
+    'apps/platform-server/src/test/java/com/universalplatform/integration/WebhookWorkerTransactionIntegrationTest.java',
+]:
+    if not (ROOT / rel).exists():
+        errors.append(f'missing webhook failure-redaction regression test: {rel}')
+
 # Upload provider side effects must be compensated after rollback, with durable retry when delete fails.
 storage_cleanup_migration = text('apps/platform-server/src/main/resources/db/migration/V029__storage_cleanup_outbox.sql')
 for required in [

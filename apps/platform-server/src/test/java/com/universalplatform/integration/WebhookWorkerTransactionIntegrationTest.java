@@ -28,7 +28,7 @@ class WebhookWorkerTransactionIntegrationTest {
         jdbc.update("""
                 INSERT INTO webhook_subscription(
                     id, tenant_id, callback_url, event_filter, secret_ciphertext, enabled
-                ) VALUES (?, ?, 'http://localhost:8080/webhook', '*', ?, true)
+                ) VALUES (?, ?, 'http://localhost:8080/webhook?token=callback-secret', '*', ?, true)
                 """, subscriptionId, tenantId, cipher.encrypt("transaction-test-secret"));
         jdbc.update("""
                 INSERT INTO webhook_delivery(
@@ -53,7 +53,13 @@ class WebhookWorkerTransactionIntegrationTest {
         String lastError = jdbc.queryForObject(
                 "SELECT last_error FROM webhook_delivery WHERE tenant_id = ? AND id = ?",
                 String.class, tenantId, deliveryId);
+        String subscriptionError = jdbc.queryForObject(
+                "SELECT last_error FROM webhook_subscription WHERE tenant_id = ? AND id = ?",
+                String.class, tenantId, subscriptionId);
         assertThat(attempts).isEqualTo(1);
-        assertThat(lastError).contains("public unicast");
+        assertThat(lastError).isEqualTo("Outbound endpoint validation failed");
+        assertThat(subscriptionError).isEqualTo("Outbound endpoint validation failed");
+        assertThat(lastError).doesNotContain("callback-secret").doesNotContain("/webhook");
+        assertThat(subscriptionError).doesNotContain("callback-secret").doesNotContain("/webhook");
     }
 }

@@ -83,10 +83,36 @@ class WebhookWorker {
                 throw new IllegalStateException("Webhook HTTP " + response.statusCode());
             d.success(clock.instant());
             s.delivered(clock.instant());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            recordFailure(d, s, "Delivery interrupted");
         } catch (Exception e) {
-            d.failed(e.getMessage(), clock.instant());
-            s.failed(clock.instant(), e.getMessage());
+            recordFailure(d, s, safeFailureMessage(e));
         }
+    }
+
+    private void recordFailure(WebhookDelivery delivery, WebhookSubscription subscription, String safeMessage) {
+        Instant now = clock.instant();
+        delivery.failed(safeMessage, now);
+        subscription.failed(now, safeMessage);
+    }
+
+    static String safeFailureMessage(Exception exception) {
+        if (exception instanceof IllegalStateException
+                && exception.getMessage() != null
+                && exception.getMessage().matches("Webhook HTTP [1-5][0-9]{2}")) {
+            return exception.getMessage();
+        }
+        if (exception instanceof IllegalArgumentException) {
+            return "Outbound endpoint validation failed";
+        }
+        if (exception instanceof java.net.http.HttpTimeoutException) {
+            return "HTTP request timed out";
+        }
+        if (exception instanceof java.io.IOException) {
+            return "HTTP transport error";
+        }
+        return exception.getClass().getSimpleName();
     }
 
     private static boolean isDue(WebhookDelivery delivery, Instant now) {
