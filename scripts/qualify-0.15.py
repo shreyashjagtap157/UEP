@@ -377,6 +377,25 @@ for role in ['exam-controller', 'finance-admin', 'teaching-assistant', 'evaluato
 if 'local demo sign-in exposes all thirteen personas' not in text('apps/web/test/LocalDemoStore.test.mjs'):
     errors.append('missing regression test proving all thirteen local demo personas are reachable')
 
+# Specialist local personas must have real seeded finance/support records and safe schema migration.
+local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
+local_specialist = text('apps/web/src/dashboard/SpecialistLocalDashboard.tsx')
+local_demo_tests = text('apps/web/test/LocalDemoStore.test.mjs')
+for required in [
+    "const STORAGE_KEY = 'uep.local-demo-data.v3'",
+    'invoices: Array.isArray(parsed.invoices) ? parsed.invoices : seed.invoices',
+    'supportCases: Array.isArray(parsed.supportCases) ? parsed.supportCases : seed.supportCases',
+    "actor.role !== 'support' || !activeActor(state, actor)",
+]:
+    if required not in local_demo_store:
+        errors.append(f'local specialist state is missing migration or authorization invariant: {required}')
+for required in ['state.invoices.map', 'state.supportCases.map', 'updateDemoSupportCase(fresh, caseId, status, profile)']:
+    if required not in local_specialist:
+        errors.append(f'specialist dashboard is not wired to finance/support state: {required}')
+for required in ['legacy browser state migrates to v3 with finance and support seed backfills', 'finance ledger is seeded and support case transitions are role-scoped and persistent']:
+    if required not in local_demo_tests:
+        errors.append(f'missing finance/support regression test: {required}')
+
 # Learning outcomes and mastery records must preserve tenant and domain ownership coherence.
 learning_service = text('apps/platform-server/src/main/java/com/universalplatform/learning/LearningService.java')
 if 'mappingTargetTable(targetType)' not in learning_service or 'require(t, targetId, targetTable)' not in learning_service:
