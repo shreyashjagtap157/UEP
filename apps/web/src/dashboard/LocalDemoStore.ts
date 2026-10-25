@@ -95,6 +95,11 @@ export interface DemoActivity {
   actor: string
   action: string
   detail: string
+  subjectUserId?: string
+  courseId?: string
+  submissionId?: string
+  organization?: string
+  productId?: string
 }
 export interface DemoOrganizationAction {
   id: string
@@ -389,19 +394,37 @@ export function resetDemoState(): DemoState {
   return state
 }
 
-export function recordDemoActivity(state: DemoState, actor: string, action: string, detail: string): DemoState {
-  const item: DemoActivity = { id: 'activity-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8), at: new Date().toISOString(), actor, action, detail }
+export function recordDemoActivity(
+  state: DemoState,
+  actor: string,
+  action: string,
+  detail: string,
+  scope: Partial<Pick<DemoActivity, 'subjectUserId' | 'courseId' | 'submissionId' | 'organization' | 'productId'>> = {},
+): DemoState {
+  const item: DemoActivity = {
+    id: 'activity-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+    at: new Date().toISOString(),
+    actor,
+    action,
+    detail,
+    ...scope,
+  }
   return { ...state, activity: [item, ...state.activity].slice(0, 50) }
 }
 
 export function submitDemoAssignment(state: DemoState, submissionId: string, actor: DemoProfile): DemoState {
   if (actor.role !== 'student') return state
   const user = activeActor(state, actor)
-  const target = state.submissions.find(item => item.id === submissionId && item.studentId === actor.userId && item.status === 'Assigned')
+  const target = state.submissions.find(item => item.id === submissionId && item.studentId === actor.userId && item.status === 'Assigned' && !item.examScheduleId)
   const course = target && courseFor(state, target.courseId)
   if (!user || !target || !course || course.status !== 'Published' || !user.courseIds.includes(target.courseId)) return state
   const submissions = state.submissions.map(item => item.id === submissionId ? { ...item, status: 'Submitted' as const, submittedAt: new Date().toISOString() } : item)
-  return recordDemoActivity({ ...state, submissions }, actor.name, 'Assignment submitted', target.title)
+  return recordDemoActivity({ ...state, submissions }, actor.name, 'Assignment submitted', target.title, {
+    subjectUserId: target.studentId,
+    courseId: target.courseId,
+    submissionId: target.id,
+    organization: user.organization,
+  })
 }
 
 export function gradeDemoSubmission(state: DemoState, submissionId: string, score: number, feedback: string, actor: DemoProfile): DemoState {
@@ -409,10 +432,18 @@ export function gradeDemoSubmission(state: DemoState, submissionId: string, scor
   const user = activeActor(state, actor)
   const target = state.submissions.find(item => item.id === submissionId && item.status === 'Submitted' && !item.examScheduleId)
   const learner = target && state.users.find(item => item.id === target.studentId && item.role === 'Student' && item.status === 'Active')
-  if (!user || !target || !learner || !user.courseIds.includes(target.courseId) || !learner.courseIds.includes(target.courseId)
+  const course = target && courseFor(state, target.courseId)
+  if (!user || !target || !learner || !course || course.status !== 'Published'
+      || learner.organization !== user.organization
+      || !user.courseIds.includes(target.courseId) || !learner.courseIds.includes(target.courseId)
       || !Number.isFinite(score) || score < 0 || score > 100) return state
   const submissions = state.submissions.map(item => item.id === submissionId ? { ...item, status: 'Graded' as const, score: Math.round(score), feedback: feedback.trim() || 'Reviewed and graded.', gradedAt: new Date().toISOString() } : item)
-  return recordDemoActivity({ ...state, submissions }, actor.name, 'Grade published', target.title + ' · ' + Math.round(score) + '/100 for ' + learner.name)
+  return recordDemoActivity({ ...state, submissions }, actor.name, 'Grade published', target.title + ' · ' + Math.round(score) + '/100 for ' + learner.name, {
+    subjectUserId: learner.id,
+    courseId: target.courseId,
+    submissionId: target.id,
+    organization: learner.organization,
+  })
 }
 
 export function advanceDemoProgress(state: DemoState, courseId: string, actor: DemoProfile): DemoState {
@@ -424,7 +455,11 @@ export function advanceDemoProgress(state: DemoState, courseId: string, actor: D
   const current = state.courseProgress[key] ?? 0
   if (current >= 100) return state
   const nextProgress = { ...state.courseProgress, [key]: Math.min(100, current + 10) }
-  return recordDemoActivity({ ...state, courseProgress: nextProgress }, actor.name, 'Learning progress updated', course.title + ' · ' + Math.min(100, current + 10) + '% complete')
+  return recordDemoActivity({ ...state, courseProgress: nextProgress }, actor.name, 'Learning progress updated', course.title + ' · ' + Math.min(100, current + 10) + '% complete', {
+    subjectUserId: user.id,
+    courseId,
+    organization: user.organization,
+  })
 }
 
 export function updateDemoAttendance(state: DemoState, attendanceId: string, status: DemoAttendance['status'], actor: DemoProfile): DemoState {
@@ -432,28 +467,41 @@ export function updateDemoAttendance(state: DemoState, attendanceId: string, sta
   const user = activeActor(state, actor)
   const target = state.attendance.find(item => item.id === attendanceId)
   const learner = target && state.users.find(item => item.id === target.studentId && item.role === 'Student' && item.status === 'Active')
-  if (!user || !target || !learner || !learner.courseIds.includes(target.courseId)
-      || (actor.role === 'teacher' && !user.courseIds.includes(target.courseId))) return state
+  const course = target && courseFor(state, target.courseId)
+  if (!user || !target || !learner || !course || !learner.courseIds.includes(target.courseId)
+      || (actor.role === 'teacher' && (learner.organization !== user.organization || !user.courseIds.includes(target.courseId)))) return state
   if (target.status === status) return state
   const attendance = state.attendance.map(item => item.id === attendanceId ? { ...item, status } : item)
   const course = courseFor(state, target.courseId)
-  return recordDemoActivity({ ...state, attendance }, actor.name, 'Attendance recorded', learner.name + ' · ' + (course?.title ?? 'Course') + ' · ' + status + ' (' + target.date + ')')
+  return recordDemoActivity({ ...state, attendance }, actor.name, 'Attendance recorded', learner.name + ' · ' + course.title + ' · ' + status + ' (' + target.date + ')', {
+    subjectUserId: learner.id,
+    courseId: target.courseId,
+    organization: learner.organization,
+  })
 }
 
 export function createDemoProduct(state: DemoState, title: string, description: string, actor: DemoProfile): DemoState {
-  if (actor.role !== 'developer' || !activeActor(state, actor)) return state
+  const user = activeActor(state, actor)
+  if (actor.role !== 'developer' || !user) return state
   const cleanTitle = title.trim()
   if (!cleanTitle) return state
   const product: DemoProduct = { id: 'product-' + Date.now(), title: cleanTitle, description: description.trim() || 'New educational product draft.', version: 1, status: 'Draft', updatedAt: new Date().toISOString() }
-  return recordDemoActivity({ ...state, products: [product, ...state.products] }, actor.name, 'Product created', cleanTitle)
+  return recordDemoActivity({ ...state, products: [product, ...state.products] }, actor.name, 'Product created', cleanTitle, {
+    productId: product.id,
+    organization: user.organization,
+  })
 }
 
 export function publishDemoProduct(state: DemoState, productId: string, actor: DemoProfile): DemoState {
-  if (actor.role !== 'developer' || !activeActor(state, actor)) return state
+  const user = activeActor(state, actor)
+  if (actor.role !== 'developer' || !user) return state
   const target = state.products.find(item => item.id === productId && item.status !== 'Published')
   if (!target) return state
   const products = state.products.map(item => item.id === productId ? { ...item, status: 'Published' as const, version: item.version + 1, updatedAt: new Date().toISOString() } : item)
-  return recordDemoActivity({ ...state, products }, actor.name, 'Product published', target.title)
+  return recordDemoActivity({ ...state, products }, actor.name, 'Product published', target.title, {
+    productId: target.id,
+    organization: user.organization,
+  })
 }
 
 export function publishDemoCourse(state: DemoState, courseId: string, actor: DemoProfile): DemoState {
@@ -461,7 +509,9 @@ export function publishDemoCourse(state: DemoState, courseId: string, actor: Dem
   const target = state.courses.find(item => item.id === courseId && item.status === 'Draft')
   if (!target) return state
   const courses = state.courses.map(item => item.id === courseId ? { ...item, status: 'Published' as const } : item)
-  return recordDemoActivity({ ...state, courses }, actor.name, 'Course published', target.title)
+  return recordDemoActivity({ ...state, courses }, actor.name, 'Course published', target.title, {
+    courseId: target.id,
+  })
 }
 
 export function resolveDemoOrganizationAction(state: DemoState, actionId: string, actor: DemoProfile): DemoState {
@@ -478,6 +528,7 @@ export function resolveDemoOrganizationAction(state: DemoState, actionId: string
     actor.name,
     'Organization action resolved',
     target.title,
+    { organization: target.organization },
   )
 }
 
@@ -510,6 +561,7 @@ export function updateDemoSupportCase(state: DemoState, caseId: string, status: 
     actor.name,
     'Support case updated',
     target.reference + ' · ' + status,
+    { organization: target.organization },
   )
 }
 
@@ -524,7 +576,10 @@ export function setDemoUserStatus(state: DemoState, userId: string, status: Demo
   const target = state.users.find(item => item.id === userId)
   if (!target || target.id === actor.userId || target.role === 'Platform Administrator' || target.status === status) return state
   const users = state.users.map(item => item.id === userId ? { ...item, status } : item)
-  return recordDemoActivity({ ...state, users }, actor.name, 'User status updated', target.name + ': ' + status)
+  return recordDemoActivity({ ...state, users }, actor.name, 'User status updated', target.name + ': ' + status, {
+    subjectUserId: target.id,
+    organization: target.organization,
+  })
 }
 
 export function submissionsForProfile(state: DemoState, profile: DemoProfile): DemoSubmission[] {
@@ -540,7 +595,7 @@ export function submissionsForProfile(state: DemoState, profile: DemoProfile): D
   }
   if (profile.role === 'guardian' || profile.role === 'mentor') {
     const linkedLearner = state.users.find(user => user.id === 'student-asha' && user.role === 'Student' && user.status === 'Active')
-    if (!linkedLearner) return []
+    if (!linkedLearner || linkedLearner.organization !== currentUser.organization) return []
     const enrolledCourseIds = new Set(linkedLearner.courseIds)
     if (profile.role === 'guardian') {
       return state.submissions.filter(item => item.studentId === linkedLearner.id && enrolledCourseIds.has(item.courseId))
@@ -550,19 +605,36 @@ export function submissionsForProfile(state: DemoState, profile: DemoProfile): D
   }
   if (['teacher', 'teaching-assistant', 'evaluator'].includes(profile.role)) {
     const assigned = new Set(currentUser.courseIds)
-    return state.submissions.filter(item => !item.examScheduleId && assigned.has(item.courseId))
+    const activeLearners = new Map(state.users
+      .filter(user => user.role === 'Student' && user.status === 'Active' && user.organization === currentUser.organization)
+      .map(user => [user.id, user]))
+    return state.submissions.filter(item => {
+      const learner = activeLearners.get(item.studentId)
+      return !item.examScheduleId
+        && assigned.has(item.courseId)
+        && learner !== undefined
+        && learner.courseIds.includes(item.courseId)
+    })
   }
   if (profile.role === 'exam-controller') {
-    const assignedExamIds = new Set(state.schedule
+    const assignedExamSessions = new Map(state.schedule
       .filter(item => item.kind === 'Exam' && item.participantIds.includes(profile.userId))
-      .map(item => item.id))
-    return state.submissions.filter(item => item.examScheduleId !== undefined && assignedExamIds.has(item.examScheduleId))
+      .map(item => [item.id, item]))
+    return state.submissions.filter(item => {
+      const session = item.examScheduleId ? assignedExamSessions.get(item.examScheduleId) : undefined
+      const learner = state.users.find(user => user.id === item.studentId && user.role === 'Student' && user.status === 'Active')
+      return session !== undefined
+        && session.courseId === item.courseId
+        && learner !== undefined
+        && learner.organization === currentUser.organization
+        && learner.courseIds.includes(item.courseId)
+    })
   }
   if (profile.role === 'client') {
-    const learners = new Set(state.users
+    const learners = new Map(state.users
       .filter(user => user.role === 'Student' && user.status === 'Active' && user.organization === currentUser.organization)
-      .map(user => user.id))
-    return state.submissions.filter(item => learners.has(item.studentId))
+      .map(user => [user.id, user]))
+    return state.submissions.filter(item => learners.get(item.studentId)?.courseIds.includes(item.courseId) === true)
   }
   if (profile.role === 'admin') return state.submissions
   return []
@@ -579,13 +651,15 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
   if (profile.role === 'support' || profile.role === 'finance-admin') return []
 
   if (profile.role === 'developer') {
+    const productIds = new Set(state.products.map(item => item.id))
     const productTitles = state.products.map(item => item.title.toLocaleLowerCase())
     return state.activity.filter(item => item.action.toLocaleLowerCase().includes('product')
-      && productTitles.some(title => item.detail.toLocaleLowerCase().includes(title)))
+      && (item.productId !== undefined
+        ? productIds.has(item.productId)
+        : productTitles.some(title => item.detail.toLocaleLowerCase().includes(title))))
   }
 
   const submissions = submissionsForProfile(state, profile)
-  const scopedSubmissionTitles = submissions.map(item => item.title.toLocaleLowerCase())
   const scopedOrganizationActionTitles = profile.role === 'client'
     ? state.organizationActions.filter(item => item.organization === actor.organization).map(item => item.title.toLocaleLowerCase())
     : []
@@ -615,31 +689,110 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
   const scopedLearnerNames = state.users
     .filter(item => scopedLearnerIds.has(item.id))
     .map(item => item.name.toLocaleLowerCase())
+  const clientCourseIds = new Set(state.users
+    .filter(item => profile.role === 'client' && item.role === 'Student'
+      && item.status === 'Active' && item.organization === actor.organization)
+    .flatMap(item => item.courseIds))
+  const assignedExamSessions = state.schedule.filter(item => item.kind === 'Exam'
+    && item.participantIds.includes(profile.userId))
+
+  const legacySubmissionMatches = (item: DemoActivity): boolean => {
+    const action = item.action.toLocaleLowerCase()
+    if (action.includes('assignment submitted')) {
+      const learner = state.users.find(user => user.role === 'Student'
+        && user.status === 'Active'
+        && user.name.toLocaleLowerCase() === item.actor.toLocaleLowerCase())
+      if (!learner) return false
+      const title = item.detail.trim().toLocaleLowerCase()
+      return state.submissions.some(submission => submission.studentId === learner.id
+        && submission.title.toLocaleLowerCase() === title
+        && submission.status !== 'Assigned'
+        && submissions.some(visible => visible.id === submission.id))
+    }
+    if (action.includes('grade published')) {
+      const match = item.detail.match(/^(.+?)\s+·\s+(\d+(?:\.\d+)?)\/100(?:\s+for\s+(.+))?$/i)
+      if (!match) return false
+      const title = match[1].trim().toLocaleLowerCase()
+      const score = Number(match[2])
+      let candidates = state.submissions.filter(submission => submission.status === 'Graded'
+        && submission.title.toLocaleLowerCase() === title
+        && submission.score === score)
+      if (match[3]) {
+        const learnerName = match[3].trim().toLocaleLowerCase()
+        candidates = candidates.filter(submission => state.users.some(user =>
+          user.id === submission.studentId && user.name.toLocaleLowerCase() === learnerName))
+      }
+      return candidates.length === 1 && submissions.some(visible => visible.id === candidates[0].id)
+    }
+    return false
+  }
 
   return state.activity.filter(item => {
     const action = item.action.toLocaleLowerCase()
     const detail = item.detail.toLocaleLowerCase()
     if (action.includes('product')) return false
 
-    if (profile.role === 'client' && action.includes('organization action resolved')
-      && scopedOrganizationActionTitles.some(title => detail.includes(title))) return true
+    // New events carry stable record IDs. Never infer ownership from a shared display title.
+    if (item.submissionId !== undefined) return submissions.some(submission => submission.id === item.submissionId)
+    if (item.subjectUserId !== undefined) {
+      if (!action.includes('attendance') && !action.includes('learning progress')) return false
+      const subject = state.users.find(user => user.id === item.subjectUserId
+        && user.role === 'Student' && user.status === 'Active')
+      const courseId = item.courseId
+      if (!subject || !courseId || !subject.courseIds.includes(courseId) || !scopedCourseIds.has(courseId)) return false
+      if (profile.role === 'student') return subject.id === profile.userId
+      if (profile.role === 'guardian') return subject.id === 'student-asha' && subject.organization === actor.organization
+      if (profile.role === 'mentor') return subject.id === 'student-asha'
+        && subject.organization === actor.organization && actor.courseIds.includes(courseId)
+      if (profile.role === 'client') return subject.organization === actor.organization
+      if (['teacher', 'teaching-assistant', 'evaluator'].includes(profile.role)) {
+        return subject.organization === actor.organization && actor.courseIds.includes(courseId)
+      }
+      if (profile.role === 'exam-controller') {
+        return subject.organization === actor.organization && assignedExamSessions.some(session => session.courseId === courseId)
+      }
+      return false
+    }
 
-    if (profile.role === 'client' && action.includes('course published')
-      && state.courses.some(course => course.status === 'Published' && detail.includes(course.title.toLocaleLowerCase()))) return true
+    if (profile.role === 'client' && action.includes('organization action resolved')) {
+      if (item.organization !== undefined) return item.organization === actor.organization
+      return scopedOrganizationActionTitles.some(title => detail.includes(title))
+    }
 
-    // Assignment and grading events are tied back to the learner/course records.
-    if (scopedSubmissionTitles.some(title => detail.includes(title))) return true
+    if (profile.role === 'client' && action.includes('course published')) {
+      if (item.courseId !== undefined) {
+        return clientCourseIds.has(item.courseId)
+          && state.courses.some(course => course.id === item.courseId && course.status === 'Published')
+      }
+      return state.courses.some(course => course.status === 'Published'
+        && clientCourseIds.has(course.id)
+        && detail.includes(course.title.toLocaleLowerCase()))
+    }
 
-    // Attendance/progress events include course context; learner-facing roles additionally
-    // require the linked learner name to be present in the event detail.
-    if (action.includes('attendance') || action.includes('learning progress')) {
+    if (legacySubmissionMatches(item)) return true
+
+    // Legacy attendance entries must include a scoped course; learner-facing views also
+    // require the learner identity in the detail because historical events lack record IDs.
+    if (action.includes('attendance')) {
       const courseMatches = scopedCourseTitles.some(title => detail.includes(title))
-      const learnerMatches = ['student', 'guardian', 'mentor'].includes(profile.role)
+      const learnerMatches = ['student', 'guardian', 'mentor', 'client'].includes(profile.role)
         ? scopedLearnerNames.some(name => detail.includes(name))
-        : profile.role === 'client'
-          ? scopedLearnerNames.some(name => detail.includes(name))
-          : true
+        : true
       return courseMatches && learnerMatches
+    }
+
+    if (action.includes('learning progress')) {
+      const learner = state.users.find(user => user.role === 'Student' && user.status === 'Active'
+        && user.name.toLocaleLowerCase() === item.actor.toLocaleLowerCase())
+      const courseMatches = scopedCourseTitles.some(title => detail.includes(title))
+      if (!learner || !courseMatches || !learner.courseIds.some(courseId => scopedCourseIds.has(courseId))) return false
+      if (profile.role === 'student') return learner.id === profile.userId
+      if (profile.role === 'guardian') return learner.id === 'student-asha' && learner.organization === actor.organization
+      if (profile.role === 'mentor') return learner.id === 'student-asha'
+        && learner.organization === actor.organization
+        && learner.courseIds.some(courseId => actor.courseIds.includes(courseId) && scopedCourseIds.has(courseId))
+      if (profile.role === 'client') return learner.organization === actor.organization
+      return false
     }
 
     // Do not leak unattributed events when their relationship cannot be established.
