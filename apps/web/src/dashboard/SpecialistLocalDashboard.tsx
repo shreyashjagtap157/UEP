@@ -582,7 +582,13 @@ function ContentPanel({ state, profile, onCreateProduct, onProductTitle, onProdu
         : profile.role === 'client'
           ? state.courses.filter(course => state.users.some(item => item.role === 'Student' && item.organization === currentUser?.organization && item.courseIds.includes(course.id)))
           : state.courses
-  return <PanelList eyebrow="Course catalog" title="Courses available in role scope" items={visibleCourses.map(course => ({ title: course.title, detail: course.description, status: course.status }))} />
+  return <section className="panel">
+    <div className="panel-heading"><div><p className="eyebrow">Course catalog</p><h3>{profile.role === 'admin' ? 'Manage courses' : 'Courses available in role scope'}</h3></div><span className="count-badge">{visibleCourses.length}</span></div>
+    {visibleCourses.length ? <div className="local-module-list">{visibleCourses.map(course => <article className="local-module" key={course.id}>
+      <div><strong>{course.title}</strong><p>{course.description}</p></div>
+      <div><span className="chip">{course.status}</span>{profile.role === 'admin' && course.status === 'Draft' && <button type="button" className="text-button" onClick={() => onPublishCourse(course.id)}>Publish course</button>}</div>
+    </article>)}</div> : <p className="muted">No courses are available in this role's scope.</p>}
+  </section>
 }
 
 function OperationsPanel({ state, profile, onResolve, onSupportStatus }: { state: DemoState; profile: DemoProfile; onResolve: (id: string) => void; onSupportStatus: (id: string, status: 'In progress' | 'Resolved') => void }) {
