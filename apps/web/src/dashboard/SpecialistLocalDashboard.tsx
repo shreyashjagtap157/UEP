@@ -1,23 +1,88 @@
 import { useEffect, useState } from 'react'
 import {
   activityForProfile,
+  advanceDemoProgress,
   courseFor,
+  createDemoProduct,
   gradeDemoSubmission,
   invoicesForFinanceProfile,
   loadDemoState,
+  markDemoMessageRead,
+  messagesForProfile,
   progressFor,
+  publishDemoCourse,
+  publishDemoProduct,
+  resolveDemoOrganizationAction,
   saveDemoState,
+  setDemoUserStatus,
   submissionsForProfile,
+  submitDemoAssignment,
   subscribeDemoState,
+  updateDemoAttendance,
   updateDemoSupportCase,
 } from './LocalDemoStore'
 import type { DemoProfile, DemoRole, DemoState } from './LocalDemoStore'
 
-type Section = 'today' | 'schedule' | 'submissions' | 'attendance' | 'mentee' | 'activity' | 'finance' | 'support'
+type Section = 'today' | 'learning' | 'schedule' | 'submissions' | 'results' | 'people' | 'organization' | 'analytics' | 'content' | 'operations' | 'integrations' | 'messages' | 'attendance' | 'mentee' | 'activity' | 'finance' | 'support' | 'settings'
 type PanelItem = { title: string; detail: string; status: string }
+type NavigationItem = { id: Section; label: string }
 
-const NAVIGATION: Partial<Record<DemoRole, Array<{ id: Section; label: string }>>> = {
-  'exam-controller': [
+const NAVIGATION: Record<DemoRole, NavigationItem[]> = {
+  student: [
+    { id: 'today', label: 'Today' },
+    { id: 'learning', label: 'My learning' },
+    { id: 'submissions', label: 'Assignments' },
+    { id: 'results', label: 'Results & feedback' },
+    { id: 'schedule', label: 'Calendar & classes' },
+    { id: 'attendance', label: 'Attendance' },
+    { id: 'messages', label: 'Inbox' },
+  ],
+  teacher: [
+    { id: 'today', label: 'Teaching overview' },
+    { id: 'schedule', label: 'My classes' },
+    { id: 'people', label: 'Learner roster' },
+    { id: 'submissions', label: 'Submission queue' },
+    { id: 'attendance', label: 'Attendance register' },
+    { id: 'content', label: 'Course catalog' },
+    { id: 'analytics', label: 'Class analytics' },
+    { id: 'messages', label: 'Inbox' },
+  ],
+  client: [
+    { id: 'today', label: 'Organization overview' },
+    { id: 'organization', label: 'Programs & actions' },
+    { id: 'people', label: 'People' },
+    { id: 'analytics', label: 'Outcomes & reports' },
+    { id: 'schedule', label: 'Delivery schedule' },
+    { id: 'operations', label: 'Operations' },
+    { id: 'messages', label: 'Inbox' },
+  ],
+  developer: [
+    { id: 'today', label: 'Product overview' },
+    { id: 'content', label: 'Products & publishing' },
+    { id: 'integrations', label: 'Integrations & webhooks' },
+    { id: 'activity', label: 'Product activity' },
+    { id: 'operations', label: 'Platform operations' },
+  ],
+  admin: [
+    { id: 'today', label: 'Platform overview' },
+    { id: 'people', label: 'People & roles' },
+    { id: 'organization', label: 'Organizations' },
+    { id: 'content', label: 'Course catalog' },
+    { id: 'submissions', label: 'Academic records' },
+    { id: 'schedule', label: 'Scheduling' },
+    { id: 'operations', label: 'Operations' },
+    { id: 'activity', label: 'Audit activity' },
+    { id: 'settings', label: 'Configuration' },
+  ],
+  guardian: [
+    { id: 'today', label: 'Learner overview' },
+    { id: 'mentee', label: 'Learner progress' },
+    { id: 'submissions', label: 'Assignments & results' },
+    { id: 'schedule', label: 'Calendar' },
+    { id: 'attendance', label: 'Attendance' },
+    { id: 'messages', label: 'Inbox' },
+  ],
+  'exam-controller': [  'exam-controller': [
     { id: 'today', label: 'Exam overview' },
     { id: 'schedule', label: 'Exam schedule' },
     { id: 'submissions', label: 'Exam submissions' },
@@ -60,8 +125,20 @@ function visibleSchedule(state: DemoState, profile: DemoProfile) {
     return state.schedule.filter(item => item.kind === 'Exam' && item.participantIds.includes(profile.userId))
   }
   const user = state.users.find(item => item.id === profile.userId && item.status === 'Active')
+  if (!user) return []
+  if (profile.role === 'student') return state.schedule.filter(item => item.participantIds.includes(profile.userId))
+  if (profile.role === 'guardian') return state.schedule.filter(item => item.participantIds.includes('student-asha'))
+  if (profile.role === 'teacher') {
+    const courseIds = new Set(user.courseIds)
+    return state.schedule.filter(item => item.participantIds.includes(profile.userId) && courseIds.has(item.courseId))
+  }
+  if (profile.role === 'admin') return state.schedule
+  if (profile.role === 'client') {
+    const learnerIds = new Set(state.users.filter(learner => learner.role === 'Student' && learner.status === 'Active' && learner.organization === user.organization).map(learner => learner.id))
+    return state.schedule.filter(item => item.participantIds.some(id => learnerIds.has(id)))
+  }
   if (profile.role === 'teaching-assistant' || profile.role === 'evaluator' || profile.role === 'mentor') {
-    const courseIds = new Set(user?.courseIds ?? [])
+    const courseIds = new Set(user.courseIds)
     return state.schedule.filter(item => courseIds.has(item.courseId))
   }
   return []
