@@ -12,7 +12,8 @@ export type DemoStore = Widen<{
   releases: typeof localDemoData.releases
 }>
 
-const STORAGE_KEY = 'uep-local-demo-store-v1'
+const STORAGE_KEY = 'uep-local-demo-store-v2'
+const LEGACY_STORAGE_KEY = 'uep-local-demo-store-v1'
 const EVENT_NAME = 'uep-local-demo-store-updated'
 
 type MutableDemoData = {
@@ -52,19 +53,47 @@ function applyToDashboard(store: DemoStore) {
   target.releases = store.releases
 }
 
+function mergeStoredRows<T extends { id: string }>(defaults: T[], stored: unknown): T[] {
+  const rows: Array<Partial<T> & { id: string }> = Array.isArray(stored)
+    ? stored.filter((value): value is Partial<T> & { id: string } => typeof value === 'object' && value !== null && typeof (value as { id?: unknown }).id === 'string')
+    : []
+  return [
+    ...defaults.map(item => {
+      const saved = rows.find(row => row.id === item.id)
+      return saved ? ({ ...item, ...saved } as T) : structuredClone(item)
+    }),
+    ...rows.filter(row => !defaults.some(item => item.id === row.id)).map(row => ({ ...row } as T)),
+  ]
+}
+
+function normalizeStoredStore(value: unknown): DemoStore {
+  const defaults = seed()
+  const stored = typeof value === 'object' && value !== null ? value as Partial<DemoStore> : {}
+  return {
+    assignments: mergeStoredRows(defaults.assignments, stored.assignments),
+    submissions: mergeStoredRows(defaults.submissions, stored.submissions),
+    students: mergeStoredRows(defaults.students, stored.students),
+    sessions: mergeStoredRows(defaults.sessions, stored.sessions),
+    organizations: mergeStoredRows(defaults.organizations, stored.organizations),
+    products: mergeStoredRows(defaults.products, stored.products),
+    releases: mergeStoredRows(defaults.releases, stored.releases),
+  }
+}
+
 export function loadDemoStore(): DemoStore {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    const store = raw ? (JSON.parse(raw) as DemoStore) : seed()
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY)
+    const store = raw ? normalizeStoredStore(JSON.parse(raw)) : seed()
     applyToDashboard(store)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
     return store
   } catch {
     const store = seed()
     applyToDashboard(store)
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)) } catch { /* storage may be unavailable */ }
     return store
   }
 }
-
 export function saveDemoStore(store: DemoStore) {
   applyToDashboard(store)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
@@ -79,7 +108,7 @@ export function resetDemoStore() {
 
 export function subscribeDemoStore(listener: () => void) {
   const onStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY) {
+    if (event.key === STORAGE_KEY || event.key === LEGACY_STORAGE_KEY) {
       loadDemoStore()
       listener()
     }
