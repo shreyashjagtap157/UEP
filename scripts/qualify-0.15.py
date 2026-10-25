@@ -403,10 +403,12 @@ if 'activity timelines bind repeated assignment titles to learner and submission
 local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
 if 'examScheduleId?: string' not in local_demo_store:
     errors.append('exam submissions must have an explicit exam session link')
-if "item.examScheduleId !== undefined && assignedExamIds.has(item.examScheduleId)" not in local_demo_store:
-    errors.append('exam-controller submission queries must require an assigned exam-session link')
-if "!item.examScheduleId && assigned.has(item.courseId)" not in local_demo_store:
-    errors.append('ordinary staff grading must not include dedicated exam records')
+if 'const session = item.examScheduleId ? assignedExamSessions.get(item.examScheduleId) : undefined' not in local_demo_store:
+    errors.append('exam-controller submissions must resolve the exact assigned exam session')
+if 'session.courseId === item.courseId' not in local_demo_store:
+    errors.append('exam submissions must match the exact exam-session course')
+if '!item.examScheduleId' not in local_demo_store or 'assigned.has(item.courseId)' not in local_demo_store:
+    errors.append('ordinary staff grading must exclude exam records and enforce assigned courses')
 if "examRows.every((item) => item.courseId === 'course-data' && item.examScheduleId === 'schedule-sql-exam')" not in text('apps/web/test/LocalDemoStore.test.mjs'):
     errors.append('missing regression test for strict exam-session submission scope')
 
