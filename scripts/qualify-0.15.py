@@ -443,6 +443,10 @@ for required in [
         errors.append(f'local specialist state is missing migration or authorization invariant: {required}')
 if 'export function messagesForProfile' not in local_demo_store or 'export function markDemoMessageRead' not in local_demo_store:
     errors.append('shared inbox must use role-scoped message queries and recipient-level read state')
+if 'studentIds.has(invoice.studentId)' not in local_demo_store or 'invoice.organization === financeUser.organization' not in local_demo_store:
+    errors.append('finance demo invoices must match both organization and student owner scope')
+if 'invoice-owner-not-student' not in local_demo_tests or 'invoice-owner-other-org' not in local_demo_tests:
+    errors.append('missing invoice owner and organization isolation regression')
 if 'export function scheduleForProfile' not in local_demo_store or 'export function attendanceForProfile' not in local_demo_store:
     errors.append('schedule and attendance access must use central role-scoped query helpers')
 if 'scheduleForProfile(state, profile)' not in local_specialist or 'attendanceForProfile(state, profile)' not in local_specialist:

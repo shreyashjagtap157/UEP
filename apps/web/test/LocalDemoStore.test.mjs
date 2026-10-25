@@ -400,6 +400,20 @@ test('finance invoice access is restricted to the active finance persona organiz
   assert.equal(invoicesForFinanceProfile(multipleTenants, finance).length, 3)
   assert.ok(invoicesForFinanceProfile(multipleTenants, finance).every(invoice => invoice.organization === 'Northstar Learning Institute'))
 
+  const ownerMismatches = {
+    ...state,
+    users: state.users.map(user => user.id === 'student-ravi' ? { ...user, organization: 'East Valley Academy' } : user),
+    invoices: [
+      ...state.invoices,
+      { ...state.invoices[0], id: 'invoice-owner-not-student', invoiceNumber: 'NLI-2026-099', studentId: 'admin-platform' },
+      { ...state.invoices[1], id: 'invoice-owner-other-org', invoiceNumber: 'NLI-2026-100', studentId: 'student-ravi' },
+    ],
+  }
+  const scopedInvoices = invoicesForFinanceProfile(ownerMismatches, finance)
+  assert.equal(scopedInvoices.length, 2)
+  assert.ok(!scopedInvoices.some(invoice => invoice.id === 'invoice-owner-not-student'))
+  assert.ok(!scopedInvoices.some(invoice => invoice.id === 'invoice-owner-other-org'))
+
   const suspended = {
     ...state,
     users: state.users.map(user => user.id === finance.userId ? { ...user, status: 'Suspended' } : user),

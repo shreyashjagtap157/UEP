@@ -567,7 +567,11 @@ export function updateDemoSupportCase(state: DemoState, caseId: string, status: 
 export function invoicesForFinanceProfile(state: DemoState, profile: DemoProfile): DemoInvoice[] {
   const financeUser = profile.role === 'finance-admin' ? activeActor(state, profile) : undefined
   if (!financeUser) return []
-  return state.invoices.filter(invoice => invoice.organization === financeUser.organization)
+  const studentIds = new Set(state.users
+    .filter(user => user.role === 'Student' && user.organization === financeUser.organization)
+    .map(user => user.id))
+  return state.invoices.filter(invoice => invoice.organization === financeUser.organization
+    && studentIds.has(invoice.studentId))
 }
 
 export function setDemoUserStatus(state: DemoState, userId: string, status: DemoUser['status'], actor: DemoProfile): DemoState {
