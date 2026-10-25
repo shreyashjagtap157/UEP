@@ -8,6 +8,7 @@ import {
   learnersForOrganization,
   localDemoData,
   organizationMetrics,
+  organizationsForRole,
   studentStats,
   teacherStats,
 } from '../src/dashboard/localDemoData.ts'
@@ -290,6 +291,9 @@ test('learner, course, and organization metrics are derived from scoped seed rec
   assert.ok(puneLearners.every((learner) => learner.organization === 'Pune Technology Academy'))
   assert.equal(coursesForOrganization('Pune Technology Academy').length, 2)
   assert.equal(coursesForOrganization('Maharashtra Digital Skills').length, 1)
+  assert.deepEqual(organizationsForRole('client', 'Pune Technology Academy').map(item => item.name), ['Pune Technology Academy'])
+  assert.deepEqual(organizationsForRole('client', 'Unknown organization'), [])
+  assert.equal(organizationsForRole('administrator').length, 2)
 
   assert.deepEqual(learnersForOrganization('Unknown organization'), [])
   assert.deepEqual(coursesForOrganization('Unknown organization'), [])
@@ -311,6 +315,8 @@ test('learner, course, and organization metrics are derived from scoped seed rec
   assert.equal(all.completion, Math.round(localDemoData.students.reduce((sum, learner) => sum + learner.completion, 0) / localDemoData.students.length))
   assert.equal(studentStats('Aarav Mehta').activeCourses, 1)
   assert.equal(studentStats('Aarav Mehta').pendingAssignments, 0)
+  assert.equal(studentStats('Meera Deshmukh').pendingAssignments, 1)
+  assert.equal(localDemoData.assignments.find(item => item.id === 'assignment-003')?.score, localDemoData.submissions.find(item => item.id === 'submission-004')?.score)
   assert.equal(teacherStats('Priya Nair').learners, 3)
   assert.equal(teacherStats('Priya Nair').pendingGrading, 2)
   assert.equal(administratorStats().learners, localDemoData.students.length)
