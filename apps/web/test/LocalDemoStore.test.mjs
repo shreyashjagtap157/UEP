@@ -36,6 +36,7 @@ import {
   submitDemoAssignment,
   subscribeDemoState,
   updateDemoAttendance,
+  updateDemoSupportCase,
 } from '../src/dashboard/LocalDemoStore.ts'
 
 const storage = new Map()
@@ -232,22 +233,65 @@ test('client organization actions resolve only for their matching active organiz
   assert.strictEqual(resolveDemoOrganizationAction(unrelatedOrgState, actionId, client), unrelatedOrgState)
 })
 
-test('legacy browser state migrates to v2 without losing saved workflows', () => {
+test('legacy browser state migrates to v3 with finance and support seed backfills', () => {
   let state = resetDemoState()
   state = advanceDemoProgress(state, 'course-web', profile('student'))
   saveDemoState(state)
 
-  const current = JSON.parse(localStorage.getItem('uep.local-demo-data.v2'))
+  const current = JSON.parse(localStorage.getItem('uep.local-demo-data.v3'))
   current.schemaVersion = 1
   delete current.organizationActions
+  delete current.invoices
+  delete current.supportCases
   localStorage.setItem('uep.local-demo-data.v1', JSON.stringify(current))
-  localStorage.removeItem('uep.local-demo-data.v2')
+  localStorage.removeItem('uep.local-demo-data.v3')
 
   const migrated = loadDemoState()
-  assert.equal(migrated.schemaVersion, 2)
+  assert.equal(migrated.schemaVersion, 3)
   assert.equal(migrated.courseProgress['student-asha:course-web'], 78)
   assert.equal(migrated.organizationActions.length, 3)
-  assert.ok(localStorage.getItem('uep.local-demo-data.v2'))
+  assert.equal(migrated.invoices.length, 3)
+  assert.equal(migrated.supportCases.length, 3)
+  assert.ok(localStorage.getItem('uep.local-demo-data.v3'))
+
+  const legacyV2 = { ...migrated, schemaVersion: 2 }
+  delete legacyV2.invoices
+  delete legacyV2.supportCases
+  localStorage.setItem('uep.local-demo-data.v2', JSON.stringify(legacyV2))
+  localStorage.removeItem('uep.local-demo-data.v3')
+  localStorage.removeItem('uep.local-demo-data.v1')
+  const migratedV2 = loadDemoState()
+  assert.equal(migratedV2.schemaVersion, 3)
+  assert.equal(migratedV2.invoices.length, 3)
+  assert.equal(migratedV2.supportCases.length, 3)
+  assert.ok(localStorage.getItem('uep.local-demo-data.v3'))
+})
+
+test('finance ledger is seeded and support case transitions are role-scoped and persistent', () => {
+  const state = resetDemoState()
+  assert.equal(state.invoices.length, 3)
+  assert.equal(new Set(state.invoices.map((invoice) => invoice.invoiceNumber)).size, 3)
+  assert.equal(state.invoices.filter((invoice) => invoice.status === 'Paid').length, 1)
+  assert.equal(state.invoices.filter((invoice) => invoice.status === 'Overdue').length, 1)
+
+  const openCase = state.supportCases.find((item) => item.status === 'Open')
+  assert.ok(openCase)
+  assert.strictEqual(updateDemoSupportCase(state, openCase.id, 'In progress', profile('teacher')), state)
+
+  const triaged = updateDemoSupportCase(state, openCase.id, 'In progress', profile('support'))
+  assert.notStrictEqual(triaged, state)
+  assert.equal(triaged.supportCases.find((item) => item.id === openCase.id)?.status, 'In progress')
+
+  const resolved = updateDemoSupportCase(triaged, openCase.id, 'Resolved', profile('support'))
+  assert.notStrictEqual(resolved, triaged)
+  assert.equal(resolved.supportCases.find((item) => item.id === openCase.id)?.status, 'Resolved')
+  assert.strictEqual(updateDemoSupportCase(resolved, openCase.id, 'In progress', profile('support')), resolved)
+
+  saveDemoState(resolved)
+  const persisted = loadDemoState()
+  assert.equal(persisted.supportCases.find((item) => item.id === openCase.id)?.status, 'Resolved')
+  assert.ok(activityForProfile(persisted, profile('admin')).some((item) => item.action === 'Support case updated'))
+  assert.deepEqual(activityForProfile(persisted, profile('support')), [])
 })
 
 test('activity feeds do not expose global details to unrelated personas', () => {
