@@ -937,7 +937,9 @@ export function scheduleForProfile(state: DemoState, profile: DemoProfile): Demo
       && item.participantIds.some(id => learnersById.get(id)?.courseIds.includes(item.courseId) === true))
   }
   if (profile.role === 'teaching-assistant' || profile.role === 'evaluator') {
-    return state.schedule.filter(item => user.courseIds.includes(item.courseId)
+    return state.schedule.filter(item => item.kind !== 'Exam'
+      && item.participantIds.includes(user.id)
+      && user.courseIds.includes(item.courseId)
       && publishedCourse(item.courseId))
   }
   return []

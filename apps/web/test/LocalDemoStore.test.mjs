@@ -317,6 +317,12 @@ test('schedule and attendance queries enforce active identity, enrollment and or
   assert.ok(!scheduleForProfile(polluted, profile('guardian')).some(item => item.id === 'schedule-draft-course'))
   assert.ok(!scheduleForProfile(polluted, profile('client')).some(item => item.id === 'schedule-draft-course'))
   assert.ok(scheduleForProfile(state, profile('exam-controller')).some(item => item.id === 'schedule-sql-exam'))
+  assert.ok(!scheduleForProfile(state, profile('evaluator')).some(item => item.id === 'schedule-sql-exam'),
+    'course assignment alone must not reveal a dedicated exam schedule to evaluators')
+  assert.ok(!scheduleForProfile(state, profile('teaching-assistant')).some(item => item.id === 'schedule-sql-exam'),
+    'course assignment alone must not reveal a dedicated exam schedule to teaching assistants')
+  assert.ok(scheduleForProfile(state, profile('teaching-assistant')).some(item => item.id === 'schedule-web-today'),
+    'teaching assistants retain visibility into classes where they are a participant')
 
   assert.ok(!attendanceForProfile(polluted, profile('student')).some(item => item.id === 'attendance-asha-draft'))
   assert.ok(!attendanceForProfile(polluted, profile('guardian')).some(item => item.id === 'attendance-asha-draft'))

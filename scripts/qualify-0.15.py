@@ -443,6 +443,10 @@ if 'const session = item.examScheduleId ? assignedExamSessions.get(item.examSche
     errors.append('exam-controller submissions must resolve the exact assigned exam session')
 if 'session.courseId === item.courseId' not in local_demo_store:
     errors.append('exam submissions must match the exact exam-session course')
+if "item.kind !== 'Exam'" not in local_demo_store or 'item.participantIds.includes(user.id)' not in local_demo_store:
+    errors.append('teaching assistants and evaluators must not see unassigned exam sessions in course schedule')
+if 'course assignment alone must not reveal a dedicated exam schedule to evaluators' not in local_demo_tests:
+    errors.append('missing schedule isolation regression for course-assigned non-exam roles')
 if '!item.examScheduleId' not in local_demo_store or 'assigned.has(item.courseId)' not in local_demo_store:
     errors.append('ordinary staff grading must exclude exam records and enforce assigned courses')
 if "examRows.every((item) => item.courseId === 'course-data' && item.examScheduleId === 'schedule-sql-exam')" not in text('apps/web/test/LocalDemoStore.test.mjs'):
