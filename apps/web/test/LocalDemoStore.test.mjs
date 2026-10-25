@@ -4,6 +4,8 @@ import { demoAccounts } from '../src/dashboard/localDemoAccounts.ts'
 import {
   DEMO_PROFILES,
   activityForProfile,
+  attendanceForProfile,
+  scheduleForProfile,
   advanceDemoProgress,
   publishDemoCourse,
   resolveDemoOrganizationAction,
@@ -206,6 +208,40 @@ test('submission visibility is restricted to each persona learner/course scope',
   assert.deepEqual(ids('auditor'), [])
   assert.deepEqual(ids('developer'), [])
   assert.deepEqual(ids('finance-admin'), [])
+})
+
+test('schedule and attendance queries enforce active identity, enrollment and organization scope', () => {
+  const state = resetDemoState()
+  const polluted = {
+    ...state,
+    schedule: [
+      ...state.schedule,
+      { id: 'schedule-draft-course', title: 'Draft course session', courseId: 'course-product-draft', startsAt: new Date().toISOString(), durationMinutes: 45, participantIds: ['student-asha'], kind: 'Class', status: 'Scheduled' },
+      { id: 'schedule-ravi-unenrolled-cloud', title: 'Unenrolled cloud session', courseId: 'course-cloud', startsAt: new Date().toISOString(), durationMinutes: 45, participantIds: ['student-ravi'], kind: 'Class', status: 'Scheduled' },
+    ],
+    attendance: [
+      ...state.attendance,
+      { id: 'attendance-asha-draft', studentId: 'student-asha', courseId: 'course-product-draft', date: '2026-10-25', status: 'Absent' },
+      { id: 'attendance-ravi-unenrolled-cloud', studentId: 'student-ravi', courseId: 'course-cloud', date: '2026-10-25', status: 'Absent' },
+    ],
+  }
+  const ravi = { ...profile('student'), userId: 'student-ravi', name: 'Ravi Nair', email: 'ravi.student@demo.uep' }
+
+  assert.ok(!scheduleForProfile(polluted, profile('student')).some(item => item.id === 'schedule-draft-course'))
+  assert.ok(!scheduleForProfile(polluted, ravi).some(item => item.id === 'schedule-ravi-unenrolled-cloud'))
+  assert.ok(!scheduleForProfile(polluted, profile('guardian')).some(item => item.id === 'schedule-draft-course'))
+  assert.ok(!scheduleForProfile(polluted, profile('client')).some(item => item.id === 'schedule-draft-course'))
+  assert.ok(scheduleForProfile(state, profile('exam-controller')).some(item => item.id === 'schedule-sql-exam'))
+
+  assert.ok(!attendanceForProfile(polluted, profile('student')).some(item => item.id === 'attendance-asha-draft'))
+  assert.ok(!attendanceForProfile(polluted, profile('guardian')).some(item => item.id === 'attendance-asha-draft'))
+  assert.ok(!attendanceForProfile(polluted, profile('teacher')).some(item => item.id === 'attendance-ravi-unenrolled-cloud'))
+  assert.ok(!attendanceForProfile(polluted, profile('client')).some(item => item.id === 'attendance-asha-draft'))
+  assert.ok(!attendanceForProfile(polluted, profile('teaching-assistant')).some(item => item.id === 'attendance-ravi-unenrolled-cloud'))
+
+  const suspendedAsha = { ...polluted, users: polluted.users.map(item => item.id === 'student-asha' ? { ...item, status: 'Suspended' } : item) }
+  assert.deepEqual(scheduleForProfile(suspendedAsha, profile('student')), [])
+  assert.deepEqual(attendanceForProfile(suspendedAsha, profile('student')), [])
 })
 
 test('student progress advances and administrator course publication changes the shared catalog', () => {

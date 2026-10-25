@@ -6,6 +6,8 @@ import {
   createDemoProduct,
   gradeDemoSubmission,
   invoicesForFinanceProfile,
+  attendanceForProfile,
+  scheduleForProfile,
   loadDemoState,
   markDemoMessageRead,
   messagesForProfile,
@@ -120,30 +122,6 @@ const NAVIGATION: Record<DemoRole, NavigationItem[]> = {
   ],
 }
 
-function visibleSchedule(state: DemoState, profile: DemoProfile) {
-  if (profile.role === 'exam-controller') {
-    return state.schedule.filter(item => item.kind === 'Exam' && item.participantIds.includes(profile.userId))
-  }
-  const user = state.users.find(item => item.id === profile.userId && item.status === 'Active')
-  if (!user) return []
-  if (profile.role === 'student') return state.schedule.filter(item => item.participantIds.includes(profile.userId))
-  if (profile.role === 'guardian') return state.schedule.filter(item => item.participantIds.includes('student-asha'))
-  if (profile.role === 'teacher') {
-    const courseIds = new Set(user.courseIds)
-    return state.schedule.filter(item => item.participantIds.includes(profile.userId) && courseIds.has(item.courseId))
-  }
-  if (profile.role === 'admin') return state.schedule
-  if (profile.role === 'client') {
-    const learnerIds = new Set(state.users.filter(learner => learner.role === 'Student' && learner.status === 'Active' && learner.organization === user.organization).map(learner => learner.id))
-    return state.schedule.filter(item => item.participantIds.some(id => learnerIds.has(id)))
-  }
-  if (profile.role === 'teaching-assistant' || profile.role === 'evaluator' || profile.role === 'mentor') {
-    const courseIds = new Set(user.courseIds)
-    return state.schedule.filter(item => courseIds.has(item.courseId))
-  }
-  return []
-}
-
 export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: DemoProfile; onSignOut: () => void }) {
   const [section, setSection] = useState<Section>('today')
   const [notice, setNotice] = useState('Ready for the role-scoped walkthrough.')
@@ -153,20 +131,8 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
   const nav = NAVIGATION[profile.role]
   const user = state.users.find(item => item.id === profile.userId && item.status === 'Active')
   const submissions = submissionsForProfile(state, profile)
-  const schedule = visibleSchedule(state, profile)
-  const linkedLearnerId = profile.role === 'guardian' || profile.role === 'mentor' ? 'student-asha' : profile.role === 'student' ? profile.userId : undefined
-  const organizationLearnerIds = new Set(state.users.filter(item => item.role === 'Student' && item.status === 'Active' && item.organization === user?.organization).map(item => item.id))
-  const attendance = profile.role === 'student'
-    ? state.attendance.filter(item => item.studentId === profile.userId)
-    : profile.role === 'guardian'
-      ? state.attendance.filter(item => item.studentId === linkedLearnerId)
-      : profile.role === 'teacher' || profile.role === 'admin'
-        ? state.attendance.filter(item => profile.role === 'admin' || (user?.courseIds ?? []).includes(item.courseId))
-        : profile.role === 'client'
-          ? state.attendance.filter(item => organizationLearnerIds.has(item.studentId))
-          : profile.role === 'teaching-assistant'
-            ? state.attendance.filter(item => (user?.courseIds ?? []).includes(item.courseId))
-            : []
+  const schedule = scheduleForProfile(state, profile)
+  const attendance = attendanceForProfile(state, profile)
   const activity = activityForProfile(state, profile)
   const financeInvoices = invoicesForFinanceProfile(state, profile)
   const messages = messagesForProfile(state, profile)
