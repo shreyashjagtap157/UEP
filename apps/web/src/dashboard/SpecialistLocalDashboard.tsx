@@ -148,15 +148,28 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
   const [section, setSection] = useState<Section>('today')
   const [notice, setNotice] = useState('Ready for the role-scoped walkthrough.')
   const [state, setState] = useState<DemoState>(() => loadDemoState())
-  const nav = NAVIGATION[profile.role] ?? NAVIGATION.auditor!
+  const [productTitle, setProductTitle] = useState('')
+  const [productDescription, setProductDescription] = useState('')
+  const nav = NAVIGATION[profile.role]
   const user = state.users.find(item => item.id === profile.userId && item.status === 'Active')
   const submissions = submissionsForProfile(state, profile)
   const schedule = visibleSchedule(state, profile)
-  const attendance = profile.role === 'teaching-assistant'
-    ? state.attendance.filter(item => (user?.courseIds ?? []).includes(item.courseId))
-    : []
+  const linkedLearnerId = profile.role === 'guardian' || profile.role === 'mentor' ? 'student-asha' : profile.role === 'student' ? profile.userId : undefined
+  const organizationLearnerIds = new Set(state.users.filter(item => item.role === 'Student' && item.status === 'Active' && item.organization === user?.organization).map(item => item.id))
+  const attendance = profile.role === 'student'
+    ? state.attendance.filter(item => item.studentId === profile.userId)
+    : profile.role === 'guardian'
+      ? state.attendance.filter(item => item.studentId === linkedLearnerId)
+      : profile.role === 'teacher' || profile.role === 'admin'
+        ? state.attendance.filter(item => profile.role === 'admin' || (user?.courseIds ?? []).includes(item.courseId))
+        : profile.role === 'client'
+          ? state.attendance.filter(item => organizationLearnerIds.has(item.studentId))
+          : profile.role === 'teaching-assistant'
+            ? state.attendance.filter(item => (user?.courseIds ?? []).includes(item.courseId))
+            : []
   const activity = activityForProfile(state, profile)
   const financeInvoices = invoicesForFinanceProfile(state, profile)
+  const messages = messagesForProfile(state, profile)
 
   useEffect(() => {
     setState(loadDemoState())
@@ -191,6 +204,68 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
     saveDemoState(next)
     setState(next)
     setNotice(`Support case updated: ${caseId} · ${status}.`)
+  }
+
+  function changeState(next: DemoState, successMessage: string, previousState?: DemoState) {
+    if (previousState && next === previousState) {
+      setNotice('No change was made; this action may be outside the signed-in role’s allowed scope.')
+      return
+    }
+    saveDemoState(next)
+    setState(next)
+    setNotice(successMessage)
+  }
+
+  function submitAssignment(submissionId: string) {
+    const fresh = loadDemoState()
+    changeState(submitDemoAssignment(fresh, submissionId, profile), 'Assignment submitted and saved.', fresh)
+  }
+
+  function advanceProgress(courseId: string) {
+    const fresh = loadDemoState()
+    changeState(advanceDemoProgress(fresh, courseId, profile), 'Learning progress updated and saved.', fresh)
+  }
+
+  function markAttendance(attendanceId: string) {
+    const fresh = loadDemoState()
+    changeState(updateDemoAttendance(fresh, attendanceId, 'Present', profile), 'Attendance update saved.', fresh)
+  }
+
+  function markMessageRead(messageId: string) {
+    const fresh = loadDemoState()
+    changeState(markDemoMessageRead(fresh, messageId, profile), 'Message marked as read.', fresh)
+  }
+
+  function createProduct() {
+    const fresh = loadDemoState()
+    const next = createDemoProduct(fresh, productTitle, productDescription, profile)
+    if (next === fresh) {
+      setNotice('Product was not created; check the title and role permission.')
+      return
+    }
+    changeState(next, 'Product draft created.', fresh)
+    setProductTitle('')
+    setProductDescription('')
+  }
+
+  function publishProduct(productId: string) {
+    const fresh = loadDemoState()
+    changeState(publishDemoProduct(fresh, productId, profile), 'Product published to the shared demo catalog.', fresh)
+  }
+
+  function publishCourse(courseId: string) {
+    const fresh = loadDemoState()
+    changeState(publishDemoCourse(fresh, courseId, profile), 'Course published to the shared demo catalog.', fresh)
+  }
+
+  function resolveOrganizationAction(actionId: string) {
+    const fresh = loadDemoState()
+    changeState(resolveDemoOrganizationAction(fresh, actionId, profile), 'Organization action resolved.', fresh)
+  }
+
+  function changeUserStatus(userId: string, status: 'Active' | 'Suspended') {
+    const fresh = loadDemoState()
+    changeState(setDemoUserStatus(fresh, userId, status, profile), 'User status updated.', fresh)
   }
 
   const summaryItems = summaryFor(profile, state, submissions, schedule, attendance.length, activity.length)
@@ -229,12 +304,22 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
             {profile.role === 'auditor' && <PanelList eyebrow="Read-only" title="Audit coverage" items={[{ title: 'Recorded events', detail: 'Synthetic local event history; no mutations are available from this workspace.', status: String(activity.length) }, { title: 'Academic records', detail: 'Audit access is read-only.', status: 'Read-only' }]} />}
           </div>
         )}
+        {section === 'learning' && <LearningPanel state={state} profile={profile} onProgress={advanceProgress} />}
         {section === 'schedule' && <PanelList eyebrow="Assigned schedule" title={profile.role === 'exam-controller' ? 'Examination sessions' : 'Assigned classes'} items={schedule.map(item => ({ title: item.title, detail: `${courseFor(state, item.courseId)?.title ?? 'Assigned course'} · ${new Date(item.startsAt).toLocaleString()} · ${item.durationMinutes} min`, status: `${item.kind} · ${item.status}` }))} />}
-        {section === 'submissions' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} />}
-        {section === 'attendance' && <PanelList eyebrow="Assigned class records" title="Attendance register" items={attendance.map(item => ({ title: state.users.find(person => person.id === item.studentId)?.name ?? 'Learner', detail: `${courseFor(state, item.courseId)?.title ?? 'Assigned course'} · ${item.date}`, status: item.status }))} />}
+        {section === 'submissions' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} />}
+        {section === 'results' && <PanelList eyebrow="Academic results" title="Graded submissions" items={submissions.filter(item => item.status === 'Graded').map(item => ({ title: item.title, detail: `${courseFor(state, item.courseId)?.title ?? 'Assigned course'} · ${state.users.find(person => person.id === item.studentId)?.name ?? 'Learner'}${item.feedback ? ' · ' + item.feedback : ''}`, status: typeof item.score === 'number' ? `${item.score}/100` : 'Graded' }))} />}
+        {section === 'people' && <PeoplePanel state={state} profile={profile} onUserStatus={changeUserStatus} />}
+        {section === 'organization' && <OrganizationPanel state={state} profile={profile} onResolve={resolveOrganizationAction} />}
+        {section === 'analytics' && <AnalyticsPanel state={state} profile={profile} submissions={submissions} attendance={attendance} schedule={schedule} />}
+        {section === 'content' && <ContentPanel state={state} profile={profile} onCreateProduct={createProduct} onProductTitle={setProductTitle} onProductDescription={setProductDescription} productTitle={productTitle} productDescription={productDescription} onPublishProduct={publishProduct} onPublishCourse={publishCourse} />}
+        {section === 'operations' && <OperationsPanel state={state} profile={profile} onResolve={resolveOrganizationAction} onSupportStatus={updateSupportCase} />}
+        {section === 'integrations' && <IntegrationsPanel state={state} profile={profile} />}
+        {section === 'messages' && <MessagesPanel state={state} profile={profile} messages={messages} onMarkRead={markMessageRead} />}
+        {section === 'settings' && <SettingsPanel state={state} profile={profile} />}
+        {section === 'attendance' && <AttendancePanel state={state} profile={profile} attendance={attendance} onMarkPresent={markAttendance} />}
         {section === 'mentee' && <MenteePanel state={state} profile={profile} />}
         {section === 'activity' && <PanelList eyebrow={profile.role === 'auditor' ? 'Compliance' : 'Scoped activity'} title={profile.role === 'auditor' ? 'Audit log' : 'Relevant recorded activity'} items={activity.map(item => ({ title: item.action, detail: `${item.at} · ${item.actor} · ${item.detail}`, status: 'Recorded' }))} />}
-        {section === 'finance' && <FinanceScopePanel invoices={financeInvoices} />}
+        {section === 'finance' && <FinanceScopePanel invoices={financeInvoices} users={state.users} />}
         {section === 'support' && <SupportScopePanel state={state} profile={profile} onStatus={updateSupportCase} />}
         <section className="panel" aria-live="polite"><p className="eyebrow">Walkthrough status</p><p>{notice}</p><small className="muted">Data shown here is seeded browser state. This mode does not call the production API or settle real payments.</small></section>
       </main>
@@ -257,9 +342,49 @@ function summaryTitle(role: DemoRole) {
 
 function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnType<typeof submissionsForProfile>, schedule: ReturnType<typeof visibleSchedule>, attendanceCount: number, activityCount: number): PanelItem[] {
   const currentUser = state.users.find(item => item.id === profile.userId && item.status === 'Active')
+  if (profile.role === 'student') {
+    const courseIds = currentUser?.courseIds ?? []
+    return [
+      { title: 'Enrolled courses', status: String(courseIds.length), detail: 'Courses assigned to this learner' },
+      { title: 'Pending work', status: String(submissions.filter(item => item.status === 'Assigned').length), detail: 'Assignments and exams awaiting completion' },
+      { title: 'Graded work', status: String(submissions.filter(item => item.status === 'Graded').length), detail: 'Submissions with feedback or a score' },
+    ]
+  }
+  if (profile.role === 'teacher') return [
+    { title: 'Assigned courses', status: String(currentUser?.courseIds.length ?? 0), detail: 'Teaching assignments in the current workspace' },
+    { title: 'Awaiting review', status: String(submissions.filter(item => item.status === 'Submitted').length), detail: 'Submitted assignments awaiting review' },
+    { title: 'Attendance rows', status: String(attendanceCount), detail: 'Records within assigned course scope' },
+  ]
+  if (profile.role === 'client') {
+    const learners = state.users.filter(item => item.role === 'Student' && item.organization === currentUser?.organization)
+    const actions = state.organizationActions.filter(item => item.organization === currentUser?.organization && item.status === 'Open')
+    return [
+      { title: 'Organization learners', status: String(learners.length), detail: currentUser?.organization ?? 'No organization linked' },
+      { title: 'Enrolled courses', status: String(new Set(learners.flatMap(item => item.courseIds)).size), detail: 'Distinct courses across organization learners' },
+      { title: 'Open actions', status: String(actions.length), detail: 'Organization follow-up queue' },
+    ]
+  }
+  if (profile.role === 'developer') return [
+    { title: 'Product drafts', status: String(state.products.filter(item => item.status !== 'Published').length), detail: 'Products requiring work or review' },
+    { title: 'Webhook failures', status: String(state.webhooks.reduce((sum, item) => sum + item.failedDeliveries, 0)), detail: 'Failed deliveries across demo integrations' },
+    { title: 'Tracked integrations', status: String(state.webhooks.length), detail: 'Integration records in the shared state' },
+  ]
+  if (profile.role === 'admin') return [
+    { title: 'Active accounts', status: String(state.users.filter(item => item.status === 'Active').length), detail: 'Platform-wide user count' },
+    { title: 'Pending work', status: String(submissions.filter(item => item.status === 'Submitted').length), detail: 'Submitted academic work' },
+    { title: 'Operational cases', status: String(state.supportCases.filter(item => item.status !== 'Resolved').length), detail: 'Support cases not yet resolved' },
+  ]
+  if (profile.role === 'guardian') {
+    const learner = state.users.find(item => item.id === 'student-asha' && item.status === 'Active')
+    return [
+      { title: 'Linked learner', status: learner?.name ?? 'Not linked', detail: 'Explicit guardian-to-learner relationship' },
+      { title: 'Assigned work', status: String(submissions.length), detail: 'Assignments visible for the linked learner' },
+      { title: 'Attendance rows', status: String(attendanceCount), detail: 'Attendance history for the linked learner' },
+    ]
+  }
   if (profile.role === 'exam-controller') return [
     { title: 'Exam sessions', status: String(schedule.length), detail: 'Scheduled examinations assigned to this controller' },
-    { title: 'Submission records', status: String(submissions.length), detail: 'Records attached to assigned exam courses' },
+    { title: 'Submission records', status: String(submissions.length), detail: 'Records explicitly linked to assigned exam sessions' },
     { title: 'Open sessions', status: String(schedule.filter(item => item.status === 'Scheduled').length), detail: 'Exams not yet completed or cancelled' },
   ]
   if (profile.role === 'finance-admin') {
@@ -267,9 +392,9 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
     const outstanding = invoices.filter(invoice => invoice.status !== 'Paid')
     const overdue = invoices.filter(invoice => invoice.status === 'Overdue')
     return [
-      { title: 'Outstanding invoices', status: String(outstanding.length), detail: `${outstanding.reduce((sum, invoice) => sum + invoice.amountInr, 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR' })} outstanding in the local ledger` },
-      { title: 'Overdue invoices', status: String(overdue.length), detail: 'Synthetic ledger records requiring finance review' },
-      { title: 'Tenant context', status: currentUser?.organization ?? 'Unavailable', detail: 'Organization associated with this local persona' },
+      { title: 'Outstanding invoices', status: String(outstanding.length), detail: String(outstanding.reduce((sum, invoice) => sum + invoice.amountInr, 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR' })) + ' outstanding in local ledger' },
+      { title: 'Overdue invoices', status: String(overdue.length), detail: 'Synthetic ledger records needing finance review' },
+      { title: 'Organization', status: currentUser?.organization ?? 'Unavailable', detail: 'Organization associated with this finance account' },
     ]
   }
   if (profile.role === 'teaching-assistant') return [
@@ -303,19 +428,20 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
   ]
 }
 
-function SubmissionPanel({ state, profile, submissions, onGrade }: { state: DemoState; profile: DemoProfile; submissions: ReturnType<typeof submissionsForProfile>; onGrade: (id: string) => void }) {
+function SubmissionPanel({ state, profile, submissions, onGrade, onSubmit }: { state: DemoState; profile: DemoProfile; submissions: ReturnType<typeof submissionsForProfile>; onGrade: (id: string) => void; onSubmit: (id: string) => void }) {
   const canGrade = profile.role === 'teaching-assistant' || profile.role === 'evaluator'
+  const canSubmit = profile.role === 'student'
   return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Assigned learning evidence</p><h3>{profile.role === 'exam-controller' ? 'Exam-linked records' : profile.role === 'mentor' ? 'Mentee submissions' : 'Submission queue'}</h3></div><span className="count-badge">{submissions.length}</span></div>
     {submissions.length ? <div className="local-module-list">{submissions.map(item => {
       const student = state.users.find(person => person.id === item.studentId)
       const course = courseFor(state, item.courseId)
-      return <article className="local-module" key={item.id}><div><strong>{item.title}</strong><p>{item.examScheduleId ? state.schedule.find(session => session.id === item.examScheduleId)?.title ?? 'Assigned examination' : course?.title ?? 'Assigned course'} · {student?.name ?? 'Learner'} · due {new Date(item.dueAt).toLocaleDateString()}</p>{item.feedback && <small className="muted">Feedback: {item.feedback}</small>}</div><div><span className="chip">{item.status === 'Graded' ? `${item.score}/100` : item.status}</span>{canGrade && item.status === 'Submitted' && <button type="button" className="text-button" onClick={() => onGrade(item.id)}>Grade {profile.role === 'evaluator' ? '90%' : '85%'}</button>}</div></article>
+      return <article className="local-module" key={item.id}><div><strong>{item.title}</strong><p>{item.examScheduleId ? state.schedule.find(session => session.id === item.examScheduleId)?.title ?? 'Assigned examination' : course?.title ?? 'Assigned course'} · {student?.name ?? 'Learner'} · due {new Date(item.dueAt).toLocaleDateString()}</p>{item.feedback && <small className="muted">Feedback: {item.feedback}</small>}</div><div><span className="chip">{item.status === 'Graded' ? `${item.score}/100` : item.status}</span>{canGrade && item.status === 'Submitted' && <button type="button" className="text-button" onClick={() => onGrade(item.id)}>Grade {profile.role === 'evaluator' ? '90%' : '85%'}</button>}{canSubmit && item.status === 'Assigned' && <button type="button" className="text-button" onClick={() => onSubmit(item.id)}>Submit work</button>}</div></article>
     })}</div> : <p className="muted">No submissions are assigned to this persona.</p>}
   </section>
 }
 
 function MenteePanel({ state, profile }: { state: DemoState; profile: DemoProfile }) {
-  if (profile.role !== 'mentor') return <PanelList eyebrow="Relationship" title="Linked learner" items={[]} />
+  if (profile.role !== 'mentor' && profile.role !== 'guardian') return <PanelList eyebrow="Relationship" title="Linked learner" items={[]} />
   const mentee = state.users.find(item => item.id === 'student-asha' && item.status === 'Active')
   if (!mentee) return <PanelList eyebrow="Relationship" title="No active mentee" items={[]} />
   const courses = mentee.courseIds.map(courseId => {
