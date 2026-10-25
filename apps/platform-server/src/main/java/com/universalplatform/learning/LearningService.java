@@ -24,7 +24,42 @@ class LearningService {
     @Transactional(readOnly=true) List<CompetencyView> competencies(UUID outcomeId){auth.require(PermissionKey.LEARNING_OUTCOMES_VIEW); UUID t=tenant.requireTenantId(); require(t,outcomeId,"learning_outcome"); return jdbc.query("select id,outcome_id,code,name,description,status,version from competency where tenant_id=? and outcome_id=? order by code",(rs,n)->new CompetencyView(rs.getObject(1,UUID.class),rs.getObject(2,UUID.class),rs.getString(3),rs.getString(4),rs.getString(5),rs.getString(6),rs.getLong(7)),t,outcomeId);}
     @Transactional(readOnly=true) List<LearningPathView> paths(){auth.require(PermissionKey.LEARNING_OUTCOMES_VIEW); UUID t=tenant.requireTenantId(); return jdbc.query("select id,code,name,description,status,version from learning_path where tenant_id=? order by name",(rs,n)->new LearningPathView(rs.getObject(1,UUID.class),rs.getString(2),rs.getString(3),rs.getString(4),rs.getString(5),rs.getLong(6)),t);}
     @Transactional LearningPathView createPath(String code,String name,String desc){auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE); UUID t=tenant.requireTenantId(); UUID id=UUID.randomUUID(); jdbc.update("insert into learning_path(id,tenant_id,code,name,description,status) values(?,?,?,?,?,'ACTIVE')",id,t,code.trim(),name.trim(),nullable(desc)); audit.record(t,actor.requireSubject(),"LEARNING_PATH_CREATED","learning_path",id.toString()); return path(id);}
-    @Transactional PathItemView addPathItem(UUID pathId,int sequence,String itemType,UUID itemId,String title,boolean required){auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE); UUID t=tenant.requireTenantId(); require(t,pathId,"learning_path"); if(sequence<1)throw new IllegalArgumentException("sequence must be positive"); UUID id=UUID.randomUUID(); jdbc.update("insert into learning_path_item(id,tenant_id,path_id,sequence_number,item_type,item_id,title,required) values(?,?,?,?,?,?,?,?)",id,t,pathId,sequence,itemType,itemId,title.trim(),required); audit.record(t,actor.requireSubject(),"LEARNING_PATH_ITEM_ADDED","learning_path_item",id.toString()); return pathItem(id);}
+    @Transactional PathItemView addPathItem(UUID pathId, int sequence, String itemType, UUID itemId, String title, boolean required) {
+        auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE);
+        UUID t = tenant.requireTenantId();
+        require(t, pathId, "learning_path");
+        if (sequence < 1) {
+            throw new IllegalArgumentException("sequence must be positive");
+        }
+        String targetTable = pathItemTargetTable(itemType);
+        require(t, itemId, targetTable);
+        UUID id = UUID.randomUUID();
+        jdbc.update("insert into learning_path_item(id,tenant_id,path_id,sequence_number,item_type,item_id,title,required) values(?,?,?,?,?,?,?,?)",
+                id, t, pathId, sequence, itemType, itemId, title.trim(), required);
+        audit.record(t, actor.requireSubject(), "LEARNING_PATH_ITEM_ADDED", "learning_path_item", id.toString());
+        return pathItem(id);
+    }
+
+    static String pathItemTargetTable(String itemType) {
+        if (itemType == null) {
+            throw new IllegalArgumentException("Unsupported learning path item type");
+        }
+        return switch (itemType) {
+            case "PROGRAM" -> "academic_program";
+            case "COURSE" -> "course";
+            case "SUBJECT" -> "subject";
+            case "MODULE" -> "curriculum_module";
+            case "BATCH" -> "batch";
+            case "CLASS" -> "class_session";
+            case "QUESTION" -> "question";
+            case "ASSESSMENT" -> "assessment";
+            case "ASSIGNMENT" -> "assignment";
+            case "CREDENTIAL" -> "credential";
+            case "LEARNING_OUTCOME" -> "learning_outcome";
+            case "COMPETENCY" -> "competency";
+            default -> throw new IllegalArgumentException("Unsupported learning path item type");
+        };
+    }
     @Transactional void mapOutcome(String targetType, UUID targetId, UUID outcomeId, double weight) {
         auth.require(PermissionKey.LEARNING_OUTCOMES_MANAGE);
         UUID t = tenant.requireTenantId();
