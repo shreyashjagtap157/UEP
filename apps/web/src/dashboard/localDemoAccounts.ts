@@ -1,46 +1,27 @@
 import { DEMO_PROFILES } from './LocalDemoStore.ts'
 import type { DemoProfile, DemoRole } from './LocalDemoStore.ts'
-import type { LocalRole } from './localDemoData.ts'
 
-export type CoreLocalAccount = {
-  email: string
-  role: LocalRole
-  name: string
-}
-
-export type SpecialistLocalAccount = {
+export type LocalAccount = {
   email: string
   role: DemoRole
   name: string
   profile: DemoProfile
 }
 
-export type LocalAccount = CoreLocalAccount | SpecialistLocalAccount
-
-const coreProfileRoles = new Set<DemoRole>([
-  'student', 'teacher', 'client', 'developer', 'admin', 'guardian',
-])
-
-const coreAccounts: CoreLocalAccount[] = [
-  { email: 'student@demo.uep', role: 'student', name: 'Aarav Mehta' },
-  { email: 'teacher@demo.uep', role: 'teacher', name: 'Priya Nair' },
-  { email: 'client@demo.uep', role: 'client', name: 'Pune Technology Academy' },
-  { email: 'developer@demo.uep', role: 'developer', name: 'UEP Product Team' },
-  { email: 'admin@demo.uep', role: 'administrator', name: 'Platform Administrator' },
-  { email: 'guardian@demo.uep', role: 'guardian', name: 'Meera Mehta' },
-]
-
-const specialistAccounts: SpecialistLocalAccount[] = DEMO_PROFILES
-  .filter(profile => !coreProfileRoles.has(profile.role))
-  .map(profile => ({
-    email: profile.email,
-    role: profile.role,
-    name: profile.name,
-    profile,
-  }))
-
-export const demoAccounts: LocalAccount[] = [...coreAccounts, ...specialistAccounts]
-
-export function isCoreLocalAccount(account: LocalAccount): account is CoreLocalAccount {
-  return !('profile' in account)
+// Keep the six familiar sign-in email aliases, but resolve them to canonical
+// DEMO_PROFILES so every persona shares the same state and authorization rules.
+const familiarLoginAliases: Partial<Record<DemoRole, string>> = {
+  student: 'student@demo.uep',
+  teacher: 'teacher@demo.uep',
+  client: 'client@demo.uep',
+  developer: 'developer@demo.uep',
+  admin: 'admin@demo.uep',
+  guardian: 'guardian@demo.uep',
 }
+
+export const demoAccounts: LocalAccount[] = DEMO_PROFILES.map(profile => ({
+  email: familiarLoginAliases[profile.role] ?? profile.email,
+  role: profile.role,
+  name: profile.name,
+  profile,
+}))
