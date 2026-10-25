@@ -77,7 +77,7 @@ export const localDemoData = {
   assignments: [
     { id: 'assignment-001', title: 'REST API architecture review', course: 'Web Application Architecture', due: '2026-10-24', studentNames: ['Aarav Mehta', 'Ananya Shah'], status: 'Pending' },
     { id: 'assignment-002', title: 'Database normalization exercise', course: 'Database Engineering', due: '2026-10-27', studentNames: ['Rohan Patil', 'Meera Deshmukh'], status: 'Submitted' },
-    { id: 'assignment-003', title: 'Cloud deployment report', course: 'Cloud Deployment', due: '2026-10-18', studentNames: ['Isha Kulkarni'], status: 'Graded', score: 91 },
+    { id: 'assignment-003', title: 'Cloud deployment report', course: 'Cloud Deployment', due: '2026-10-18', studentNames: ['Isha Kulkarni'], status: 'Graded', score: 95 },
   ] satisfies DemoAssignment[],
   submissions: [
     { id: 'submission-001', student: 'Aarav Mehta', assignment: 'REST API architecture review', submitted: 'Today · 08:42', status: 'Needs grading' },
@@ -114,6 +114,11 @@ export const demoRoleLabels: Record<LocalRole, string> = {
   guardian: 'Guardian',
 }
 
+export function organizationsForRole(role: LocalRole, organization?: string) {
+  if (role !== 'client') return localDemoData.organizations
+  return organization ? localDemoData.organizations.filter(item => item.name === organization) : []
+}
+
 export function learnersForOrganization(organization: string) {
   return localDemoData.students.filter(learner => learner.organization === organization)
 }
@@ -146,7 +151,7 @@ export function studentStats(studentName = 'Aarav Mehta') {
   return {
     averageProgress: courses.length ? Math.round(courses.reduce((sum, course) => sum + course.progress, 0) / courses.length) : 0,
     activeCourses: courses.filter(course => course.status === 'In progress').length,
-    pendingAssignments: assignments.filter(item => item.status === 'Pending' && !submissions.some(submission => submission.assignment === item.title)).length,
+    pendingAssignments: assignments.filter(item => !submissions.some(submission => submission.assignment === item.title)).length,
     submittedAssignments: submissions.filter(item => item.status === 'Needs grading').length,
     completedCourses: courses.filter(course => course.status === 'Completed').length,
     nextSession: sessions[0],
