@@ -239,6 +239,29 @@ test('schedule and attendance queries enforce active identity, enrollment and or
   assert.ok(!attendanceForProfile(polluted, profile('client')).some(item => item.id === 'attendance-asha-draft'))
   assert.ok(!attendanceForProfile(polluted, profile('teaching-assistant')).some(item => item.id === 'attendance-ravi-unenrolled-cloud'))
 
+  const crossOrganization = {
+    ...polluted,
+    users: polluted.users.map(item => item.id === 'student-ravi' ? { ...item, organization: 'East Valley Academy' } : item),
+    schedule: [
+      ...polluted.schedule,
+      { id: 'schedule-ravi-cross-org', title: 'Cross-organization SQL session', courseId: 'course-data', startsAt: new Date().toISOString(), durationMinutes: 30, participantIds: ['student-ravi'], kind: 'Class', status: 'Scheduled' },
+    ],
+    attendance: [
+      ...polluted.attendance,
+      { id: 'attendance-ravi-cross-org', studentId: 'student-ravi', courseId: 'course-data', date: '2026-10-25', status: 'Absent' },
+    ],
+  }
+  assert.ok(!scheduleForProfile(crossOrganization, profile('client')).some(item => item.id === 'schedule-ravi-cross-org'))
+  assert.ok(!attendanceForProfile(crossOrganization, profile('teacher')).some(item => item.id === 'attendance-ravi-cross-org'))
+  assert.ok(!attendanceForProfile(crossOrganization, profile('client')).some(item => item.id === 'attendance-ravi-cross-org'))
+
+  const disconnectedGuardian = {
+    ...state,
+    users: state.users.map(item => item.id === 'student-asha' ? { ...item, organization: 'East Valley Academy' } : item),
+  }
+  assert.deepEqual(scheduleForProfile(disconnectedGuardian, profile('guardian')), [])
+  assert.deepEqual(attendanceForProfile(disconnectedGuardian, profile('guardian')), [])
+
   const suspendedAsha = { ...polluted, users: polluted.users.map(item => item.id === 'student-asha' ? { ...item, status: 'Suspended' } : item) }
   assert.deepEqual(scheduleForProfile(suspendedAsha, profile('student')), [])
   assert.deepEqual(attendanceForProfile(suspendedAsha, profile('student')), [])

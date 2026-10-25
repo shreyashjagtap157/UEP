@@ -443,6 +443,12 @@ for required in [
         errors.append(f'local specialist state is missing migration or authorization invariant: {required}')
 if 'export function messagesForProfile' not in local_demo_store or 'export function markDemoMessageRead' not in local_demo_store:
     errors.append('shared inbox must use role-scoped message queries and recipient-level read state')
+if 'export function scheduleForProfile' not in local_demo_store or 'export function attendanceForProfile' not in local_demo_store:
+    errors.append('schedule and attendance access must use central role-scoped query helpers')
+if 'scheduleForProfile(state, profile)' not in local_specialist or 'attendanceForProfile(state, profile)' not in local_specialist:
+    errors.append('the shared dashboard must consume central schedule and attendance scope helpers')
+if 'schedule and attendance queries enforce active identity, enrollment and organization scope' not in local_demo_tests:
+    errors.append('missing schedule/attendance identity, enrollment and organization scope regression')
 for required in ['invoices.map', 'state.supportCases.map', 'updateDemoSupportCase(fresh, caseId, status, profile)', 'messagesForProfile(state, profile)', 'markDemoMessageRead(fresh, messageId, profile)']:
     if required not in local_specialist:
         errors.append(f'specialist dashboard is not wired to finance/support state: {required}')
