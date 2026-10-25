@@ -317,7 +317,7 @@ function summaryTitle(role: DemoRole) {
   }
 }
 
-function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnType<typeof submissionsForProfile>, schedule: ReturnType<typeof visibleSchedule>, attendanceCount: number, activityCount: number): PanelItem[] {
+function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnType<typeof submissionsForProfile>, schedule: ReturnType<typeof scheduleForProfile>, attendanceCount: number, activityCount: number): PanelItem[] {
   const currentUser = state.users.find(item => item.id === profile.userId && item.status === 'Active')
   if (profile.role === 'student') {
     const courseIds = currentUser?.courseIds ?? []
@@ -482,7 +482,7 @@ function OrganizationPanel({ state, profile, onResolve }: { state: DemoState; pr
     </section>)}</div>
 }
 
-function AnalyticsPanel({ state, profile, submissions, attendance, schedule }: { state: DemoState; profile: DemoProfile; submissions: ReturnType<typeof submissionsForProfile>; attendance: DemoState['attendance']; schedule: ReturnType<typeof visibleSchedule> }) {
+function AnalyticsPanel({ state, profile, submissions, attendance, schedule }: { state: DemoState; profile: DemoProfile; submissions: ReturnType<typeof submissionsForProfile>; attendance: DemoState['attendance']; schedule: ReturnType<typeof scheduleForProfile> }) {
   const currentUser = state.users.find(item => item.id === profile.userId)
   const learners = profile.role === 'client'
     ? state.users.filter(item => item.role === 'Student' && item.organization === currentUser?.organization)
