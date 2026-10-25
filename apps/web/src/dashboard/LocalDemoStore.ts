@@ -201,7 +201,7 @@ function seedDemoState(): DemoState {
   const users: DemoUser[] = [
     { id: 'student-asha', name: 'Asha Sharma', email: 'asha.student@demo.uep', role: 'Student', status: 'Active', organization: 'Northstar Learning Institute', courseIds: ['course-web', 'course-data', 'course-cloud'] },
     { id: 'student-ravi', name: 'Ravi Nair', email: 'ravi.student@demo.uep', role: 'Student', status: 'Active', organization: 'Northstar Learning Institute', courseIds: ['course-web', 'course-data'] },
-    { id: 'student-meera', name: 'Meera Iyer', email: 'meera.student@demo.uep', role: 'Student', status: 'Active', organization: 'Northstar Learning Institute', courseIds: ['course-web', 'course-cloud'] },
+    { id: 'student-meera', name: 'Meera Iyer', email: 'meera.student@demo.uep', role: 'Student', status: 'Active', organization: 'Northstar Learning Institute', courseIds: ['course-web', 'course-data', 'course-cloud'] },
     { id: 'teacher-rahul', name: 'Rahul Deshmukh', email: 'rahul.teacher@demo.uep', role: 'Teacher', status: 'Active', organization: 'Northstar Learning Institute', courseIds: ['course-web', 'course-data', 'course-cloud'] },
     { id: 'client-priya', name: 'Priya Kulkarni', email: 'priya.client@demo.uep', role: 'Client Administrator', status: 'Active', organization: 'Northstar Learning Institute', courseIds: [] },
     { id: 'developer-dev', name: 'Dev Patel', email: 'dev.product@demo.uep', role: 'Product Developer', status: 'Active', organization: 'UEP Product Team', courseIds: [] },
@@ -297,7 +297,7 @@ function seedDemoState(): DemoState {
     courseProgress: {
       'student-asha:course-web': 68, 'student-asha:course-data': 82, 'student-asha:course-cloud': 34,
       'student-ravi:course-web': 54, 'student-ravi:course-data': 61,
-      'student-meera:course-web': 91, 'student-meera:course-cloud': 77,
+      'student-meera:course-web': 91, 'student-meera:course-data': 46, 'student-meera:course-cloud': 77,
     },
     activity: [
       { id: 'activity-seed-1', at: dateAt(-1, 16, 20), actor: 'Asha Sharma', action: 'Assignment submitted', detail: 'REST API design exercise' },

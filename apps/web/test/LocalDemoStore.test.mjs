@@ -64,7 +64,7 @@ test('local demo sign-in exposes all thirteen canonical profiles through one sha
   assert.equal(new Set(demoAccounts.map((account) => account.role)).size, 13)
 
   assert.deepEqual(demoAccounts.map((account) => account.role).sort(), [
-    'admin', 'auditor', 'client', 'developer', 'exam-controller', 'evaluator',
+    'admin', 'auditor', 'client', 'developer', 'evaluator', 'exam-controller',
     'finance-admin', 'guardian', 'mentor', 'student', 'support',
     'teacher', 'teaching-assistant',
   ])
@@ -183,6 +183,15 @@ test('submission visibility is restricted to each persona learner/course scope',
   const evaluatorRows = state.submissions.filter((item) => ids('evaluator').includes(item.id))
   assert.ok(evaluatorRows.length > 0)
   assert.ok(evaluatorRows.every((item) => item.courseId === 'course-data'))
+
+  for (const submission of state.submissions) {
+    const learner = state.users.find((item) => item.id === submission.studentId)
+    assert.ok(learner?.role === 'Student' && learner.courseIds.includes(submission.courseId),
+      `seeded submission ${submission.id} must belong to a learner enrolled in ${submission.courseId}`)
+  }
+  assert.ok(state.attendance.every((item) =>
+    state.users.find((learner) => learner.id === item.studentId)?.courseIds.includes(item.courseId)),
+  'every seeded attendance row must match learner enrollment')
 
   const examRows = state.submissions.filter((item) => ids('exam-controller').includes(item.id))
   assert.equal(examRows.length, 3)
