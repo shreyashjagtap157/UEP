@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { markDemoMessageRead } from './LocalDemoWorkflowStore'
 import {
   administratorStats,
   clientStats,
@@ -71,7 +72,7 @@ export function LocalDashboard({ account, onSignOut }: { account: LocalAccount; 
         {section === 'operations' && <Operations role={role} accountName={account.name} />}
         {section === 'releases' && <Releases />}
         {section === 'integrations' && <Integrations />}
-        {section === 'messages' && <Messages role={role} />}
+        {section === 'messages' && <Messages accountName={account.name} />}
         {section === 'guardian' && <Guardian accountName={account.name} />}
         {section === 'settings' && <Settings />}
 
@@ -269,7 +270,39 @@ function Operations({ role, accountName }: { role: LocalRole; accountName: strin
 }
 function Releases() { return <PanelList eyebrow="Release engineering" title="Tracked releases" items={localDemoData.releases.map(item => ({ title: `${item.name} · ${item.version}`, detail: `${item.passed}/${item.checks} checks passed`, status: item.status }))} /> }
 function Integrations() { return <PanelList eyebrow="Integrations" title="Connected platform capabilities" items={[{ title: 'Identity provider', detail: 'Keycloak integration configured for non-local mode', status: 'Configured' }, { title: 'Live learning', detail: 'LiveKit client integration present in web application', status: 'Configured' }, { title: 'Platform API', detail: 'REST API contract used by the web application', status: 'Configured' }]} /> }
-function Messages({ role }: { role: LocalRole }) { return <PanelList eyebrow="Communication" title="Recent messages" items={[{ title: role === 'student' ? 'Instructor feedback received' : 'Platform announcement', detail: 'A new message is available in your workspace.', status: 'Unread' }, { title: 'Schedule update', detail: 'Tomorrow’s learning session details have been updated.', status: 'Read' }]} /> }
+function Messages({ accountName }: { accountName: string }) {
+  const messages = localDemoData.messages.filter(message => message.recipientNames.includes(accountName))
+  const unreadCount = messages.filter(message => !message.readBy.includes(accountName)).length
+
+  return (
+    <section className="panel" aria-label="Inbox">
+      <div className="panel-heading">
+        <div><p className="eyebrow">Communication</p><h3>Inbox</h3></div>
+        <span className="count-badge">{unreadCount} unread</span>
+      </div>
+      {messages.length ? (
+        <div className="local-module-list">
+          {messages.map(message => {
+            const isRead = message.readBy.includes(accountName)
+            return (
+              <article className="local-module" key={message.id}>
+                <div>
+                  <strong>{message.subject}</strong>
+                  <p>{message.body}</p>
+                  <small className="muted">From {message.sender} · {message.sentAt}</small>
+                </div>
+                <div>
+                  <span className="chip">{isRead ? 'Read' : 'Unread'}</span>
+                  {!isRead && <button type="button" className="text-button" aria-label={`Mark ${message.subject} as read`} onClick={() => markDemoMessageRead(message.id, accountName)}>Mark as read</button>}
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      ) : <p className="muted">No messages are addressed to this local account.</p>}
+    </section>
+  )
+}
 function Guardian({ accountName }: { accountName: string }) {
   const learner = localDemoData.students.find(item => item.guardianName === accountName)
   const items = learner ? [
