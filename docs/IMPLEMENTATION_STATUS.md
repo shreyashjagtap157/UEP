@@ -159,7 +159,11 @@ Implemented tenant-scoped institution fees, invoice and installment lifecycle, r
 Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification.
 
 ## 0.15.0.0-SNAPSHOT
-Reliability and performance qualification implemented: tenant-leading performance indexes, bounded Hikari connection-pool settings, dependency-free load smoke tooling, repeatable k6 load profile, PostgreSQL backup/restore drill tooling, and static tenant-isolation/security qualification gates. Full runtime qualification remains environment-dependent until JDK 25, Maven dependencies, PostgreSQL, Docker/media services, and web dependencies are available.
+Reliability and performance qualification implemented: tenant-leading performance indexes, bounded Hikari connection-pool settings, dependency-free load smoke tooling, repeatable k6 load profile, PostgreSQL backup/restore drill tooling, and static tenant-isolation/security qualification gates.
+
+Additional reliability hardening on current `main`: local demo learner/course/assignment views now use explicit organization, enrollment, guardian, and submission ownership; legacy browser state migrates to the ownership-aware v2 schema while preserving saved workflow state. Learning-outcome mappings validate that their target exists in the active tenant, mastery writes require the competency to belong to the selected outcome, and a composite foreign key preserves that relationship in PostgreSQL after reconciliation of legacy rows. Learning-path progress and competency-mastery writes reject non-finite values and emit audit events. Regression tests and qualification-script contracts cover these invariants.
+
+Full runtime qualification remains environment-dependent until JDK 25, Maven dependencies, PostgreSQL, Docker/media services, and web dependencies are available; source changes should not be considered runtime-qualified until CI/build/test evidence is observed.
 
 ## 0.13.0.0-SNAPSHOT
 
