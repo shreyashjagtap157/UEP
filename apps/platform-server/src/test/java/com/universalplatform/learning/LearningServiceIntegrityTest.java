@@ -56,6 +56,42 @@ class LearningServiceIntegrityTest {
     }
 
     @Test
+    void pathItemTypesResolveToExplicitTenantOwnedResources() {
+        assertThat(LearningService.pathItemTargetTable("PROGRAM")).isEqualTo("academic_program");
+        assertThat(LearningService.pathItemTargetTable("COURSE")).isEqualTo("course");
+        assertThat(LearningService.pathItemTargetTable("SUBJECT")).isEqualTo("subject");
+        assertThat(LearningService.pathItemTargetTable("MODULE")).isEqualTo("curriculum_module");
+        assertThat(LearningService.pathItemTargetTable("BATCH")).isEqualTo("batch");
+        assertThat(LearningService.pathItemTargetTable("CLASS")).isEqualTo("class_session");
+        assertThat(LearningService.pathItemTargetTable("QUESTION")).isEqualTo("question");
+        assertThat(LearningService.pathItemTargetTable("ASSESSMENT")).isEqualTo("assessment");
+        assertThat(LearningService.pathItemTargetTable("ASSIGNMENT")).isEqualTo("assignment");
+        assertThat(LearningService.pathItemTargetTable("CREDENTIAL")).isEqualTo("credential");
+        assertThat(LearningService.pathItemTargetTable("LEARNING_OUTCOME")).isEqualTo("learning_outcome");
+        assertThat(LearningService.pathItemTargetTable("COMPETENCY")).isEqualTo("competency");
+        assertThatThrownBy(() -> LearningService.pathItemTargetTable("TENANT_MEMBERSHIP"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unsupported learning path item type");
+    }
+
+    @Test
+    void pathItemRejectsTargetThatDoesNotExistInTheActiveTenant() {
+        UUID pathId = UUID.randomUUID();
+        UUID moduleId = UUID.randomUUID();
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenAnswer(invocation -> {
+            String sql = invocation.getArgument(0);
+            if (sql.contains("learning_path")) return 1L;
+            if (sql.contains("curriculum_module")) return 0L;
+            return 0L;
+        });
+        assertThatThrownBy(() -> service.addPathItem(pathId, 1, "MODULE", moduleId, "Module", true))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("curriculum_module not found");
+        verify(jdbc, never()).update(startsWith("insert into learning_path_item"), any(Object[].class));
+        verify(audit, never()).record(any(UUID.class), any(String.class), any(String.class), any(String.class), any(String.class));
+    }
+
+    @Test
     void mappingRejectsTargetThatDoesNotExistInTheActiveTenant() {
         UUID outcomeId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
