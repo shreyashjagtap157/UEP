@@ -423,6 +423,10 @@ if "item.status === 'Assigned' && !item.examScheduleId" not in local_demo_store:
     errors.append('generic student assignment submission must not mutate dedicated exam records')
 if 'export function submitDemoExam' not in local_demo_store or 'export function gradeDemoExamSubmission' not in local_demo_store:
     errors.append('dedicated exam submit and result workflows must be implemented in the shared store')
+if "session.status !== 'Scheduled'" not in local_demo_store or "session.status === 'Cancelled'" not in local_demo_store:
+    errors.append('exam attempts/results must respect scheduled, completed and cancelled session lifecycle')
+if 'cancelled exam sessions must not publish results' not in local_demo_tests:
+    errors.append('missing exam lifecycle regression for cancelled sessions')
 local_specialist_for_exam = text('apps/web/src/dashboard/SpecialistLocalDashboard.tsx')
 if 'Submit exam attempt' not in local_specialist_for_exam or 'Publish exam result (80%)' not in local_specialist_for_exam:
     errors.append('student and exam-controller dashboards must wire the dedicated exam workflows')

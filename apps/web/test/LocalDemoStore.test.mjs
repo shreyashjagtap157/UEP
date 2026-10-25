@@ -332,6 +332,18 @@ test('exam attempts and results use the exact assigned exam session', () => {
   }
   assert.strictEqual(submitDemoExam(mismatchedSession, 'submission-exam-asha', student), mismatchedSession,
     'attempt submission must reject a session/course mismatch')
+  const completedSession = {
+    ...state,
+    schedule: state.schedule.map(item => item.id === 'schedule-sql-exam' ? { ...item, status: 'Completed' } : item),
+  }
+  assert.strictEqual(submitDemoExam(completedSession, 'submission-exam-asha', student), completedSession,
+    'completed sessions must not accept new attempts')
+  const cancelledSession = {
+    ...state,
+    schedule: state.schedule.map(item => item.id === 'schedule-sql-exam' ? { ...item, status: 'Cancelled' } : item),
+  }
+  assert.strictEqual(submitDemoExam(cancelledSession, 'submission-exam-asha', student), cancelledSession,
+    'cancelled sessions must not accept new attempts')
 
   const submitted = submitDemoExam(state, 'submission-exam-asha', student)
   assert.notStrictEqual(submitted, state)
@@ -346,6 +358,12 @@ test('exam attempts and results use the exact assigned exam session', () => {
     users: submitted.users.map(item => item.id === 'student-asha' ? { ...item, organization: 'East Valley Academy' } : item),
   }
   assert.strictEqual(gradeDemoExamSubmission(crossOrganization, 'submission-exam-asha', 88, 'Cross-org', controller), crossOrganization)
+  const cancelledSubmitted = {
+    ...submitted,
+    schedule: submitted.schedule.map(item => item.id === 'schedule-sql-exam' ? { ...item, status: 'Cancelled' } : item),
+  }
+  assert.strictEqual(gradeDemoExamSubmission(cancelledSubmitted, 'submission-exam-asha', 88, 'Cancelled', controller), cancelledSubmitted,
+    'cancelled exam sessions must not publish results')
 
   const graded = gradeDemoExamSubmission(submitted, 'submission-exam-asha', 88, 'Exam reviewed.', controller)
   assert.notStrictEqual(graded, submitted)

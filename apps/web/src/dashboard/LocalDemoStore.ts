@@ -497,7 +497,7 @@ export function submitDemoExam(state: DemoState, submissionId: string, actor: De
     ? state.schedule.find(item => item.id === target.examScheduleId)
     : undefined
   if (!user || !target || !course || course.status !== 'Published'
-      || !session || session.kind !== 'Exam' || session.courseId !== target.courseId
+      || !session || session.kind !== 'Exam' || session.status !== 'Scheduled' || session.courseId !== target.courseId
       || !session.participantIds.includes(user.id)
       || !user.courseIds.includes(target.courseId)) return state
 
@@ -543,7 +543,7 @@ export function gradeDemoExamSubmission(state: DemoState, submissionId: string, 
   const learner = target && state.users.find(item => item.id === target.studentId
     && item.role === 'Student' && item.status === 'Active')
   const course = target && courseFor(state, target.courseId)
-  if (!user || !target || !session || session.kind !== 'Exam'
+  if (!user || !target || !session || session.kind !== 'Exam' || session.status === 'Cancelled'
       || !session.participantIds.includes(user.id)
       || session.courseId !== target.courseId
       || !learner || learner.organization !== user.organization
