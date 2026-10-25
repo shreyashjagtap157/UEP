@@ -1,23 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { LocalDashboard } from './LocalDashboard'
-import { LocalDemoControls } from './LocalDemoControls'
 import { SpecialistLocalDashboard } from './SpecialistLocalDashboard'
-import { demoAccounts, isCoreLocalAccount } from './localDemoAccounts'
+import { demoAccounts } from './localDemoAccounts'
 import type { LocalAccount } from './localDemoAccounts'
-import { loadDemoStore, subscribeDemoStore } from './LocalDemoWorkflowStore'
 
 
 export function LocalExperience() {
   const [account, setAccount] = useState<LocalAccount | null>(() => readSessionAccount())
-  const [, setRevision] = useState(0)
-
-  useEffect(() => {
-    if (!account || !isCoreLocalAccount(account)) return
-    loadDemoStore()
-    return subscribeDemoStore(() => setRevision(value => value + 1))
-  }, [account])
-
   function handleLogin(nextAccount: LocalAccount) {
     sessionStorage.setItem('uep-local-account', JSON.stringify(nextAccount))
     setAccount(nextAccount)
@@ -28,16 +17,7 @@ export function LocalExperience() {
   }
 
   if (!account) return <LocalLogin onLogin={handleLogin} />
-  if (!isCoreLocalAccount(account)) {
-    return <SpecialistLocalDashboard profile={account.profile} onSignOut={handleLogout} />
-  }
-
-  return (
-    <>
-      <LocalDemoControls account={account} />
-      <LocalDashboard account={account} onSignOut={handleLogout} />
-    </>
-  )
+  return <SpecialistLocalDashboard profile={account.profile} onSignOut={handleLogout} />
 }
 
 function readSessionAccount(): LocalAccount | null {
