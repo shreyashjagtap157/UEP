@@ -37,7 +37,6 @@ class LearningServiceIntegrityTest {
     @BeforeEach
     void setUp() {
         service = new LearningService(tenant, actor, authorization, audit, jdbc);
-        when(tenant.requireTenantId()).thenReturn(tenantId);
     }
 
     @Test
@@ -76,6 +75,7 @@ class LearningServiceIntegrityTest {
 
     @Test
     void pathItemRejectsTargetThatDoesNotExistInTheActiveTenant() {
+        when(tenant.requireTenantId()).thenReturn(tenantId);
         UUID pathId = UUID.randomUUID();
         UUID moduleId = UUID.randomUUID();
         when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenAnswer(invocation -> {
@@ -93,6 +93,7 @@ class LearningServiceIntegrityTest {
 
     @Test
     void mappingRejectsTargetThatDoesNotExistInTheActiveTenant() {
+        when(tenant.requireTenantId()).thenReturn(tenantId);
         UUID outcomeId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
 
@@ -113,6 +114,7 @@ class LearningServiceIntegrityTest {
 
     @Test
     void masteryRejectsCompetencyOwnedByAnotherOutcome() {
+        when(tenant.requireTenantId()).thenReturn(tenantId);
         UUID outcomeId = UUID.randomUUID();
         UUID competencyId = UUID.randomUUID();
         UUID membershipId = UUID.randomUUID();
@@ -135,6 +137,7 @@ class LearningServiceIntegrityTest {
 
     @Test
     void progressRejectsNonFiniteValuesBeforePersisting() {
+        when(tenant.requireTenantId()).thenReturn(tenantId);
         UUID pathId = UUID.randomUUID();
         UUID membershipId = UUID.randomUUID();
 
@@ -150,6 +153,7 @@ class LearningServiceIntegrityTest {
 
     @Test
     void successfulProgressUpdateIsAudited() {
+        when(tenant.requireTenantId()).thenReturn(tenantId);
         UUID pathId = UUID.randomUUID();
         UUID membershipId = UUID.randomUUID();
         when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(1L);
@@ -164,6 +168,7 @@ class LearningServiceIntegrityTest {
 
     @Test
     void successfulMasteryUpdateIsAudited() {
+        when(tenant.requireTenantId()).thenReturn(tenantId);
         UUID outcomeId = UUID.randomUUID();
         UUID competencyId = UUID.randomUUID();
         UUID membershipId = UUID.randomUUID();
@@ -179,6 +184,7 @@ class LearningServiceIntegrityTest {
 
     @Test
     void masteryRejectsNonFiniteValuesBeforePersisting() {
+        when(tenant.requireTenantId()).thenReturn(tenantId);
         UUID outcomeId = UUID.randomUUID();
         UUID competencyId = UUID.randomUUID();
         UUID membershipId = UUID.randomUUID();
