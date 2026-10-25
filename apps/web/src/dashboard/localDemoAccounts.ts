@@ -1,6 +1,6 @@
-import { DEMO_PROFILES } from './LocalDemoStore'
-import type { DemoProfile, DemoRole } from './LocalDemoStore'
-import type { LocalRole } from './localDemoData'
+import { DEMO_PROFILES } from './LocalDemoStore.ts'
+import type { DemoProfile, DemoRole } from './LocalDemoStore.ts'
+import type { LocalRole } from './localDemoData.ts'
 
 export type CoreLocalAccount = {
   email: string
