@@ -10,6 +10,7 @@ import {
   attendanceForProfile,
   coursesForProfile,
   learnersForProfile,
+  linkedLearnerForProfile,
   scheduleForProfile,
   loadDemoState,
   markDemoMessageRead,
