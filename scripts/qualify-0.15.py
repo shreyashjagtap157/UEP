@@ -207,6 +207,12 @@ if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/finance
 if 'No online payment gateway was contacted.' not in finance_ui:
     errors.append('finance UI must clearly identify manual settlement and avoid implying gateway capture')
 
+payment_method_for_amount = finance_service_for_auth[finance_service_for_auth.find('PaymentView pay(UUID invoiceId'):finance_service_for_auth.find('@Transactional(readOnly=true) PageView<InvoiceView> listInvoices', finance_service_for_auth.find('PaymentView pay(UUID invoiceId'))]
+if 'amount.scale()>2' not in payment_method_for_amount:
+    errors.append('payment amounts with more than two decimal places must be rejected before provider invocation')
+if 'subCentPaymentIsRejectedBeforeCreatingPaymentOrCallingProvider' not in text('apps/platform-server/src/test/java/com/universalplatform/finance/FinancePaymentFailureStateTest.java'):
+    errors.append('missing sub-cent payment amount regression test')
+
 # A provider-declared decline must leave a committed FAILED payment row, not roll the whole transaction back.
 finance_service_failure = text('apps/platform-server/src/main/java/com/universalplatform/finance/FinanceService.java')
 for required in [

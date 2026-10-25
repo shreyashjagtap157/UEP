@@ -67,6 +67,16 @@ class FinancePaymentFailureStateTest {
     }
 
     @Test
+    void subCentPaymentIsRejectedBeforeCreatingPaymentOrCallingProvider() {
+        assertThatThrownBy(() -> service.pay(invoiceId, new BigDecimal("0.001"), "USD",
+                "bank-reference-sub-cent", true))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("at most two decimal places");
+        verify(payments, never()).save(any(Payment.class));
+        verify(provider, never()).authorize(any(UUID.class), any(BigDecimal.class), any(String.class), any(String.class));
+    }
+
+    @Test
     void authorizationDeclineRetainsFailedPaymentStateAndDoesNotIssueReceipt() {
         when(provider.authorize(any(UUID.class), any(BigDecimal.class), any(String.class), any(String.class)))
                 .thenReturn(new PaymentProvider.PaymentResult(false, null, "declined"));
