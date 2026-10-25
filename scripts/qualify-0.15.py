@@ -400,6 +400,8 @@ if 'This demo account is inactive.' not in local_experience:
     errors.append('inactive demo sign-in must explain the account status to the user')
 if 'suspended demo profiles fail the centralized active-user guard' not in local_demo_tests:
     errors.append('missing suspended-account identity regression test')
+if 'subscribeDemoState(() =>' not in local_experience or "sessionStorage.removeItem('uep-local-account')" not in local_experience:
+    errors.append('an active demo session must be revoked when the shared store suspends its account')
 if "from './LocalDashboard'" in local_experience or 'from "./LocalDashboard"' in local_experience or 'LocalDemoWorkflowStore' in local_experience:
     errors.append('local demo entry point still splits roles across separate stores')
 for role in ['student', 'teacher', 'client', 'developer', 'admin', 'guardian', 'exam-controller', 'finance-admin', 'teaching-assistant', 'evaluator', 'mentor', 'support', 'auditor']:

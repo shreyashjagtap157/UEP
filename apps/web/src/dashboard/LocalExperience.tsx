@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { activeUserForProfile, loadDemoState } from './LocalDemoStore'
+import { activeUserForProfile, loadDemoState, subscribeDemoState } from './LocalDemoStore'
 import { SpecialistLocalDashboard } from './SpecialistLocalDashboard'
 import { demoAccounts } from './localDemoAccounts'
 import type { LocalAccount } from './localDemoAccounts'
@@ -8,6 +8,21 @@ import type { LocalAccount } from './localDemoAccounts'
 
 export function LocalExperience() {
   const [account, setAccount] = useState<LocalAccount | null>(() => readSessionAccount())
+  useEffect(() => subscribeDemoState(() => {
+    const raw = sessionStorage.getItem('uep-local-account')
+    if (!raw) return
+    try {
+      const parsed = JSON.parse(raw) as Partial<LocalAccount>
+      const current = demoAccounts.find(item => item.email === parsed.email && item.role === parsed.role)
+      if (!current || !activeUserForProfile(loadDemoState(), current.profile)) {
+        sessionStorage.removeItem('uep-local-account')
+        setAccount(null)
+      }
+    } catch {
+      sessionStorage.removeItem('uep-local-account')
+      setAccount(null)
+    }
+  }), [])
   function handleLogin(nextAccount: LocalAccount) {
     sessionStorage.setItem('uep-local-account', JSON.stringify(nextAccount))
     setAccount(nextAccount)

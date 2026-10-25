@@ -24,7 +24,7 @@ Hardening milestone covering repeatable load probes, database indexes, connectio
 - upgraded affected Maven dependency baselines and made OSV scan the resolved Maven SBOM plus the npm lockfile rather than relying on dependency re-resolution of the POM.
 
 ### Demo boundary
-- local demonstration accounts use synthetic identities and browser storage only; fresh sign-ins and restored sessions reject suspended users. Profile selection is not production authentication, and backend authorization remains authoritative for production data and operations.
+- local demonstration accounts use synthetic identities and browser storage only; fresh sign-ins and restored sessions reject suspended users, and open sessions are revoked after a shared-state suspension. Profile selection is not production authentication, and backend authorization remains authoritative for production data and operations.
 
 ## 0.15.0.0-SNAPSHOT - 2026-09-02
 
