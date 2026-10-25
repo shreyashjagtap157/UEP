@@ -351,6 +351,13 @@ if 'enabled: oidcAuthenticated && !localMode' not in app_source or 'if (localMod
 if "nav.filter(item => item.visible && (!localMode || item.id === 'overview'))" in app_source or '{localMode ? (' in app_source:
     errors.append('unreachable local-mode dashboard branches should not remain in authenticated UI')
 
+# Teacher quick actions must route submission review to the ungraded assessment queue, not graded results.
+local_dashboard = text('apps/web/src/dashboard/LocalDashboard.tsx')
+if "['assessments', 'Review submissions']" not in local_dashboard:
+    errors.append('teacher review submissions shortcut must open assessments')
+if "['results', 'Review submissions']" in local_dashboard:
+    errors.append('teacher review submissions shortcut must not route to graded results')
+
 # Learning outcomes and mastery records must preserve tenant and domain ownership coherence.
 learning_service = text('apps/platform-server/src/main/java/com/universalplatform/learning/LearningService.java')
 if 'mappingTargetTable(targetType)' not in learning_service or 'require(t, targetId, targetTable)' not in learning_service:
