@@ -1,5 +1,7 @@
 package com.universalplatform.agent;
 
+import com.universalplatform.identity.AuthorizationService;
+import com.universalplatform.identity.PermissionKey;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -12,11 +14,16 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/agent/swarm")
 class SwarmAgentController {
     private final SwarmService service;
+    private final AuthorizationService authorization;
 
-    SwarmAgentController(SwarmService service) { this.service = service; }
+    SwarmAgentController(SwarmService service, AuthorizationService authorization) {
+        this.service = service;
+        this.authorization = authorization;
+    }
 
     @PostMapping("/run")
     ResponseEntity<SwarmService.SwarmResult> run(@Valid @RequestBody RunRequest request) {
+        authorization.require(PermissionKey.OPERATIONS_MANAGE);
         return ResponseEntity.ok(service.run(request.task(), request.agents()));
     }
 
