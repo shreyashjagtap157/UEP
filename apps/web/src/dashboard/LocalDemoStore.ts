@@ -103,8 +103,34 @@ export interface DemoOrganizationAction {
   status: 'Open' | 'Resolved'
   updatedAt: string
 }
+
+export interface DemoInvoice {
+  id: string
+  invoiceNumber: string
+  studentId: string
+  organization: string
+  description: string
+  amountInr: number
+  issuedAt: string
+  dueAt: string
+  status: 'Open' | 'Overdue' | 'Paid'
+  paidAt?: string
+}
+
+export interface DemoSupportCase {
+  id: string
+  reference: string
+  organization: string
+  category: string
+  summary: string
+  priority: 'Low' | 'Medium' | 'High'
+  status: 'Open' | 'In progress' | 'Resolved'
+  createdAt: string
+  updatedAt: string
+}
+
 export interface DemoState {
-  schemaVersion: 2
+  schemaVersion: 3
   users: DemoUser[]
   courses: DemoCourse[]
   submissions: DemoSubmission[]
@@ -113,12 +139,14 @@ export interface DemoState {
   products: DemoProduct[]
   webhooks: DemoWebhook[]
   organizationActions: DemoOrganizationAction[]
+  invoices: DemoInvoice[]
+  supportCases: DemoSupportCase[]
   courseProgress: Record<string, number>
   activity: DemoActivity[]
 }
 
-const STORAGE_KEY = 'uep.local-demo-data.v2'
-const LEGACY_STORAGE_KEY = 'uep.local-demo-data.v1'
+const STORAGE_KEY = 'uep.local-demo-data.v3'
+const LEGACY_STORAGE_KEYS = ['uep.local-demo-data.v2', 'uep.local-demo-data.v1'] as const
 const STORE_CHANGED_EVENT = 'uep:local-demo-data-updated'
 
 const ROLE_RECORD_NAMES: Record<DemoRole, string> = {
@@ -212,13 +240,23 @@ function seedDemoState(): DemoState {
     { id: 'org-action-onboarding', organization: 'Northstar Learning Institute', title: 'Confirm learner onboarding', description: 'Confirm that active learners can access their published course catalog.', status: 'Open', updatedAt: dateAt(-2, 11) },
     { id: 'org-action-outcomes-review', organization: 'Northstar Learning Institute', title: 'Review monthly learning outcomes', description: 'Review the course progress snapshot and retain next-step actions for the academic team.', status: 'Resolved', updatedAt: dateAt(-4, 14) },
   ]
+  const invoices: DemoInvoice[] = [
+    { id: 'invoice-asha-2026-041', invoiceNumber: 'NLI-2026-041', studentId: 'student-asha', organization: 'Northstar Learning Institute', description: 'Full Stack Web Development · Term 2', amountInr: 12500, issuedAt: dateAt(-18, 10), dueAt: dateAt(-2, 23, 59), status: 'Overdue' },
+    { id: 'invoice-ravi-2026-042', invoiceNumber: 'NLI-2026-042', studentId: 'student-ravi', organization: 'Northstar Learning Institute', description: 'Database Systems and SQL · Term 2', amountInr: 8400, issuedAt: dateAt(-5, 10), dueAt: dateAt(7, 23, 59), status: 'Open' },
+    { id: 'invoice-meera-2026-037', invoiceNumber: 'NLI-2026-037', studentId: 'student-meera', organization: 'Northstar Learning Institute', description: 'Cloud and DevOps Foundations · Term 1', amountInr: 9600, issuedAt: dateAt(-24, 10), dueAt: dateAt(-10, 23, 59), status: 'Paid', paidAt: dateAt(-12, 12) },
+  ]
+  const supportCases: DemoSupportCase[] = [
+    { id: 'support-418', reference: 'UEP-418', organization: 'Northstar Learning Institute', category: 'Course access', summary: 'A learner cannot reopen a course after a session expired.', priority: 'High', status: 'Open', createdAt: dateAt(-1, 9, 20), updatedAt: dateAt(-1, 9, 20) },
+    { id: 'support-425', reference: 'UEP-425', organization: 'Northstar Learning Institute', category: 'Live learning', summary: 'Video playback buffers during a low-bandwidth session.', priority: 'Medium', status: 'In progress', createdAt: dateAt(-2, 13, 5), updatedAt: dateAt(-1, 15, 10) },
+    { id: 'support-431', reference: 'UEP-431', organization: 'Northstar Learning Institute', category: 'Accessibility', summary: 'An attendance table needs a clearer screen-reader label.', priority: 'Low', status: 'Open', createdAt: dateAt(-3, 11, 30), updatedAt: dateAt(-3, 11, 30) },
+  ]
   const webhooks: DemoWebhook[] = [
     { id: 'webhook-enrollment', name: 'Enrollment events', endpoint: 'https://client.example.test/hooks/enrollment', status: 'Healthy', successfulDeliveries: 142, failedDeliveries: 1 },
     { id: 'webhook-results', name: 'Published results', endpoint: 'https://client.example.test/hooks/results', status: 'Healthy', successfulDeliveries: 86, failedDeliveries: 0 },
     { id: 'webhook-attendance', name: 'Attendance updates', endpoint: 'https://client.example.test/hooks/attendance', status: 'Needs attention', successfulDeliveries: 39, failedDeliveries: 4 },
   ]
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     users,
     courses,
     submissions,
@@ -227,6 +265,8 @@ function seedDemoState(): DemoState {
     products,
     webhooks,
     organizationActions,
+    invoices,
+    supportCases,
     courseProgress: {
       'student-asha:course-web': 68, 'student-asha:course-data': 82, 'student-asha:course-cloud': 34,
       'student-ravi:course-web': 54, 'student-ravi:course-data': 61,
@@ -240,29 +280,35 @@ function seedDemoState(): DemoState {
   }
 }
 
-type PersistedDemoState = Omit<DemoState, 'schemaVersion' | 'organizationActions'> & {
-  schemaVersion: 1 | 2
+type PersistedDemoState = Omit<DemoState, 'schemaVersion' | 'organizationActions' | 'invoices' | 'supportCases'> & {
+  schemaVersion: 1 | 2 | 3
   organizationActions?: DemoOrganizationAction[]
+  invoices?: DemoInvoice[]
+  supportCases?: DemoSupportCase[]
 }
 
 export function loadDemoState(): DemoState {
   try {
-    const candidates = [
-      { key: STORAGE_KEY, raw: window.localStorage.getItem(STORAGE_KEY) },
-      { key: LEGACY_STORAGE_KEY, raw: window.localStorage.getItem(LEGACY_STORAGE_KEY) },
-    ]
+    const candidates = [STORAGE_KEY, ...LEGACY_STORAGE_KEYS]
+      .map(key => ({ key, raw: window.localStorage.getItem(key) }))
     for (const stored of candidates) {
       if (!stored.raw) continue
       const parsed: unknown = JSON.parse(stored.raw)
       if (!isPersistedDemoState(parsed)) continue
+      const seed = seedDemoState()
       const state: DemoState = {
         ...parsed,
-        schemaVersion: 2,
+        schemaVersion: 3,
         organizationActions: Array.isArray(parsed.organizationActions)
           ? parsed.organizationActions
-          : seedDemoState().organizationActions,
+          : seed.organizationActions,
+        invoices: Array.isArray(parsed.invoices) ? parsed.invoices : seed.invoices,
+        supportCases: Array.isArray(parsed.supportCases) ? parsed.supportCases : seed.supportCases,
       }
-      if (stored.key !== STORAGE_KEY || parsed.schemaVersion !== 2 || !Array.isArray(parsed.organizationActions)) {
+      if (stored.key !== STORAGE_KEY || parsed.schemaVersion !== 3
+          || !Array.isArray(parsed.organizationActions)
+          || !Array.isArray(parsed.invoices)
+          || !Array.isArray(parsed.supportCases)) {
         saveDemoState(state)
       }
       return state
@@ -278,7 +324,7 @@ export function loadDemoState(): DemoState {
 function isPersistedDemoState(value: unknown): value is PersistedDemoState {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Partial<PersistedDemoState>
-  return (candidate.schemaVersion === 1 || candidate.schemaVersion === 2)
+  return (candidate.schemaVersion === 1 || candidate.schemaVersion === 2 || candidate.schemaVersion === 3)
     && Array.isArray(candidate.users)
     && Array.isArray(candidate.courses)
     && Array.isArray(candidate.submissions)
@@ -304,7 +350,7 @@ export function saveDemoState(state: DemoState): void {
 
 export function subscribeDemoState(listener: () => void): () => void {
   const onStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY || event.key === LEGACY_STORAGE_KEY || event.key === null) listener()
+    if (event.key === STORAGE_KEY || event.key === null || LEGACY_STORAGE_KEYS.some(key => key === event.key)) listener()
   }
   window.addEventListener('storage', onStorage)
   window.addEventListener(STORE_CHANGED_EVENT, listener)
@@ -409,6 +455,21 @@ export function resolveDemoOrganizationAction(state: DemoState, actionId: string
     actor.name,
     'Organization action resolved',
     target.title,
+  )
+}
+
+export function updateDemoSupportCase(state: DemoState, caseId: string, status: DemoSupportCase['status'], actor: DemoProfile): DemoState {
+  if (actor.role !== 'support' || !activeActor(state, actor)) return state
+  const target = state.supportCases.find(item => item.id === caseId)
+  if (!target || target.status === 'Resolved' || status === 'Open' || status === target.status) return state
+
+  const updatedAt = new Date().toISOString()
+  const supportCases = state.supportCases.map(item => item.id === caseId ? { ...item, status, updatedAt } : item)
+  return recordDemoActivity(
+    { ...state, supportCases },
+    actor.name,
+    'Support case updated',
+    target.reference + ' · ' + status,
   )
 }
 
