@@ -54,6 +54,7 @@ export interface DemoSubmission {
   feedback?: string
   submittedAt?: string
   gradedAt?: string
+  examScheduleId?: string
 }
 export interface DemoAttendance {
   id: string
@@ -211,6 +212,9 @@ function seedDemoState(): DemoState {
     { id: 'submission-ravi-api', title: 'REST API design exercise', courseId: 'course-web', studentId: 'student-ravi', dueAt: dateAt(1, 23, 59), status: 'Submitted', submittedAt: dateAt(-1, 15, 5) },
     { id: 'submission-meera-api', title: 'REST API design exercise', courseId: 'course-web', studentId: 'student-meera', dueAt: dateAt(1, 23, 59), status: 'Graded', score: 94, feedback: 'Clear API boundaries and excellent error handling.', submittedAt: dateAt(-1, 13, 25), gradedAt: dateAt(0, 9) },
     { id: 'submission-ravi-sql', title: 'SQL query challenge', courseId: 'course-data', studentId: 'student-ravi', dueAt: dateAt(3, 23, 59), status: 'Assigned' },
+    { id: 'submission-exam-asha', title: 'Database Systems checkpoint', courseId: 'course-data', studentId: 'student-asha', dueAt: dateAt(1, 14, 45), status: 'Assigned', examScheduleId: 'schedule-sql-exam' },
+    { id: 'submission-exam-ravi', title: 'Database Systems checkpoint', courseId: 'course-data', studentId: 'student-ravi', dueAt: dateAt(1, 14, 45), status: 'Assigned', examScheduleId: 'schedule-sql-exam' },
+    { id: 'submission-exam-meera', title: 'Database Systems checkpoint', courseId: 'course-data', studentId: 'student-meera', dueAt: dateAt(1, 14, 45), status: 'Assigned', examScheduleId: 'schedule-sql-exam' },
   ]
   const attendance: DemoAttendance[] = []
   for (const studentId of ['student-asha', 'student-ravi', 'student-meera']) {
@@ -384,7 +388,7 @@ export function submitDemoAssignment(state: DemoState, submissionId: string, act
 export function gradeDemoSubmission(state: DemoState, submissionId: string, score: number, feedback: string, actor: DemoProfile): DemoState {
   if (!['teacher', 'evaluator', 'teaching-assistant'].includes(actor.role)) return state
   const user = activeActor(state, actor)
-  const target = state.submissions.find(item => item.id === submissionId && item.status === 'Submitted')
+  const target = state.submissions.find(item => item.id === submissionId && item.status === 'Submitted' && !item.examScheduleId)
   const learner = target && state.users.find(item => item.id === target.studentId && item.role === 'Student' && item.status === 'Active')
   if (!user || !target || !learner || !user.courseIds.includes(target.courseId) || !learner.courseIds.includes(target.courseId)
       || !Number.isFinite(score) || score < 0 || score > 100) return state
@@ -506,13 +510,13 @@ export function submissionsForProfile(state: DemoState, profile: DemoProfile): D
   }
   if (['teacher', 'teaching-assistant', 'evaluator'].includes(profile.role)) {
     const assigned = new Set(currentUser.courseIds)
-    return state.submissions.filter(item => assigned.has(item.courseId))
+    return state.submissions.filter(item => !item.examScheduleId && assigned.has(item.courseId))
   }
   if (profile.role === 'exam-controller') {
-    const examCourseIds = new Set(state.schedule
+    const assignedExamIds = new Set(state.schedule
       .filter(item => item.kind === 'Exam' && item.participantIds.includes(profile.userId))
-      .map(item => item.courseId))
-    return state.submissions.filter(item => examCourseIds.has(item.courseId))
+      .map(item => item.id))
+    return state.submissions.filter(item => item.examScheduleId !== undefined && assignedExamIds.has(item.examScheduleId))
   }
   if (profile.role === 'client') {
     const learners = new Set(state.users
