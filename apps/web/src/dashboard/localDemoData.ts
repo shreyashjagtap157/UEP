@@ -39,6 +39,16 @@ export type DemoSession = {
   attendance: number
 }
 
+export type DemoMessage = {
+  id: string
+  sender: string
+  recipientNames: string[]
+  subject: string
+  body: string
+  sentAt: string
+  readBy: string[]
+}
+
 export type DemoLearner = {
   id: string
   name: string
@@ -90,6 +100,62 @@ export const localDemoData = {
     { id: 'session-002', title: 'SQL Query Workshop', course: 'Database Engineering', startsAt: 'Today · 14:00', teacher: 'Rahul Kulkarni', attendance: 21 },
     { id: 'session-003', title: 'Cloud Architecture Review', course: 'Cloud Deployment', startsAt: 'Tomorrow · 11:00', teacher: 'Priya Nair', attendance: 19 },
   ] satisfies DemoSession[],
+  messages: [
+    {
+      id: 'message-001',
+      sender: 'Priya Nair',
+      recipientNames: ['Aarav Mehta', 'Meera Mehta'],
+      subject: 'Aarav’s weekly learning update',
+      body: 'Aarav is progressing through Web Application Architecture, with 72% completion and 94% attendance recorded in the demo dataset.',
+      sentAt: 'Today · 09:00',
+      readBy: [],
+    },
+    {
+      id: 'message-002',
+      sender: 'Priya Nair',
+      recipientNames: ['Aarav Mehta'],
+      subject: 'REST API architecture review',
+      body: 'Your assignment has been received. I will review API boundaries, failure handling, and error contracts during the next feedback cycle.',
+      sentAt: 'Today · 08:55',
+      readBy: [],
+    },
+    {
+      id: 'message-003',
+      sender: 'Platform Administrator',
+      recipientNames: ['Priya Nair'],
+      subject: 'Assessment review queue',
+      body: 'Two REST API architecture submissions are awaiting grading. Please review the assigned submissions before the next program review.',
+      sentAt: 'Today · 09:10',
+      readBy: [],
+    },
+    {
+      id: 'message-004',
+      sender: 'Platform Administrator',
+      recipientNames: ['Pune Technology Academy'],
+      subject: 'Monthly program report ready',
+      body: 'Your learner completion, attendance, and cohort snapshot is available in Outcomes & Reports.',
+      sentAt: 'Today · 09:20',
+      readBy: [],
+    },
+    {
+      id: 'message-005',
+      sender: 'UEP Product Team',
+      recipientNames: ['UEP Product Team'],
+      subject: 'API release readiness',
+      body: 'Review the latest release qualification evidence before marking a release ready. Static source checks do not replace an executed build.',
+      sentAt: 'Today · 09:25',
+      readBy: [],
+    },
+    {
+      id: 'message-006',
+      sender: 'UEP Product Team',
+      recipientNames: ['Platform Administrator'],
+      subject: 'Operational review',
+      body: 'The demo operations queue includes organization actions and platform qualification items. Verify tenant scope before resolving follow-up work.',
+      sentAt: 'Today · 09:30',
+      readBy: [],
+    },
+  ] satisfies DemoMessage[],
   products: [
     { id: 'product-001', name: 'Full Stack Developer Pathway', version: '2.4.0', status: 'Published', modules: 12, updated: 'Today · 09:15' },
     { id: 'product-002', name: 'Data Engineering Pathway', version: '1.8.2', status: 'In review', modules: 10, updated: 'Yesterday · 16:40' },
