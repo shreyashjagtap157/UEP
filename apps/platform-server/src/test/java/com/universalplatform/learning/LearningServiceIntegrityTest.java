@@ -96,6 +96,51 @@ class LearningServiceIntegrityTest {
         verify(jdbc, never()).update(startsWith("insert into competency_mastery"), any(Object[].class));
     }
 
+
+    @Test
+    void progressRejectsNonFiniteValuesBeforePersisting() {
+        UUID pathId = UUID.randomUUID();
+        UUID membershipId = UUID.randomUUID();
+
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.recordProgress(pathId, membershipId, Double.NaN))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("progress must be finite and between 0 and 1");
+
+        verify(jdbc, never()).update(startsWith("insert into learning_path_progress"), any(Object[].class));
+        verify(audit, never()).record(any(UUID.class), any(String.class), any(String.class), any(String.class), any(String.class));
+    }
+
+    @Test
+    void successfulProgressUpdateIsAudited() {
+        UUID pathId = UUID.randomUUID();
+        UUID membershipId = UUID.randomUUID();
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(1L);
+        when(actor.requireSubject()).thenReturn("test-actor");
+
+        service.recordProgress(pathId, membershipId, 0.5);
+
+        verify(jdbc).update(startsWith("insert into learning_path_progress"), any(Object[].class));
+        verify(audit).record(tenantId, "test-actor", "LEARNING_PATH_PROGRESS_RECORDED",
+                "learning_path_progress", pathId + ":" + membershipId);
+    }
+
+    @Test
+    void successfulMasteryUpdateIsAudited() {
+        UUID outcomeId = UUID.randomUUID();
+        UUID competencyId = UUID.randomUUID();
+        UUID membershipId = UUID.randomUUID();
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(1L);
+        when(actor.requireSubject()).thenReturn("test-actor");
+
+        service.recordMastery(outcomeId, competencyId, membershipId, 0.9, "verified evidence");
+
+        verify(jdbc).update(startsWith("insert into competency_mastery"), any(Object[].class));
+        verify(audit).record(tenantId, "test-actor", "COMPETENCY_MASTERY_RECORDED",
+                "competency_mastery", competencyId + ":" + membershipId);
+    }
+
     @Test
     void masteryRejectsNonFiniteValuesBeforePersisting() {
         UUID outcomeId = UUID.randomUUID();
