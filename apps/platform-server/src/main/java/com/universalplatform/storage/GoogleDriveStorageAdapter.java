@@ -30,7 +30,7 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
             byte[] tail=("\r\n--"+boundary+"--\r\n").getBytes(StandardCharsets.UTF_8);
             HttpRequest.BodyPublisher body=HttpRequest.BodyPublishers.concat(HttpRequest.BodyPublishers.ofByteArray(head),HttpRequest.BodyPublishers.ofInputStream(()->source),HttpRequest.BodyPublishers.ofByteArray(tail));
             String uri="https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true";
-            HttpRequest req=HttpRequest.newBuilder(URI.create(uri)).timeout(Duration.ofMinutes(2)).header("Authorization","Bearer "+token).header("Content-Type","multipart/related; boundary="+boundary).POST(body).build();
+            HttpRequest req=HttpRequest.newBuilder(URI.create(uri)).timeout(Duration.ofMinutes(30)).header("Authorization","Bearer "+token).header("Content-Type","multipart/related; boundary="+boundary).POST(body).build();
             HttpResponse<String> r=http.send(req,HttpResponse.BodyHandlers.ofString()); if(r.statusCode()/100!=2) throw new IOException("Google Drive upload failed: HTTP "+r.statusCode());
             JsonNode n=json.readTree(r.body()); return n.path("id").asText();
         } catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("Google Drive upload interrupted",e);}

@@ -88,11 +88,25 @@ if 'r.statusCode()!=404' not in drive_storage:
     errors.append('Google Drive deletes must treat already-missing objects as idempotently deleted')
 for timeout_contract in [
     'connectTimeout(Duration.ofSeconds(5))',
-    'timeout(Duration.ofMinutes(2))',
+    'timeout(Duration.ofMinutes(30))',
     'timeout(Duration.ofSeconds(15))',
 ]:
     if timeout_contract not in drive_storage:
         errors.append(f'Google Drive adapter is missing bounded HTTP timeout: {timeout_contract}')
+
+s3_storage = text('apps/platform-server/src/main/java/com/universalplatform/storage/S3StorageAdapter.java')
+for timeout_contract in [
+    'connectionTimeout(Duration.ofSeconds(5))',
+    'socketTimeout(Duration.ofMinutes(5))',
+    'apiCallAttemptTimeout(Duration.ofMinutes(10))',
+    'apiCallTimeout(Duration.ofMinutes(30))',
+    '@PreDestroy',
+    'client.close()',
+]:
+    if timeout_contract not in s3_storage:
+        errors.append(f'S3 storage adapter is missing bounded lifecycle contract: {timeout_contract}')
+if '<artifactId>apache-client</artifactId>' not in text('apps/platform-server/pom.xml'):
+    errors.append('S3 storage adapter must declare the explicit Apache HTTP client dependency')
 
 # The smoke helper must use a valid nearest-rank percentile and enforce optional latency bounds.
 load_probe = text('scripts/load-smoke.py')
