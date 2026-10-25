@@ -348,6 +348,11 @@ if 'mappingTargetTable(targetType)' not in learning_service or 'require(t, targe
     errors.append('learning outcome mappings must validate the target within the active tenant')
 if 'requireCompetencyForOutcome(t, competencyId, outcomeId)' not in learning_service:
     errors.append('competency mastery must reject competencies owned by a different outcome')
+if '!Double.isFinite(progress)' not in learning_service:
+    errors.append('learning path progress must reject NaN and infinite values')
+for action in ['LEARNING_PATH_PROGRESS_RECORDED', 'COMPETENCY_MASTERY_RECORDED']:
+    if action not in learning_service:
+        errors.append(f'learning outcome mutation must emit an audit event: {action}')
 learning_integrity_migration = ROOT / 'apps/platform-server/src/main/resources/db/migration/V029__enforce_learning_mastery_outcome_coherence.sql'
 if not learning_integrity_migration.exists():
     errors.append('missing V029 learning mastery outcome-coherence constraints')
