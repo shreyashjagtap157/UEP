@@ -291,6 +291,14 @@ test('learner, course, and organization metrics are derived from scoped seed rec
   assert.equal(coursesForOrganization('Pune Technology Academy').length, 2)
   assert.equal(coursesForOrganization('Maharashtra Digital Skills').length, 1)
 
+  assert.deepEqual(learnersForOrganization('Unknown organization'), [])
+  assert.deepEqual(coursesForOrganization('Unknown organization'), [])
+  assert.deepEqual(organizationMetrics('Unknown organization'), {
+    learners: 0, activeLearners: 0, courses: 0, completion: 0, attendance: 0, atRiskLearners: 0,
+  })
+  const linkedLearner = localDemoData.students.find((learner) => learner.guardianName === 'Meera Mehta')
+  assert.equal(linkedLearner?.name, 'Aarav Mehta')
+
   const pune = organizationMetrics('Pune Technology Academy')
   assert.equal(pune.learners, 3)
   assert.equal(pune.activeLearners, 2)
