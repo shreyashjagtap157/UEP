@@ -3,6 +3,7 @@ import {
   activityForProfile,
   courseFor,
   gradeDemoSubmission,
+  invoicesForFinanceProfile,
   loadDemoState,
   progressFor,
   saveDemoState,
@@ -78,6 +79,7 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
     ? state.attendance.filter(item => (user?.courseIds ?? []).includes(item.courseId))
     : []
   const activity = activityForProfile(state, profile)
+  const financeInvoices = invoicesForFinanceProfile(state, profile)
 
   useEffect(() => {
     setState(loadDemoState())
@@ -155,7 +157,7 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
         {section === 'attendance' && <PanelList eyebrow="Assigned class records" title="Attendance register" items={attendance.map(item => ({ title: state.users.find(person => person.id === item.studentId)?.name ?? 'Learner', detail: `${courseFor(state, item.courseId)?.title ?? 'Assigned course'} · ${item.date}`, status: item.status }))} />}
         {section === 'mentee' && <MenteePanel state={state} profile={profile} />}
         {section === 'activity' && <PanelList eyebrow={profile.role === 'auditor' ? 'Compliance' : 'Scoped activity'} title={profile.role === 'auditor' ? 'Audit log' : 'Relevant recorded activity'} items={activity.map(item => ({ title: item.action, detail: `${item.at} · ${item.actor} · ${item.detail}`, status: 'Recorded' }))} />}
-        {section === 'finance' && <FinanceScopePanel state={state} />}
+        {section === 'finance' && <FinanceScopePanel invoices={financeInvoices} />}
         {section === 'support' && <SupportScopePanel state={state} profile={profile} onStatus={updateSupportCase} />}
         <section className="panel" aria-live="polite"><p className="eyebrow">Walkthrough status</p><p>{notice}</p><small className="muted">Data shown here is seeded browser state. This mode does not call the production API or settle real payments.</small></section>
       </main>
@@ -184,8 +186,9 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
     { title: 'Open sessions', status: String(schedule.filter(item => item.status === 'Scheduled').length), detail: 'Exams not yet completed or cancelled' },
   ]
   if (profile.role === 'finance-admin') {
-    const outstanding = state.invoices.filter(invoice => invoice.status !== 'Paid')
-    const overdue = state.invoices.filter(invoice => invoice.status === 'Overdue')
+    const invoices = invoicesForFinanceProfile(state, profile)
+    const outstanding = invoices.filter(invoice => invoice.status !== 'Paid')
+    const overdue = invoices.filter(invoice => invoice.status === 'Overdue')
     return [
       { title: 'Outstanding invoices', status: String(outstanding.length), detail: `${outstanding.reduce((sum, invoice) => sum + invoice.amountInr, 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR' })} outstanding in the local ledger` },
       { title: 'Overdue invoices', status: String(overdue.length), detail: 'Synthetic ledger records requiring finance review' },
@@ -246,8 +249,7 @@ function MenteePanel({ state, profile }: { state: DemoState; profile: DemoProfil
   return <PanelList eyebrow="Mentorship relationship" title={`${mentee.name} · learning progress`} items={courses} />
 }
 
-function FinanceScopePanel({ state }: { state: DemoState }) {
-  const invoices = state.invoices
+function FinanceScopePanel({ invoices }: { invoices: DemoState['invoices'] }) {
   const totalOutstanding = invoices.filter(invoice => invoice.status !== 'Paid').reduce((sum, invoice) => sum + invoice.amountInr, 0)
   return (
     <section className="panel">
