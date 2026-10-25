@@ -394,6 +394,12 @@ for required in [
         errors.append(f'local demo registry is missing canonical identity wiring: {required}')
 if 'SpecialistLocalDashboard profile={account.profile}' not in local_experience:
     errors.append('every local demo account must route to the common role-aware workspace')
+if local_experience.count('activeUserForProfile(loadDemoState(), account.profile)') < 2:
+    errors.append('fresh sign-in and restored sessions must both reject inactive demo accounts')
+if 'This demo account is inactive.' not in local_experience:
+    errors.append('inactive demo sign-in must explain the account status to the user')
+if 'suspended demo profiles fail the centralized active-user guard' not in local_demo_tests:
+    errors.append('missing suspended-account identity regression test')
 if "from './LocalDashboard'" in local_experience or 'from "./LocalDashboard"' in local_experience or 'LocalDemoWorkflowStore' in local_experience:
     errors.append('local demo entry point still splits roles across separate stores')
 for role in ['student', 'teacher', 'client', 'developer', 'admin', 'guardian', 'exam-controller', 'finance-admin', 'teaching-assistant', 'evaluator', 'mentor', 'support', 'auditor']:

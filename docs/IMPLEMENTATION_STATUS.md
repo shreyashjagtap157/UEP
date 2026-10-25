@@ -102,7 +102,7 @@ The latest recorded complete green GitHub Actions run is [run #172](https://gith
 ### Browser-only demonstration workspaces
 
 - Synthetic local personas cover Student, Teacher, Client/Institution, Product Developer, Platform Administrator, Guardian, Exam Controller, Finance Administrator, Teaching Assistant, Evaluator, Mentor, Support Operator, and Auditor.
-- Shared browser-persisted state supports cross-tab updates and repeatable reset to seeded records.
+- Shared browser-persisted state supports cross-tab updates and repeatable reset to seeded records; fresh sign-ins and restored sessions revalidate active account status.
 - Assignment submission, authorized grading, attendance recording, product publishing, calculated demo reports, and activity history are represented as linked workflows across separate persona sign-ins.
 - Student/guardian/mentor submissions, attendance, schedule, learner rosters, and course catalogs are constrained by active identity, enrollment and course publication status; staff queues and attendance require active same-organization learners enrolled in assigned published courses; client views use active organization learners; exam-controller lists require an explicitly assigned exam session whose course matches the candidate's enrollment.
 - Activity events carry stable submission, learner, course, organization, and product identifiers when available, so a repeated display title cannot make one learner's assignment or grade visible to another. Legacy events without stable IDs are matched conservatively and ambiguous grade events are hidden.

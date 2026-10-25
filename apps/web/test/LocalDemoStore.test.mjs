@@ -92,6 +92,18 @@ function profile(role) {
   return result
 }
 
+test('suspended demo profiles fail the centralized active-user guard', () => {
+  const state = resetDemoState()
+  const student = profile('student')
+  assert.equal(activeUserForProfile(state, student)?.id, student.userId)
+  const suspended = {
+    ...state,
+    users: state.users.map(user => user.id === student.userId ? { ...user, status: 'Suspended' } : user),
+  }
+  assert.equal(activeUserForProfile(suspended, student), undefined)
+  assert.deepEqual(submissionsForProfile(suspended, student), [])
+})
+
 test('student submission persists and the teacher sees the same record to grade', () => {
   let state = resetDemoState()
   const student = profile('student')

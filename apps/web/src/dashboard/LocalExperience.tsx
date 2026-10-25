@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { activeUserForProfile, loadDemoState } from './LocalDemoStore'
 import { SpecialistLocalDashboard } from './SpecialistLocalDashboard'
 import { demoAccounts } from './localDemoAccounts'
 import type { LocalAccount } from './localDemoAccounts'
@@ -25,7 +26,8 @@ function readSessionAccount(): LocalAccount | null {
     const raw = sessionStorage.getItem('uep-local-account')
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<LocalAccount>
-    return demoAccounts.find(account => account.email === parsed.email && account.role === parsed.role) ?? null
+    const account = demoAccounts.find(account => account.email === parsed.email && account.role === parsed.role)
+    return account && activeUserForProfile(loadDemoState(), account.profile) ? account : null
   } catch {
     return null
   }
@@ -41,6 +43,10 @@ function LocalLogin({ onLogin }: { onLogin: (account: LocalAccount) => void }) {
     const account = demoAccounts.find(item => item.email === email.trim().toLowerCase())
     if (!account || password !== 'demo') {
       setError('Use a supplied demo account and the password demo.')
+      return
+    }
+    if (!activeUserForProfile(loadDemoState(), account.profile)) {
+      setError('This demo account is inactive. Ask a platform administrator to reactivate it.')
       return
     }
     setError('')
