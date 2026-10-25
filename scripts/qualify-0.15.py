@@ -346,6 +346,8 @@ for index_name in sorted(required_indexes):
 learning_service = text('apps/platform-server/src/main/java/com/universalplatform/learning/LearningService.java')
 if 'mappingTargetTable(targetType)' not in learning_service or 'require(t, targetId, targetTable)' not in learning_service:
     errors.append('learning outcome mappings must validate the target within the active tenant')
+if 'pathItemTargetTable(itemType)' not in learning_service or 'require(t, itemId, targetTable)' not in learning_service:
+    errors.append('learning path items must validate their targets within the active tenant')
 if 'requireCompetencyForOutcome(t, competencyId, outcomeId)' not in learning_service:
     errors.append('competency mastery must reject competencies owned by a different outcome')
 if '!Double.isFinite(progress)' not in learning_service:
@@ -361,8 +363,14 @@ else:
     for required in ['fk_mastery_competency_outcome', 'UPDATE competency_mastery AS cm', 'uq_competency_tenant_outcome_id']:
         if required not in migration_text:
             errors.append(f'V029 missing integrity contract: {required}')
-if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/learning/LearningServiceIntegrityTest.java').exists():
+learning_integrity_test_path = ROOT / 'apps/platform-server/src/test/java/com/universalplatform/learning/LearningServiceIntegrityTest.java'
+if not learning_integrity_test_path.exists():
     errors.append('missing learning mapping/mastery ownership regression tests')
+else:
+    integrity_test_text = learning_integrity_test_path.read_text(encoding='utf-8')
+    for required in ['pathItemRejectsTargetThatDoesNotExistInTheActiveTenant', 'progressRejectsNonFiniteValuesBeforePersisting', 'successfulProgressUpdateIsAudited', 'successfulMasteryUpdateIsAudited']:
+        if required not in integrity_test_text:
+            errors.append(f'learning integrity regression test missing: {required}')
 
 # All integration tests that exercise tenant isolation must remain present.
 required_tests = [
