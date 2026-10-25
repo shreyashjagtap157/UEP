@@ -20,7 +20,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
-@SpringBootTest(properties = "platform.storage.cleanup-poll-ms=3600000")
+@SpringBootTest(properties = {
+        "platform.storage.cleanup-poll-ms=3600000",
+        "platform.storage.cleanup.enabled=false"
+})
 class StorageCleanupWorkerIntegrationTest {
     private final UUID tenantId = UUID.randomUUID();
 

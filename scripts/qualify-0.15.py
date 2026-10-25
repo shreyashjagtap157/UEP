@@ -300,6 +300,12 @@ if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/integra
     errors.append('missing external notification failure privacy regression test')
 
 # Upload provider side effects must be compensated after rollback, with durable retry when delete fails.
+storage_cleanup_worker = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java')
+storage_cleanup_test = text('apps/platform-server/src/test/java/com/universalplatform/content/StorageCleanupWorkerIntegrationTest.java')
+if '@ConditionalOnProperty(prefix = "platform.storage.cleanup", name = "enabled"' not in storage_cleanup_worker:
+    errors.append('storage cleanup scheduler must support disabling the managed poller for deterministic integration tests')
+if '"platform.storage.cleanup.enabled=false"' not in storage_cleanup_test:
+    errors.append('storage cleanup worker integration tests must disable the managed background poller')
 storage_cleanup_migration = text('apps/platform-server/src/main/resources/db/migration/V029__storage_cleanup_outbox.sql')
 for required in [
     'CREATE TABLE storage_cleanup_outbox',
