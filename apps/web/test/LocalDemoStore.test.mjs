@@ -590,6 +590,47 @@ test('activity feeds do not expose global details to unrelated personas', () => 
   assert.equal(events('auditor').length, state.activity.length)
 })
 
+test('legacy organization and course-published events hide ambiguous duplicate titles', () => {
+  const state = resetDemoState()
+  const organizationAction = state.organizationActions[0]
+  const webCourse = state.courses.find(item => item.id === 'course-web')
+  assert.ok(organizationAction)
+  assert.ok(webCourse)
+  const legacyActionEvent = {
+    id: 'legacy-ambiguous-org-action',
+    at: new Date().toISOString(),
+    actor: 'Priya Kulkarni',
+    action: 'Organization action resolved',
+    detail: organizationAction.title,
+  }
+  const legacyCourseEvent = {
+    id: 'legacy-ambiguous-course-published',
+    at: new Date().toISOString(),
+    actor: 'Morgan Admin',
+    action: 'Course published',
+    detail: webCourse.title,
+  }
+  const ambiguous = {
+    ...state,
+    organizationActions: [
+      ...state.organizationActions,
+      { ...organizationAction, id: 'org-action-other-tenant', organization: 'East Valley Academy' },
+    ],
+    courses: [
+      ...state.courses,
+      { ...webCourse, id: 'course-web-other-tenant', teacherId: 'teacher-other-tenant' },
+    ],
+    activity: [legacyActionEvent, legacyCourseEvent, ...state.activity],
+  }
+  assert.ok(!activityForProfile(ambiguous, profile('client')).some(item => item.id === legacyActionEvent.id))
+  assert.ok(!activityForProfile(ambiguous, profile('client')).some(item => item.id === legacyCourseEvent.id))
+
+  const unambiguous = { ...state, activity: [legacyActionEvent, legacyCourseEvent, ...state.activity] }
+  const visible = activityForProfile(unambiguous, profile('client'))
+  assert.ok(visible.some(item => item.id === legacyActionEvent.id))
+  assert.ok(visible.some(item => item.id === legacyCourseEvent.id))
+})
+
 test('legacy attendance activity hides ambiguous duplicate learner and course titles', () => {
   const state = resetDemoState()
   const existingRaviAttendance = state.attendance.find(item =>

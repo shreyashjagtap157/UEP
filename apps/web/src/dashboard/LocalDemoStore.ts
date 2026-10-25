@@ -738,9 +738,6 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
 
   const submissions = submissionsForProfile(state, profile)
   const visibleAttendanceIds = new Set(attendanceForProfile(state, profile).map(item => item.id))
-  const scopedOrganizationActionTitles = profile.role === 'client'
-    ? state.organizationActions.filter(item => item.organization === actor.organization).map(item => item.title.toLocaleLowerCase())
-    : []
   let scopedCourseIds = new Set(actor.courseIds)
 
   if (profile.role === 'guardian' || profile.role === 'mentor') {
@@ -879,7 +876,11 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
 
     if (profile.role === 'client' && action.includes('organization action resolved')) {
       if (item.organization !== undefined) return item.organization === actor.organization
-      return scopedOrganizationActionTitles.some(title => detail.includes(title))
+      const eventTitle = item.detail.trim().toLocaleLowerCase()
+      const candidates = state.organizationActions.filter(candidate =>
+        candidate.title.trim().toLocaleLowerCase() === eventTitle)
+      const [candidate] = candidates
+      return candidates.length === 1 && candidate !== undefined && candidate.organization === actor.organization
     }
 
     if (profile.role === 'client' && action.includes('course published')) {
@@ -887,9 +888,11 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
         return clientCourseIds.has(item.courseId)
           && state.courses.some(course => course.id === item.courseId && course.status === 'Published')
       }
-      return state.courses.some(course => course.status === 'Published'
-        && clientCourseIds.has(course.id)
-        && detail.includes(course.title.toLocaleLowerCase()))
+      const eventTitle = item.detail.trim().toLocaleLowerCase()
+      const candidates = state.courses.filter(course => course.status === 'Published'
+        && course.title.trim().toLocaleLowerCase() === eventTitle)
+      const [candidate] = candidates
+      return candidates.length === 1 && candidate !== undefined && clientCourseIds.has(candidate.id)
     }
 
     if (legacySubmissionMatches(item)) return true
