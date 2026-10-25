@@ -358,6 +358,25 @@ if "['assessments', 'Review submissions']" not in local_dashboard:
 if "['results', 'Review submissions']" in local_dashboard:
     errors.append('teacher review submissions shortcut must not route to graded results')
 
+# Every advertised local demo persona must be reachable through the sign-in registry.
+local_accounts = text('apps/web/src/dashboard/localDemoAccounts.ts')
+local_experience = text('apps/web/src/dashboard/LocalExperience.tsx')
+specialist_dashboard = text('apps/web/src/dashboard/SpecialistLocalDashboard.tsx')
+for required in [
+    'export const demoAccounts: LocalAccount[] = [...coreAccounts, ...specialistAccounts]',
+    "profile.role))",
+    "'teaching-assistant'",
+]:
+    if required not in local_accounts:
+        errors.append(f'local demo registry is missing required persona wiring: {required}')
+if 'SpecialistLocalDashboard profile={account.profile}' not in local_experience:
+    errors.append('specialist demo profiles must route to their separate role-scoped workspace')
+for role in ['exam-controller', 'finance-admin', 'teaching-assistant', 'evaluator', 'mentor', 'support', 'auditor']:
+    if f"'{role}'" not in specialist_dashboard:
+        errors.append(f'missing specialist local dashboard navigation or scope: {role}')
+if 'local demo sign-in exposes all thirteen personas' not in text('apps/web/test/LocalDemoStore.test.mjs'):
+    errors.append('missing regression test proving all thirteen local demo personas are reachable')
+
 # Learning outcomes and mastery records must preserve tenant and domain ownership coherence.
 learning_service = text('apps/platform-server/src/main/java/com/universalplatform/learning/LearningService.java')
 if 'mappingTargetTable(targetType)' not in learning_service or 'require(t, targetId, targetTable)' not in learning_service:
