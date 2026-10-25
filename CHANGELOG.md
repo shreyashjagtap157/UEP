@@ -14,6 +14,7 @@ Hardening milestone covering repeatable load probes, database indexes, connectio
 - stable record identifiers on new local activity events so assignment/result feeds can verify submission, learner, course, organization, and product relationships.
 
 ### Fixed
+- renumbered the newer learning/mastery integrity migration to V032 to preserve the existing V029 storage-cleanup migration and enforce unique Flyway versions; added a static uniqueness gate;
 - tightened staff and client submission queues to active same-organization learners who are enrolled in each course; exam-controller access now requires the exact assigned exam session and matching course;
 - blocked exam-linked records from the generic student assignment-submit action and made grading reject cross-organization learners;
 - replaced activity-title-only ownership inference with submission identity checks and conservative resolution of legacy events, preventing duplicate assignment names from crossing learner boundaries;

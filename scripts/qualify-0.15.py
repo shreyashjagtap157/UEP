@@ -9,6 +9,19 @@ errors=[]; warnings=[]
 def text(rel): return (ROOT/rel).read_text(encoding='utf-8')
 version=(ROOT/'VERSION').read_text().strip()
 if version != '0.15.0.0-SNAPSHOT': errors.append(f'VERSION is {version}, expected 0.15.0.0-SNAPSHOT')
+
+# Flyway requires one migration per version; catch collisions before application startup.
+migration_dir = ROOT / 'apps/platform-server/src/main/resources/db/migration'
+migration_versions: dict[str, list[str]] = {}
+for migration_path in migration_dir.glob('V*__*.sql'):
+    version_prefix = migration_path.name.split('__', 1)[0]
+    if not version_prefix.startswith('V') or not version_prefix[1:].isdigit() or not migration_path.name.endswith('.sql'):
+        errors.append(f'invalid Flyway migration filename: {migration_path.name}')
+        continue
+    migration_versions.setdefault(version_prefix[1:], []).append(migration_path.name)
+for migration_version, migration_names in sorted(migration_versions.items()):
+    if len(migration_names) > 1:
+        errors.append(f'duplicate Flyway migration version {migration_version}: {", ".join(sorted(migration_names))}')
 app=text('apps/platform-server/src/main/resources/application.yaml')
 for needle in ['maximum-pool-size:', 'connection-timeout:', 'max-lifetime:', 'platform:', 'security:']:
     if needle not in app: errors.append(f'application.yaml missing {needle}')
@@ -462,14 +475,14 @@ if '!Double.isFinite(progress)' not in learning_service:
 for action in ['LEARNING_PATH_PROGRESS_RECORDED', 'COMPETENCY_MASTERY_RECORDED']:
     if action not in learning_service:
         errors.append(f'learning outcome mutation must emit an audit event: {action}')
-learning_integrity_migration = ROOT / 'apps/platform-server/src/main/resources/db/migration/V029__enforce_learning_mastery_outcome_coherence.sql'
+learning_integrity_migration = ROOT / 'apps/platform-server/src/main/resources/db/migration/V032__enforce_learning_mastery_outcome_coherence.sql'
 if not learning_integrity_migration.exists():
-    errors.append('missing V029 learning mastery outcome-coherence constraints')
+    errors.append('missing V032 learning mastery outcome-coherence constraints')
 else:
     migration_text = learning_integrity_migration.read_text(encoding='utf-8')
     for required in ['fk_mastery_competency_outcome', 'UPDATE competency_mastery AS cm', 'uq_competency_tenant_outcome_id']:
         if required not in migration_text:
-            errors.append(f'V029 missing integrity contract: {required}')
+            errors.append(f'V032 missing integrity contract: {required}')
 learning_integrity_test_path = ROOT / 'apps/platform-server/src/test/java/com/universalplatform/learning/LearningServiceIntegrityTest.java'
 if not learning_integrity_test_path.exists():
     errors.append('missing learning mapping/mastery ownership regression tests')
