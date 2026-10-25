@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { LocalAccount } from './LocalExperience'
+import type { CoreLocalAccount } from './localDemoAccounts'
 import type { LocalRole } from './localDemoData'
 import {
   gradeAaravAssignment,
@@ -12,7 +12,7 @@ import {
   subscribeDemoStore,
 } from './LocalDemoWorkflowStore'
 
-export function LocalDemoControls({ account }: { account: LocalAccount }) {
+export function LocalDemoControls({ account }: { account: CoreLocalAccount }) {
   const [, setRevision] = useState(0)
   useEffect(() => subscribeDemoStore(() => setRevision(value => value + 1)), [])
 
