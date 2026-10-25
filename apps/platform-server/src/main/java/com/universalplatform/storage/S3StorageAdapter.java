@@ -32,6 +32,19 @@ class S3StorageAdapter implements StorageAdapter {
                      @Value("${platform.storage.s3.access-key}") String accessKey,
                      @Value("${platform.storage.s3.secret-key}") String secretKey,
                      @Value("${platform.storage.s3.bucket}") String bucket) {
+        if (endpoint == null || endpoint.getHost() == null
+                || !("http".equalsIgnoreCase(endpoint.getScheme()) || "https".equalsIgnoreCase(endpoint.getScheme()))) {
+            throw new IllegalArgumentException("S3 endpoint must be an absolute HTTP(S) URI");
+        }
+        if (bucket == null || bucket.isBlank()) {
+            throw new IllegalArgumentException("S3 bucket must be configured");
+        }
+        boolean accessKeyMissing = accessKey == null || accessKey.isBlank();
+        boolean secretKeyMissing = secretKey == null || secretKey.isBlank();
+        if (accessKeyMissing != secretKeyMissing) {
+            throw new IllegalArgumentException(
+                    "S3 access-key and secret-key must both be set or both be blank to use the default credential chain");
+        }
         this.bucket = bucket;
         var builder = S3Client.builder()
                 .endpointOverride(endpoint)

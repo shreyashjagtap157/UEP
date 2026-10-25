@@ -108,6 +108,17 @@ for timeout_contract in [
 if '<artifactId>apache-client</artifactId>' not in text('apps/platform-server/pom.xml'):
     errors.append('S3 storage adapter must declare the explicit Apache HTTP client dependency')
 
+for required in [
+    'accessKeyMissing != secretKeyMissing',
+    'S3 endpoint must be an absolute HTTP(S) URI',
+    'S3 bucket must be configured',
+    'S3 access-key and secret-key must both be set or both be blank',
+]:
+    if required not in s3_storage:
+        errors.append(f'S3 storage adapter is missing startup validation: {required}')
+if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/storage/S3StorageAdapterConfigurationTest.java').exists():
+    errors.append('missing S3 endpoint/bucket/credential configuration regression tests')
+
 # The smoke helper must use a valid nearest-rank percentile and enforce optional latency bounds.
 load_probe = text('scripts/load-smoke.py')
 for required in [
