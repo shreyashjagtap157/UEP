@@ -473,6 +473,12 @@ export function updateDemoSupportCase(state: DemoState, caseId: string, status: 
   )
 }
 
+export function invoicesForFinanceProfile(state: DemoState, profile: DemoProfile): DemoInvoice[] {
+  const financeUser = profile.role === 'finance-admin' ? activeActor(state, profile) : undefined
+  if (!financeUser) return []
+  return state.invoices.filter(invoice => invoice.organization === financeUser.organization)
+}
+
 export function setDemoUserStatus(state: DemoState, userId: string, status: DemoUser['status'], actor: DemoProfile): DemoState {
   if (actor.role !== 'admin' || !activeActor(state, actor)) return state
   const target = state.users.find(item => item.id === userId)
