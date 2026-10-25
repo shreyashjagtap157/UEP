@@ -10,10 +10,11 @@ export type DemoStore = Widen<{
   organizations: typeof localDemoData.organizations
   products: typeof localDemoData.products
   releases: typeof localDemoData.releases
+  messages: typeof localDemoData.messages
 }>
 
-const STORAGE_KEY = 'uep-local-demo-store-v2'
-const LEGACY_STORAGE_KEY = 'uep-local-demo-store-v1'
+const STORAGE_KEY = 'uep-local-demo-store-v3'
+const LEGACY_STORAGE_KEYS = ['uep-local-demo-store-v2', 'uep-local-demo-store-v1']
 const EVENT_NAME = 'uep-local-demo-store-updated'
 
 type MutableDemoData = {
@@ -24,6 +25,7 @@ type MutableDemoData = {
   organizations: DemoStore['organizations']
   products: DemoStore['products']
   releases: DemoStore['releases']
+  messages: DemoStore['messages']
 }
 
 // Snapshot pristine module data once. The dashboard-facing arrays are intentionally mutable,
@@ -36,6 +38,7 @@ const INITIAL_DEMO_SEED = structuredClone({
   organizations: localDemoData.organizations,
   products: localDemoData.products,
   releases: localDemoData.releases,
+  messages: localDemoData.messages,
 }) as unknown as DemoStore
 
 function seed(): DemoStore {
@@ -51,6 +54,7 @@ function applyToDashboard(store: DemoStore) {
   target.organizations = store.organizations
   target.products = store.products
   target.releases = store.releases
+  target.messages = store.messages
 }
 
 function mergeStoredRows<T extends { id: string }>(defaults: T[], stored: unknown): T[] {
@@ -77,12 +81,15 @@ function normalizeStoredStore(value: unknown): DemoStore {
     organizations: mergeStoredRows(defaults.organizations, stored.organizations),
     products: mergeStoredRows(defaults.products, stored.products),
     releases: mergeStoredRows(defaults.releases, stored.releases),
+    messages: mergeStoredRows(defaults.messages, stored.messages),
   }
 }
 
 export function loadDemoStore(): DemoStore {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY)
+    const raw = [STORAGE_KEY, ...LEGACY_STORAGE_KEYS]
+      .map(key => localStorage.getItem(key))
+      .find((value): value is string => value !== null)
     const store = raw ? normalizeStoredStore(JSON.parse(raw)) : seed()
     applyToDashboard(store)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
@@ -108,7 +115,7 @@ export function resetDemoStore() {
 
 export function subscribeDemoStore(listener: () => void) {
   const onStorage = (event: StorageEvent) => {
-    if (event.key === STORAGE_KEY || event.key === LEGACY_STORAGE_KEY) {
+    if (event.key === STORAGE_KEY || (event.key !== null && LEGACY_STORAGE_KEYS.includes(event.key))) {
       loadDemoStore()
       listener()
     }
@@ -130,6 +137,17 @@ export function updateDemoStore(mutator: (store: DemoStore) => void) {
   mutator(store)
   saveDemoStore(store)
   return store
+}
+
+export function markDemoMessageRead(messageId: string, readerName: string): boolean {
+  const store = loadDemoStore()
+  const message = store.messages.find(item => item.id === messageId)
+  if (!message || !message.recipientNames.includes(readerName) || message.readBy.includes(readerName)) {
+    return false
+  }
+  message.readBy = [...message.readBy, readerName]
+  saveDemoStore(store)
+  return true
 }
 
 export function submitAaravAssignment() {
