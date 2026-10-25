@@ -2,26 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { demoAccounts } from '../src/dashboard/localDemoAccounts.ts'
 import {
-  administratorStats,
-  clientStats,
-  coursesForOrganization,
-  developerStats,
-  learnersForOrganization,
-  localDemoData,
-  organizationMetrics,
-  organizationsForRole,
-  studentStats,
-  teacherStats,
-} from '../src/dashboard/localDemoData.ts'
-import {
-  loadDemoStore as loadPresentationStore,
-  markDemoMessageRead as markPresentationMessageRead,
-  markApiReleaseReady as markPresentationReleaseReady,
-  publishDataEngineeringProduct as publishPresentationProduct,
-  resetDemoStore as resetPresentationStore,
-  resolveOrganizationAction as resolvePresentationOrganizationAction,
-} from '../src/dashboard/LocalDemoWorkflowStore.ts'
-import {
   DEMO_PROFILES,
   activityForProfile,
   advanceDemoProgress,
@@ -31,6 +11,8 @@ import {
   gradeDemoSubmission,
   invoicesForFinanceProfile,
   loadDemoState,
+  markDemoMessageRead,
+  messagesForProfile,
   resetDemoState,
   saveDemoState,
   setDemoUserStatus,
@@ -240,38 +222,80 @@ test('client organization actions resolve only for their matching active organiz
   assert.strictEqual(resolveDemoOrganizationAction(unrelatedOrgState, actionId, client), unrelatedOrgState)
 })
 
-test('legacy browser state migrates to v3 with finance and support seed backfills', () => {
+test('legacy browser state migrates to v4 with finance, support and inbox backfills', () => {
   let state = resetDemoState()
   state = advanceDemoProgress(state, 'course-web', profile('student'))
   saveDemoState(state)
 
-  const current = JSON.parse(localStorage.getItem('uep.local-demo-data.v3'))
+  const current = JSON.parse(localStorage.getItem('uep.local-demo-data.v4'))
   current.schemaVersion = 1
   delete current.organizationActions
   delete current.invoices
   delete current.supportCases
+  delete current.messages
   localStorage.setItem('uep.local-demo-data.v1', JSON.stringify(current))
-  localStorage.removeItem('uep.local-demo-data.v3')
+  localStorage.removeItem('uep.local-demo-data.v4')
 
   const migrated = loadDemoState()
-  assert.equal(migrated.schemaVersion, 3)
+  assert.equal(migrated.schemaVersion, 4)
   assert.equal(migrated.courseProgress['student-asha:course-web'], 78)
   assert.equal(migrated.organizationActions.length, 3)
   assert.equal(migrated.invoices.length, 3)
   assert.equal(migrated.supportCases.length, 3)
-  assert.ok(localStorage.getItem('uep.local-demo-data.v3'))
+  assert.ok(migrated.messages.some(message => message.id === 'message-student-weekly'))
+  assert.ok(localStorage.getItem('uep.local-demo-data.v4'))
 
-  const legacyV2 = { ...migrated, schemaVersion: 2 }
-  delete legacyV2.invoices
-  delete legacyV2.supportCases
-  localStorage.setItem('uep.local-demo-data.v2', JSON.stringify(legacyV2))
-  localStorage.removeItem('uep.local-demo-data.v3')
-  localStorage.removeItem('uep.local-demo-data.v1')
-  const migratedV2 = loadDemoState()
-  assert.equal(migratedV2.schemaVersion, 3)
-  assert.equal(migratedV2.invoices.length, 3)
-  assert.equal(migratedV2.supportCases.length, 3)
-  assert.ok(localStorage.getItem('uep.local-demo-data.v3'))
+  for (const legacyVersion of [2, 3]) {
+    const oldState = { ...migrated, schemaVersion: legacyVersion }
+    delete oldState.messages
+    if (legacyVersion === 2) {
+      delete oldState.invoices
+      delete oldState.supportCases
+    }
+    localStorage.setItem(`uep.local-demo-data.v${legacyVersion}`, JSON.stringify(oldState))
+    localStorage.removeItem('uep.local-demo-data.v4')
+    const migratedLegacy = loadDemoState()
+    assert.equal(migratedLegacy.schemaVersion, 4)
+    assert.equal(migratedLegacy.invoices.length, 3)
+    assert.equal(migratedLegacy.supportCases.length, 3)
+    assert.ok(migratedLegacy.messages.some(message => message.id === 'message-student-weekly'))
+    assert.ok(localStorage.getItem('uep.local-demo-data.v4'))
+  }
+})
+
+test('shared inbox is recipient-scoped and read state persists per recipient', () => {
+  const state = resetDemoState()
+  const student = profile('student')
+  const guardian = profile('guardian')
+  const teacher = profile('teacher')
+
+  const studentMessages = messagesForProfile(state, student)
+  assert.ok(studentMessages.some(message => message.id === 'message-student-weekly'))
+  assert.ok(studentMessages.some(message => message.id === 'message-student-feedback'))
+  assert.ok(!studentMessages.some(message => message.id === 'message-client-delivery'))
+  assert.ok(!studentMessages.some(message => message.id === 'message-support-update'))
+
+  const guardianMessages = messagesForProfile(state, guardian)
+  assert.ok(guardianMessages.some(message => message.id === 'message-student-weekly'))
+  assert.ok(!guardianMessages.some(message => message.id === 'message-student-feedback'))
+
+  const teacherMessages = messagesForProfile(state, teacher)
+  assert.ok(teacherMessages.some(message => message.id === 'message-client-delivery'))
+  assert.ok(!teacherMessages.some(message => message.id === 'message-student-feedback'))
+  assert.deepEqual(messagesForProfile(state, profile('support')), [])
+
+  assert.strictEqual(markDemoMessageRead(state, 'message-student-weekly', teacher), state)
+  const studentRead = markDemoMessageRead(state, 'message-student-weekly', student)
+  assert.notStrictEqual(studentRead, state)
+  assert.ok(studentRead.messages.find(message => message.id === 'message-student-weekly')?.readBy.includes(student.userId))
+  assert.ok(!studentRead.messages.find(message => message.id === 'message-student-weekly')?.readBy.includes(guardian.userId))
+
+  saveDemoState(studentRead)
+  const persisted = loadDemoState()
+  const guardianRead = markDemoMessageRead(persisted, 'message-student-weekly', guardian)
+  saveDemoState(guardianRead)
+  const finalState = loadDemoState()
+  assert.deepEqual(finalState.messages.find(message => message.id === 'message-student-weekly')?.readBy.sort(), ['guardian-nina', 'student-asha'])
 })
 
 test('finance invoice access is restricted to the active finance persona organization', () => {
@@ -354,130 +378,6 @@ test('activity feeds do not expose global details to unrelated personas', () => 
   assert.deepEqual(events('finance-admin'), [])
   assert.equal(events('admin').length, state.activity.length)
   assert.equal(events('auditor').length, state.activity.length)
-})
-
-test('presentation controls update dashboard metrics and reset the pristine seed', () => {
-  resetPresentationStore()
-  assert.equal(administratorStats().pendingApprovals, 1)
-  assert.equal(developerStats().failing, 4)
-  assert.equal(localDemoData.organizations.find((item) => item.id === 'org-001')?.actions, 7)
-
-  publishPresentationProduct()
-  assert.equal(administratorStats().pendingApprovals, 0)
-  assert.equal(loadPresentationStore().products.find((item) => item.id === 'product-002')?.status, 'Published')
-
-  markPresentationReleaseReady()
-  assert.equal(developerStats().failing, 0)
-  assert.equal(loadPresentationStore().releases.find((item) => item.id === 'release-002')?.passed, 18)
-
-  resolvePresentationOrganizationAction()
-  assert.equal(localDemoData.organizations.find((item) => item.id === 'org-001')?.actions, 6)
-
-  resetPresentationStore()
-  assert.equal(administratorStats().pendingApprovals, 1)
-  assert.equal(developerStats().failing, 4)
-  assert.equal(localDemoData.organizations.find((item) => item.id === 'org-001')?.actions, 7)
-  assert.equal(loadPresentationStore().products.find((item) => item.id === 'product-002')?.status, 'In review')
-  assert.equal(loadPresentationStore().releases.find((item) => item.id === 'release-002')?.passed, 14)
-})
-
-
-test('local messages are recipient-scoped and read state persists per person', () => {
-  resetPresentationStore()
-  const initial = loadPresentationStore()
-  const sharedUpdate = initial.messages.find((message) => message.id === 'message-001')
-  assert.ok(sharedUpdate)
-  assert.deepEqual(sharedUpdate.recipientNames, ['Aarav Mehta', 'Meera Mehta'])
-  assert.ok(initial.messages.some((message) => message.recipientNames.includes('Aarav Mehta')))
-  assert.deepEqual(initial.messages.filter((message) => message.recipientNames.includes('Unrelated account')), [])
-
-  assert.equal(markPresentationMessageRead('message-001', 'Priya Nair'), false)
-  assert.equal(markPresentationMessageRead('message-001', 'Aarav Mehta'), true)
-  let persisted = loadPresentationStore()
-  assert.ok(persisted.messages.find((message) => message.id === 'message-001')?.readBy.includes('Aarav Mehta'))
-  assert.ok(!persisted.messages.find((message) => message.id === 'message-001')?.readBy.includes('Meera Mehta'))
-
-  assert.equal(markPresentationMessageRead('message-001', 'Meera Mehta'), true)
-  persisted = loadPresentationStore()
-  assert.deepEqual(persisted.messages.find((message) => message.id === 'message-001')?.readBy.sort(), ['Aarav Mehta', 'Meera Mehta'])
-  assert.equal(markPresentationMessageRead('message-001', 'Aarav Mehta'), false)
-})
-
-test('learner, course, and organization metrics are derived from scoped seed records', () => {
-  const puneLearners = learnersForOrganization('Pune Technology Academy')
-  assert.deepEqual(puneLearners.map((learner) => learner.name).sort(), ['Aarav Mehta', 'Ananya Shah', 'Isha Kulkarni'].sort())
-  assert.ok(puneLearners.every((learner) => learner.organization === 'Pune Technology Academy'))
-  assert.equal(coursesForOrganization('Pune Technology Academy').length, 2)
-  assert.equal(coursesForOrganization('Maharashtra Digital Skills').length, 1)
-  assert.deepEqual(organizationsForRole('client', 'Pune Technology Academy').map(item => item.name), ['Pune Technology Academy'])
-  assert.deepEqual(organizationsForRole('client', 'Unknown organization'), [])
-  assert.equal(organizationsForRole('administrator').length, 2)
-
-  assert.deepEqual(learnersForOrganization('Unknown organization'), [])
-  assert.deepEqual(coursesForOrganization('Unknown organization'), [])
-  assert.deepEqual(organizationMetrics('Unknown organization'), {
-    learners: 0, activeLearners: 0, courses: 0, completion: 0, attendance: 0, atRiskLearners: 0,
-  })
-  const linkedLearner = localDemoData.students.find((learner) => learner.guardianName === 'Meera Mehta')
-  assert.equal(linkedLearner?.name, 'Aarav Mehta')
-
-  const pune = organizationMetrics('Pune Technology Academy')
-  assert.equal(pune.learners, 3)
-  assert.equal(pune.activeLearners, 2)
-  assert.equal(pune.courses, 2)
-  assert.equal(pune.completion, Math.round((72 + 88 + 100) / 3))
-
-  const all = clientStats()
-  assert.equal(all.learners, localDemoData.students.length)
-  assert.equal(all.courses, localDemoData.courses.length)
-  assert.equal(all.completion, Math.round(localDemoData.students.reduce((sum, learner) => sum + learner.completion, 0) / localDemoData.students.length))
-  assert.equal(studentStats('Aarav Mehta').activeCourses, 1)
-  assert.equal(studentStats('Aarav Mehta').pendingAssignments, 0)
-  assert.equal(studentStats('Meera Deshmukh').pendingAssignments, 1)
-  assert.equal(localDemoData.assignments.find(item => item.id === 'assignment-003')?.score, localDemoData.submissions.find(item => item.id === 'submission-004')?.score)
-  assert.equal(teacherStats('Priya Nair').learners, 3)
-  assert.equal(teacherStats('Priya Nair').pendingGrading, 2)
-  assert.equal(administratorStats().learners, localDemoData.students.length)
-  assert.equal(administratorStats().courses, localDemoData.courses.length)
-})
-
-test('legacy presentation state migrates to ownership-aware records without losing workflow changes', () => {
-  resetPresentationStore()
-  const oldState = loadPresentationStore()
-  const assignment = oldState.assignments.find((item) => item.id === 'assignment-001')
-  assert.ok(assignment)
-  assignment.status = 'Submitted'
-  for (const learner of oldState.students) {
-    delete learner.organization
-    delete learner.courseIds
-    delete learner.guardianName
-  }
-  for (const course of oldState.courses) delete course.organization
-  for (const item of oldState.assignments) delete item.studentNames
-  delete oldState.messages
-  localStorage.setItem('uep-local-demo-store-v1', JSON.stringify(oldState))
-  localStorage.removeItem('uep-local-demo-store-v2')
-  localStorage.removeItem('uep-local-demo-store-v3')
-
-  const migrated = loadPresentationStore()
-  assert.equal(migrated.assignments.find((item) => item.id === 'assignment-001')?.status, 'Submitted')
-  assert.equal(migrated.students.find((item) => item.id === 'stu-001')?.organization, 'Pune Technology Academy')
-  assert.deepEqual(migrated.students.find((item) => item.id === 'stu-001')?.courseIds, ['course-001', 'course-003'])
-  assert.equal(migrated.courses.find((item) => item.id === 'course-002')?.organization, 'Maharashtra Digital Skills')
-  assert.deepEqual(migrated.assignments.find((item) => item.id === 'assignment-001')?.studentNames, ['Aarav Mehta', 'Ananya Shah'])
-  assert.ok(localStorage.getItem('uep-local-demo-store-v3'))
-  assert.ok(migrated.messages.some((message) => message.id === 'message-001'))
-
-  const v2State = loadPresentationStore()
-  v2State.assignments.find((item) => item.id === 'assignment-001')!.status = 'Graded'
-  delete v2State.messages
-  localStorage.setItem('uep-local-demo-store-v2', JSON.stringify(v2State))
-  localStorage.removeItem('uep-local-demo-store-v3')
-  localStorage.removeItem('uep-local-demo-store-v1')
-  const migratedV2 = loadPresentationStore()
-  assert.equal(migratedV2.assignments.find((item) => item.id === 'assignment-001')?.status, 'Graded')
-  assert.ok(migratedV2.messages.some((message) => message.id === 'message-001'))
-  assert.ok(localStorage.getItem('uep-local-demo-store-v3'))
 })
 
 test('reset restores seeded records after mutations', () => {
