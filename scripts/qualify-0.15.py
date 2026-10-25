@@ -478,6 +478,8 @@ if 'invoice-owner-not-student' not in local_demo_tests or 'invoice-owner-other-o
     errors.append('missing invoice owner and organization isolation regression')
 if 'export function scheduleForProfile' not in local_demo_store or 'export function attendanceForProfile' not in local_demo_store:
     errors.append('schedule and attendance access must use central role-scoped query helpers')
+if 'const linkedLearner = linkedLearnerForProfile(state, profile)' not in local_demo_store:
+    errors.append('guardian/mentor submissions must reuse the centralized relationship guard')
 for helper in ['activeUserForProfile', 'linkedLearnerForProfile', 'learnersForProfile', 'coursesForProfile']:
     if f'export function {helper}' not in local_demo_store:
         errors.append(f'missing centralized profile access query: {helper}')

@@ -657,8 +657,8 @@ export function submissionsForProfile(state: DemoState, profile: DemoProfile): D
       && courseFor(state, item.courseId)?.status === 'Published')
   }
   if (profile.role === 'guardian' || profile.role === 'mentor') {
-    const linkedLearner = state.users.find(user => user.id === 'student-asha' && user.role === 'Student' && user.status === 'Active')
-    if (!linkedLearner || linkedLearner.organization !== currentUser.organization) return []
+    const linkedLearner = linkedLearnerForProfile(state, profile)
+    if (!linkedLearner) return []
     const enrolledCourseIds = new Set(linkedLearner.courseIds)
     if (profile.role === 'guardian') {
       return state.submissions.filter(item => item.studentId === linkedLearner.id
