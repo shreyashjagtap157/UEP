@@ -431,6 +431,10 @@ if 'const legacyAttendanceMatches = (item: DemoActivity): boolean =>' not in loc
     errors.append('legacy attendance events must be resolved through unique attendance records')
 if 'const legacyProgressMatches = (item: DemoActivity): boolean =>' not in local_demo_store:
     errors.append('legacy progress events must be resolved through unique learner/course records')
+if 'const legacyProductActivityMatches = (item: DemoActivity): boolean =>' not in local_demo_store:
+    errors.append('legacy product activity must resolve to one exact product title')
+if 'legacy product activity hides ambiguous duplicate product titles' not in local_demo_tests:
+    errors.append('missing legacy product activity ambiguity regression')
 if 'const candidates = state.organizationActions.filter(candidate =>' not in local_demo_store:
     errors.append('legacy organization-action events must be matched to one exact title and organization')
 if 'const candidates = state.courses.filter(course => course.status === \'Published\'' not in local_demo_store:

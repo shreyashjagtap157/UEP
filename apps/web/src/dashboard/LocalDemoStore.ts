@@ -729,11 +729,15 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
 
   if (profile.role === 'developer') {
     const productIds = new Set(state.products.map(item => item.id))
-    const productTitles = state.products.map(item => item.title.toLocaleLowerCase())
+    const legacyProductActivityMatches = (item: DemoActivity): boolean => {
+      const title = item.detail.trim().toLocaleLowerCase()
+      const candidates = state.products.filter(product => product.title.trim().toLocaleLowerCase() === title)
+      return candidates.length === 1 && candidates[0] !== undefined
+    }
     return state.activity.filter(item => item.action.toLocaleLowerCase().includes('product')
       && (item.productId !== undefined
         ? productIds.has(item.productId)
-        : productTitles.some(title => item.detail.toLocaleLowerCase().includes(title))))
+        : legacyProductActivityMatches(item)))
   }
 
   const submissions = submissionsForProfile(state, profile)

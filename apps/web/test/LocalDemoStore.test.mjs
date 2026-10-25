@@ -590,6 +590,28 @@ test('activity feeds do not expose global details to unrelated personas', () => 
   assert.equal(events('auditor').length, state.activity.length)
 })
 
+test('legacy product activity hides ambiguous duplicate product titles', () => {
+  const state = resetDemoState()
+  const product = state.products.find(item => item.id === 'product-ai-draft')
+  assert.ok(product)
+  const event = {
+    id: 'legacy-ambiguous-product-event',
+    at: new Date().toISOString(),
+    actor: 'Dev Patel',
+    action: 'Product created',
+    detail: product.title,
+  }
+  const ambiguous = {
+    ...state,
+    products: [...state.products, { ...product, id: 'product-ai-draft-duplicate' }],
+    activity: [event, ...state.activity],
+  }
+  assert.ok(!activityForProfile(ambiguous, profile('developer')).some(item => item.id === event.id))
+
+  const unambiguous = { ...state, activity: [event, ...state.activity] }
+  assert.ok(activityForProfile(unambiguous, profile('developer')).some(item => item.id === event.id))
+})
+
 test('legacy organization and course-published events hide ambiguous duplicate titles', () => {
   const state = resetDemoState()
   const organizationAction = state.organizationActions[0]
