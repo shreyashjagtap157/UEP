@@ -535,14 +535,18 @@ export function submissionsForProfile(state: DemoState, profile: DemoProfile): D
   if (!currentUser) return []
 
   if (profile.role === 'student') {
-    return state.submissions.filter(item => item.studentId === profile.userId)
+    const enrolledCourseIds = new Set(currentUser.courseIds)
+    return state.submissions.filter(item => item.studentId === profile.userId && enrolledCourseIds.has(item.courseId))
   }
-  if (profile.role === 'guardian') {
-    return state.submissions.filter(item => item.studentId === 'student-asha')
-  }
-  if (profile.role === 'mentor') {
-    const assigned = new Set(currentUser.courseIds)
-    return state.submissions.filter(item => item.studentId === 'student-asha' && assigned.has(item.courseId))
+  if (profile.role === 'guardian' || profile.role === 'mentor') {
+    const linkedLearner = state.users.find(user => user.id === 'student-asha' && user.role === 'Student' && user.status === 'Active')
+    if (!linkedLearner) return []
+    const enrolledCourseIds = new Set(linkedLearner.courseIds)
+    if (profile.role === 'guardian') {
+      return state.submissions.filter(item => item.studentId === linkedLearner.id && enrolledCourseIds.has(item.courseId))
+    }
+    const assignedCourseIds = new Set(currentUser.courseIds.filter(courseId => enrolledCourseIds.has(courseId)))
+    return state.submissions.filter(item => item.studentId === linkedLearner.id && assignedCourseIds.has(item.courseId))
   }
   if (['teacher', 'teaching-assistant', 'evaluator'].includes(profile.role)) {
     const assigned = new Set(currentUser.courseIds)
