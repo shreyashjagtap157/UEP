@@ -399,17 +399,21 @@ local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
 local_specialist = text('apps/web/src/dashboard/SpecialistLocalDashboard.tsx')
 local_demo_tests = text('apps/web/test/LocalDemoStore.test.mjs')
 for required in [
-    "const STORAGE_KEY = 'uep.local-demo-data.v3'",
+    "const STORAGE_KEY = 'uep.local-demo-data.v4'",
     'invoices: Array.isArray(parsed.invoices) ? parsed.invoices : seed.invoices',
     'supportCases: Array.isArray(parsed.supportCases) ? parsed.supportCases : seed.supportCases',
+    'messages: Array.isArray(parsed.messages) ? parsed.messages : seed.messages',
     "actor.role !== 'support' || !activeActor(state, actor)",
+
 ]:
     if required not in local_demo_store:
         errors.append(f'local specialist state is missing migration or authorization invariant: {required}')
-for required in ['invoices.map', 'state.supportCases.map', 'updateDemoSupportCase(fresh, caseId, status, profile)']:
+if 'export function messagesForProfile' not in local_demo_store or 'export function markDemoMessageRead' not in local_demo_store:
+    errors.append('shared inbox must use role-scoped message queries and recipient-level read state')
+for required in ['invoices.map', 'state.supportCases.map', 'updateDemoSupportCase(fresh, caseId, status, profile)', 'messagesForProfile(state, profile)', 'markDemoMessageRead(loadDemoState(), messageId, profile)']:
     if required not in local_specialist:
         errors.append(f'specialist dashboard is not wired to finance/support state: {required}')
-for required in ['legacy browser state migrates to v3 with finance and support seed backfills', 'finance ledger is seeded and support case transitions are role-scoped and persistent']:
+for required in ['legacy browser state migrates to v4 with finance, support and inbox backfills', 'shared inbox is recipient-scoped and read state persists per recipient', 'finance ledger is seeded and support case transitions are role-scoped and persistent']:
     if required not in local_demo_tests:
         errors.append(f'missing finance/support regression test: {required}')
 
