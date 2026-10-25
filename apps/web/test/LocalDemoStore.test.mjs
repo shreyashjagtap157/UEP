@@ -14,6 +14,7 @@ import {
 } from '../src/dashboard/localDemoData.ts'
 import {
   loadDemoStore as loadPresentationStore,
+  markDemoMessageRead as markPresentationMessageRead,
   markApiReleaseReady as markPresentationReleaseReady,
   publishDataEngineeringProduct as publishPresentationProduct,
   resetDemoStore as resetPresentationStore,
@@ -285,6 +286,28 @@ test('presentation controls update dashboard metrics and reset the pristine seed
   assert.equal(loadPresentationStore().releases.find((item) => item.id === 'release-002')?.passed, 14)
 })
 
+
+test('local messages are recipient-scoped and read state persists per person', () => {
+  resetPresentationStore()
+  const initial = loadPresentationStore()
+  const sharedUpdate = initial.messages.find((message) => message.id === 'message-001')
+  assert.ok(sharedUpdate)
+  assert.deepEqual(sharedUpdate.recipientNames, ['Aarav Mehta', 'Meera Mehta'])
+  assert.ok(initial.messages.some((message) => message.recipientNames.includes('Aarav Mehta')))
+  assert.deepEqual(initial.messages.filter((message) => message.recipientNames.includes('Unrelated account')), [])
+
+  assert.equal(markPresentationMessageRead('message-001', 'Priya Nair'), false)
+  assert.equal(markPresentationMessageRead('message-001', 'Aarav Mehta'), true)
+  let persisted = loadPresentationStore()
+  assert.ok(persisted.messages.find((message) => message.id === 'message-001')?.readBy.includes('Aarav Mehta'))
+  assert.ok(!persisted.messages.find((message) => message.id === 'message-001')?.readBy.includes('Meera Mehta'))
+
+  assert.equal(markPresentationMessageRead('message-001', 'Meera Mehta'), true)
+  persisted = loadPresentationStore()
+  assert.deepEqual(persisted.messages.find((message) => message.id === 'message-001')?.readBy.sort(), ['Aarav Mehta', 'Meera Mehta'])
+  assert.equal(markPresentationMessageRead('message-001', 'Aarav Mehta'), false)
+})
+
 test('learner, course, and organization metrics are derived from scoped seed records', () => {
   const puneLearners = learnersForOrganization('Pune Technology Academy')
   assert.deepEqual(puneLearners.map((learner) => learner.name).sort(), ['Aarav Mehta', 'Ananya Shah', 'Isha Kulkarni'].sort())
@@ -336,8 +359,10 @@ test('legacy presentation state migrates to ownership-aware records without losi
   }
   for (const course of oldState.courses) delete course.organization
   for (const item of oldState.assignments) delete item.studentNames
+  delete oldState.messages
   localStorage.setItem('uep-local-demo-store-v1', JSON.stringify(oldState))
   localStorage.removeItem('uep-local-demo-store-v2')
+  localStorage.removeItem('uep-local-demo-store-v3')
 
   const migrated = loadPresentationStore()
   assert.equal(migrated.assignments.find((item) => item.id === 'assignment-001')?.status, 'Submitted')
@@ -345,7 +370,19 @@ test('legacy presentation state migrates to ownership-aware records without losi
   assert.deepEqual(migrated.students.find((item) => item.id === 'stu-001')?.courseIds, ['course-001', 'course-003'])
   assert.equal(migrated.courses.find((item) => item.id === 'course-002')?.organization, 'Maharashtra Digital Skills')
   assert.deepEqual(migrated.assignments.find((item) => item.id === 'assignment-001')?.studentNames, ['Aarav Mehta', 'Ananya Shah'])
-  assert.ok(localStorage.getItem('uep-local-demo-store-v2'))
+  assert.ok(localStorage.getItem('uep-local-demo-store-v3'))
+  assert.ok(migrated.messages.some((message) => message.id === 'message-001'))
+
+  const v2State = loadPresentationStore()
+  v2State.assignments.find((item) => item.id === 'assignment-001')!.status = 'Graded'
+  delete v2State.messages
+  localStorage.setItem('uep-local-demo-store-v2', JSON.stringify(v2State))
+  localStorage.removeItem('uep-local-demo-store-v3')
+  localStorage.removeItem('uep-local-demo-store-v1')
+  const migratedV2 = loadPresentationStore()
+  assert.equal(migratedV2.assignments.find((item) => item.id === 'assignment-001')?.status, 'Graded')
+  assert.ok(migratedV2.messages.some((message) => message.id === 'message-001'))
+  assert.ok(localStorage.getItem('uep-local-demo-store-v3'))
 })
 
 test('reset restores seeded records after mutations', () => {
