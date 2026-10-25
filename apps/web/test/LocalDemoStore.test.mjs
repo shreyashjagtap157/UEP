@@ -29,6 +29,7 @@ import {
   resolveDemoOrganizationAction,
   submissionsForProfile,
   gradeDemoSubmission,
+  invoicesForFinanceProfile,
   loadDemoState,
   resetDemoState,
   saveDemoState,
@@ -265,6 +266,29 @@ test('legacy browser state migrates to v3 with finance and support seed backfill
   assert.equal(migratedV2.invoices.length, 3)
   assert.equal(migratedV2.supportCases.length, 3)
   assert.ok(localStorage.getItem('uep.local-demo-data.v3'))
+})
+
+test('finance invoice access is restricted to the active finance persona organization', () => {
+  const state = resetDemoState()
+  const finance = profile('finance-admin')
+  assert.equal(invoicesForFinanceProfile(state, finance).length, 3)
+  assert.deepEqual(invoicesForFinanceProfile(state, profile('support')), [])
+
+  const extraTenantInvoice = {
+    ...state.invoices[0],
+    id: 'invoice-other-tenant',
+    invoiceNumber: 'OTHER-2026-001',
+    organization: 'Another Learning Institute',
+  }
+  const multipleTenants = { ...state, invoices: [...state.invoices, extraTenantInvoice] }
+  assert.equal(invoicesForFinanceProfile(multipleTenants, finance).length, 3)
+  assert.ok(invoicesForFinanceProfile(multipleTenants, finance).every(invoice => invoice.organization === 'Northstar Learning Institute'))
+
+  const suspended = {
+    ...state,
+    users: state.users.map(user => user.id === finance.userId ? { ...user, status: 'Suspended' } : user),
+  }
+  assert.deepEqual(invoicesForFinanceProfile(suspended, finance), [])
 })
 
 test('finance ledger is seeded and support case transitions are role-scoped and persistent', () => {
