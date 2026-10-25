@@ -128,7 +128,7 @@ function statsFor(role: LocalRole, accountName: string): Stat[] {
 
 function Today({ role, accountName, stats, onOpen }: { role: LocalRole; accountName: string; stats: Stat[]; onOpen: (id: string) => void }) {
   const quick: QuickAction[] = role === 'student' ? [['learning', 'Resume learning'], ['tasks', 'Review assignments'], ['results', 'View results']]
-    : role === 'teacher' ? [['classes', 'Open classes'], ['results', 'Review submissions'], ['students', 'Inspect learners']]
+    : role === 'teacher' ? [['classes', 'Open classes'], ['assessments', 'Review submissions'], ['students', 'Inspect learners']]
     : role === 'client' ? [['organization', 'Review programs'], ['analytics', 'Open outcome report'], ['operations', 'Review actions']]
     : role === 'developer' ? [['content', 'Open products'], ['releases', 'Review release'], ['integrations', 'Inspect integrations']]
     : role === 'administrator' ? [['organization', 'Manage organizations'], ['people', 'Manage people'], ['operations', 'Review operations']]
