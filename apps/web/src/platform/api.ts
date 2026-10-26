@@ -30,6 +30,8 @@ export type PermissionKey =
   | 'SCHEDULE_CONFLICT_OVERRIDE'
   | 'ANNOUNCEMENTS_VIEW'
   | 'ANNOUNCEMENTS_MANAGE'
+  | 'MESSAGING_VIEW'
+  | 'MESSAGING_SEND'
   | 'NOTIFICATION_OPERATIONS_VIEW'
   | 'CONTENT_VIEW'
   | 'CONTENT_MANAGE'
@@ -232,19 +234,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const text = await response.text()
   let body: unknown
   if (text) {
-    try {
-      body = JSON.parse(text) as unknown
-    } catch {
-      body = text
-    }
+    try { body = JSON.parse(text) as unknown } catch { body = text }
   }
-  if (!response.ok) {
-    throw new PlatformApiError(
-      response.status,
-      extractServerMessage(body, `Platform request failed: ${response.status} ${response.statusText}`),
-      body,
-    )
-  }
+  if (!response.ok) throw new PlatformApiError(response.status, extractServerMessage(body, `Platform request failed: ${response.status} ${response.statusText}`), body)
   return body as T
 }
 
@@ -255,9 +247,7 @@ export async function fetchPlatformVersion(signal?: AbortSignal): Promise<Platfo
     const response = await fetch('/api/v1/platform/version', init)
     if (!response.ok) return undefined
     return (await response.json()) as PlatformVersion
-  } catch {
-    return undefined
-  }
+  } catch { return undefined }
 }
 
 export const fetchCurrentIdentity = () => request<CurrentIdentity>('/api/v1/me')
@@ -267,153 +257,21 @@ export const fetchBranches = () => request<PageResult<BranchView>>('/api/v1/orga
 export const fetchOrganizationSettings = () => request<OrganizationSettings>('/api/v1/organization/settings')
 export const fetchMySessions = () => request<PageResult<SessionView>>('/api/v1/identity/sessions/me?size=100')
 
-export function provisionMembership(input: {
-  subject: string
-  email?: string
-  displayName: string
-  roleIds: string[]
-}): Promise<MemberView> {
-  return request('/api/v1/identity/memberships', { method: 'POST', body: JSON.stringify(input) })
-}
+export function provisionMembership(input: { subject: string; email?: string; displayName: string; roleIds: string[] }): Promise<MemberView> { return request('/api/v1/identity/memberships', { method: 'POST', body: JSON.stringify(input) }) }
+export function createRole(input: { name: string; description?: string; permissions: PermissionKey[] }): Promise<RoleView> { return request('/api/v1/identity/roles', { method: 'POST', body: JSON.stringify({ ...input, expectedVersion: 0 }) }) }
+export function createBranch(input: { code: string; displayName: string; timezone: string }): Promise<BranchView> { return request('/api/v1/organization/branches', { method: 'POST', body: JSON.stringify(input) }) }
+export function updateOrganizationSettings(input: OrganizationSettings): Promise<OrganizationSettings> { return request('/api/v1/organization/settings', { method: 'PUT', body: JSON.stringify({ defaultTimezone: input.defaultTimezone, defaultLocale: input.defaultLocale, weekStartsOn: input.weekStartsOn, supportEmail: input.supportEmail, supportUrl: input.supportUrl, expectedVersion: input.version }) }) }
+export function revokeOwnSession(sessionId: string): Promise<void> { return request(`/api/v1/identity/sessions/me/${sessionId}`, { method: 'DELETE' }) }
 
-export function createRole(input: {
-  name: string
-  description?: string
-  permissions: PermissionKey[]
-}): Promise<RoleView> {
-  return request('/api/v1/identity/roles', { method: 'POST', body: JSON.stringify({ ...input, expectedVersion: 0 }) })
-}
-
-export function createBranch(input: { code: string; displayName: string; timezone: string }): Promise<BranchView> {
-  return request('/api/v1/organization/branches', { method: 'POST', body: JSON.stringify(input) })
-}
-
-export function updateOrganizationSettings(input: OrganizationSettings): Promise<OrganizationSettings> {
-  return request('/api/v1/organization/settings', {
-    method: 'PUT',
-    body: JSON.stringify({
-      defaultTimezone: input.defaultTimezone,
-      defaultLocale: input.defaultLocale,
-      weekStartsOn: input.weekStartsOn,
-      supportEmail: input.supportEmail,
-      supportUrl: input.supportUrl,
-      expectedVersion: input.version,
-    }),
-  })
-}
-
-export function revokeOwnSession(sessionId: string): Promise<void> {
-  return request(`/api/v1/identity/sessions/me/${sessionId}`, { method: 'DELETE' })
-}
-
-export interface AcademicPeriodView {
-  id: string
-  code: string
-  displayName: string
-  startsOn: string
-  endsOn: string
-  status: 'PLANNED' | 'ACTIVE' | 'CLOSED' | 'ARCHIVED'
-  createdAt: string
-  version: number
-}
-
-export interface ProgramView {
-  id: string
-  academicPeriodId?: string
-  code: string
-  displayName: string
-  description?: string
-  status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'
-  createdAt: string
-  version: number
-}
-
-export interface CourseView {
-  id: string
-  programId?: string
-  code: string
-  displayName: string
-  description?: string
-  status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'
-  createdAt: string
-  version: number
-}
-
-export interface SubjectView {
-  id: string
-  courseId?: string
-  code: string
-  displayName: string
-  description?: string
-  status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'
-  createdAt: string
-  version: number
-}
-
-export interface CurriculumModuleView {
-  id: string
-  programId?: string
-  courseId?: string
-  subjectId?: string
-  code: string
-  displayName: string
-  description?: string
-  sequenceNumber?: number
-  status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'
-  createdAt: string
-  version: number
-}
-
-export interface BatchView {
-  id: string
-  academicPeriodId?: string
-  programId?: string
-  courseId?: string
-  branchId?: string
-  code: string
-  displayName: string
-  sectionCode?: string
-  startsOn?: string
-  endsOn?: string
-  capacity?: number
-  status: 'PLANNED' | 'ACTIVE' | 'CLOSED' | 'ARCHIVED'
-  createdAt: string
-  version: number
-}
-
-export interface EnrollmentView {
-  id: string
-  membershipId: string
-  displayName?: string
-  programId?: string
-  courseId?: string
-  batchId?: string
-  status: 'ENROLLED' | 'COMPLETED' | 'WITHDRAWN' | 'CANCELLED'
-  enrolledAt: string
-  endedAt?: string
-  externalReference?: string
-  version: number
-}
-
+export interface AcademicPeriodView { id: string; code: string; displayName: string; startsOn: string; endsOn: string; status: 'PLANNED' | 'ACTIVE' | 'CLOSED' | 'ARCHIVED'; createdAt: string; version: number }
+export interface ProgramView { id: string; academicPeriodId?: string; code: string; displayName: string; description?: string; status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'; createdAt: string; version: number }
+export interface CourseView { id: string; programId?: string; code: string; displayName: string; description?: string; status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'; createdAt: string; version: number }
+export interface SubjectView { id: string; courseId?: string; code: string; displayName: string; description?: string; status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'; createdAt: string; version: number }
+export interface CurriculumModuleView { id: string; programId?: string; courseId?: string; subjectId?: string; code: string; displayName: string; description?: string; sequenceNumber?: number; status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'; createdAt: string; version: number }
+export interface BatchView { id: string; academicPeriodId?: string; programId?: string; courseId?: string; branchId?: string; code: string; displayName: string; sectionCode?: string; startsOn?: string; endsOn?: string; capacity?: number; status: 'PLANNED' | 'ACTIVE' | 'CLOSED' | 'ARCHIVED'; createdAt: string; version: number }
+export interface EnrollmentView { id: string; membershipId: string; displayName?: string; programId?: string; courseId?: string; batchId?: string; status: 'ENROLLED' | 'COMPLETED' | 'WITHDRAWN' | 'CANCELLED'; enrolledAt: string; endedAt?: string; externalReference?: string; version: number }
 export type TeacherAssignmentRole = 'LEAD_TEACHER' | 'TEACHER' | 'TEACHING_ASSISTANT' | 'MENTOR' | 'EVALUATOR'
-
-export interface TeacherAssignmentView {
-  id: string
-  membershipId: string
-  displayName?: string
-  programId?: string
-  courseId?: string
-  subjectId?: string
-  moduleId?: string
-  batchId?: string
-  assignmentRole: TeacherAssignmentRole
-  startsOn?: string
-  endsOn?: string
-  status: 'ACTIVE' | 'ENDED'
-  assignedAt: string
-  version: number
-}
-
+export interface TeacherAssignmentView { id: string; membershipId: string; displayName?: string; programId?: string; courseId?: string; subjectId?: string; moduleId?: string; batchId?: string; assignmentRole: TeacherAssignmentRole; startsOn?: string; endsOn?: string; status: 'ACTIVE' | 'ENDED'; assignedAt: string; version: number }
 export const fetchAcademicPeriods = () => request<PageResult<AcademicPeriodView>>('/api/v1/academic-periods?size=100')
 export const fetchPrograms = () => request<PageResult<ProgramView>>('/api/v1/programs?size=100')
 export const fetchCourses = () => request<PageResult<CourseView>>('/api/v1/courses?size=100')
@@ -425,229 +283,39 @@ export const fetchMyEnrollments = () => request<PageResult<EnrollmentView>>('/ap
 export const fetchTeacherAssignments = () => request<PageResult<TeacherAssignmentView>>('/api/v1/teacher-assignments?size=100')
 export const fetchMyTeacherAssignments = () => request<PageResult<TeacherAssignmentView>>('/api/v1/teacher-assignments/me?size=100')
 
-export function createAcademicPeriod(input: { code: string; displayName: string; startsOn: string; endsOn: string }): Promise<AcademicPeriodView> {
-  return request('/api/v1/academic-periods', { method: 'POST', body: JSON.stringify(input) })
-}
-
-export function createProgram(input: { academicPeriodId?: string; code: string; displayName: string; description?: string }): Promise<ProgramView> {
-  return request('/api/v1/programs', { method: 'POST', body: JSON.stringify(input) })
-}
-
-export function createCourse(input: { programId?: string; code: string; displayName: string; description?: string }): Promise<CourseView> {
-  return request('/api/v1/courses', { method: 'POST', body: JSON.stringify(input) })
-}
-
-export function createSubject(input: { courseId?: string; code: string; displayName: string; description?: string }): Promise<SubjectView> {
-  return request('/api/v1/subjects', { method: 'POST', body: JSON.stringify(input) })
-}
-
-export function createCurriculumModule(input: {
-  programId?: string
-  courseId?: string
-  subjectId?: string
-  code: string
-  displayName: string
-  description?: string
-  sequenceNumber?: number
-}): Promise<CurriculumModuleView> {
-  return request('/api/v1/modules', { method: 'POST', body: JSON.stringify(input) })
-}
-
-export function createBatch(input: {
-  academicPeriodId?: string
-  programId?: string
-  courseId?: string
-  branchId?: string
-  code: string
-  displayName: string
-  sectionCode?: string
-  startsOn?: string
-  endsOn?: string
-  capacity?: number
-}): Promise<BatchView> {
-  return request('/api/v1/batches', { method: 'POST', body: JSON.stringify(input) })
-}
-
-export function createEnrollment(input: {
-  membershipId: string
-  programId?: string
-  courseId?: string
-  batchId?: string
-  externalReference?: string
-}): Promise<EnrollmentView> {
-  return request('/api/v1/enrollments', { method: 'POST', body: JSON.stringify(input) })
-}
-
-export function createTeacherAssignment(input: {
-  membershipId: string
-  programId?: string
-  courseId?: string
-  subjectId?: string
-  moduleId?: string
-  batchId?: string
-  assignmentRole: TeacherAssignmentRole
-  startsOn?: string
-}): Promise<TeacherAssignmentView> {
-  return request('/api/v1/teacher-assignments', { method: 'POST', body: JSON.stringify(input) })
-}
+export function createAcademicPeriod(input: { code: string; displayName: string; startsOn: string; endsOn: string }): Promise<AcademicPeriodView> { return request('/api/v1/academic-periods', { method: 'POST', body: JSON.stringify(input) }) }
+export function createProgram(input: { academicPeriodId?: string; code: string; displayName: string; description?: string }): Promise<ProgramView> { return request('/api/v1/programs', { method: 'POST', body: JSON.stringify(input) }) }
+export function createCourse(input: { programId?: string; code: string; displayName: string; description?: string }): Promise<CourseView> { return request('/api/v1/courses', { method: 'POST', body: JSON.stringify(input) }) }
+export function createSubject(input: { courseId?: string; code: string; displayName: string; description?: string }): Promise<SubjectView> { return request('/api/v1/subjects', { method: 'POST', body: JSON.stringify(input) }) }
+export function createCurriculumModule(input: { programId?: string; courseId?: string; subjectId?: string; code: string; displayName: string; description?: string; sequenceNumber?: number }): Promise<CurriculumModuleView> { return request('/api/v1/modules', { method: 'POST', body: JSON.stringify(input) }) }
+export function createBatch(input: { academicPeriodId?: string; programId?: string; courseId?: string; branchId?: string; code: string; displayName: string; sectionCode?: string; startsOn?: string; endsOn?: string; capacity?: number }): Promise<BatchView> { return request('/api/v1/batches', { method: 'POST', body: JSON.stringify(input) }) }
+export function createEnrollment(input: { membershipId: string; programId?: string; courseId?: string; batchId?: string; externalReference?: string }): Promise<EnrollmentView> { return request('/api/v1/enrollments', { method: 'POST', body: JSON.stringify(input) }) }
+export function createTeacherAssignment(input: { membershipId: string; programId?: string; courseId?: string; subjectId?: string; moduleId?: string; batchId?: string; assignmentRole: TeacherAssignmentRole; startsOn?: string }): Promise<TeacherAssignmentView> { return request('/api/v1/teacher-assignments', { method: 'POST', body: JSON.stringify(input) }) }
 
 export type ScheduleKind = 'CLASS' | 'EXAM' | 'ASSIGNMENT' | 'MEETING' | 'EVENT' | 'HOLIDAY' | 'APPOINTMENT'
 export type DeliveryMode = 'OFFLINE' | 'ONLINE' | 'HYBRID' | 'NOT_APPLICABLE'
 export type RecurrenceFrequency = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
 export type ScheduleOccurrenceStatus = 'SCHEDULED' | 'CANCELLED' | 'COMPLETED'
 export type ScheduleConflictType = 'TEACHER' | 'BATCH' | 'ROOM' | 'EXAM' | 'HOLIDAY'
-
-export interface ScheduleConflict {
-  type: ScheduleConflictType
-  existingSeriesId: string
-  existingOccurrenceId: string
-  existingTitle: string
-  startsAt: string
-  endsAt: string
-  message: string
-}
-
-export interface ScheduleSeriesView {
-  id: string
-  kind: ScheduleKind
-  title: string
-  description?: string
-  timezone: string
-  deliveryMode: DeliveryMode
-  branchId?: string
-  batchId?: string
-  courseId?: string
-  subjectId?: string
-  moduleId?: string
-  primaryTeacherMembershipId?: string
-  roomCode?: string
-  startLocal: string
-  durationMinutes: number
-  recurrenceFrequency: RecurrenceFrequency
-  recurrenceInterval: number
-  recurrenceDays: string[]
-  recurrenceDayOfMonth?: number
-  recurrenceUntilLocal?: string
-  recurrenceCount?: number
-  status: 'ACTIVE' | 'CANCELLED'
-  createdAt: string
-  version: number
-}
-
-export interface ScheduleOccurrenceView {
-  id: string
-  seriesId: string
-  classSessionId?: string
-  kind: ScheduleKind
-  title: string
-  description?: string
-  timezone: string
-  deliveryMode: DeliveryMode
-  branchId?: string
-  batchId?: string
-  courseId?: string
-  subjectId?: string
-  moduleId?: string
-  primaryTeacherMembershipId?: string
-  effectiveTeacherMembershipId?: string
-  roomCode?: string
-  originalStartsAt: string
-  startsAt: string
-  endsAt: string
-  status: ScheduleOccurrenceStatus
-  exceptionReason?: string
-  version: number
-}
-
-export interface ScheduleCreateInput {
-  kind: ScheduleKind
-  title: string
-  description?: string
-  timezone?: string
-  deliveryMode?: DeliveryMode
-  branchId?: string
-  batchId?: string
-  courseId?: string
-  subjectId?: string
-  moduleId?: string
-  primaryTeacherMembershipId?: string
-  roomCode?: string
-  startLocal: string
-  durationMinutes: number
-  recurrenceFrequency?: RecurrenceFrequency
-  recurrenceInterval?: number
-  recurrenceDays?: string[]
-  recurrenceDayOfMonth?: number
-  recurrenceUntilLocal?: string
-  recurrenceCount?: number
-  allowConflicts?: boolean
-  conflictOverrideReason?: string
-}
-
-export interface ScheduleCreateResult {
-  series: ScheduleSeriesView
-  occurrences: ScheduleOccurrenceView[]
-  overriddenConflicts: ScheduleConflict[]
-}
-
-export const fetchScheduleOccurrences = (from: string, to: string) =>
-  request<ScheduleOccurrenceView[]>(`/api/v1/schedule/occurrences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+export interface ScheduleConflict { type: ScheduleConflictType; existingSeriesId: string; existingOccurrenceId: string; existingTitle: string; startsAt: string; endsAt: string; message: string }
+export interface ScheduleSeriesView { id: string; kind: ScheduleKind; title: string; description?: string; timezone: string; deliveryMode: DeliveryMode; branchId?: string; batchId?: string; courseId?: string; subjectId?: string; moduleId?: string; primaryTeacherMembershipId?: string; roomCode?: string; startLocal: string; durationMinutes: number; recurrenceFrequency: RecurrenceFrequency; recurrenceInterval: number; recurrenceDays: string[]; recurrenceDayOfMonth?: number; recurrenceUntilLocal?: string; recurrenceCount?: number; status: 'ACTIVE' | 'CANCELLED'; createdAt: string; version: number }
+export interface ScheduleOccurrenceView { id: string; seriesId: string; classSessionId?: string; kind: ScheduleKind; title: string; description?: string; timezone: string; deliveryMode: DeliveryMode; branchId?: string; batchId?: string; courseId?: string; subjectId?: string; moduleId?: string; primaryTeacherMembershipId?: string; effectiveTeacherMembershipId?: string; roomCode?: string; originalStartsAt: string; startsAt: string; endsAt: string; status: ScheduleOccurrenceStatus; exceptionReason?: string; version: number }
+export interface ScheduleCreateInput { kind: ScheduleKind; title: string; description?: string; timezone?: string; deliveryMode?: DeliveryMode; branchId?: string; batchId?: string; courseId?: string; subjectId?: string; moduleId?: string; primaryTeacherMembershipId?: string; roomCode?: string; startLocal: string; durationMinutes: number; recurrenceFrequency?: RecurrenceFrequency; recurrenceInterval?: number; recurrenceDays?: string[]; recurrenceDayOfMonth?: number; recurrenceUntilLocal?: string; recurrenceCount?: number; allowConflicts?: boolean; conflictOverrideReason?: string }
+export interface ScheduleCreateResult { series: ScheduleSeriesView; occurrences: ScheduleOccurrenceView[]; overriddenConflicts: ScheduleConflict[] }
+export const fetchScheduleOccurrences = (from: string, to: string) => request<ScheduleOccurrenceView[]>(`/api/v1/schedule/occurrences?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
 export const fetchScheduleSeries = () => request<PageResult<ScheduleSeriesView>>('/api/v1/schedule/series?size=100')
-export const checkScheduleConflicts = (input: ScheduleCreateInput) =>
-  request<ScheduleConflict[]>('/api/v1/schedule/conflicts', { method: 'POST', body: JSON.stringify(input) })
-export const createScheduleSeries = (input: ScheduleCreateInput) =>
-  request<ScheduleCreateResult>('/api/v1/schedule/series', { method: 'POST', body: JSON.stringify(input) })
-export const rescheduleOccurrence = (id: string, input: {
-  startLocal: string
-  durationMinutes?: number
-  substituteTeacherMembershipId?: string
-  roomCode?: string
-  reason: string
-  allowConflicts?: boolean
-  conflictOverrideReason?: string
-  expectedVersion: number
-}) => request<ScheduleOccurrenceView>(`/api/v1/schedule/occurrences/${id}/reschedule`, { method: 'POST', body: JSON.stringify(input) })
-export const cancelScheduleOccurrence = (id: string, input: { reason: string; expectedVersion: number }) =>
-  request<ScheduleOccurrenceView>(`/api/v1/schedule/occurrences/${id}/cancel`, { method: 'POST', body: JSON.stringify(input) })
-export const cancelScheduleSeries = (id: string, input: { reason: string; expectedVersion: number }) =>
-  request<ScheduleSeriesView>(`/api/v1/schedule/series/${id}/cancel`, { method: 'POST', body: JSON.stringify(input) })
+export const checkScheduleConflicts = (input: ScheduleCreateInput) => request<ScheduleConflict[]>('/api/v1/schedule/conflicts', { method: 'POST', body: JSON.stringify(input) })
+export const createScheduleSeries = (input: ScheduleCreateInput) => request<ScheduleCreateResult>('/api/v1/schedule/series', { method: 'POST', body: JSON.stringify(input) })
+export const rescheduleOccurrence = (id: string, input: { startLocal: string; durationMinutes?: number; substituteTeacherMembershipId?: string; roomCode?: string; reason: string; allowConflicts?: boolean; conflictOverrideReason?: string; expectedVersion: number }) => request<ScheduleOccurrenceView>(`/api/v1/schedule/occurrences/${id}/reschedule`, { method: 'POST', body: JSON.stringify(input) })
+export const cancelScheduleOccurrence = (id: string, input: { reason: string; expectedVersion: number }) => request<ScheduleOccurrenceView>(`/api/v1/schedule/occurrences/${id}/cancel`, { method: 'POST', body: JSON.stringify(input) })
+export const cancelScheduleSeries = (id: string, input: { reason: string; expectedVersion: number }) => request<ScheduleSeriesView>(`/api/v1/schedule/series/${id}/cancel`, { method: 'POST', body: JSON.stringify(input) })
 
 export type AnnouncementPriority = 'NORMAL' | 'IMPORTANT' | 'URGENT' | 'EMERGENCY'
 export type AnnouncementStatus = 'DRAFT' | 'SCHEDULED' | 'PUBLISHED' | 'EXPIRED' | 'CANCELLED'
 export type AnnouncementTargetKind = 'ORGANIZATION' | 'BRANCH' | 'COURSE' | 'BATCH' | 'SUBJECT' | 'ROLE' | 'MEMBERSHIP'
-
-export interface AnnouncementTarget {
-  kind: AnnouncementTargetKind
-  id?: string
-}
-
-export interface AnnouncementView {
-  id: string
-  title: string
-  body: string
-  priority: AnnouncementPriority
-  status: AnnouncementStatus
-  publishAt?: string
-  expiresAt?: string
-  acknowledgementRequired: boolean
-  publishedAt?: string
-  createdAt: string
-  version: number
-  targets: AnnouncementTarget[]
-  acknowledgedAt?: string
-}
-
-export interface AnnouncementInput {
-  title: string
-  body: string
-  priority?: AnnouncementPriority
-  publishAt?: string
-  expiresAt?: string
-  acknowledgementRequired: boolean
-  publishNow: boolean
-  targets: AnnouncementTarget[]
-}
-
+export interface AnnouncementTarget { kind: AnnouncementTargetKind; id?: string }
+export interface AnnouncementView { id: string; title: string; body: string; priority: AnnouncementPriority; status: AnnouncementStatus; publishAt?: string; expiresAt?: string; acknowledgementRequired: boolean; publishedAt?: string; createdAt: string; version: number; targets: AnnouncementTarget[]; acknowledgedAt?: string }
+export interface AnnouncementInput { title: string; body: string; priority?: AnnouncementPriority; publishAt?: string; expiresAt?: string; acknowledgementRequired: boolean; publishNow: boolean; targets: AnnouncementTarget[] }
 export const fetchMyAnnouncements = () => request<PageResult<AnnouncementView>>('/api/v1/announcements/me?size=100')
 export const fetchAnnouncements = () => request<PageResult<AnnouncementView>>('/api/v1/announcements?size=100')
 export const createAnnouncement = (input: AnnouncementInput) => request<AnnouncementView>('/api/v1/announcements', { method: 'POST', body: JSON.stringify(input) })
@@ -661,78 +329,18 @@ export type NotificationEventType =
   | 'SCHEDULED' | 'SCHEDULE_RESCHEDULED' | 'SCHEDULE_CANCELLED' | 'ANNOUNCEMENT_PUBLISHED'
   | 'RESOURCE_RELEASED' | 'ASSIGNMENT_DUE' | 'RESULT_PUBLISHED' | 'RECORDING_READY'
   | 'PAYMENT_DUE' | 'CHALLENGE_UPDATED'
-
-export interface NotificationView {
-  id: string
-  eventType: NotificationEventType
-  title: string
-  body: string
-  resourceType?: string
-  resourceId?: string
-  priority: AnnouncementPriority
-  createdAt: string
-  readAt?: string
-  version: number
-}
-
-export interface NotificationPreferenceView {
-  eventType: NotificationEventType
-  inAppEnabled: boolean
-  emailEnabled: boolean
-  version: number
-}
-
+export interface NotificationView { id: string; eventType: NotificationEventType; title: string; body: string; resourceType?: string; resourceId?: string; priority: AnnouncementPriority; createdAt: string; readAt?: string; version: number }
+export interface NotificationPreferenceView { eventType: NotificationEventType; inAppEnabled: boolean; emailEnabled: boolean; version: number }
 export const fetchNotifications = () => request<PageResult<NotificationView>>('/api/v1/notifications?size=100')
 export const fetchUnreadNotificationCount = () => request<{ count: number }>('/api/v1/notifications/unread-count')
 export const markNotificationRead = (id: string) => request<NotificationView>(`/api/v1/notifications/${id}/read`, { method: 'POST' })
 export const fetchNotificationPreferences = () => request<NotificationPreferenceView[]>('/api/v1/notifications/preferences')
-export const updateNotificationPreference = (eventType: NotificationEventType, input: { inAppEnabled: boolean; emailEnabled: boolean; expectedVersion: number }) =>
-  request<NotificationPreferenceView>(`/api/v1/notifications/preferences/${eventType}`, { method: 'PUT', body: JSON.stringify(input) })
+export const updateNotificationPreference = (eventType: NotificationEventType, input: { inAppEnabled: boolean; emailEnabled: boolean; expectedVersion: number }) => request<NotificationPreferenceView>(`/api/v1/notifications/preferences/${eventType}`, { method: 'PUT', body: JSON.stringify(input) })
 
-export interface TodayScheduleItem {
-  occurrenceId: string
-  seriesId: string
-  classSessionId?: string
-  kind: ScheduleKind
-  title: string
-  timezone: string
-  deliveryMode: DeliveryMode
-  branchId?: string
-  batchId?: string
-  courseId?: string
-  subjectId?: string
-  moduleId?: string
-  effectiveTeacherMembershipId?: string
-  roomCode?: string
-  startsAt: string
-  endsAt: string
-  status: ScheduleOccurrenceStatus
-}
-
-export interface TodayView {
-  date: string
-  timezone: string
-  generatedAt: string
-  mode: 'ADMINISTRATIVE' | 'PERSONAL'
-  schedule: TodayScheduleItem[]
-  summary: {
-    classes: number
-    exams: number
-    scheduledLearners: number
-    unreadNotifications: number
-  }
-}
-
+export interface TodayScheduleItem { occurrenceId: string; seriesId: string; classSessionId?: string; kind: ScheduleKind; title: string; timezone: string; deliveryMode: DeliveryMode; branchId?: string; batchId?: string; courseId?: string; subjectId?: string; moduleId?: string; effectiveTeacherMembershipId?: string; roomCode?: string; startsAt: string; endsAt: string; status: ScheduleOccurrenceStatus }
+export interface TodayView { date: string; timezone: string; generatedAt: string; mode: 'ADMINISTRATIVE' | 'PERSONAL'; schedule: TodayScheduleItem[]; summary: { classes: number; exams: number; scheduledLearners: number; unreadNotifications: number } }
 export const fetchToday = () => request<TodayView>('/api/v1/today')
-
-export const fetchLocalToday = async (): Promise<TodayView> => ({
-  date: new Date().toISOString().slice(0, 10),
-  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  generatedAt: new Date().toISOString(),
-  mode: 'PERSONAL',
-  schedule: [],
-  summary: { classes: 0, exams: 0, scheduledLearners: 0, unreadNotifications: 0 },
-})
+export const fetchLocalToday = async (): Promise<TodayView> => ({ date: new Date().toISOString().slice(0, 10), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, generatedAt: new Date().toISOString(), mode: 'PERSONAL', schedule: [], summary: { classes: 0, exams: 0, scheduledLearners: 0, unreadNotifications: 0 } })
 
 export type ResourceVisibility = 'PRIVATE' | 'STAFF' | 'ENROLLED_LEARNERS' | 'TENANT'
 export type DownloadPolicy = 'DOWNLOAD_ALLOWED' | 'STREAM_ONLY' | 'NO_DOWNLOAD'
@@ -758,7 +366,6 @@ export interface AttemptView { id: string; assessmentVersionId: string; attemptN
 export interface AnswerView { id: string; assessmentQuestionId: string; serverSequence: number; savedAt: string }
 export interface PacketQuestion { id: string; ordinal: number; marks: number; questionVersionId: string; type: QuestionType; title: string; difficulty: string; payloadJson: string }
 export interface AssessmentPacket { version: AssessmentVersionView; questions: PacketQuestion[] }
-
 export const fetchQuestions = () => request<PageResult<QuestionView>>('/api/v1/questions?size=100')
 export const fetchAssessments = () => request<PageResult<AssessmentView>>('/api/v1/assessments?size=100')
 export const fetchAssessmentVersions = (assessmentId: string) => request<AssessmentVersionView[]>(`/api/v1/assessments/${assessmentId}/versions`)
@@ -803,7 +410,6 @@ export const proposeAnswerRevision = (reviewId: string, answerId: string, payloa
 export const decideAnswerRevision = (revisionId: string, status: AnswerRevisionStatus) => request<AnswerRevisionView>(`/api/v1/answer-revisions/${revisionId}/decide`, { method: 'POST', body: JSON.stringify({ status }) })
 export const resolveReview = (reviewId: string, status: ReviewStatus) => request<ReviewView>(`/api/v1/reviews/${reviewId}/resolve`, { method: 'POST', body: JSON.stringify({ status }) })
 export const regradeReview = (reviewId: string, publish = true) => request<AttemptGrade>(`/api/v1/reviews/${reviewId}/regrade?publish=${publish}`, { method: 'POST' })
-
 
 export type AssignmentStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED'
 export type SubmissionStatus = 'DRAFT' | 'SUBMITTED' | 'RESUBMITTED' | 'WITHDRAWN'
@@ -866,53 +472,13 @@ export const createFinanceInvoice = (input: { membershipId: string; totalAmount:
 export const issueFinanceInvoice = (id: string, expectedVersion: number) => request<FinanceInvoice>(`/api/v1/finance/invoices/${id}/issue`, { method: 'POST', body: JSON.stringify({ expectedVersion }) })
 export const recordFinancePayment = (id: string, input: { amount: number; currency: string; settlementReference: string; confirmSettlement: true }) => request('/api/v1/finance/invoices/' + id + '/payments', { method: 'POST', body: JSON.stringify(input) })
 
-
-export interface AnalyticsOverview {
-  from: string
-  to: string
-  activeMemberships: number
-  enrollments: number
-  attendance: { present: number; partial: number; absent: number; excused: number; presentSeconds: number; presentRatePercent: number }
-  assessment: { attempts: number; submitted: number; published: number; passed: number; averagePercent: number }
-  recording: { count: number; totalSeconds: number; totalBytes: number; ready: number; archived: number; failed: number }
-  finance: { invoiced: number; paid: number; outstanding: number; paymentCount: number }
-  usage: { items: { limitKey: string; hardLimit: number; consumed: number }[] }
-}
-
-export interface AnalyticsForecast {
-  generatedAt: string
-  historyDays: number
-  recentBytes: number
-  recentSeconds: number
-  dailyBytes: number
-  dailyMinutes: number
-  projected30DayBytes: number
-  projected365DayBytes: number
-}
-
-export async function getAnalyticsOverview(from?: string, to?: string) {
-  return request<AnalyticsOverview>(`/api/v1/analytics/overview${rangeQuery(from, to)}`)
-}
-export async function getAnalyticsForecast() {
-  return request<AnalyticsForecast>('/api/v1/analytics/forecast')
-}
-export async function exportAnalytics(report: string, from?: string, to?: string) {
-  return apiGetText(`/analytics/exports/${encodeURIComponent(report)}${rangeQuery(from, to)}`)
-}
-function rangeQuery(from?: string, to?: string) {
-  const p = new URLSearchParams()
-  if (from) p.set('from', from)
-  if (to) p.set('to', to)
-  const q = p.toString()
-  return q ? `?${q}` : ''
-}
-async function apiGetText(path: string): Promise<string> {
-  const token = await accessToken()
-  const response = await fetch(`/api/v1${path}`, { headers: { Authorization: `Bearer ${token}` } })
-  if (!response.ok) throw new Error(await response.text())
-  return response.text()
-}
-
+export interface AnalyticsOverview { from: string; to: string; activeMemberships: number; enrollments: number; attendance: { present: number; partial: number; absent: number; excused: number; presentSeconds: number; presentRatePercent: number }; assessment: { attempts: number; submitted: number; published: number; passed: number; averagePercent: number }; recording: { count: number; totalSeconds: number; totalBytes: number; ready: number; archived: number; failed: number }; finance: { invoiced: number; paid: number; outstanding: number; paymentCount: number }; usage: { items: { limitKey: string; hardLimit: number; consumed: number }[] } }
+export interface AnalyticsForecast { generatedAt: string; historyDays: number; recentBytes: number; recentSeconds: number; dailyBytes: number; dailyMinutes: number; projected30DayBytes: number; projected365DayBytes: number }
+export async function getAnalyticsOverview(from?: string, to?: string) { return request<AnalyticsOverview>(`/api/v1/analytics/overview${rangeQuery(from, to)}`) }
+export async function getAnalyticsForecast() { return request<AnalyticsForecast>('/api/v1/analytics/forecast') }
+export async function exportAnalytics(report: string, from?: string, to?: string) { return apiGetText(`/analytics/exports/${encodeURIComponent(report)}${rangeQuery(from, to)}`) }
+function rangeQuery(from?: string, to?: string) { const p = new URLSearchParams(); if (from) p.set('from', from); if (to) p.set('to', to); const q = p.toString(); return q ? `?${q}` : '' }
+async function apiGetText(path: string): Promise<string> { const token = await accessToken(); const response = await fetch(`/api/v1${path}`, { headers: { Authorization: `Bearer ${token}` } }); if (!response.ok) throw new Error(await response.text()); return response.text() }
 
 export interface LearningOutcomeView { id: string; code: string; name: string; description?: string; status: string; version: number }
 export interface LearningPathView { id: string; code: string; name: string; description?: string; status: string; version: number }
@@ -938,7 +504,6 @@ export interface WebhookView { id: string; callbackUrl: string; eventFilter: str
 export interface IdentityProviderView { id: string; providerKey: string; issuer: string; authorizationEndpoint: string; clientId: string; redirectUri: string; scopes: string; version: number }
 export interface StorageBindingView { providerType: 'LOCAL' | 'S3_COMPATIBLE' | 'GOOGLE_DRIVE' | 'GOOGLE_SHARED_DRIVE'; objectPrefix: string; version: number }
 export interface NotificationProviderView { id: string; providerKey: string; providerType: string; endpoint: string; version: number }
-
 export const createApiCredential = (body: { membershipId: string; name: string; scopes: PermissionKey[]; expiresAt?: string }) => request<ApiCredentialView>('/api/v1/integrations/api-credentials', { method: 'POST', body: JSON.stringify(body) })
 export const fetchApiCredentials = (membershipId: string) => request<ApiCredentialView[]>(`/api/v1/integrations/api-credentials?membershipId=${encodeURIComponent(membershipId)}`)
 export const revokeApiCredential = (id: string, expectedVersion: number) => request<void>(`/api/v1/integrations/api-credentials/${id}?expectedVersion=${expectedVersion}`, { method: 'DELETE' })
@@ -951,3 +516,14 @@ export const configureIdentityProvider = (body: { providerKey: string; issuer: s
 export const fetchIdentityProviders = () => request<IdentityProviderView[]>('/api/v1/integrations/identity-providers')
 export const configureNotificationProvider = (body: { providerKey: string; providerType: string; endpoint: string; credential?: string; expectedVersion?: number }) => request<NotificationProviderView>('/api/v1/integrations/notification-providers', { method: 'PUT', body: JSON.stringify({ expectedVersion: 0, ...body }) })
 export const testNotificationProvider = (key: string, body: { title: string; body: string }) => request<void>(`/api/v1/integrations/notification-providers/${encodeURIComponent(key)}/test`, { method: 'POST', body: JSON.stringify(body) })
+
+export interface MessageConversationView { id: string; subject?: string; createdByMembershipId: string; createdAt: string; updatedAt: string; version: number; participantCount: number }
+export interface MessageView { id: string; conversationId: string; senderMembershipId: string; body: string; createdAt: string; editedAt?: string; deletedAt?: string; version: number }
+export interface MessagePage { items: MessageView[]; page: number; size: number; totalElements: number; totalPages: number }
+export const fetchMessageConversations = (page = 0, size = 25) => request<MessageConversationView[]>(`/api/v1/messaging/conversations?page=${page}&size=${size}`)
+export const createMessageConversation = (participantMembershipIds: string[], subject?: string) => request<MessageConversationView>('/api/v1/messaging/conversations', { method: 'POST', body: JSON.stringify({ participantMembershipIds, subject }) })
+export const fetchMessages = (conversationId: string, page = 0, size = 50) => request<MessagePage>(`/api/v1/messaging/conversations/${encodeURIComponent(conversationId)}/messages?page=${page}&size=${size}`)
+export const sendMessage = (conversationId: string, body: string) => request<MessageView>(`/api/v1/messaging/conversations/${encodeURIComponent(conversationId)}/messages`, { method: 'POST', body: JSON.stringify({ body }) })
+export const markConversationRead = (conversationId: string) => request<void>(`/api/v1/messaging/conversations/${encodeURIComponent(conversationId)}/read`, { method: 'POST' })
+export const editMessage = (messageId: string, body: string, expectedVersion: number) => request<MessageView>(`/api/v1/messaging/messages/${encodeURIComponent(messageId)}`, { method: 'PUT', body: JSON.stringify({ body, expectedVersion }) })
+export const deleteMessage = (messageId: string, expectedVersion: number) => request<void>(`/api/v1/messaging/messages/${encodeURIComponent(messageId)}?expectedVersion=${expectedVersion}`, { method: 'DELETE' })
