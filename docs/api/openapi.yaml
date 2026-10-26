@@ -2501,6 +2501,263 @@ paths:
       operationId: federationConfiguration
       responses: {'200': {description: Federation capability metadata}}
 
+
+  /messaging/conversations:
+    get:
+      summary: List tenant-scoped conversations with caller-specific unread counts
+      operationId: listMessageConversations
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Conversations visible to the authenticated membership
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MessageConversationView'
+    post:
+      summary: Create a conversation with active tenant memberships
+      operationId: createMessageConversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMessageConversationRequest'
+      responses:
+        '200':
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageConversationView'
+        '403':
+          description: Caller has no active membership in the authenticated tenant
+        '404':
+          description: Participant membership not found in the authenticated tenant
+        '409':
+          description: Invalid participant set or a messaging block prevents this conversation
+  /messaging/conversations/{conversationId}/messages:
+    parameters:
+      - name: conversationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: List messages in a conversation where the caller is a participant
+      operationId: listMessages
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Message page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagePage'
+        '404':
+          description: Conversation not found or caller is not a participant
+    post:
+      summary: Send a message to a participant-authorized conversation
+      operationId: sendMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+      responses:
+        '200':
+          description: Message saved and notification intent enqueued transactionally
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageView'
+        '404':
+          description: Conversation not found or caller is not a participant
+        '409':
+          description: Invalid message body or messaging block prevents delivery
+  /messaging/conversations/{conversationId}/read:
+    post:
+      summary: Mark the caller's participant record as read
+      operationId: markConversationRead
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Read marker advanced monotonically
+        '404':
+          description: Conversation not found or caller is not a participant
+  /messaging/messages/{messageId}:
+    parameters:
+      - name: messageId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      summary: Edit a message authored by the caller using optimistic concurrency
+      operationId: editMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditMessageRequest'
+      responses:
+        '200':
+          description: Updated message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageView'
+        '404':
+          description: Message not found or caller is not a participant
+        '409':
+          description: Ownership, deletion-state or version conflict
+    delete:
+      summary: Soft-delete a message authored by the caller
+      operationId: deleteMessage
+      parameters:
+        - name: expectedVersion
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Message soft-deleted
+        '404':
+          description: Message not found or caller is not a participant
+        '409':
+          description: Ownership, deletion-state or version conflict
+  /messaging/blocks:
+    get:
+      summary: List message blocks created by the current membership
+      operationId: listMessageBlocks
+      responses:
+        '200':
+          description: Memberships blocked by the caller
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MessageBlockView'
+  /messaging/blocks/{membershipId}:
+    parameters:
+      - name: membershipId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      summary: Block an active membership in the authenticated tenant
+      operationId: blockMessageMembership
+      responses:
+        '204':
+          description: Membership blocked
+        '403':
+          description: Caller has no active tenant membership
+        '404':
+          description: Target membership is not active in the authenticated tenant
+        '409':
+          description: A membership cannot block itself
+    delete:
+      summary: Remove a block created by the current membership
+      operationId: unblockMessageMembership
+      responses:
+        '204':
+          description: Block removed if present
+  /messaging/messages/{messageId}/reports:
+    post:
+      summary: Report a message the caller can access
+      operationId: reportMessage
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportMessageRequest'
+      responses:
+        '200':
+          description: Message report created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageReportView'
+        '404':
+          description: Message not found or caller is not a participant
+        '409':
+          description: Duplicate report or caller attempted to report their own message
+  /messaging/reports:
+    get:
+      summary: List tenant-scoped message reports for authorized moderators
+      operationId: listMessageReports
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Message reports
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageReportPage'
+        '403':
+          description: MESSAGING_MODERATE permission required
+  /messaging/reports/{reportId}/resolve:
+    post:
+      summary: Resolve a message report; ACTIONED redacts the reported message body
+      operationId: resolveMessageReport
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveMessageReportRequest'
+      responses:
+        '200':
+          description: Message report resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageReportView'
+        '403':
+          description: MESSAGING_MODERATE permission required
+        '404':
+          description: Report not found in the authenticated tenant
+        '409':
+          description: Report already resolved, version conflict, or reviewer cannot review their own message
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2768,6 +3025,117 @@ components:
           type: string
         releaseStatus:
           type: string
+    CreateMessageConversationRequest:
+      type: object
+      required: [participantMembershipIds]
+      properties:
+        subject:
+          type: string
+          maxLength: 240
+        participantMembershipIds:
+          type: array
+          minItems: 1
+          maxItems: 49
+          items:
+            type: string
+            format: uuid
+    MessageConversationView:
+      type: object
+      required: [id, createdByMembershipId, createdAt, updatedAt, version, participantCount, unreadCount]
+      properties:
+        id: {type: string, format: uuid}
+        subject: {type: string}
+        createdByMembershipId: {type: string, format: uuid}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        version: {type: integer, format: int64}
+        participantCount: {type: integer}
+        unreadCount: {type: integer, format: int64}
+    MessageRequest:
+      type: object
+      required: [body]
+      properties:
+        body: {type: string, minLength: 1, maxLength: 20000}
+    EditMessageRequest:
+      type: object
+      required: [body, expectedVersion]
+      properties:
+        body: {type: string, minLength: 1, maxLength: 20000}
+        expectedVersion: {type: integer, format: int64}
+    MessageView:
+      type: object
+      required: [id, conversationId, senderMembershipId, body, createdAt, version]
+      properties:
+        id: {type: string, format: uuid}
+        conversationId: {type: string, format: uuid}
+        senderMembershipId: {type: string, format: uuid}
+        body: {type: string}
+        createdAt: {type: string, format: date-time}
+        editedAt: {type: string, format: date-time}
+        deletedAt: {type: string, format: date-time}
+        version: {type: integer, format: int64}
+    MessagePage:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageView'
+        page: {type: integer}
+        size: {type: integer}
+        totalElements: {type: integer, format: int64}
+        totalPages: {type: integer}
+    MessageBlockView:
+      type: object
+      required: [membershipId, createdAt]
+      properties:
+        membershipId: {type: string, format: uuid}
+        createdAt: {type: string, format: date-time}
+    ReportMessageRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: {type: string, minLength: 1, maxLength: 2000}
+    MessageReportStatus:
+      type: string
+      enum: [OPEN, REVIEWED, DISMISSED, ACTIONED]
+    MessageReportView:
+      type: object
+      required: [id, messageId, conversationId, reporterMembershipId, reason, status, createdAt, version]
+      properties:
+        id: {type: string, format: uuid}
+        messageId: {type: string, format: uuid}
+        conversationId: {type: string, format: uuid}
+        reporterMembershipId: {type: string, format: uuid}
+        reason: {type: string}
+        status:
+          $ref: '#/components/schemas/MessageReportStatus'
+        createdAt: {type: string, format: date-time}
+        reviewedAt: {type: string, format: date-time}
+        reviewedByMembershipId: {type: string, format: uuid}
+        resolution: {type: string}
+        version: {type: integer, format: int64}
+    MessageReportPage:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageReportView'
+        page: {type: integer}
+        size: {type: integer}
+        totalElements: {type: integer, format: int64}
+        totalPages: {type: integer}
+    ResolveMessageReportRequest:
+      type: object
+      required: [status, resolution, expectedVersion]
+      properties:
+        status:
+          $ref: '#/components/schemas/MessageReportStatus'
+        resolution: {type: string, minLength: 1, maxLength: 2000}
+        expectedVersion: {type: integer, format: int64}
     PermissionKey:
       type: string
       enum:
