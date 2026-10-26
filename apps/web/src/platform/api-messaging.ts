@@ -56,3 +56,15 @@ export const fetchMessagePolicy=()=>request<MessagePolicyView>('/api/v1/messagin
 export const updateMessagePolicy=(policy:MessagePolicyUpdate)=>request<MessagePolicyView>(
   '/api/v1/messaging/policy',
   {method:'PUT',body:JSON.stringify(policy)})
+
+export type MessageDeliveryStatus = 'PENDING' | 'DELIVERED' | 'READ'
+export interface MessageDeliveryView {
+  messageId:string
+  recipientMembershipId:string
+  status:MessageDeliveryStatus
+  createdAt:string
+  deliveredAt?:string
+  readAt?:string
+}
+export const fetchMessageDelivery=(messageId:string)=>request<MessageDeliveryView[]>(
+  `/api/v1/messaging/messages/${encodeURIComponent(messageId)}/delivery`)

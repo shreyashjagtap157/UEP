@@ -2714,6 +2714,28 @@ paths:
       responses:
         '204':
           description: Block removed if present
+  /messaging/messages/{messageId}/delivery:
+    get:
+      summary: Read per-recipient delivery and read receipts for a message
+      operationId: getMessageDelivery
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The sender sees all recipient receipts; a recipient sees only their own receipt
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MessageDeliveryView'
+        '404':
+          description: Message not found or caller is not a conversation participant
   /messaging/messages/{messageId}/reports:
     post:
       summary: Report a message the caller can access
@@ -3131,6 +3153,20 @@ components:
     MessageReportStatus:
       type: string
       enum: [OPEN, REVIEWED, DISMISSED, ACTIONED]
+    MessageDeliveryStatus:
+      type: string
+      enum: [PENDING, DELIVERED, READ]
+    MessageDeliveryView:
+      type: object
+      required: [messageId, recipientMembershipId, status, createdAt]
+      properties:
+        messageId: {type: string, format: uuid}
+        recipientMembershipId: {type: string, format: uuid}
+        status:
+          $ref: '#/components/schemas/MessageDeliveryStatus'
+        createdAt: {type: string, format: date-time}
+        deliveredAt: {type: string, format: date-time}
+        readAt: {type: string, format: date-time}
     MessageReportView:
       type: object
       required: [id, messageId, conversationId, reporterMembershipId, messageSenderMembershipId, reportedMessageBody, messageCreatedAt, reason, status, createdAt, version]
