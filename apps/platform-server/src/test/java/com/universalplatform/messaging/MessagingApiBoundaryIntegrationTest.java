@@ -194,6 +194,54 @@ class MessagingApiBoundaryIntegrationTest {
     }
 
     @Test
+    void groupMessageCreatesIndependentReceiptsAndRecipientsCannotSeeEachOthersReceipt() throws Exception {
+        String conversationResponse = mvc.perform(post("/api/v1/messaging/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"subject":"Group receipt test","participantMembershipIds":["%s","%s"]}
+                                """.formatted(MEMBERSHIP_A_PEER, MEMBERSHIP_MODERATOR))
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID conversationId = UUID.fromString(objectMapper.readTree(conversationResponse).get("id").asText());
+
+        String messageResponse = mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"Group delivery receipts\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID messageId = UUID.fromString(objectMapper.readTree(messageResponse).get("id").asText());
+
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("""
+                select count(*) from message_delivery
+                where tenant_id = ? and message_id = ? and status = 'PENDING'
+                """, Integer.class, TENANT_A, messageId)).isEqualTo(2);
+
+        String senderReceipts = mvc.perform(get("/api/v1/messaging/messages/" + messageId + "/delivery")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(objectMapper.readTree(senderReceipts).size()).isEqualTo(2);
+
+        String peerReceipts = mvc.perform(get("/api/v1/messaging/messages/" + messageId + "/delivery")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(objectMapper.readTree(peerReceipts).size()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(objectMapper.readTree(peerReceipts).get(0).get("recipientMembershipId").asText())
+                .isEqualTo(MEMBERSHIP_A_PEER.toString());
+
+        String moderatorReceipts = mvc.perform(get("/api/v1/messaging/messages/" + messageId + "/delivery")
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(objectMapper.readTree(moderatorReceipts).size()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(objectMapper.readTree(moderatorReceipts).get(0).get("recipientMembershipId").asText())
+                .isEqualTo(MEMBERSHIP_MODERATOR.toString());
+    }
+
+    @Test
     void blockingPreventsDirectMessagesUntilTheBlockIsRemoved() throws Exception {
         String response = mvc.perform(post("/api/v1/messaging/conversations")
                         .contentType(MediaType.APPLICATION_JSON)
