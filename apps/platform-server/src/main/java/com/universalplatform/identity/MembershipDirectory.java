@@ -70,6 +70,26 @@ public class MembershipDirectory {
 
 
     @Transactional(readOnly = true)
+    public Map<UUID, MembershipReference> activeReferences(Collection<UUID> membershipIds) {
+        if (membershipIds == null || membershipIds.isEmpty()) return Map.of();
+        UUID tenantId = tenantContext.requireTenantId();
+        var found = memberships.findAllByTenantIdAndIdIn(tenantId, membershipIds).stream()
+                .filter(membership -> membership.status() == MembershipStatus.ACTIVE)
+                .toList();
+        var userIds = found.stream().map(TenantMembership::userId).collect(Collectors.toSet());
+        Map<UUID, UserAccount> userById = users.findAllById(userIds).stream()
+                .collect(Collectors.toMap(UserAccount::id, Function.identity()));
+        Map<UUID, MembershipReference> result = new LinkedHashMap<>();
+        for (TenantMembership membership : found) {
+            UserAccount user = userById.get(membership.userId());
+            if (user != null && user.status() == UserStatus.ACTIVE) {
+                result.put(membership.id(), reference(membership, user));
+            }
+        }
+        return Map.copyOf(result);
+    }
+
+    @Transactional(readOnly = true)
     public java.util.Set<UUID> activeMembershipIds() {
         return java.util.Set.copyOf(memberships.findActiveIds(tenantContext.requireTenantId()));
     }
