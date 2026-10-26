@@ -240,7 +240,9 @@ class MessagingApiBoundaryIntegrationTest {
                                 """)
                         .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("ACTIONED"));
+                .andExpect(jsonPath("$.status").value("ACTIONED"))
+                .andExpect(jsonPath("$.reportedMessageBody").value("Message to be moderated"))
+                .andExpect(jsonPath("$.messageSenderMembershipId").value(MEMBERSHIP_A.toString()));
 
         mvc.perform(post("/api/v1/messaging/reports/" + reportId + "/resolve")
                         .contentType(MediaType.APPLICATION_JSON)

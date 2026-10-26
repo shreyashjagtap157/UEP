@@ -151,7 +151,8 @@ class MessagingService {
         String normalizedReason = normalizeRequired(reason, "Report reason", 2000);
         MessageReport report = reports.save(new MessageReport(
                 UUID.randomUUID(), tenantId, target.conversationId(), messageId,
-                reporterMembershipId, normalizedReason, clock.instant()));
+                reporterMembershipId, target.senderMembershipId(), target.body(), target.createdAt(),
+                normalizedReason, clock.instant()));
         audit.record(tenantId, actorContext.requireSubject(), "MESSAGE_REPORTED", "message_report", report.id().toString());
         return reportView(report);
     }
@@ -163,7 +164,7 @@ class MessagingService {
         PageRequest request = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100),
                 Sort.by(Sort.Direction.DESC, "createdAt", "id"));
         Page<MessageReport> result = reports.findAllByTenantId(tenantId, request);
-        return new MessageReportPage(result.getContent().stream().map(this::reportView).toList(),
+        return new MessageReportPage(result.getContent().stream().map(MessagingService::reportView).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
     }
 
@@ -290,11 +291,10 @@ class MessagingService {
         return normalized;
     }
 
-    private MessageReportView reportView(MessageReport report) {
-        MessageRecord target = message(report.tenantId(), report.messageId());
+    private static MessageReportView reportView(MessageReport report) {
         return new MessageReportView(report.id(), report.messageId(), report.conversationId(),
-                report.reporterMembershipId(), target.senderMembershipId(), target.body(), target.createdAt(),
-                report.reason(), report.status(), report.createdAt(), report.reviewedAt(),
+                report.reporterMembershipId(), report.messageSenderMembershipId(), report.reportedMessageBody(),
+                report.messageCreatedAt(), report.reason(), report.status(), report.createdAt(), report.reviewedAt(),
                 report.reviewedByMembershipId(), report.resolution(), report.version());
     }
 

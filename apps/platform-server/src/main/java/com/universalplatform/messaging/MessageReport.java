@@ -19,6 +19,9 @@ class MessageReport {
     @Column(nullable = false) private UUID conversationId;
     @Column(nullable = false) private UUID messageId;
     @Column(nullable = false) private UUID reporterMembershipId;
+    @Column(nullable = false) private UUID messageSenderMembershipId;
+    @Column(nullable = false, columnDefinition = "text") private String reportedMessageBody;
+    @Column(nullable = false) private Instant messageCreatedAt;
     @Column(nullable = false, length = 2000) private String reason;
     @Column(nullable = false, length = 24) private String status;
     @Column(nullable = false, updatable = false) private Instant createdAt;
@@ -30,12 +33,16 @@ class MessageReport {
     protected MessageReport() {}
 
     MessageReport(UUID id, UUID tenantId, UUID conversationId, UUID messageId,
-                  UUID reporterMembershipId, String reason, Instant createdAt) {
+                  UUID reporterMembershipId, UUID messageSenderMembershipId, String reportedMessageBody,
+                  Instant messageCreatedAt, String reason, Instant createdAt) {
         this.id = id;
         this.tenantId = tenantId;
         this.conversationId = conversationId;
         this.messageId = messageId;
         this.reporterMembershipId = reporterMembershipId;
+        this.messageSenderMembershipId = messageSenderMembershipId;
+        this.reportedMessageBody = reportedMessageBody;
+        this.messageCreatedAt = messageCreatedAt;
         this.reason = reason;
         this.status = MessageReportStatus.OPEN.name();
         this.createdAt = createdAt;
@@ -46,6 +53,9 @@ class MessageReport {
     UUID conversationId() { return conversationId; }
     UUID messageId() { return messageId; }
     UUID reporterMembershipId() { return reporterMembershipId; }
+    UUID messageSenderMembershipId() { return messageSenderMembershipId; }
+    String reportedMessageBody() { return reportedMessageBody; }
+    Instant messageCreatedAt() { return messageCreatedAt; }
     String reason() { return reason; }
     MessageReportStatus status() { return MessageReportStatus.valueOf(status); }
     Instant createdAt() { return createdAt; }
