@@ -1,7 +1,5 @@
 package com.universalplatform.messaging;
 
-import com.universalplatform.identity.IdentityAccessDeniedException;
-import com.universalplatform.identity.IdentityNotFoundException;
 import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -13,9 +11,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice(basePackages = "com.universalplatform.messaging")
 class MessagingApiExceptionHandler {
-    @ExceptionHandler({MessagingNotFoundException.class, IdentityNotFoundException.class})
-    ResponseEntity<?> notFound(RuntimeException exception) {
-        if (exception instanceof IdentityNotFoundException) {
+    @ExceptionHandler(MessagingNotFoundException.class)
+    ResponseEntity<?> notFound(MessagingNotFoundException exception) {
+        if (exception instanceof MessagingParticipantNotFoundException) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
                     "code", "MESSAGE_PARTICIPANT_NOT_FOUND",
                     "message", "A participant membership was not found in the authenticated tenant"));
@@ -25,8 +23,8 @@ class MessagingApiExceptionHandler {
                 "message", exception.getMessage()));
     }
 
-    @ExceptionHandler(IdentityAccessDeniedException.class)
-    ResponseEntity<?> accessDenied(IdentityAccessDeniedException exception) {
+    @ExceptionHandler(MessagingAccessDeniedException.class)
+    ResponseEntity<?> accessDenied(MessagingAccessDeniedException exception) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
                 "code", "MESSAGING_ACCESS_DENIED",
                 "message", "Messaging requires active memberships in the authenticated tenant"));
