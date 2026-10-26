@@ -37,6 +37,7 @@ class MessagingApiBoundaryIntegrationTest {
     private static final UUID USER_MODERATOR = UUID.fromString("018f6f58-3d8c-7c6f-9e1b-eef81d4af7bb");
     private static final UUID MEMBERSHIP_MODERATOR = UUID.fromString("018f6f58-3d8c-7c6f-9e1b-eef81d4af7cc");
     private static final UUID ROLE_MODERATOR = UUID.fromString("018f6f58-3d8c-7c6f-9e1b-eef81d4af7dd");
+    private static final UUID ROLE_STUDENT = UUID.fromString("018f6f58-3d8c-7c6f-9e1b-eef81d4af7ee");
     private static final String SUBJECT = "messaging-api-owner";
     private static final String MODERATOR_SUBJECT = "messaging-api-moderator";
 
@@ -259,6 +260,114 @@ class MessagingApiBoundaryIntegrationTest {
     }
 
     @Test
+    void tenantPolicyCanRestrictStudentMessagingAndDisableMessaging() throws Exception {
+        // The policy endpoint is permission-gated, not merely hidden in the UI.
+        mvc.perform(get("/api/v1/messaging/policy")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isForbidden());
+
+        // Give both participants the system Student role for this scenario.
+        jdbc.update("""
+                INSERT INTO role_definition(id, tenant_id, system_key, name, system_managed)
+                VALUES (?, ?, 'STUDENT', 'Student', true)
+                ON CONFLICT (tenant_id, system_key) DO NOTHING
+                """, ROLE_STUDENT, TENANT_A);
+        UUID studentRoleId = jdbc.queryForObject(
+                "SELECT id FROM role_definition WHERE tenant_id = ? AND system_key = 'STUDENT'",
+                UUID.class, TENANT_A);
+        jdbc.update("""
+                INSERT INTO role_assignment(id, tenant_id, membership_id, role_id, scope_kind, assigned_by_subject)
+                VALUES (uuidv7(), ?, ?, ?, 'TENANT', ?)
+                ON CONFLICT DO NOTHING
+                """, TENANT_A, MEMBERSHIP_A, studentRoleId, SUBJECT);
+        jdbc.update("""
+                INSERT INTO role_assignment(id, tenant_id, membership_id, role_id, scope_kind, assigned_by_subject)
+                VALUES (uuidv7(), ?, ?, ?, 'TENANT', ?)
+                ON CONFLICT DO NOTHING
+                """, TENANT_A, MEMBERSHIP_A_PEER, studentRoleId, SUBJECT);
+
+        mvc.perform(get("/api/v1/messaging/policy")
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.messagingEnabled").value(true))
+                .andExpect(jsonPath("$.allowStudentToStudent").value(true))
+                .andExpect(jsonPath("$.messageRetentionDays").value(365))
+                .andExpect(jsonPath("$.reportRetentionDays").value(1095));
+
+        mvc.perform(put("/api/v1/messaging/policy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"messagingEnabled":true,"allowStudentToStudent":false,
+                                 "messageRetentionDays":30,"reportRetentionDays":90,
+                                 "maxMessagesPerMinute":30,"maxReportsPerHour":5,"expectedVersion":0}
+                                """)
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.allowStudentToStudent").value(false))
+                .andExpect(jsonPath("$.version").value(1));
+
+        mvc.perform(post("/api/v1/messaging/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"subject":"Student direct chat","participantMembershipIds":["%s"]}
+                                """.formatted(MEMBERSHIP_A_PEER))
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MESSAGE_CONFLICT"));
+
+        mvc.perform(put("/api/v1/messaging/policy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"messagingEnabled":false,"allowStudentToStudent":false,
+                                 "messageRetentionDays":30,"reportRetentionDays":90,
+                                 "maxMessagesPerMinute":30,"maxReportsPerHour":5,"expectedVersion":1}
+                                """)
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.messagingEnabled").value(false));
+
+        mvc.perform(post("/api/v1/messaging/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"subject":"Disabled chat","participantMembershipIds":["%s"]}
+                                """.formatted(MEMBERSHIP_A_PEER))
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("MESSAGING_DISABLED"));
+    }
+
+    @Test
+    void messageSendRateLimitIsEnforcedAtomically() throws Exception {
+        jdbc.update("""
+                INSERT INTO message_tenant_policy(tenant_id, max_messages_per_minute)
+                VALUES (?, 1)
+                ON CONFLICT (tenant_id) DO UPDATE SET max_messages_per_minute = 1
+                """, TENANT_A);
+        String response = mvc.perform(post("/api/v1/messaging/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"subject":"Rate limit test","participantMembershipIds":["%s"]}
+                                """.formatted(MEMBERSHIP_A_PEER))
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID conversationId = UUID.fromString(objectMapper.readTree(response).get("id").asText());
+
+        mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"First message\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"Second message should be limited\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("MESSAGING_RATE_LIMITED"));
+    }
+
+@Test
     void inactiveParticipantIsReturnedAsForbidden() throws Exception {
         mvc.perform(post("/api/v1/messaging/conversations")
                         .contentType(MediaType.APPLICATION_JSON)
