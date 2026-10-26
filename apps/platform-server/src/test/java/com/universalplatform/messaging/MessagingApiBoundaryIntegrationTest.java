@@ -208,6 +208,22 @@ class MessagingApiBoundaryIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         UUID reportId = UUID.fromString(objectMapper.readTree(reportResponse).get("id").asText());
 
+        mvc.perform(post("/api/v1/messaging/messages/" + messageId + "/reports")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Duplicate report attempt\"}")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isConflict());
+
+        mvc.perform(post("/api/v1/messaging/messages/" + messageId + "/reports")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"I am the message author\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isConflict());
+
+        mvc.perform(get("/api/v1/messaging/reports")
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_B.toString()))))
+                .andExpect(status().isForbidden());
+
         mvc.perform(get("/api/v1/messaging/reports")
                         .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isForbidden());
@@ -225,6 +241,12 @@ class MessagingApiBoundaryIntegrationTest {
                         .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIONED"));
+
+        mvc.perform(post("/api/v1/messaging/reports/" + reportId + "/resolve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISMISSED\",\"resolution\":\"Stale duplicate action\",\"expectedVersion\":0}")
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isConflict());
 
         org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
                 "select body from message_record where tenant_id = ? and id = ?", String.class, TENANT_A, messageId))
