@@ -13,6 +13,23 @@ interface MessageDeliveryRepository extends JpaRepository<MessageDelivery, UUID>
     List<MessageDelivery> findAllByTenantIdAndMessageIdOrderByRecipientMembershipIdAsc(
             UUID tenantId, UUID messageId);
 
+    @Query("""
+            select count(d)
+            from MessageDelivery d, MessageRecord m
+            where d.tenantId = :tenantId
+              and d.conversationId = :conversationId
+              and d.recipientMembershipId = :membershipId
+              and d.status <> com.universalplatform.messaging.MessageDeliveryStatus.READ
+              and m.tenantId = d.tenantId
+              and m.conversationId = d.conversationId
+              and m.id = d.messageId
+              and m.deletedAt is null
+            """)
+    long countUnreadByTenantAndConversationAndRecipient(
+            @Param("tenantId") UUID tenantId,
+            @Param("conversationId") UUID conversationId,
+            @Param("membershipId") UUID membershipId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             update message_delivery

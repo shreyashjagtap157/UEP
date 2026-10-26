@@ -89,19 +89,13 @@ class MessagingService {
             return new MessageConversationPage(List.of(), normalizedPage, normalizedSize, 0, 0);
         }
 
-        Map<UUID, MessageParticipant> currentParticipantByConversation = myParticipants.stream()
-                .collect(Collectors.toMap(MessageParticipant::conversationId, participant -> participant));
         List<UUID> ids = myParticipants.stream().map(MessageParticipant::conversationId).toList();
         PageRequest request = PageRequest.of(normalizedPage, normalizedSize,
                 Sort.by(Sort.Direction.DESC, "updatedAt", "id"));
         Page<ConversationView> result = conversations.findDistinctByTenantIdAndIdIn(tenantId, ids, request)
                 .map(item -> {
-                    MessageParticipant currentParticipant = currentParticipantByConversation.get(item.id());
-                    long unreadCount = currentParticipant.lastReadAt() == null
-                            ? messages.countByTenantIdAndConversationIdAndSenderMembershipIdNotAndDeletedAtIsNull(
-                                    tenantId, item.id(), membershipId)
-                            : messages.countByTenantIdAndConversationIdAndSenderMembershipIdNotAndDeletedAtIsNullAndCreatedAtAfter(
-                                    tenantId, item.id(), membershipId, currentParticipant.lastReadAt());
+                    long unreadCount = deliveries.countUnreadByTenantAndConversationAndRecipient(
+                            tenantId, item.id(), membershipId);
                     int participantCount = participants.findAllByTenantIdAndIdConversationId(tenantId, item.id()).size();
                     return conversationView(item, participantCount, unreadCount);
                 });

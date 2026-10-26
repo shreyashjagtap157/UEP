@@ -48,9 +48,4 @@ interface MessageRecordRepository extends JpaRepository<MessageRecord, UUID> {
                                 @Param("batchSize") int batchSize);
 
 
-    long countByTenantIdAndConversationIdAndSenderMembershipIdNotAndDeletedAtIsNull(
-            UUID tenantId, UUID conversationId, UUID senderMembershipId);
-
-    long countByTenantIdAndConversationIdAndSenderMembershipIdNotAndDeletedAtIsNullAndCreatedAtAfter(
-            UUID tenantId, UUID conversationId, UUID senderMembershipId, Instant createdAt);
 }

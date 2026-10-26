@@ -113,6 +113,13 @@ class MessagingApiBoundaryIntegrationTest {
                 where tenant_id = ? and message_id = ? and recipient_membership_id = ?
                 """, Integer.class, TENANT_A, messageId, MEMBERSHIP_A)).isZero();
 
+        // A same-timestamp read marker must not hide a still-pending receipt; receipts are the source of unread truth.
+        jdbc.update("""
+                update message_participant
+                set last_read_at = (select created_at from message_record where tenant_id = ? and id = ?)
+                where tenant_id = ? and conversation_id = ? and membership_id = ?
+                """, TENANT_A, messageId, TENANT_A, conversationId, MEMBERSHIP_A_PEER);
+
         UUID outboxId = jdbc.queryForObject("""
                 select id from notification_outbox
                 where tenant_id = ? and event_type = 'MESSAGE_RECEIVED' and aggregate_id = ?
