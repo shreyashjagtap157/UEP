@@ -4,6 +4,18 @@
 
 Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification. (Tracked by the milestone gate in `docs/QUALIFICATION_0.15.md`.)
 
+## Unreleased — 2026-10-26
+
+### Added
+- forward-only V036 database constraints that require messaging conversation creators and participants to belong to the same tenant, and require each message sender to be a participant in its conversation;
+- PostgreSQL integration tests for cross-tenant integrity, nonparticipant sends, valid tenant-scoped writes, and messaging API error responses.
+
+### Fixed
+- resolved the messaging participant repository's invalid Spring Data derived sort path through the embedded primary key, restoring Spring application startup;
+- mapped inactive and cross-tenant membership failures to stable messaging API 403/404 responses without leaking identity-module exception details;
+- documented the latest green backend, migration, packaged-server smoke, web, policy, and dependency-scan evidence.
+
+
 ## 0.15.0.0-SNAPSHOT — 2026-10-25
 
 ### Added

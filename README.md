@@ -1,11 +1,11 @@
 # Universal Education, Training and Learning Operations Platform
 
-## Current verified status — 24 October 2026
+## Current verified status — 26 October 2026
 
-> **Release gate: NOT YET QUALIFIED FOR PRODUCTION.** The repository remains an active implementation at `0.15.0.0-SNAPSHOT`. The latest complete green CI run is [run #172](https://github.com/shreyashjagtap157/UEP/actions/runs/40102543028), commit `211012f983edbe0c28788217bc377b3a6e560cec`: backend Maven verification passed (82 tests, zero failures/errors), the packaged server started against a fresh PostgreSQL database, and 30 concurrent health requests (6 workers) passed with observed p95 33.6 ms / p99 34.3 ms in that CI environment. Web lint/tests/build, repository policy, backup/restore safety tests, load-smoke tests, static qualification, and dependency scanning also passed.
->
+> **Release gate: NOT YET QUALIFIED FOR PRODUCTION.** The repository remains at `0.15.0.0-SNAPSHOT`. The latest complete green CI run is [run #380](https://github.com/shreyashjagtap157/UEP/actions/runs/40266626824), commit `341b6cfc970f52dff75f7c2c0a9a974885f7fe47`: backend Maven verification passed (131 tests, zero failures/errors), Flyway validated and applied all 36 migrations, the packaged server started against a fresh PostgreSQL database, and 30/30 concurrent health requests passed at 6-worker concurrency with observed p95 39.3 ms / p99 39.7 ms in that CI environment. The web lint/tests/build, repository-policy qualification, backup/restore safety checks, load-smoke tests, static qualification, and dependency scan also passed.
+
 > These results establish CI and smoke-level evidence, not production capacity or end-to-end provider qualification. Before production release, the 0.15 milestone still requires an executed PostgreSQL backup/restore drill against a disposable target, production-like k6/load results, external provider qualification, and operational backup/alert/restore runbooks.
->
+
 > See [GitHub Actions](https://github.com/shreyashjagtap157/UEP/actions), [issue/PR tracker](https://github.com/shreyashjagtap157/UEP/pulls), the [0.15 qualification guide](docs/QUALIFICATION_0.15.md), and the [master implementation plan](docs/MASTER_IMPLEMENTATION_PLAN.md). The sections below describe documented scope and should not be read as proof that every external provider or production drill has run.
 
 ---
