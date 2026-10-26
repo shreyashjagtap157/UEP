@@ -44,6 +44,18 @@ class MessagingController {
         return service.resolveReport(reportId, request.status(), request.resolution(), request.expectedVersion());
     }
 
+    @GetMapping("/policy")
+    MessagingService.MessagePolicyView messagingPolicy() {
+        return service.getPolicy();
+    }
+
+    @PutMapping("/policy")
+    MessagingService.MessagePolicyView updateMessagingPolicy(@Valid @RequestBody UpdateMessagingPolicyRequest request) {
+        return service.updatePolicy(request.messagingEnabled(), request.allowStudentToStudent(),
+                request.messageRetentionDays(), request.reportRetentionDays(), request.maxMessagesPerMinute(),
+                request.maxReportsPerHour(), request.expectedVersion());
+    }
+
     @GetMapping("/blocks")
     List<MessagingService.BlockView> blockedMemberships() {
         return service.blockedMemberships();
@@ -96,6 +108,14 @@ class MessagingController {
     void delete(@PathVariable UUID messageId, @RequestParam long expectedVersion) {
         service.delete(messageId, expectedVersion);
     }
+
+    record UpdateMessagingPolicyRequest(
+            boolean messagingEnabled, boolean allowStudentToStudent,
+            @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(3650) int messageRetentionDays,
+            @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(7300) int reportRetentionDays,
+            @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(120) int maxMessagesPerMinute,
+            @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(20) int maxReportsPerHour,
+            @jakarta.validation.constraints.Min(0) long expectedVersion) {}
 
     record ReportMessageRequest(@NotBlank @Size(max = 2000) String reason) {}
     record ResolveMessageReportRequest(@NotNull MessageReportStatus status,

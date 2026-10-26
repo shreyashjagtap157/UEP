@@ -111,6 +111,9 @@ platform:
       api-secret: ${LIVEKIT_API_SECRET:secret}
     heartbeat-timeout-seconds: ${LIVE_CLASS_HEARTBEAT_TIMEOUT_SECONDS:90}
 
+  messaging:
+    retention-poll-ms: ${PLATFORM_MESSAGE_RETENTION_POLL_MS:3600000}
+
   recording:
     worker-poll-ms: ${RECORDING_WORKER_POLL_MS:2000}
     archive-poll-ms: ${RECORDING_ARCHIVE_POLL_MS:60000}

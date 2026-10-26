@@ -23,6 +23,20 @@ class MessagingApiExceptionHandler {
                 "message", exception.getMessage()));
     }
 
+    @ExceptionHandler(MessagingDisabledException.class)
+    ResponseEntity<?> messagingDisabled(MessagingDisabledException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                "code", "MESSAGING_DISABLED",
+                "message", "Messaging is disabled for this tenant"));
+    }
+
+    @ExceptionHandler(MessagingRateLimitException.class)
+    ResponseEntity<?> rateLimited(MessagingRateLimitException exception) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).header("Retry-After", "60").body(Map.of(
+                "code", "MESSAGING_RATE_LIMITED",
+                "message", exception.getMessage()));
+    }
+
     @ExceptionHandler(MessagingAccessDeniedException.class)
     ResponseEntity<?> accessDenied(MessagingAccessDeniedException exception) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(

@@ -5,6 +5,7 @@ import com.universalplatform.identity.IdentityAccessDeniedException;
 import com.universalplatform.identity.IdentityNotFoundException;
 import com.universalplatform.identity.AuthorizationService;
 import com.universalplatform.identity.PermissionKey;
+import com.universalplatform.identity.SystemRoleKey;
 import com.universalplatform.identity.MembershipDirectory;
 import com.universalplatform.notification.NotificationEventType;
 import com.universalplatform.notification.NotificationPriority;
@@ -33,19 +34,22 @@ class MessagingService {
     private final MessageParticipantRepository participants;
     private final MessageBlockRepository blocks;
     private final MessageReportRepository reports;
+    private final MessageTenantPolicyRepository policies;
     private final AuthorizationService authorization;
     private final MessageRecordRepository messages;
     private final AuditService audit;
     private final NotificationPublisher notifications;
     private final Clock clock = Clock.systemUTC();
     MessagingService(TenantContext tenantContext, ActorContext actorContext, MembershipDirectory memberships, MessageConversationRepository conversations,
-                     MessageParticipantRepository participants, MessageBlockRepository blocks, MessageRecordRepository messages, MessageReportRepository reports, AuditService audit, NotificationPublisher notifications, AuthorizationService authorization) {
-        this.tenantContext=tenantContext; this.actorContext=actorContext; this.memberships=memberships; this.conversations=conversations; this.participants=participants; this.blocks=blocks; this.messages=messages; this.reports=reports; this.audit=audit; this.notifications=notifications; this.authorization=authorization;
+                     MessageParticipantRepository participants, MessageBlockRepository blocks, MessageRecordRepository messages, MessageReportRepository reports, MessageTenantPolicyRepository policies, AuditService audit, NotificationPublisher notifications, AuthorizationService authorization) {
+        this.tenantContext=tenantContext; this.actorContext=actorContext; this.memberships=memberships; this.conversations=conversations; this.participants=participants; this.blocks=blocks; this.messages=messages; this.reports=reports; this.policies=policies; this.audit=audit; this.notifications=notifications; this.authorization=authorization;
     }
     @Transactional
     ConversationView create(String subject, List<UUID> participantMembershipIds) {
         UUID tenantId = tenantContext.requireTenantId();
         UUID currentMembershipId = currentMembershipId();
+        MessageTenantPolicy policy = tenantPolicy(tenantId);
+        requireMessagingEnabled(policy);
         LinkedHashSet<UUID> ids = new LinkedHashSet<>();
         ids.add(currentMembershipId);
         if (participantMembershipIds != null) ids.addAll(participantMembershipIds);
@@ -53,6 +57,7 @@ class MessagingService {
         if (ids.size() > 50) throw new MessagingConflictException("A conversation may contain at most 50 participants");
 
         for (UUID membershipId : ids) requireActiveParticipant(membershipId);
+        enforceStudentCommunicationPolicy(policy, ids);
         if (blocks.existsBlockBetweenParticipants(tenantId, ids)) {
             throw new MessagingConflictException("A conversation cannot include participants who have blocked each other");
         }
@@ -74,6 +79,7 @@ class MessagingService {
     MessageConversationPage list(int page, int size) {
         UUID tenantId = tenantContext.requireTenantId();
         UUID membershipId = currentMembershipId();
+        requireMessagingEnabled(tenantPolicy(tenantId));
         int normalizedPage = Math.max(page, 0);
         int normalizedSize = Math.min(Math.max(size, 1), 100);
         List<MessageParticipant> myParticipants =
@@ -103,16 +109,19 @@ class MessagingService {
     }
 
     @Transactional(readOnly=true) MessagePage messages(UUID conversationId,int page,int size){
-        UUID tenantId=tenantContext.requireTenantId(); UUID membershipId=currentMembershipId(); requireParticipant(tenantId,conversationId,membershipId); PageRequest request=PageRequest.of(Math.max(page,0),Math.min(Math.max(size,1),100),Sort.by(Sort.Direction.DESC,"createdAt","id")); Page<MessageRecord> result=messages.findByTenantIdAndConversationIdOrderByCreatedAtDescIdDesc(tenantId,conversationId,request); return new MessagePage(result.stream().map(MessagingService::messageView).toList(),result.getNumber(),result.getSize(),result.getTotalElements(),result.getTotalPages());
+        UUID tenantId=tenantContext.requireTenantId(); UUID membershipId=currentMembershipId(); requireMessagingEnabled(tenantPolicy(tenantId)); requireParticipant(tenantId,conversationId,membershipId); PageRequest request=PageRequest.of(Math.max(page,0),Math.min(Math.max(size,1),100),Sort.by(Sort.Direction.DESC,"createdAt","id")); Page<MessageRecord> result=messages.findByTenantIdAndConversationIdOrderByCreatedAtDescIdDesc(tenantId,conversationId,request); return new MessagePage(result.stream().map(MessagingService::messageView).toList(),result.getNumber(),result.getSize(),result.getTotalElements(),result.getTotalPages());
     }
     @Transactional
     MessageView send(UUID conversationId, String body) {
         UUID tenantId = tenantContext.requireTenantId();
         UUID membershipId = currentMembershipId();
+        MessageTenantPolicy policy = tenantPolicy(tenantId);
+        requireMessagingEnabled(policy);
         MessageConversation conversation = conversation(tenantId, conversationId);
         requireParticipant(tenantId, conversationId, membershipId);
         List<MessageParticipant> conversationParticipants =
                 participants.findAllByTenantIdAndIdConversationId(tenantId, conversationId);
+        enforceStudentCommunicationPolicy(policy, conversationParticipants.stream().map(MessageParticipant::membershipId).toList());
         if (conversationParticipants.size() == 2) {
             UUID otherMembershipId = conversationParticipants.stream()
                     .map(MessageParticipant::membershipId)
@@ -124,6 +133,9 @@ class MessagingService {
             }
         }
         String normalized = normalizeBody(body);
+        if (messages.consumeMessagePermit(tenantId, membershipId, policy.maxMessagesPerMinute()) == 0) {
+            throw new MessagingRateLimitException();
+        }
         Instant now = clock.instant();
         MessageRecord message = messages.save(
                 new MessageRecord(UUID.randomUUID(), conversationId, tenantId, membershipId, normalized, now));
@@ -133,13 +145,36 @@ class MessagingService {
         return messageView(message);
     }
 
-    @Transactional void markRead(UUID conversationId){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();requireParticipant(tenantId,conversationId,membershipId).markRead(clock.instant());}
-    @Transactional MessageView edit(UUID messageId,String body,long expectedVersion){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();MessageRecord message=message(tenantId,messageId);requireParticipant(tenantId,message.conversationId(),membershipId);if(!message.senderMembershipId().equals(membershipId))throw new MessagingConflictException("Only the sender may edit a message");if(message.deletedAt()!=null)throw new MessagingConflictException("Deleted messages cannot be edited");if(message.version()!=expectedVersion)throw new MessagingConflictException("Message was modified by another request");Instant now=clock.instant();message.edit(normalizeBody(body),now);audit.record(tenantId,actorContext.requireSubject(),"MESSAGE_EDITED","message",message.id().toString());return messageView(message);}
-    @Transactional void delete(UUID messageId,long expectedVersion){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();MessageRecord message=message(tenantId,messageId);requireParticipant(tenantId,message.conversationId(),membershipId);if(!message.senderMembershipId().equals(membershipId))throw new MessagingConflictException("Only the sender may delete a message");if(message.version()!=expectedVersion)throw new MessagingConflictException("Message was modified by another request");if(message.deletedAt()==null){Instant now=clock.instant();message.delete(now);audit.record(tenantId,actorContext.requireSubject(),"MESSAGE_DELETED","message",message.id().toString());}}
+    @Transactional void markRead(UUID conversationId){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();requireMessagingEnabled(tenantPolicy(tenantId));requireParticipant(tenantId,conversationId,membershipId).markRead(clock.instant());}
+    @Transactional MessageView edit(UUID messageId,String body,long expectedVersion){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();requireMessagingEnabled(tenantPolicy(tenantId));MessageRecord message=message(tenantId,messageId);requireParticipant(tenantId,message.conversationId(),membershipId);if(!message.senderMembershipId().equals(membershipId))throw new MessagingConflictException("Only the sender may edit a message");if(message.deletedAt()!=null)throw new MessagingConflictException("Deleted messages cannot be edited");if(message.version()!=expectedVersion)throw new MessagingConflictException("Message was modified by another request");Instant now=clock.instant();message.edit(normalizeBody(body),now);audit.record(tenantId,actorContext.requireSubject(),"MESSAGE_EDITED","message",message.id().toString());return messageView(message);}
+    @Transactional void delete(UUID messageId,long expectedVersion){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();requireMessagingEnabled(tenantPolicy(tenantId));MessageRecord message=message(tenantId,messageId);requireParticipant(tenantId,message.conversationId(),membershipId);if(!message.senderMembershipId().equals(membershipId))throw new MessagingConflictException("Only the sender may delete a message");if(message.version()!=expectedVersion)throw new MessagingConflictException("Message was modified by another request");if(message.deletedAt()==null){Instant now=clock.instant();message.delete(now);audit.record(tenantId,actorContext.requireSubject(),"MESSAGE_DELETED","message",message.id().toString());}}
+    MessagePolicyView getPolicy() {
+        requireModerator();
+        return policyView(tenantPolicy(tenantContext.requireTenantId()));
+    }
+
+    @Transactional
+    MessagePolicyView updatePolicy(boolean messagingEnabled, boolean allowStudentToStudent,
+                                   int messageRetentionDays, int reportRetentionDays,
+                                   int maxMessagesPerMinute, int maxReportsPerHour, long expectedVersion) {
+        requireModerator();
+        UUID tenantId = tenantContext.requireTenantId();
+        MessageTenantPolicy policy = tenantPolicy(tenantId);
+        if (policy.version() != expectedVersion) throw new MessagingConflictException("Messaging policy was modified by another request");
+        policy.update(messagingEnabled, allowStudentToStudent, messageRetentionDays, reportRetentionDays,
+                maxMessagesPerMinute, maxReportsPerHour, clock.instant());
+        policies.saveAndFlush(policy);
+        audit.record(tenantId, actorContext.requireSubject(), "MESSAGING_POLICY_UPDATED",
+                "message_tenant_policy", tenantId.toString());
+        return policyView(policy);
+    }
+
     @Transactional
     MessageReportView reportMessage(UUID messageId, String reason) {
         UUID tenantId = tenantContext.requireTenantId();
         UUID reporterMembershipId = currentMembershipId();
+        MessageTenantPolicy policy = tenantPolicy(tenantId);
+        requireMessagingEnabled(policy);
         MessageRecord target = message(tenantId, messageId);
         requireParticipant(tenantId, target.conversationId(), reporterMembershipId);
         if (target.senderMembershipId().equals(reporterMembershipId)) {
@@ -149,6 +184,9 @@ class MessagingService {
             throw new MessagingConflictException("This membership has already reported the message");
         }
         String normalizedReason = normalizeRequired(reason, "Report reason", 2000);
+        if (reports.consumeReportPermit(tenantId, reporterMembershipId, policy.maxReportsPerHour()) == 0) {
+            throw new MessagingRateLimitException();
+        }
         MessageReport report = reports.save(new MessageReport(
                 UUID.randomUUID(), tenantId, target.conversationId(), messageId,
                 reporterMembershipId, target.senderMembershipId(), target.body(), target.createdAt(),
@@ -276,6 +314,33 @@ class MessagingService {
         }
     }
 
+    private MessageTenantPolicy tenantPolicy(UUID tenantId) {
+        policies.ensureExists(tenantId);
+        return policies.findById(tenantId)
+                .orElseThrow(() -> new IllegalStateException("Tenant messaging policy is unavailable"));
+    }
+
+    private static MessagePolicyView policyView(MessageTenantPolicy policy) {
+        return new MessagePolicyView(policy.messagingEnabled(), policy.allowStudentToStudent(),
+                policy.messageRetentionDays(), policy.reportRetentionDays(), policy.maxMessagesPerMinute(),
+                policy.maxReportsPerHour(), policy.updatedAt(), policy.version());
+    }
+
+    private static void requireMessagingEnabled(MessageTenantPolicy policy) {
+        if (!policy.messagingEnabled()) throw new MessagingDisabledException();
+    }
+
+    private void enforceStudentCommunicationPolicy(MessageTenantPolicy policy, java.util.Collection<UUID> membershipIds) {
+        if (!policy.allowStudentToStudent()) {
+            long students = membershipIds.stream()
+                    .filter(id -> memberships.hasSystemRole(id, SystemRoleKey.STUDENT))
+                    .count();
+            if (students > 1) {
+                throw new MessagingConflictException("Student-to-student messaging is disabled by tenant policy");
+            }
+        }
+    }
+
     private void requireModerator() {
         try {
             authorization.require(PermissionKey.MESSAGING_MODERATE);
@@ -307,6 +372,10 @@ class MessagingService {
     record MessageConversationPage(List<ConversationView> items,int page,int size,long totalElements,int totalPages){}
     record MessagePage(List<MessageView> items,int page,int size,long totalElements,int totalPages){}
     record BlockView(UUID membershipId, Instant createdAt){}
+    record MessagePolicyView(boolean messagingEnabled, boolean allowStudentToStudent, int messageRetentionDays,
+                             int reportRetentionDays, int maxMessagesPerMinute, int maxReportsPerHour,
+                             Instant updatedAt, long version) {}
+
     record MessageReportView(UUID id, UUID messageId, UUID conversationId, UUID reporterMembershipId,
                              UUID messageSenderMembershipId, String reportedMessageBody, Instant messageCreatedAt,
                              String reason, MessageReportStatus status, Instant createdAt, Instant reviewedAt,
