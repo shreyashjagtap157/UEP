@@ -1,4 +1,4 @@
-import { request, type PageResult } from './api-core'
+import { request } from './api-core'
 export interface MessageConversationView{id:string;subject?:string;createdByMembershipId:string;createdAt:string;updatedAt:string;version:number;participantCount:number;unreadCount:number}
 export interface MessageBlockView{membershipId:string;createdAt:string}
 export interface MessageView{id:string;conversationId:string;senderMembershipId:string;body:string;createdAt:string;editedAt?:string;deletedAt?:string;version:number}
