@@ -78,7 +78,7 @@ class MessagingApiBoundaryIntegrationTest {
 
         String messageResponse = mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/messages")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""{"body":"Confidential message content"}""")
+                        .content("{\"body\":\"Confidential message content\"}")
                         .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
