@@ -152,6 +152,14 @@ class MessagingApiBoundaryIntegrationTest {
                 .andExpect(jsonPath("$[0].recipientMembershipId").value(MEMBERSHIP_A_PEER.toString()));
 
         mvc.perform(get("/api/v1/messaging/messages/" + messageId + "/delivery")
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isNotFound());
+
+        mvc.perform(get("/api/v1/messaging/messages/" + messageId + "/delivery")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-foreign").claim("tenant_id", TENANT_B.toString()))))
+                .andExpect(status().isNotFound());
+
+        mvc.perform(get("/api/v1/messaging/messages/" + messageId + "/delivery")
                         .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].recipientMembershipId").value(MEMBERSHIP_A_PEER.toString()));

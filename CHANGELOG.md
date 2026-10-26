@@ -7,6 +7,7 @@ Hardening milestone covering repeatable load probes, database indexes, connectio
 ## Unreleased — 2026-10-26
 
 ### Added
+- durable per-recipient messaging receipts with monotonic PENDING → DELIVERED → READ transitions, participant-scoped visibility, and sender inspection of delivery/read state;
 - tenant-scoped messaging policy controls for enablement, student-to-student restrictions, retention periods, message send limits and report rate limits;
 - atomic PostgreSQL-backed per-membership message/report rate windows and a scheduled batch retention worker that preserves reported evidence until its longer retention period expires;
 - messaging block/unblock flows, report submission and moderator resolution/redaction with immutable reported-content evidence snapshots;

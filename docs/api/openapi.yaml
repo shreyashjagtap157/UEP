@@ -2727,7 +2727,7 @@ paths:
             format: uuid
       responses:
         '200':
-          description: The sender sees all recipient receipts; a recipient sees only their own receipt
+          description: The sender sees all recipient receipts; a recipient sees only their own receipt. DELIVERED means the recipient fetched the message through this API, not that an external email or push provider confirmed delivery.
           content:
             application/json:
               schema:
