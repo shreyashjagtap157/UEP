@@ -1,5 +1,6 @@
 package com.universalplatform.messaging;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -10,8 +11,8 @@ import java.util.UUID;
 @Table(name = "message_participant")
 class MessageParticipant {
     @EmbeddedId private MessageParticipantId id;
-    private UUID tenantId;
-    private Instant joinedAt;
+    @Column(nullable = false) private UUID tenantId;
+    @Column(nullable = false) private Instant joinedAt;
     private Instant lastReadAt;
 
     protected MessageParticipant() {}
