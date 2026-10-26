@@ -124,9 +124,11 @@ These are specification-derived areas that the baseline itself identifies as inc
 
 ### Communication
 
-The previous messaging foundation gap has been materially implemented on `main` and qualified through CI, including tenant-scoped conversations/participants/messages, optimistic edits and soft deletes, monotonic read markers and unread counts, durable notification-outbox intents, block/unblock, report submission and moderator resolution/redaction, evidence snapshots, tenant-controlled enablement/student-to-student policy, atomic send/report rate limits, configurable retention, audit events, and API/web/OpenAPI integration.
+The messaging foundation gap has been materially implemented on `main`: tenant-isolated conversations/participants/messages; paginated conversation/message APIs; optimistic edits and soft deletes; monotonic read markers and unread counts; durable notification-outbox intents; per-recipient `PENDING → DELIVERED → READ` receipts; group conversations; block/unblock; report submission and moderator resolution/redaction; immutable report evidence snapshots; tenant-controlled enablement/student-to-student restrictions; atomic message/report rate limits; configurable retention; audit events; and web/API/OpenAPI integration.
 
-Remaining qualification is explicit: run production-like authenticated abuse/fuzz and authorization-bypass testing, validate multi-instance rate-limit/retention behavior under concurrency, qualify actual notification-provider delivery/retry semantics, and decide/implement any additional per-message delivery receipt or client-push requirements. CI green is not a substitute for those production drills.
+Delivery receipt semantics are intentionally precise: `DELIVERED` means the recipient fetched the message through the messaging API, while `READ` means the server recorded the conversation read action. Neither is proof of email/push-provider delivery. The sender sees recipient receipts; a recipient sees only their own receipt, with server-side participant and tenant checks.
+
+Remaining qualification: production-like authenticated abuse/fuzz and authorization-bypass testing; multi-instance rate/retention concurrency tests; actual notification-provider delivery/retry/DLQ qualification; operational review of retention/legal-hold policy; and an explicit decision on websocket/push delivery, receipts for external providers, and deployment SLOs. Green CI does not substitute for those production drills.
 
 ### Advanced grading
 

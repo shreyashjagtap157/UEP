@@ -1547,11 +1547,13 @@ admin ↔ user
 support ↔ tenant
 ```
 
-Policy can disable student-to-student communication. Institutional communication must be auditable where required. Delivery must be asynchronous through durable notification/outbox jobs.
+Policy can disable student-to-student communication. Institutional communication must be auditable where required. Notification delivery must use durable asynchronous outbox/jobs.
 
-Implementation now present on `main`: tenant-isolated conversation/thread and participant records; paginated APIs; optimistic message edit and soft-delete; read timestamps and unread counts; durable notification intents with sender exclusion and block-aware recipient filtering; bidirectional block enforcement for direct conversations; user reporting; permission-gated moderator queue and action/redaction; immutable report evidence snapshots; explicit tenant policy endpoints for enablement, student-to-student restriction, retention and rate limits; PostgreSQL atomic per-membership quotas; scheduled retention preserving report evidence until the configured report retention expires; and audit integration.
+Implementation now present on `main`: tenant-isolated conversation/thread and participant records; paginated APIs; multi-recipient group conversations; optimistic edits and soft deletes; monotonic read timestamps and unread counts; durable notification intents with sender exclusion and block-aware recipient filtering; per-recipient delivery receipts with `PENDING → DELIVERED → READ` transitions; bidirectional block enforcement for direct conversations; user reporting; a permission-gated moderator queue with evidence snapshots and redaction; explicit tenant policy endpoints for enablement, student-to-student restriction, retention and rate limits; PostgreSQL atomic per-membership quotas; scheduled retention that preserves report evidence until the longer report retention expires; and audit integration.
 
-Qualification and remaining work: production-like cross-tenant/permission fuzzing, multi-instance concurrency testing, real provider retry/delivery qualification, operational review of retention/legal-hold requirements, and explicit decisions about delivery receipts and push/realtime behavior. Do not treat CI smoke evidence as production certification.
+The delivery receipt API is distinct from provider notification status: `DELIVERED` means the recipient fetched the message through the messaging endpoint, `READ` means the server recorded the participant's read action. The sender can view all recipient receipts; a recipient can view only their own, enforced in the service layer.
+
+Qualification and remaining work: production-like cross-tenant/permission fuzzing, multi-instance concurrency tests, actual email/push provider retry/delivery/dead-letter qualification, operational review of retention/legal-hold requirements, and any chosen realtime/push transport. CI green is not production certification.
 
 # 39. Competency tracking
 
