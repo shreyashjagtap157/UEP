@@ -240,6 +240,12 @@ class MessagingApiBoundaryIntegrationTest {
 
         mvc.perform(post("/api/v1/messaging/reports/" + reportId + "/resolve")
                         .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"ACTIONED\",\"resolution\":\"Missing version\"}")
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(post("/api/v1/messaging/reports/" + reportId + "/resolve")
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"status":"ACTIONED","resolution":"Confirmed policy violation; removed message content","expectedVersion":0}
                                 """)
@@ -300,6 +306,12 @@ class MessagingApiBoundaryIntegrationTest {
 
         mvc.perform(put("/api/v1/messaging/policy")
                         .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messagingEnabled\":true}")
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(put("/api/v1/messaging/policy")
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"messagingEnabled":true,"allowStudentToStudent":false,
                                  "messageRetentionDays":30,"reportRetentionDays":90,
@@ -329,6 +341,17 @@ class MessagingApiBoundaryIntegrationTest {
                         .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.messagingEnabled").value(false));
+
+        mvc.perform(put("/api/v1/messaging/policy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"messagingEnabled":true,"allowStudentToStudent":true,
+                                 "messageRetentionDays":30,"reportRetentionDays":90,
+                                 "maxMessagesPerMinute":30,"maxReportsPerHour":5,"expectedVersion":1}
+                                """)
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MESSAGE_CONFLICT"));
 
         mvc.perform(post("/api/v1/messaging/conversations")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -485,6 +508,28 @@ class MessagingApiBoundaryIntegrationTest {
                 "SELECT message_retention_days FROM message_tenant_policy WHERE tenant_id = ?", Integer.class, TENANT_A)).isEqualTo(365);
         org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
                 "SELECT report_retention_days FROM message_tenant_policy WHERE tenant_id = ?", Integer.class, TENANT_A)).isEqualTo(1095);
+    }
+
+    @Test
+    void messageEditRequiresExplicitOptimisticVersion() throws Exception {
+        String conversationResponse = mvc.perform(post("/api/v1/messaging/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"subject":"Version check","participantMembershipIds":["%s"]}
+                                """.formatted(MEMBERSHIP_A_PEER))
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        UUID conversationId = UUID.fromString(objectMapper.readTree(conversationResponse).get("id").asText());
+        String messageResponse = mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Versioned message\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        UUID messageId = UUID.fromString(objectMapper.readTree(messageResponse).get("id").asText());
+
+        mvc.perform(put("/api/v1/messaging/messages/" + messageId)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Edit with no expected version\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

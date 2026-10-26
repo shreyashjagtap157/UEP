@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
@@ -110,20 +111,21 @@ class MessagingController {
     }
 
     record UpdateMessagingPolicyRequest(
-            boolean messagingEnabled, boolean allowStudentToStudent,
-            @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(3650) int messageRetentionDays,
-            @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(7300) int reportRetentionDays,
-            @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(120) int maxMessagesPerMinute,
-            @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(20) int maxReportsPerHour,
-            @jakarta.validation.constraints.Min(0) long expectedVersion) {}
+            @NotNull Boolean messagingEnabled,
+            @NotNull Boolean allowStudentToStudent,
+            @NotNull @Min(1) @jakarta.validation.constraints.Max(3650) Integer messageRetentionDays,
+            @NotNull @Min(1) @jakarta.validation.constraints.Max(7300) Integer reportRetentionDays,
+            @NotNull @Min(1) @jakarta.validation.constraints.Max(120) Integer maxMessagesPerMinute,
+            @NotNull @Min(1) @jakarta.validation.constraints.Max(20) Integer maxReportsPerHour,
+            @NotNull @Min(0) Long expectedVersion) {}
 
     record ReportMessageRequest(@NotBlank @Size(max = 2000) String reason) {}
     record ResolveMessageReportRequest(@NotNull MessageReportStatus status,
                                        @NotBlank @Size(max = 2000) String resolution,
-                                       long expectedVersion) {}
+                                       @NotNull @Min(0) Long expectedVersion) {}
 
     record CreateConversationRequest(@Size(max = 240) String subject,
                                       @NotEmpty @Size(max = 49) List<UUID> participantMembershipIds) {}
     record MessageRequest(@NotBlank @Size(max = 20000) String body) {}
-    record EditMessageRequest(@NotBlank @Size(max = 20000) String body, long expectedVersion) {}
+    record EditMessageRequest(@NotBlank @Size(max = 20000) String body, @NotNull @Min(0) Long expectedVersion) {}
 }
