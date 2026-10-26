@@ -1,21 +1,4 @@
-INSERT INTO role_permission (role_id, permission_key)
-SELECT rd.id, grant_map.permission_key
-FROM role_definition rd
-JOIN (VALUES
-    ('ORGANIZATION_OWNER', 'MESSAGING_VIEW'), ('ORGANIZATION_OWNER', 'MESSAGING_SEND'),
-    ('ORGANIZATION_ADMINISTRATOR', 'MESSAGING_VIEW'), ('ORGANIZATION_ADMINISTRATOR', 'MESSAGING_SEND'),
-    ('BRANCH_ADMINISTRATOR', 'MESSAGING_VIEW'), ('BRANCH_ADMINISTRATOR', 'MESSAGING_SEND'),
-    ('ACADEMIC_ADMINISTRATOR', 'MESSAGING_VIEW'), ('ACADEMIC_ADMINISTRATOR', 'MESSAGING_SEND'),
-    ('EXAM_CONTROLLER', 'MESSAGING_VIEW'), ('EXAM_CONTROLLER', 'MESSAGING_SEND'),
-    ('FINANCE_ADMINISTRATOR', 'MESSAGING_VIEW'), ('FINANCE_ADMINISTRATOR', 'MESSAGING_SEND'),
-    ('TEACHER', 'MESSAGING_VIEW'), ('TEACHER', 'MESSAGING_SEND'),
-    ('EVALUATOR', 'MESSAGING_VIEW'), ('EVALUATOR', 'MESSAGING_SEND'),
-    ('TEACHING_ASSISTANT', 'MESSAGING_VIEW'), ('TEACHING_ASSISTANT', 'MESSAGING_SEND'),
-    ('MENTOR', 'MESSAGING_VIEW'), ('MENTOR', 'MESSAGING_SEND'),
-    ('STUDENT', 'MESSAGING_VIEW'), ('STUDENT', 'MESSAGING_SEND'),
-    ('GUARDIAN', 'MESSAGING_VIEW'), ('GUARDIAN', 'MESSAGING_SEND'),
-    ('SUPPORT_OPERATOR', 'MESSAGING_VIEW'),
-    ('AUDITOR', 'MESSAGING_VIEW')
-) AS grant_map(system_key, permission_key)
-ON rd.system_key = grant_map.system_key
-ON CONFLICT (role_id, permission_key) DO NOTHING;
+-- Messaging authorization is participant-scoped rather than role-permission scoped.
+-- This forward migration is intentionally a no-op so databases that already
+-- reached V034 retain a valid migration history without introducing a
+-- PermissionKey that is not part of the platform-wide permission contract.
