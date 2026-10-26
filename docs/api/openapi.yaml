@@ -4702,6 +4702,7 @@ components:
       - RECORDING_READY
       - PAYMENT_DUE
       - CHALLENGE_UPDATED
+      - MESSAGE_RECEIVED
     NotificationView:
       type: object
       required:
