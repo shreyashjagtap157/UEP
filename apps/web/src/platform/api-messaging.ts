@@ -1,5 +1,5 @@
 import { request, type PageResult } from './api-core'
-export interface MessageConversationView{id:string;subject?:string;createdByMembershipId:string;createdAt:string;updatedAt:string;version:number;participantCount:number}
+export interface MessageConversationView{id:string;subject?:string;createdByMembershipId:string;createdAt:string;updatedAt:string;version:number;participantCount:number;unreadCount:number}
 export interface MessageView{id:string;conversationId:string;senderMembershipId:string;body:string;createdAt:string;editedAt?:string;deletedAt?:string;version:number}
 export interface MessagePage{items:MessageView[];page:number;size:number;totalElements:number;totalPages:number}
 export const fetchMessageConversations=(page=0,size=25)=>request<MessageConversationView[]>(`/api/v1/messaging/conversations?page=${page}&size=${size}`)

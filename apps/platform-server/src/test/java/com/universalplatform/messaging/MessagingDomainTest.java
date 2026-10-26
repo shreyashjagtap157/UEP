@@ -62,6 +62,8 @@ class MessagingDomainTest {
         assertNull(participant.lastReadAt());
         participant.markRead(read);
         assertEquals(read, participant.lastReadAt());
+        participant.markRead(joined);
+        assertEquals(read, participant.lastReadAt(), "a delayed stale read request must not move the marker backwards");
         assertEquals(MEMBERSHIP, participant.membershipId());
         assertEquals(TENANT, participant.tenantId());
     }

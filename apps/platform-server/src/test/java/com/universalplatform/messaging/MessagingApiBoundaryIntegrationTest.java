@@ -1,6 +1,7 @@
 package com.universalplatform.messaging;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -100,6 +101,20 @@ class MessagingApiBoundaryIntegrationTest {
                 select body from notification_outbox where tenant_id = ? and id = ?
                 """, String.class, TENANT_A, outboxId))
                 .isEqualTo("A participant sent you a message. Sign in to UEP to read it.");
+
+        mvc.perform(get("/api/v1/messaging/conversations")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].unreadCount").value(1));
+
+        mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/read")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/messaging/conversations")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].unreadCount").value(0));
     }
 
     @Test

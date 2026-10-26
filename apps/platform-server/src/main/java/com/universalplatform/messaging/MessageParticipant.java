@@ -29,5 +29,7 @@ class MessageParticipant {
     UUID tenantId() { return tenantId; }
     Instant joinedAt() { return joinedAt; }
     Instant lastReadAt() { return lastReadAt; }
-    void markRead(Instant at) { lastReadAt = at; }
+    void markRead(Instant at) {
+        if (at != null && (lastReadAt == null || at.isAfter(lastReadAt))) lastReadAt = at;
+    }
 }
