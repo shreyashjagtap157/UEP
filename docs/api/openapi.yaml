@@ -2853,6 +2853,7 @@ components:
       - INTEROPERABILITY_MANAGE
       - EXTERNAL_STORAGE_MANAGE
       - EXTERNAL_NOTIFICATIONS_MANAGE
+      - MESSAGING_MODERATE
     RecordingQualityPreset:
       type: string
       enum: [ECONOMY, BALANCED, HIGH_QUALITY, SOURCE_ARCHIVE]

@@ -65,7 +65,7 @@ class DefaultRoleSeeder {
         Set<PermissionKey> support = java.util.EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW,
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW, PermissionKey.SCHEDULE_VIEW, PermissionKey.ANNOUNCEMENTS_VIEW, PermissionKey.CONTENT_VIEW,
-                PermissionKey.NOTIFICATION_OPERATIONS_VIEW, PermissionKey.OPERATIONS_VIEW);
+                PermissionKey.NOTIFICATION_OPERATIONS_VIEW, PermissionKey.OPERATIONS_VIEW, PermissionKey.MESSAGING_MODERATE);
         Set<PermissionKey> auditor = java.util.EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW,
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW, PermissionKey.ENROLLMENTS_VIEW, PermissionKey.TEACHING_ASSIGNMENTS_VIEW, PermissionKey.SCHEDULE_VIEW,
