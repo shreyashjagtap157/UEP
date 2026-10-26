@@ -124,7 +124,9 @@ These are specification-derived areas that the baseline itself identifies as inc
 
 ### Communication
 
-Complete persistent messaging including conversations/threads, read/unread, delivery state, moderation/reporting/blocking, retention, audit, abuse controls, tenant/permission isolation and notification integration.
+The previous messaging foundation gap has been materially implemented on `main` and qualified through CI, including tenant-scoped conversations/participants/messages, optimistic edits and soft deletes, monotonic read markers and unread counts, durable notification-outbox intents, block/unblock, report submission and moderator resolution/redaction, evidence snapshots, tenant-controlled enablement/student-to-student policy, atomic send/report rate limits, configurable retention, audit events, and API/web/OpenAPI integration.
+
+Remaining qualification is explicit: run production-like authenticated abuse/fuzz and authorization-bypass testing, validate multi-instance rate-limit/retention behavior under concurrency, qualify actual notification-provider delivery/retry semantics, and decide/implement any additional per-message delivery receipt or client-push requirements. CI green is not a substitute for those production drills.
 
 ### Advanced grading
 

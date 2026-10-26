@@ -1545,14 +1545,13 @@ teacher ↔ student
 teacher ↔ batch
 admin ↔ user
 support ↔ tenant
-
 ```
 
-Policy can disable student-to-student communication.
+Policy can disable student-to-student communication. Institutional communication must be auditable where required. Delivery must be asynchronous through durable notification/outbox jobs.
 
-Institutional communication must be auditable where required.
+Implementation now present on `main`: tenant-isolated conversation/thread and participant records; paginated APIs; optimistic message edit and soft-delete; read timestamps and unread counts; durable notification intents with sender exclusion and block-aware recipient filtering; bidirectional block enforcement for direct conversations; user reporting; permission-gated moderator queue and action/redaction; immutable report evidence snapshots; explicit tenant policy endpoints for enablement, student-to-student restriction, retention and rate limits; PostgreSQL atomic per-membership quotas; scheduled retention preserving report evidence until the configured report retention expires; and audit integration.
 
----
+Qualification and remaining work: production-like cross-tenant/permission fuzzing, multi-instance concurrency testing, real provider retry/delivery qualification, operational review of retention/legal-hold requirements, and explicit decisions about delivery receipts and push/realtime behavior. Do not treat CI smoke evidence as production certification.
 
 # 39. Competency tracking
 

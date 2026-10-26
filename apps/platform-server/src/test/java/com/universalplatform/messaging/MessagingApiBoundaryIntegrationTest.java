@@ -476,6 +476,18 @@ class MessagingApiBoundaryIntegrationTest {
     }
 
 @Test
+    void everyNewTenantGetsDefaultMessagingPolicyWithoutFirstUsingMessaging() {
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT messaging_enabled FROM message_tenant_policy WHERE tenant_id = ?", Boolean.class, TENANT_A)).isTrue();
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT allow_student_to_student FROM message_tenant_policy WHERE tenant_id = ?", Boolean.class, TENANT_A)).isTrue();
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT message_retention_days FROM message_tenant_policy WHERE tenant_id = ?", Integer.class, TENANT_A)).isEqualTo(365);
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT report_retention_days FROM message_tenant_policy WHERE tenant_id = ?", Integer.class, TENANT_A)).isEqualTo(1095);
+    }
+
+    @Test
     void inactiveParticipantIsReturnedAsForbidden() throws Exception {
         mvc.perform(post("/api/v1/messaging/conversations")
                         .contentType(MediaType.APPLICATION_JSON)

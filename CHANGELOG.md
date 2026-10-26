@@ -7,6 +7,11 @@ Hardening milestone covering repeatable load probes, database indexes, connectio
 ## Unreleased — 2026-10-26
 
 ### Added
+- tenant-scoped messaging policy controls for enablement, student-to-student restrictions, retention periods, message send limits and report rate limits;
+- atomic PostgreSQL-backed per-membership message/report rate windows and a scheduled batch retention worker that preserves reported evidence until its longer retention period expires;
+- messaging block/unblock flows, report submission and moderator resolution/redaction with immutable reported-content evidence snapshots;
+- paginated conversation/message/report APIs, caller-specific unread counts, durable recipient notification intents, and an administrator policy panel;
+- forward-only V037–V041 migrations for block integrity, reports/moderation, report evidence snapshots, tenant policy/rate windows, and default policy seeding for newly created tenants.
 - forward-only V036 database constraints that require messaging conversation creators and participants to belong to the same tenant, and require each message sender to be a participant in its conversation;
 - PostgreSQL integration tests for cross-tenant integrity, nonparticipant sends, valid tenant-scoped writes, and messaging API error responses.
 
