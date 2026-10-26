@@ -104,6 +104,15 @@ class MessagingApiBoundaryIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         UUID messageId = UUID.fromString(objectMapper.readTree(messageResponse).get("id").asText());
 
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("""
+                select status from message_delivery
+                where tenant_id = ? and message_id = ? and recipient_membership_id = ?
+                """, String.class, TENANT_A, messageId, MEMBERSHIP_A_PEER)).isEqualTo("PENDING");
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("""
+                select count(*) from message_delivery
+                where tenant_id = ? and message_id = ? and recipient_membership_id = ?
+                """, Integer.class, TENANT_A, messageId, MEMBERSHIP_A)).isZero();
+
         UUID outboxId = jdbc.queryForObject("""
                 select id from notification_outbox
                 where tenant_id = ? and event_type = 'MESSAGE_RECEIVED' and aggregate_id = ?
@@ -126,9 +135,41 @@ class MessagingApiBoundaryIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].unreadCount").value(1));
 
+        mvc.perform(get("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(messageId.toString()));
+
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("""
+                select status from message_delivery
+                where tenant_id = ? and message_id = ? and recipient_membership_id = ?
+                """, String.class, TENANT_A, messageId, MEMBERSHIP_A_PEER)).isEqualTo("DELIVERED");
+
+        mvc.perform(get("/api/v1/messaging/messages/" + messageId + "/delivery")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("DELIVERED"))
+                .andExpect(jsonPath("$[0].recipientMembershipId").value(MEMBERSHIP_A_PEER.toString()));
+
+        mvc.perform(get("/api/v1/messaging/messages/" + messageId + "/delivery")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].recipientMembershipId").value(MEMBERSHIP_A_PEER.toString()));
+
         mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/read")
                         .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isOk());
+
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("""
+                select status from message_delivery
+                where tenant_id = ? and message_id = ? and recipient_membership_id = ?
+                """, String.class, TENANT_A, messageId, MEMBERSHIP_A_PEER)).isEqualTo("READ");
+
+        mvc.perform(get("/api/v1/messaging/messages/" + messageId + "/delivery")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("READ"))
+                .andExpect(jsonPath("$[0].readAt").isNotEmpty());
 
         mvc.perform(get("/api/v1/messaging/conversations")
                         .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
