@@ -71,19 +71,23 @@ class MessagingService {
     }
 
     @Transactional(readOnly=true)
-    List<ConversationView> list(int page,int size) {
+    MessageConversationPage list(int page, int size) {
         UUID tenantId = tenantContext.requireTenantId();
         UUID membershipId = currentMembershipId();
+        int normalizedPage = Math.max(page, 0);
+        int normalizedSize = Math.min(Math.max(size, 1), 100);
         List<MessageParticipant> myParticipants =
                 participants.findAllByTenantIdAndIdMembershipIdOrderById_ConversationId(tenantId, membershipId);
-        if (myParticipants.isEmpty()) return List.of();
+        if (myParticipants.isEmpty()) {
+            return new MessageConversationPage(List.of(), normalizedPage, normalizedSize, 0, 0);
+        }
 
         Map<UUID, MessageParticipant> currentParticipantByConversation = myParticipants.stream()
                 .collect(Collectors.toMap(MessageParticipant::conversationId, participant -> participant));
         List<UUID> ids = myParticipants.stream().map(MessageParticipant::conversationId).toList();
-        PageRequest request = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100),
+        PageRequest request = PageRequest.of(normalizedPage, normalizedSize,
                 Sort.by(Sort.Direction.DESC, "updatedAt", "id"));
-        return conversations.findDistinctByTenantIdAndIdIn(tenantId, ids, request).stream()
+        Page<ConversationView> result = conversations.findDistinctByTenantIdAndIdIn(tenantId, ids, request)
                 .map(item -> {
                     MessageParticipant currentParticipant = currentParticipantByConversation.get(item.id());
                     long unreadCount = currentParticipant.lastReadAt() == null
@@ -93,8 +97,9 @@ class MessagingService {
                                     tenantId, item.id(), membershipId, currentParticipant.lastReadAt());
                     int participantCount = participants.findAllByTenantIdAndIdConversationId(tenantId, item.id()).size();
                     return conversationView(item, participantCount, unreadCount);
-                })
-                .toList();
+                });
+        return new MessageConversationPage(result.getContent(), result.getNumber(), result.getSize(),
+                result.getTotalElements(), result.getTotalPages());
     }
 
     @Transactional(readOnly=true) MessagePage messages(UUID conversationId,int page,int size){
@@ -158,7 +163,7 @@ class MessagingService {
         PageRequest request = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100),
                 Sort.by(Sort.Direction.DESC, "createdAt", "id"));
         Page<MessageReport> result = reports.findAllByTenantId(tenantId, request);
-        return new MessageReportPage(result.getContent().stream().map(MessagingService::reportView).toList(),
+        return new MessageReportPage(result.getContent().stream().map(this::reportView).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
     }
 
@@ -285,10 +290,12 @@ class MessagingService {
         return normalized;
     }
 
-    private static MessageReportView reportView(MessageReport report) {
+    private MessageReportView reportView(MessageReport report) {
+        MessageRecord target = message(report.tenantId(), report.messageId());
         return new MessageReportView(report.id(), report.messageId(), report.conversationId(),
-                report.reporterMembershipId(), report.reason(), report.status(), report.createdAt(),
-                report.reviewedAt(), report.reviewedByMembershipId(), report.resolution(), report.version());
+                report.reporterMembershipId(), target.senderMembershipId(), target.body(), target.createdAt(),
+                report.reason(), report.status(), report.createdAt(), report.reviewedAt(),
+                report.reviewedByMembershipId(), report.resolution(), report.version());
     }
 
     private static String normalizeSubject(String value){if(value==null||value.isBlank())return null;String s=value.trim();if(s.length()>240)throw new MessagingConflictException("Conversation subject exceeds 240 characters");return s;}
@@ -297,9 +304,11 @@ class MessagingService {
     private static MessageView messageView(MessageRecord m){return new MessageView(m.id(),m.conversationId(),m.senderMembershipId(),m.deletedAt()!=null?"[deleted]":m.body(),m.createdAt(),m.editedAt(),m.deletedAt(),m.version());}
     record ConversationView(UUID id,String subject,UUID createdByMembershipId,Instant createdAt,Instant updatedAt,long version,int participantCount,long unreadCount){}
     record MessageView(UUID id,UUID conversationId,UUID senderMembershipId,String body,Instant createdAt,Instant editedAt,Instant deletedAt,long version){}
+    record MessageConversationPage(List<ConversationView> items,int page,int size,long totalElements,int totalPages){}
     record MessagePage(List<MessageView> items,int page,int size,long totalElements,int totalPages){}
     record BlockView(UUID membershipId, Instant createdAt){}
     record MessageReportView(UUID id, UUID messageId, UUID conversationId, UUID reporterMembershipId,
+                             UUID messageSenderMembershipId, String reportedMessageBody, Instant messageCreatedAt,
                              String reason, MessageReportStatus status, Instant createdAt, Instant reviewedAt,
                              UUID reviewedByMembershipId, String resolution, long version) {}
     record MessageReportPage(List<MessageReportView> items, int page, int size, long totalElements, int totalPages) {}

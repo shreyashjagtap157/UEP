@@ -119,7 +119,7 @@ class MessagingApiBoundaryIntegrationTest {
         mvc.perform(get("/api/v1/messaging/conversations")
                         .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].unreadCount").value(1));
+                .andExpect(jsonPath("$.items[0].unreadCount").value(1));
 
         mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/read")
                         .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
@@ -128,7 +128,7 @@ class MessagingApiBoundaryIntegrationTest {
         mvc.perform(get("/api/v1/messaging/conversations")
                         .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].unreadCount").value(0));
+                .andExpect(jsonPath("$.items[0].unreadCount").value(0));
     }
 
     @Test

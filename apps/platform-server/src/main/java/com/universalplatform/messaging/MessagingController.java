@@ -62,7 +62,7 @@ class MessagingController {
     }
 
     @GetMapping("/conversations")
-    List<MessagingService.ConversationView> conversations(@RequestParam(defaultValue = "0") int page,
+    MessagingService.MessageConversationPage conversations(@RequestParam(defaultValue = "0") int page,
                                                           @RequestParam(defaultValue = "25") int size) {
         return service.list(page, size);
     }

@@ -2511,13 +2511,11 @@ paths:
         - $ref: '#/components/parameters/Size'
       responses:
         '200':
-          description: Conversations visible to the authenticated membership
+          description: Paginated conversations visible to the authenticated membership
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MessageConversationView'
+                $ref: '#/components/schemas/MessageConversationPage'
     post:
       summary: Create a conversation with active tenant memberships
       operationId: createMessageConversation
@@ -3108,6 +3106,9 @@ components:
         messageId: {type: string, format: uuid}
         conversationId: {type: string, format: uuid}
         reporterMembershipId: {type: string, format: uuid}
+        messageSenderMembershipId: {type: string, format: uuid}
+        reportedMessageBody: {type: string}
+        messageCreatedAt: {type: string, format: date-time}
         reason: {type: string}
         status:
           $ref: '#/components/schemas/MessageReportStatus'
@@ -3136,6 +3137,18 @@ components:
           $ref: '#/components/schemas/MessageReportStatus'
         resolution: {type: string, minLength: 1, maxLength: 2000}
         expectedVersion: {type: integer, format: int64}
+    MessageConversationPage:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageConversationView'
+        page: {type: integer}
+        size: {type: integer}
+        totalElements: {type: integer, format: int64}
+        totalPages: {type: integer}
     PermissionKey:
       type: string
       enum:
