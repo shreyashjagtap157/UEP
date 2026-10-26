@@ -35,14 +35,15 @@ class MessagingService {
     private final MessageBlockRepository blocks;
     private final MessageReportRepository reports;
     private final MessageTenantPolicyRepository policies;
+    private final MessageDeliveryRepository deliveries;
     private final AuthorizationService authorization;
     private final MessageRecordRepository messages;
     private final AuditService audit;
     private final NotificationPublisher notifications;
     private final Clock clock = Clock.systemUTC();
     MessagingService(TenantContext tenantContext, ActorContext actorContext, MembershipDirectory memberships, MessageConversationRepository conversations,
-                     MessageParticipantRepository participants, MessageBlockRepository blocks, MessageRecordRepository messages, MessageReportRepository reports, MessageTenantPolicyRepository policies, AuditService audit, NotificationPublisher notifications, AuthorizationService authorization) {
-        this.tenantContext=tenantContext; this.actorContext=actorContext; this.memberships=memberships; this.conversations=conversations; this.participants=participants; this.blocks=blocks; this.messages=messages; this.reports=reports; this.policies=policies; this.audit=audit; this.notifications=notifications; this.authorization=authorization;
+                     MessageParticipantRepository participants, MessageBlockRepository blocks, MessageRecordRepository messages, MessageReportRepository reports, MessageTenantPolicyRepository policies, MessageDeliveryRepository deliveries, AuditService audit, NotificationPublisher notifications, AuthorizationService authorization) {
+        this.tenantContext=tenantContext; this.actorContext=actorContext; this.memberships=memberships; this.conversations=conversations; this.participants=participants; this.blocks=blocks; this.messages=messages; this.reports=reports; this.policies=policies; this.deliveries=deliveries; this.audit=audit; this.notifications=notifications; this.authorization=authorization;
     }
     @Transactional
     ConversationView create(String subject, List<UUID> participantMembershipIds) {
@@ -108,8 +109,22 @@ class MessagingService {
                 result.getTotalElements(), result.getTotalPages());
     }
 
-    @Transactional(readOnly=true) MessagePage messages(UUID conversationId,int page,int size){
-        UUID tenantId=tenantContext.requireTenantId(); UUID membershipId=currentMembershipId(); requireMessagingEnabled(tenantPolicy(tenantId)); requireParticipant(tenantId,conversationId,membershipId); PageRequest request=PageRequest.of(Math.max(page,0),Math.min(Math.max(size,1),100),Sort.by(Sort.Direction.DESC,"createdAt","id")); Page<MessageRecord> result=messages.findByTenantIdAndConversationIdOrderByCreatedAtDescIdDesc(tenantId,conversationId,request); return new MessagePage(result.stream().map(MessagingService::messageView).toList(),result.getNumber(),result.getSize(),result.getTotalElements(),result.getTotalPages());
+    @Transactional
+    MessagePage messages(UUID conversationId, int page, int size) {
+        UUID tenantId = tenantContext.requireTenantId();
+        UUID membershipId = currentMembershipId();
+        requireMessagingEnabled(tenantPolicy(tenantId));
+        requireParticipant(tenantId, conversationId, membershipId);
+        PageRequest request = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100),
+                Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        Page<MessageRecord> result = messages.findByTenantIdAndConversationIdOrderByCreatedAtDescIdDesc(
+                tenantId, conversationId, request);
+        List<UUID> messageIds = result.getContent().stream().map(MessageRecord::id).toList();
+        if (!messageIds.isEmpty()) {
+            deliveries.markDelivered(tenantId, conversationId, membershipId, messageIds, clock.instant());
+        }
+        return new MessagePage(result.stream().map(MessagingService::messageView).toList(),
+                result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
     }
     @Transactional
     MessageView send(UUID conversationId, String body) {
@@ -137,15 +152,50 @@ class MessagingService {
             throw new MessagingRateLimitException();
         }
         Instant now = clock.instant();
-        MessageRecord message = messages.save(
+        MessageRecord message = messages.saveAndFlush(
                 new MessageRecord(UUID.randomUUID(), conversationId, tenantId, membershipId, normalized, now));
+        List<UUID> deliveryRecipients = conversationParticipants.stream()
+                .map(MessageParticipant::membershipId)
+                .filter(id -> !id.equals(membershipId))
+                .toList();
+        if (!deliveryRecipients.isEmpty()) {
+            deliveries.saveAll(deliveryRecipients.stream()
+                    .map(recipientId -> new MessageDelivery(UUID.randomUUID(), tenantId, conversationId,
+                            message.id(), recipientId, now))
+                    .toList());
+        }
         conversation.touched(now);
         enqueueMessageNotification(tenantId, conversation, message, membershipId, conversationParticipants);
         audit.record(tenantId, actorContext.requireSubject(), "MESSAGE_SENT", "message", message.id().toString());
         return messageView(message);
     }
 
-    @Transactional void markRead(UUID conversationId){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();requireMessagingEnabled(tenantPolicy(tenantId));requireParticipant(tenantId,conversationId,membershipId).markRead(clock.instant());}
+    @Transactional
+    void markRead(UUID conversationId) {
+        UUID tenantId = tenantContext.requireTenantId();
+        UUID membershipId = currentMembershipId();
+        requireMessagingEnabled(tenantPolicy(tenantId));
+        Instant now = clock.instant();
+        requireParticipant(tenantId, conversationId, membershipId).markRead(now);
+        deliveries.markRead(tenantId, conversationId, membershipId, now);
+    }
+
+    @Transactional(readOnly = true)
+    List<DeliveryView> delivery(UUID messageId) {
+        UUID tenantId = tenantContext.requireTenantId();
+        UUID membershipId = currentMembershipId();
+        requireMessagingEnabled(tenantPolicy(tenantId));
+        MessageRecord target = message(tenantId, messageId);
+        requireParticipant(tenantId, target.conversationId(), membershipId);
+        List<MessageDelivery> receipts = deliveries.findAllByTenantIdAndMessageIdOrderByRecipientMembershipIdAsc(
+                tenantId, messageId);
+        if (!target.senderMembershipId().equals(membershipId)) {
+            receipts = receipts.stream()
+                    .filter(receipt -> receipt.recipientMembershipId().equals(membershipId))
+                    .toList();
+        }
+        return receipts.stream().map(MessagingService::deliveryView).toList();
+    }
     @Transactional MessageView edit(UUID messageId,String body,long expectedVersion){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();requireMessagingEnabled(tenantPolicy(tenantId));MessageRecord message=message(tenantId,messageId);requireParticipant(tenantId,message.conversationId(),membershipId);if(!message.senderMembershipId().equals(membershipId))throw new MessagingConflictException("Only the sender may edit a message");if(message.deletedAt()!=null)throw new MessagingConflictException("Deleted messages cannot be edited");if(message.version()!=expectedVersion)throw new MessagingConflictException("Message was modified by another request");Instant now=clock.instant();message.edit(normalizeBody(body),now);messages.saveAndFlush(message);audit.record(tenantId,actorContext.requireSubject(),"MESSAGE_EDITED","message",message.id().toString());return messageView(message);}
     @Transactional void delete(UUID messageId,long expectedVersion){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();requireMessagingEnabled(tenantPolicy(tenantId));MessageRecord message=message(tenantId,messageId);requireParticipant(tenantId,message.conversationId(),membershipId);if(!message.senderMembershipId().equals(membershipId))throw new MessagingConflictException("Only the sender may delete a message");if(message.version()!=expectedVersion)throw new MessagingConflictException("Message was modified by another request");if(message.deletedAt()==null){Instant now=clock.instant();message.delete(now);audit.record(tenantId,actorContext.requireSubject(),"MESSAGE_DELETED","message",message.id().toString());}}
     @Transactional(readOnly = true)
@@ -368,11 +418,18 @@ class MessagingService {
     private static String normalizeSubject(String value){if(value==null||value.isBlank())return null;String s=value.trim();if(s.length()>240)throw new MessagingConflictException("Conversation subject exceeds 240 characters");return s;}
     private static String normalizeBody(String value){if(value==null||value.isBlank())throw new MessagingConflictException("Message body is required");String s=value.trim();if(s.length()>20000)throw new MessagingConflictException("Message body exceeds 20000 characters");return s;}
     private static ConversationView conversationView(MessageConversation c,int participantCount,long unreadCount){return new ConversationView(c.id(),c.subject(),c.createdByMembershipId(),c.createdAt(),c.updatedAt(),c.version(),participantCount,unreadCount);}
+    private static DeliveryView deliveryView(MessageDelivery delivery) {
+        return new DeliveryView(delivery.messageId(), delivery.recipientMembershipId(), delivery.status(),
+                delivery.createdAt(), delivery.deliveredAt(), delivery.readAt());
+    }
+
     private static MessageView messageView(MessageRecord m){return new MessageView(m.id(),m.conversationId(),m.senderMembershipId(),m.deletedAt()!=null?"[deleted]":m.body(),m.createdAt(),m.editedAt(),m.deletedAt(),m.version());}
     record ConversationView(UUID id,String subject,UUID createdByMembershipId,Instant createdAt,Instant updatedAt,long version,int participantCount,long unreadCount){}
     record MessageView(UUID id,UUID conversationId,UUID senderMembershipId,String body,Instant createdAt,Instant editedAt,Instant deletedAt,long version){}
     record MessageConversationPage(List<ConversationView> items,int page,int size,long totalElements,int totalPages){}
     record MessagePage(List<MessageView> items,int page,int size,long totalElements,int totalPages){}
+    record DeliveryView(UUID messageId, UUID recipientMembershipId, MessageDeliveryStatus status,
+                        Instant createdAt, Instant deliveredAt, Instant readAt) {}
     record BlockView(UUID membershipId, Instant createdAt){}
     record MessagePolicyView(boolean messagingEnabled, boolean allowStudentToStudent, int messageRetentionDays,
                              int reportRetentionDays, int maxMessagesPerMinute, int maxReportsPerHour,

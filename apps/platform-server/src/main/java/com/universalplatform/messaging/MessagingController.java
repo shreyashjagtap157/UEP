@@ -97,6 +97,11 @@ class MessagingController {
         return service.send(conversationId, request.body());
     }
 
+    @GetMapping("/messages/{messageId}/delivery")
+    List<MessagingService.DeliveryView> delivery(@PathVariable UUID messageId) {
+        return service.delivery(messageId);
+    }
+
     @PostMapping("/conversations/{conversationId}/read")
     void read(@PathVariable UUID conversationId) { service.markRead(conversationId); }
 
