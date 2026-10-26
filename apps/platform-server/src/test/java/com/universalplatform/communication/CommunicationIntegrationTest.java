@@ -23,7 +23,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "platform.announcements.publish-poll-ms=3600000",
+        "platform.announcements.expiry-poll-ms=3600000"
+})
 @AutoConfigureMockMvc
 @Transactional
 class CommunicationIntegrationTest {
