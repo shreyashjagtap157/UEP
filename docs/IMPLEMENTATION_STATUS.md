@@ -1,175 +1,101 @@
 # Implementation Status
 
-## Current development version
+## Current verified state — 2026-10-26
 
-`0.15.0.0-SNAPSHOT` — Reliability and Performance Qualification.
+`0.15.0.0-SNAPSHOT` remains the development version. The latest verified `main` commit is `5e339353ce6c068c0921cae6a811c62bf8aaa837`. GitHub Actions run `40222362797` is fully green across web, backend, repository-policy/qualification, and vulnerability-scan jobs.
 
-The source implementation through the 0.14 milestone is integrated across the backend and web application. It remains a snapshot because the full 0.15 reliability/performance qualification is not complete; passing CI alone does not establish the load targets, backup/restore drills, provider integration qualification, or production operations.
+### Verified CI evidence
 
-The latest recorded complete green GitHub Actions run is [run #297](https://github.com/shreyashjagtap157/UEP/actions/runs/40195100623), at commit `5de9935d440891a7bba7da2b30d3f29b21817d45`. Backend Maven verification passed (118 tests, zero failures/errors); Flyway validated all 32 migrations, and the packaged server started against a fresh PostgreSQL database. The 30-request health smoke passed 30/30 at 6-worker concurrency (CI observation p95 18.1 ms, p99 20.0 ms). Web lint passed with 2 warnings and 0 errors; all 21 web demo tests, the production web build, repository policy and 0.15 qualification checks, and the dependency scan also passed. These measurements are CI smoke evidence, not production-capacity or production-SLO claims. The complete 0.15 milestone is not yet finished; an actual backup/restore drill against a disposable database, production-like k6/load results, provider qualification, and operational runbooks remain required.
+- Backend Maven verification passed.
+- Packaged backend started against a fresh database and completed health smoke successfully.
+- Web dependency installation, lint, demo workflow tests, and production build passed.
+- Repository-policy qualification passed, including backup/restore safety guards, load-smoke percentile/latency checks, and the 0.15 qualification harness.
+- Java SBOM generation and OSV dependency scanning passed.
 
-## Current milestone — 0.15 Reliability and Performance Qualification
+This is strong repository-local qualification evidence. It is **not** by itself Production Web GA evidence; production-scale capacity, external/provider qualification, accessibility, recovery, operational, interoperability, and native-client qualification remain separate requirements.
 
-- Repeatable load probes (`scripts/load-smoke.py`, k6 profile) and explicit p95/p99 targets.
-- Database reliability and performance indexes (`V023__reliability_performance_indexes.sql`, `V020__analytics_operations_indexes.sql`).
-- Connection-pool bounds, graceful shutdown, and backup/restore drill tooling (`scripts/backup-restore-drill.sh`).
-- Tenant-isolation checks and identity security/configuration qualification tests.
-- Repository verification scripts and qualification harness (`scripts/qualify-0.15.py`).
+## Scope correction: no swarm-agent functionality
 
-## Previous milestone — 0.14 Integration Platform
+UEP is the Universal Education Platform and does **not** contain swarm-agent functionality. The previously introduced unrelated swarm-agent implementation and tests have been removed from `main`. Repository searches for `Swarm` and related swarm implementation markers return no matches. The remaining occurrences of `agent` are unrelated build/tool terminology and are not a UEP product feature.
 
-- LiveKit Egress-backed asynchronous recording orchestration with durable processing states and reconciliation.
-- Quality presets: Economy 720p, Balanced 720p, High Quality 1080p, and Source Archive 1080p composite.
-- Provider-independent recording storage using the existing local, S3-compatible, Google Drive, and Shared Drive adapters.
-- Hot/cache/archive lifecycle policy, retention cleanup, recording assets, SHA-256 integrity, thumbnails, and tenant-scoped audit events.
-- Membership-bound five-minute playback authorization with server-side access checks and visible dynamic web watermarking.
-- Recording APIs, storage-policy APIs, web recording workspace, Live Learning recording controls, and LiveKit Egress reference infrastructure.
+Swarm-agent orchestration, specialist agents, swarm providers, agent playgrounds, and related APIs/configuration belong to other projects and must not be reintroduced into UEP.
 
-## Implemented through 0.3 Academic Core
+## Current 0.15 Reliability and Performance Qualification
 
-- modular Java/Spring server foundation, PostgreSQL/Flyway, OIDC resource-server security;
-- trusted tenant context and tenant-scoped commercial entitlement/limit/usage model;
-- signed-offline-license verification primitives and audit foundation;
-- external-identity-backed users, memberships, persisted system/custom RBAC, tenant/branch assignments, last-owner protection, and revocable sessions;
-- branches and organization defaults;
-- academic periods/programs, flexible courses/subjects/modules, batches/cohorts, concurrency-safe capacity allocation, learner enrollments, and teaching assignments;
-- self-scoped learner/teacher APIs and role-aware academic web dashboards;
-- CI, dependency scanning, proprietary commercial repository controls, and reference deployment infrastructure.
+Implemented/qualified repository-local foundations include:
 
-## Implemented for 0.4 Scheduling and Communication
+- repeatable load probes and k6 profile with explicit percentile targets;
+- database reliability/performance indexes;
+- bounded connection-pool configuration and graceful shutdown;
+- backup/restore drill tooling and safety guards;
+- tenant-isolation and identity/security configuration checks;
+- repository verification and qualification harness;
+- CI execution of the above gates.
 
-### Scheduling and calendar
+Production qualification still requires production-like load/capacity evidence, provider qualification, operational runbooks, failure injection, and recovery evidence where the relevant environment/provider is required.
 
-- one-time, daily, weekly, and monthly finite schedule series;
-- materialized occurrences with original time retained for exception history;
-- IANA timezone handling with explicit rejection of invalid and ambiguous DST local times;
-- classes, exams, assignments, meetings, events, holidays, and appointments;
-- offline, online, hybrid, and not-applicable delivery modes;
-- branch, batch, course, subject, module, teacher, and room references where applicable;
-- occurrence rescheduling, substitute teachers, room overrides, occurrence cancellation, and series cancellation;
-- stable `class_session` records created for class occurrences for later live-class/attendance/recording modules;
-- calendar ranges bounded to prevent unbounded reads.
+## Current gradebook capability
 
-### Conflict safety and authorization
+The gradebook calculation path now supports a deterministic policy model for:
 
-- teacher overlap detection;
-- batch/cohort overlap detection;
-- room overlap detection within branch;
-- exam conflict detection;
-- holiday conflict detection;
-- tenant-scoped PostgreSQL advisory transaction lock around conflict-sensitive writes;
-- explicit `SCHEDULE_CONFLICT_OVERRIDE` authority and mandatory reason;
-- persistent conflict-override evidence plus generic audit events;
-- tenant-wide administrator calendar scope, multi-branch RBAC scope for branch administrators, and self-scoped teacher/learner calendars.
+- drop-lowest;
+- best-of-N;
+- extra-credit percentage points;
+- minimum completed components;
+- weight renormalization after exclusions;
+- configurable rounding;
+- validation of scores, maximum points, and weight ranges;
+- regression tests for policy behavior and invalid configurations.
 
-### Announcements
+The default policy preserves the existing standard calculation behavior.
 
-- organization, branch, course, batch, subject, role, and selected-membership targets;
-- normal, important, urgent, and emergency priorities;
-- draft, scheduled, published, expired, and cancelled lifecycles;
-- future publication and expiration workers;
-- publication-time audience resolution so newly eligible users are not missed;
-- immutable publication recipient snapshots;
-- acknowledgement-required announcements and per-membership acknowledgement timestamps;
-- branch-management scope persisted on announcement drafts so guessed identifiers cannot bypass branch authorization;
-- attachments intentionally integrate with the 0.5 upload/storage subsystem instead of duplicating storage/security logic in communication.
+## Major implemented platform areas
 
-### Durable notifications and email
+The verified repository contains substantial implementations across:
 
-- transactional `notification_outbox` boundary used by scheduling and announcements;
-- tenant-scoped outbox deduplication;
-- composite tenant/outbox database foreign keys preventing cross-client notification linkage;
-- per-recipient in-app notifications;
-- optional SMTP delivery through Spring Mail;
-- explicit `SKIPPED` email state when email delivery is disabled;
-- per-event in-app/email preferences with optimistic versions;
-- bounded outbox retries and dead-letter state after repeated processing failure;
-- bounded email retries, explicit email dead-letter state, and idempotent delivery keys;
-- tenant-scoped notification operations counters, including separate outbox/email dead-letter counts, protected by `NOTIFICATION_OPERATIONS_VIEW`.
+- multi-tenancy, tenant context, memberships, RBAC, branches and organization settings;
+- sessions, identity/security foundations and authorization boundaries;
+- academic periods, programs, courses/subjects/modules, cohorts, enrollment and teaching assignments;
+- scheduling, recurring series, conflict detection, class sessions and calendars;
+- announcements, notification outbox, in-app notifications, email integration and dead-letter handling;
+- learning resources, immutable versions, resumable uploads and provider-independent storage adapters;
+- question banks, immutable question versions, assessments, timing, autosave, submission and grading foundations;
+- assignments, submissions, gradebook and learner progress;
+- LiveKit live classrooms, presence, attendance and moderation foundations;
+- recording orchestration, storage lifecycle, integrity, retention and playback authorization;
+- invoices, installments, payments, receipts, SaaS plans, entitlements, quotas and usage;
+- analytics, operations and reporting foundations;
+- learning outcomes, competencies, learning paths, credentials, mentoring and surveys;
+- API credentials, signed webhooks, OIDC federation and OneRoster/QTI foundations;
+- reliability, security and qualification tooling;
+- browser-only synthetic demonstration workspaces for the documented personas.
 
-### Today dashboard and web application
+The browser demonstration is explicitly synthetic and is not a production authentication/security boundary. Production authorization remains server-side.
 
-- universal `/today` backend using organization timezone;
-- personal learner/teacher schedule and unread-notification view;
-- scope-aware administrative class/exam/scheduled-learner summary;
-- responsive Today, Schedule, Announcements, and Notifications workspaces;
-- recurring schedule construction and preflight conflicts;
-- schedule rescheduling/substitution/cancellation controls;
-- targeted/scheduled announcement authoring and acknowledgement;
-- notification inbox and per-event channel preferences;
-- branch-effective permissions surfaced separately from tenant-wide permissions so the UI can expose branch administration without broadening authority.
+## Specification-derived areas requiring continued completion/audit
 
-### Browser-only demonstration workspaces
+The project completion contract remains broader than the currently green CI suite. Continue implementation and qualification for:
 
-- Synthetic local personas cover Student, Teacher, Client/Institution, Product Developer, Platform Administrator, Guardian, Exam Controller, Finance Administrator, Teaching Assistant, Evaluator, Mentor, Support Operator, and Auditor.
-- Shared browser-persisted state supports cross-tab updates and repeatable reset to seeded records; fresh sign-ins and restored sessions revalidate active account status, and open sessions are revoked when that account is suspended.
-- Assignment submission, authorized grading, attendance recording, product publishing, calculated demo reports, and activity history are represented as linked workflows across separate persona sign-ins.
-- Student/guardian/mentor submissions, attendance, schedule, learner rosters, and course catalogs are constrained by active identity, enrollment and course publication status; staff queues and attendance require active same-organization learners enrolled in assigned published courses; client views use active organization learners; exam-controller lists require an explicitly assigned exam session whose course matches the candidate's enrollment.
-- Activity events carry stable submission, learner, course, organization, and product identifiers when available, so a repeated display title cannot make one learner's assignment or grade visible to another. Legacy events without stable IDs are matched conservatively and ambiguous grade events are hidden.
-- Native Node regressions cover duplicate-title activity isolation, generic assignment submission blocked for exam records, organization/enrollment scope, and exam-session/course coherence. Support views do not expose learner activity or assessment content.
-- The offline demo deliberately identifies finance APIs and live integrations as not connected instead of presenting fabricated production balances, uptime, or delivery status.
-- Demo profile selection and client-side scope filtering are **not production authentication or a security boundary**. All records are synthetic, and production authorization remains the responsibility of the authenticated server.
-- Web CI runs `npm --prefix apps/web test` in addition to lint and the production build.
+1. **Communication:** persistent conversations/threads, delivery/read state, moderation, reporting/blocking, retention and abuse controls.
+2. **Advanced academic review:** pass/fail rules, anonymous/double grading, moderation, final adjudication, immutable reproducibility and review-driven regrading.
+3. **Attendance integrations:** kiosk/NFC/RFID/biometric boundaries, imports/API, offline synchronization, replay/idempotency and conflict resolution.
+4. **Workflow engine:** configurable states/transitions, approvals, deadlines, escalation, conditional actions, retries/idempotency, versioning and historical reproducibility.
+5. **Search:** permission-aware tenant-safe global search, indexing/reindexing, rate limiting and scale.
+6. **Finance:** discounts, scholarships, credits/adjustments, payment allocation, settlement/reconciliation edge cases, accounting exports and real provider qualification.
+7. **Federation:** multiple providers, lifecycle, claim/group mapping, deprovisioning and security qualification.
+8. **Interoperability:** LTI, CASE, xAPI, Caliper, SCORM, mature OneRoster/QTI, Open Badges and CLR-compatible exchange.
+9. **Credential portability:** signing, issuer identity, status/revocation and privacy-preserving verification.
+10. **White-labeling:** tenant branding, templates and tenant-specific communications/support settings.
+11. **Live classroom:** reconnect/recovery, stale-heartbeat expiry, browser/media errors, large-class and poor-network qualification, provider failure handling and observability.
+12. **Recording platform:** crash-safe workers, retries/recovery, transcoding ladder, CDN/distribution, archive migration and storage recovery.
+13. **Analytics:** longitudinal learner analytics, cohort comparison, competency progression, intervention/remediation and safe aggregation at scale.
+14. **PWA/offline:** installability, service worker, caching, push and safe offline synchronization.
+15. **Native clients:** Windows, macOS, Linux, Android, iOS/iPadOS and institutional kiosk clients, integrated through stabilized platform contracts.
 
-### Contract and verification encoded in the repository
+## Production qualification still required
 
-- OpenAPI 3.1 synchronized with all 0.4 endpoints and permission keys;
-- recurrence unit tests for deterministic weekly materialization and DST-gap rejection;
-- PostgreSQL integration tests for schedule conflicts, persisted overrides, branch administration, and teaching-assignment personal-calendar visibility;
-- integration tests proving scheduled announcements resolve recipients at publication time;
-- notification tests for outbox idempotency, in-app materialization, recipient read state, tenant-scoped deduplication, and tenant-scoped operations/dead-letter reporting;
-- existing tenancy, licensing, identity, organization, academic, enrollment, and teaching tests remain part of Maven verification.
+Before declaring Production Web GA / 1.0, the repository must have real evidence for authenticated abuse/fuzz testing, authorization bypass testing, upload/storage security, session/token abuse, webhook replay/forgery, federation and payment abuse, privacy authorization, external penetration/legal review, production-like p50/p95/p99 performance, accessibility/WCAG 2.2 AA testing, PostgreSQL PITR/full restore, object-storage recovery, measured RPO/RTO, failure injection, provider degradation/failover, migration/upgrade/rollback testing, and operational readiness.
 
-## Verification available in this runtime
+## Version
 
-The local consolidation pass includes repository version/policy checks, whitespace checks, JSON/XML/YAML parsing, source-level Java parser diagnostics, compilation of the dependency-free recurrence engine, TypeScript diagnostics to the extent possible without installed dependencies, permission-contract consistency, migration dependency checks, Git object integrity, and clean-history checks.
-
-## Environment-limited qualification
-
-This runtime currently has JDK 21 and Node.js but no Maven, Docker/Podman, locally installed project dependencies, or usable dependency-network path for the complete build. Therefore it cannot truthfully claim:
-
-- JDK 25 Maven compilation/test success;
-- Flyway execution against PostgreSQL 18;
-- Spring application boot against PostgreSQL 18;
-- dependency-backed React/Keycloak/TanStack lint and Vite production build;
-- live SMTP integration success;
-- online OSV dependency resolution;
-- complete CI success.
-
-For that reason no stable `v0.7.0.0` release tag is created here. The repository remains `0.7.0.0-SNAPSHOT` until those gates pass on the required toolchain.
-
-## Next roadmap milestone after qualification
-
-`0.7.0.0-SNAPSHOT` — Grading and Academic Review: immutable grade revisions, objective grading, teacher overrides, result publication, academic challenge/review cases, discussion, answer revisions, impact analysis, review-driven regrading, and learner/grader web workflows.
-
-## 0.5 learning-content additions
-
-Implemented provider-independent learning resources, immutable resource versions, text notes, streamed resumable file uploads with byte-offset and SHA-256 validation, download policies, release/expiry windows, local/S3-compatible/Google Drive/Shared Drive storage adapters, tenant retention policy, and the authenticated Learning Content web workspace.
-
-
-## 0.9.0.0-SNAPSHOT — Live Learning and Attendance
-
-Implemented provider-neutral live classrooms, LiveKit token/media integration, scheduled start/end, tenant-scoped audience access, participant presence heartbeats, moderation state, screen sharing, classroom chat, adaptive/low-bandwidth profiles, configurable attendance policies, manual attendance overrides, finalization, web classroom controls, and web-first API boundaries for future native clients. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.
-
-## 0.11.0.0-SNAPSHOT — Finance and Commercialization
-
-Implemented tenant-scoped institution fees, invoice and installment lifecycle, receipt-producing payment capture behind a provider-neutral adapter, SaaS subscription plan/trial/grace controls, quota/usage metering, white-label settings, explicit finance/commercial permissions, tenant-safe foreign keys, and web-ready REST boundaries. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.
-
-
-## 0.15.0.0 — Reliability and Performance Qualification
-
-Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification.
-
-## 0.15.0.0-SNAPSHOT
-Reliability and performance qualification implemented: tenant-leading performance indexes, bounded Hikari connection-pool settings, dependency-free load smoke tooling, repeatable k6 load profile, PostgreSQL backup/restore drill tooling, and static tenant-isolation/security qualification gates.
-
-Additional reliability hardening on current `main`: local demo learner/course/assignment views use explicit organization, enrollment, guardian, and submission ownership; the v4 browser-state migration preserves saved workflow state and backfills new finance, support, and inbox data. All 13 advertised personas resolve to canonical profiles and share one role-scoped browser state and dashboard rather than two disconnected stores. Teaching assistants and evaluators have scoped grading queues; exam controllers have assigned exam views; mentors see a linked learner; auditors see read-only activity; finance administrators have a synthetic invoice ledger; and support operators can triage/resolution-track synthetic support cases. The local finance view never performs or claims real payment settlement. Learning-outcome mappings and learning-path items validate that their target resource exists in the active tenant; mastery writes require the competency to belong to the selected outcome, and a composite foreign key preserves that relationship in PostgreSQL after reconciliation of legacy rows. Learning-path progress and competency-mastery writes reject non-finite values and emit audit events. Regression tests and qualification-script contracts cover these invariants.
-
-Full runtime qualification remains environment-dependent until JDK 25, Maven dependencies, PostgreSQL, Docker/media services, and web dependencies are available; source changes should not be considered runtime-qualified until CI/build/test evidence is observed.
-
-## 0.13.0.0-SNAPSHOT
-
-Advanced Academic Platform implemented: learning outcomes, competencies, mappings, learning paths, mastery evidence, credential issuance/revocation/public verification, mentoring, survey questions/responses, feedback, web-first administration, tenant-safe migration V021, and synchronized API/RBAC contracts.
-
-## 0.12.0.0-SNAPSHOT — Analytics and Operations
-Implemented tenant-scoped attendance, assessment, question, recording, finance, usage, and operational analytics; bounded administrative exports; recording/storage forecasting; optimized query indexes; and web-first analytics workspace/API contracts. The milestone remains a snapshot until the required JDK 25/Maven/PostgreSQL/CI qualification gates execute.
+`VERSION` remains `0.15.0.0-SNAPSHOT`. No stable release is declared by this document.
