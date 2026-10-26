@@ -13,7 +13,7 @@ interface MessageDeliveryRepository extends JpaRepository<MessageDelivery, UUID>
     List<MessageDelivery> findAllByTenantIdAndMessageIdOrderByRecipientMembershipIdAsc(
             UUID tenantId, UUID messageId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             update message_delivery
             set status = 'DELIVERED',
@@ -31,7 +31,7 @@ interface MessageDeliveryRepository extends JpaRepository<MessageDelivery, UUID>
                       @Param("messageIds") Collection<UUID> messageIds,
                       @Param("now") Instant now);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             update message_delivery
             set status = 'READ',
