@@ -146,7 +146,7 @@ class MessagingService {
     }
 
     @Transactional void markRead(UUID conversationId){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();requireMessagingEnabled(tenantPolicy(tenantId));requireParticipant(tenantId,conversationId,membershipId).markRead(clock.instant());}
-    @Transactional MessageView edit(UUID messageId,String body,long expectedVersion){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();requireMessagingEnabled(tenantPolicy(tenantId));MessageRecord message=message(tenantId,messageId);requireParticipant(tenantId,message.conversationId(),membershipId);if(!message.senderMembershipId().equals(membershipId))throw new MessagingConflictException("Only the sender may edit a message");if(message.deletedAt()!=null)throw new MessagingConflictException("Deleted messages cannot be edited");if(message.version()!=expectedVersion)throw new MessagingConflictException("Message was modified by another request");Instant now=clock.instant();message.edit(normalizeBody(body),now);audit.record(tenantId,actorContext.requireSubject(),"MESSAGE_EDITED","message",message.id().toString());return messageView(message);}
+    @Transactional MessageView edit(UUID messageId,String body,long expectedVersion){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();requireMessagingEnabled(tenantPolicy(tenantId));MessageRecord message=message(tenantId,messageId);requireParticipant(tenantId,message.conversationId(),membershipId);if(!message.senderMembershipId().equals(membershipId))throw new MessagingConflictException("Only the sender may edit a message");if(message.deletedAt()!=null)throw new MessagingConflictException("Deleted messages cannot be edited");if(message.version()!=expectedVersion)throw new MessagingConflictException("Message was modified by another request");Instant now=clock.instant();message.edit(normalizeBody(body),now);messages.saveAndFlush(message);audit.record(tenantId,actorContext.requireSubject(),"MESSAGE_EDITED","message",message.id().toString());return messageView(message);}
     @Transactional void delete(UUID messageId,long expectedVersion){UUID tenantId=tenantContext.requireTenantId();UUID membershipId=currentMembershipId();requireMessagingEnabled(tenantPolicy(tenantId));MessageRecord message=message(tenantId,messageId);requireParticipant(tenantId,message.conversationId(),membershipId);if(!message.senderMembershipId().equals(membershipId))throw new MessagingConflictException("Only the sender may delete a message");if(message.version()!=expectedVersion)throw new MessagingConflictException("Message was modified by another request");if(message.deletedAt()==null){Instant now=clock.instant();message.delete(now);audit.record(tenantId,actorContext.requireSubject(),"MESSAGE_DELETED","message",message.id().toString());}}
     @Transactional(readOnly = true)
     MessagePolicyView getPolicy() {
@@ -227,6 +227,7 @@ class MessagingService {
 
         Instant now = clock.instant();
         report.resolve(status, reviewerMembershipId, normalizedResolution, now);
+        reports.saveAndFlush(report);
         if (status == MessageReportStatus.ACTIONED && target.deletedAt() == null) {
             target.moderateDelete(now);
             messages.saveAndFlush(target);

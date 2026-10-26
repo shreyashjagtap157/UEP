@@ -253,7 +253,8 @@ class MessagingApiBoundaryIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIONED"))
                 .andExpect(jsonPath("$.reportedMessageBody").value("Message to be moderated"))
-                .andExpect(jsonPath("$.messageSenderMembershipId").value(MEMBERSHIP_A.toString()));
+                .andExpect(jsonPath("$.messageSenderMembershipId").value(MEMBERSHIP_A.toString()))
+                .andExpect(jsonPath("$.version").value(1));
 
         mvc.perform(post("/api/v1/messaging/reports/" + reportId + "/resolve")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -530,6 +531,32 @@ class MessagingApiBoundaryIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Edit with no expected version\"}")
                         .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isBadRequest());
+
+        mvc.perform(put("/api/v1/messaging/messages/" + messageId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"First edit\",\"expectedVersion\":0}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.body").value("First edit"))
+                .andExpect(jsonPath("$.version").value(1));
+
+        mvc.perform(put("/api/v1/messaging/messages/" + messageId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"Stale edit\",\"expectedVersion\":0}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isConflict());
+
+        mvc.perform(put("/api/v1/messaging/messages/" + messageId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"Second edit\",\"expectedVersion\":1}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.body").value("Second edit"))
+                .andExpect(jsonPath("$.version").value(2));
+
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT body FROM message_record WHERE tenant_id = ? AND id = ?", String.class, TENANT_A, messageId))
+                .isEqualTo("Second edit");
     }
 
     @Test
