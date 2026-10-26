@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/api/v1/messaging")
@@ -22,6 +24,23 @@ class MessagingController {
     private final MessagingService service;
 
     MessagingController(MessagingService service) { this.service = service; }
+
+    @GetMapping("/blocks")
+    List<MessagingService.BlockView> blockedMemberships() {
+        return service.blockedMemberships();
+    }
+
+    @PutMapping("/blocks/{membershipId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void blockMembership(@PathVariable UUID membershipId) {
+        service.blockMembership(membershipId);
+    }
+
+    @DeleteMapping("/blocks/{membershipId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void unblockMembership(@PathVariable UUID membershipId) {
+        service.unblockMembership(membershipId);
+    }
 
     @GetMapping("/conversations")
     List<MessagingService.ConversationView> conversations(@RequestParam(defaultValue = "0") int page,

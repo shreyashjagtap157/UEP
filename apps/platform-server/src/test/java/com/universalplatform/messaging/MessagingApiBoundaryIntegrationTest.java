@@ -1,8 +1,10 @@
 package com.universalplatform.messaging;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -115,6 +117,54 @@ class MessagingApiBoundaryIntegrationTest {
                         .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].unreadCount").value(0));
+    }
+
+    @Test
+    void blockingPreventsDirectMessagesUntilTheBlockIsRemoved() throws Exception {
+        String response = mvc.perform(post("/api/v1/messaging/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"subject":"Blocked direct thread","participantMembershipIds":["%s"]}
+                                """.formatted(MEMBERSHIP_A_PEER))
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID conversationId = UUID.fromString(objectMapper.readTree(response).get("id").asText());
+
+        mvc.perform(put("/api/v1/messaging/blocks/" + MEMBERSHIP_A_PEER)
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/v1/messaging/blocks")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].membershipId").value(MEMBERSHIP_A_PEER.toString()));
+
+        mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"Must be blocked\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MESSAGE_CONFLICT"));
+
+        mvc.perform(post("/api/v1/messaging/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"subject":"Blocked direct thread","participantMembershipIds":["%s"]}
+                                """.formatted(MEMBERSHIP_A_PEER))
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MESSAGE_CONFLICT"));
+
+        mvc.perform(delete("/api/v1/messaging/blocks/" + MEMBERSHIP_A_PEER)
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"Allowed after unblock\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk());
     }
 
     @Test
