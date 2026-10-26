@@ -13,3 +13,21 @@ export const unblockMessageMembership=(membershipId:string)=>request<void>(`/api
 export const markConversationRead=(conversationId:string)=>request<void>(`/api/v1/messaging/conversations/${encodeURIComponent(conversationId)}/read`,{method:'POST'})
 export const editMessage=(messageId:string,body:string,expectedVersion:number)=>request<MessageView>(`/api/v1/messaging/messages/${encodeURIComponent(messageId)}`,{method:'PUT',body:JSON.stringify({body,expectedVersion})})
 export const deleteMessage=(messageId:string,expectedVersion:number)=>request<void>(`/api/v1/messaging/messages/${encodeURIComponent(messageId)}?expectedVersion=${expectedVersion}`,{method:'DELETE'})
+
+export type MessageReportStatus = 'OPEN' | 'REVIEWED' | 'DISMISSED' | 'ACTIONED'
+export interface MessageReportView {
+  id:string; messageId:string; conversationId:string; reporterMembershipId:string; reason:string;
+  status:MessageReportStatus; createdAt:string; reviewedAt?:string; reviewedByMembershipId?:string;
+  resolution?:string; version:number
+}
+export interface MessageReportPage {
+  items:MessageReportView[]; page:number; size:number; totalElements:number; totalPages:number
+}
+export const reportMessage=(messageId:string,reason:string)=>request<MessageReportView>(
+  `/api/v1/messaging/messages/${encodeURIComponent(messageId)}/reports`,
+  {method:'POST',body:JSON.stringify({reason})})
+export const fetchMessageReports=(page=0,size=25)=>request<MessageReportPage>(
+  `/api/v1/messaging/reports?page=${page}&size=${size}`)
+export const resolveMessageReport=(reportId:string,status:Exclude<MessageReportStatus,'OPEN'>,resolution:string,expectedVersion:number)=>request<MessageReportView>(
+  `/api/v1/messaging/reports/${encodeURIComponent(reportId)}/resolve`,
+  {method:'POST',body:JSON.stringify({status,resolution,expectedVersion})})
