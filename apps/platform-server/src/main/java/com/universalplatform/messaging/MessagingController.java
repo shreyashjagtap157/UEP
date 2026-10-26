@@ -3,6 +3,7 @@ package com.universalplatform.messaging;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
@@ -24,6 +25,24 @@ class MessagingController {
     private final MessagingService service;
 
     MessagingController(MessagingService service) { this.service = service; }
+
+    @PostMapping("/messages/{messageId}/reports")
+    MessagingService.MessageReportView reportMessage(@PathVariable UUID messageId,
+                                                       @Valid @RequestBody ReportMessageRequest request) {
+        return service.reportMessage(messageId, request.reason());
+    }
+
+    @GetMapping("/reports")
+    MessagingService.MessageReportPage reports(@RequestParam(defaultValue = "0") int page,
+                                                @RequestParam(defaultValue = "25") int size) {
+        return service.listReports(page, size);
+    }
+
+    @PostMapping("/reports/{reportId}/resolve")
+    MessagingService.MessageReportView resolveReport(@PathVariable UUID reportId,
+                                                       @Valid @RequestBody ResolveMessageReportRequest request) {
+        return service.resolveReport(reportId, request.status(), request.resolution(), request.expectedVersion());
+    }
 
     @GetMapping("/blocks")
     List<MessagingService.BlockView> blockedMemberships() {
@@ -77,6 +96,11 @@ class MessagingController {
     void delete(@PathVariable UUID messageId, @RequestParam long expectedVersion) {
         service.delete(messageId, expectedVersion);
     }
+
+    record ReportMessageRequest(@NotBlank @Size(max = 2000) String reason) {}
+    record ResolveMessageReportRequest(@NotNull MessageReportStatus status,
+                                       @NotBlank @Size(max = 2000) String resolution,
+                                       long expectedVersion) {}
 
     record CreateConversationRequest(@Size(max = 240) String subject,
                                       @NotEmpty @Size(max = 49) List<UUID> participantMembershipIds) {}

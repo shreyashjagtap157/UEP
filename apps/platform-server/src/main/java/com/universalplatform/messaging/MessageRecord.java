@@ -44,4 +44,5 @@ class MessageRecord {
 
     void edit(String nextBody, Instant now) { body = nextBody; editedAt = now; }
     void delete(Instant now) { deletedAt = now; }
+    void moderateDelete(Instant now) { body = "[removed by moderation]"; deletedAt = now; }
 }
