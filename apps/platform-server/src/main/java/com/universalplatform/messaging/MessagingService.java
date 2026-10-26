@@ -184,6 +184,7 @@ class MessagingService {
         report.resolve(status, reviewerMembershipId, normalizedResolution, now);
         if (status == MessageReportStatus.ACTIONED && target.deletedAt() == null) {
             target.moderateDelete(now);
+            messages.saveAndFlush(target);
             audit.record(tenantId, actorContext.requireSubject(), "MESSAGE_MODERATION_ACTIONED", "message", target.id().toString());
         }
         audit.record(tenantId, actorContext.requireSubject(), "MESSAGE_REPORT_RESOLVED", "message_report", report.id().toString());
