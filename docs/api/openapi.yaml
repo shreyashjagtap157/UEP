@@ -2642,6 +2642,39 @@ paths:
           description: Message not found or caller is not a participant
         '409':
           description: Ownership, deletion-state or version conflict
+  /messaging/policy:
+    get:
+      summary: Read tenant messaging policy
+      operationId: getMessagePolicy
+      responses:
+        '200':
+          description: Tenant messaging policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagePolicyView'
+        '403':
+          description: MESSAGING_MODERATE permission required
+    put:
+      summary: Update messaging enablement, student policy, limits and retention
+      operationId: updateMessagePolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessagePolicyUpdate'
+      responses:
+        '200':
+          description: Updated tenant messaging policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagePolicyView'
+        '403':
+          description: MESSAGING_MODERATE permission required
+        '409':
+          description: Invalid retention relation or stale policy version
   /messaging/blocks:
     get:
       summary: List message blocks created by the current membership
@@ -3137,6 +3170,29 @@ components:
           $ref: '#/components/schemas/MessageReportStatus'
         resolution: {type: string, minLength: 1, maxLength: 2000}
         expectedVersion: {type: integer, format: int64}
+    MessagePolicyView:
+      type: object
+      required: [messagingEnabled, allowStudentToStudent, messageRetentionDays, reportRetentionDays, maxMessagesPerMinute, maxReportsPerHour, updatedAt, version]
+      properties:
+        messagingEnabled: {type: boolean}
+        allowStudentToStudent: {type: boolean}
+        messageRetentionDays: {type: integer, minimum: 1, maximum: 3650}
+        reportRetentionDays: {type: integer, minimum: 1, maximum: 7300}
+        maxMessagesPerMinute: {type: integer, minimum: 1, maximum: 120}
+        maxReportsPerHour: {type: integer, minimum: 1, maximum: 20}
+        updatedAt: {type: string, format: date-time}
+        version: {type: integer, format: int64}
+    MessagePolicyUpdate:
+      type: object
+      required: [messagingEnabled, allowStudentToStudent, messageRetentionDays, reportRetentionDays, maxMessagesPerMinute, maxReportsPerHour, expectedVersion]
+      properties:
+        messagingEnabled: {type: boolean}
+        allowStudentToStudent: {type: boolean}
+        messageRetentionDays: {type: integer, minimum: 1, maximum: 3650}
+        reportRetentionDays: {type: integer, minimum: 1, maximum: 7300}
+        maxMessagesPerMinute: {type: integer, minimum: 1, maximum: 120}
+        maxReportsPerHour: {type: integer, minimum: 1, maximum: 20}
+        expectedVersion: {type: integer, format: int64, minimum: 0}
     MessageConversationPage:
       type: object
       required: [items, page, size, totalElements, totalPages]

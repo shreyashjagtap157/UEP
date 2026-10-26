@@ -32,3 +32,27 @@ export const fetchMessageReports=(page=0,size=25)=>request<MessageReportPage>(
 export const resolveMessageReport=(reportId:string,status:Exclude<MessageReportStatus,'OPEN'>,resolution:string,expectedVersion:number)=>request<MessageReportView>(
   `/api/v1/messaging/reports/${encodeURIComponent(reportId)}/resolve`,
   {method:'POST',body:JSON.stringify({status,resolution,expectedVersion})})
+
+export interface MessagePolicyView {
+  messagingEnabled:boolean
+  allowStudentToStudent:boolean
+  messageRetentionDays:number
+  reportRetentionDays:number
+  maxMessagesPerMinute:number
+  maxReportsPerHour:number
+  updatedAt:string
+  version:number
+}
+export interface MessagePolicyUpdate {
+  messagingEnabled:boolean
+  allowStudentToStudent:boolean
+  messageRetentionDays:number
+  reportRetentionDays:number
+  maxMessagesPerMinute:number
+  maxReportsPerHour:number
+  expectedVersion:number
+}
+export const fetchMessagePolicy=()=>request<MessagePolicyView>('/api/v1/messaging/policy')
+export const updateMessagePolicy=(policy:MessagePolicyUpdate)=>request<MessagePolicyView>(
+  '/api/v1/messaging/policy',
+  {method:'PUT',body:JSON.stringify(policy)})
