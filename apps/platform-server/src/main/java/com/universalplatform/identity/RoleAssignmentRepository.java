@@ -30,6 +30,21 @@ interface RoleAssignmentRepository extends JpaRepository<RoleAssignment, UUID> {
     Optional<RoleAssignment> findByTenantIdAndId(UUID tenantId, UUID id);
 
     @Query("""
+            select case when count(ra) > 0 then true else false end
+            from RoleAssignment ra, RoleDefinition rd
+            where ra.tenantId = :tenantId
+              and ra.membershipId = :membershipId
+              and rd.tenantId = :tenantId
+              and rd.id = ra.roleId
+              and rd.systemKey = :systemKey
+            """)
+    boolean hasSystemRole(
+            @Param("tenantId") UUID tenantId,
+            @Param("membershipId") UUID membershipId,
+            @Param("systemKey") String systemKey);
+
+
+    @Query("""
             select distinct ra.membershipId from RoleAssignment ra, TenantMembership m
             where ra.tenantId = :tenantId and ra.roleId = :roleId
               and m.id = ra.membershipId and m.tenantId = :tenantId

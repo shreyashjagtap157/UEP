@@ -106,6 +106,17 @@ public class MembershipDirectory {
 
 
     @Transactional(readOnly = true)
+    public boolean hasSystemRole(UUID membershipId, SystemRoleKey systemRoleKey) {
+        UUID tenantId = tenantContext.requireTenantId();
+        TenantMembership membership = memberships.findByTenantIdAndId(tenantId, membershipId)
+                .orElseThrow(() -> new IdentityNotFoundException("Membership not found"));
+        if (membership.status() != MembershipStatus.ACTIVE) {
+            throw new IdentityAccessDeniedException("Membership is not active");
+        }
+        return roleAssignments.hasSystemRole(tenantId, membershipId, systemRoleKey.name());
+    }
+
+    @Transactional(readOnly = true)
     public RoleReference requireRole(UUID roleId) {
         UUID tenantId = tenantContext.requireTenantId();
         RoleDefinition role = roles.findByTenantIdAndId(tenantId, roleId)
