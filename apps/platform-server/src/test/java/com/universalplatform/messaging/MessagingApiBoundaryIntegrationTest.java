@@ -119,6 +119,7 @@ class MessagingApiBoundaryIntegrationTest {
                 set last_read_at = (select created_at from message_record where tenant_id = ? and id = ?)
                 where tenant_id = ? and conversation_id = ? and membership_id = ?
                 """, TENANT_A, messageId, TENANT_A, conversationId, MEMBERSHIP_A_PEER);
+        entityManager.clear();
 
         UUID outboxId = jdbc.queryForObject("""
                 select id from notification_outbox
