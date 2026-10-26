@@ -60,8 +60,11 @@ class MessagingService {
         return conversations.findDistinctByTenantIdAndIdIn(tenantId, ids, request).stream()
                 .map(item -> {
                     MessageParticipant currentParticipant = currentParticipantByConversation.get(item.id());
-                    long unreadCount = messages.countUnreadByTenantAndConversation(
-                            tenantId, item.id(), membershipId, currentParticipant.lastReadAt());
+                    long unreadCount = currentParticipant.lastReadAt() == null
+                            ? messages.countByTenantIdAndConversationIdAndSenderMembershipIdNotAndDeletedAtIsNull(
+                                    tenantId, item.id(), membershipId)
+                            : messages.countByTenantIdAndConversationIdAndSenderMembershipIdNotAndDeletedAtIsNullAndCreatedAtAfter(
+                                    tenantId, item.id(), membershipId, currentParticipant.lastReadAt());
                     int participantCount = participants.findAllByTenantIdAndIdConversationId(tenantId, item.id()).size();
                     return conversationView(item, participantCount, unreadCount);
                 })
