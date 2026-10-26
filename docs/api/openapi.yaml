@@ -3100,7 +3100,7 @@ components:
       enum: [OPEN, REVIEWED, DISMISSED, ACTIONED]
     MessageReportView:
       type: object
-      required: [id, messageId, conversationId, reporterMembershipId, reason, status, createdAt, version]
+      required: [id, messageId, conversationId, reporterMembershipId, messageSenderMembershipId, reportedMessageBody, messageCreatedAt, reason, status, createdAt, version]
       properties:
         id: {type: string, format: uuid}
         messageId: {type: string, format: uuid}
