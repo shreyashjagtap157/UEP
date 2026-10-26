@@ -37,7 +37,7 @@ class MessagingService {
         audit.record(tenantId,actorContext.requireSubject(),"MESSAGE_CONVERSATION_CREATED","message_conversation",conversationId.toString()); return conversationView(conversation,ids.size());
     }
     @Transactional(readOnly=true) List<ConversationView> list(int page,int size){
-        UUID tenantId=tenantContext.requireTenantId(); UUID membershipId=memberships.current().membershipId(); List<UUID> ids=participants.findAllByTenantIdAndIdMembershipIdOrderByConversationId(tenantId,membershipId).stream().map(MessageParticipant::conversationId).toList(); if(ids.isEmpty())return List.of();
+        UUID tenantId=tenantContext.requireTenantId(); UUID membershipId=memberships.current().membershipId(); List<UUID> ids=participants.findAllByTenantIdAndIdMembershipIdOrderById_ConversationId(tenantId,membershipId).stream().map(MessageParticipant::conversationId).toList(); if(ids.isEmpty())return List.of();
         PageRequest request=PageRequest.of(Math.max(page,0),Math.min(Math.max(size,1),100),Sort.by(Sort.Direction.DESC,"updatedAt","id")); return conversations.findDistinctByTenantIdAndIdIn(tenantId,ids,request).stream().map(item->conversationView(item,participants.findAllByTenantIdAndIdConversationId(tenantId,item.id()).size())).toList();
     }
     @Transactional(readOnly=true) MessagePage messages(UUID conversationId,int page,int size){
