@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,8 @@ class MessagingApiBoundaryIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper objectMapper;
+    @Autowired EntityManager entityManager;
+    @Autowired MessagingRetentionService retention;
 
     @BeforeEach
     void seed() {
@@ -365,6 +369,110 @@ class MessagingApiBoundaryIntegrationTest {
                         .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("MESSAGING_RATE_LIMITED"));
+    }
+
+    @Test
+    void reportRateLimitIsEnforcedForDistinctMessages() throws Exception {
+        jdbc.update("""
+                INSERT INTO message_tenant_policy(tenant_id, max_reports_per_hour)
+                VALUES (?, 1)
+                ON CONFLICT (tenant_id) DO UPDATE SET max_reports_per_hour = 1
+                """, TENANT_A);
+        String conversationResponse = mvc.perform(post("/api/v1/messaging/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"subject":"Report rate limit","participantMembershipIds":["%s"]}
+                                """.formatted(MEMBERSHIP_A_PEER))
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID conversationId = UUID.fromString(objectMapper.readTree(conversationResponse).get("id").asText());
+
+        String firstResponse = mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"First reportable message\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        UUID firstMessageId = UUID.fromString(objectMapper.readTree(firstResponse).get("id").asText());
+
+        String secondResponse = mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Second reportable message\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        UUID secondMessageId = UUID.fromString(objectMapper.readTree(secondResponse).get("id").asText());
+
+        mvc.perform(post("/api/v1/messaging/messages/" + firstMessageId + "/reports")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"First report\"}")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/messaging/messages/" + secondMessageId + "/reports")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Second report exceeds quota\"}")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("MESSAGING_RATE_LIMITED"));
+    }
+
+    @Test
+    void retentionPreservesReportedEvidenceUntilItsLongerRetentionExpires() throws Exception {
+        jdbc.update("""
+                INSERT INTO message_tenant_policy(
+                    tenant_id, message_retention_days, report_retention_days,
+                    max_messages_per_minute, max_reports_per_hour
+                ) VALUES (?, 1, 90, 30, 5)
+                ON CONFLICT (tenant_id) DO UPDATE SET
+                    message_retention_days = 1,
+                    report_retention_days = 90,
+                    max_messages_per_minute = 30,
+                    max_reports_per_hour = 5
+                """, TENANT_A);
+        String conversationResponse = mvc.perform(post("/api/v1/messaging/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"subject":"Retention test","participantMembershipIds":["%s"]}
+                                """.formatted(MEMBERSHIP_A_PEER))
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID conversationId = UUID.fromString(objectMapper.readTree(conversationResponse).get("id").asText());
+
+        String unreportedResponse = mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Expired unreported message\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        UUID unreportedMessageId = UUID.fromString(objectMapper.readTree(unreportedResponse).get("id").asText());
+
+        String reportedResponse = mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Evidence must be retained\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        UUID reportedMessageId = UUID.fromString(objectMapper.readTree(reportedResponse).get("id").asText());
+
+        String reportResponse = mvc.perform(post("/api/v1/messaging/messages/" + reportedMessageId + "/reports")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Retention evidence test\"}")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        UUID reportId = UUID.fromString(objectMapper.readTree(reportResponse).get("id").asText());
+
+        entityManager.flush();
+        jdbc.update("UPDATE message_record SET created_at = current_timestamp - interval '3 days' WHERE tenant_id = ?", TENANT_A);
+        entityManager.clear();
+
+        org.assertj.core.api.Assertions.assertThat(retention.purgeTenant(TENANT_A, Instant.now())).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM message_record WHERE tenant_id = ? AND id = ?", Integer.class, TENANT_A, unreportedMessageId)).isZero();
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM message_record WHERE tenant_id = ? AND id = ?", Integer.class, TENANT_A, reportedMessageId)).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT reported_message_body FROM message_report WHERE tenant_id = ? AND id = ?", String.class, TENANT_A, reportId))
+                .isEqualTo("Evidence must be retained");
+
+        jdbc.update("UPDATE message_report SET created_at = current_timestamp - interval '120 days' WHERE tenant_id = ? AND id = ?", TENANT_A, reportId);
+        entityManager.clear();
+        org.assertj.core.api.Assertions.assertThat(retention.purgeTenant(TENANT_A, Instant.now())).isEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM message_report WHERE tenant_id = ? AND id = ?", Integer.class, TENANT_A, reportId)).isZero();
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM message_record WHERE tenant_id = ? AND id = ?", Integer.class, TENANT_A, reportedMessageId)).isZero();
     }
 
 @Test
