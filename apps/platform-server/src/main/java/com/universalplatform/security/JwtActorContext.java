@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 
 
 @Component
-final class JwtActorContext implements ActorContext {
+class JwtActorContext implements ActorContext {
     @Override
     public Optional<String> currentSubject() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
