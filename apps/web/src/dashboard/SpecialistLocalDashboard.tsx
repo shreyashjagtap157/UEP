@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   activeUserForProfile,
   activityForProfile,
+  availableCourseCountForProfile,
   advanceDemoProgress,
   courseFor,
   createDemoProduct,
@@ -336,9 +337,8 @@ function summaryTitle(role: DemoRole) {
 function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnType<typeof submissionsForProfile>, schedule: ReturnType<typeof scheduleForProfile>, attendanceCount: number, activityCount: number): PanelItem[] {
   const currentUser = activeUserForProfile(state, profile)
   if (profile.role === 'student') {
-    const courseIds = currentUser?.courseIds ?? []
     return [
-      { title: 'Enrolled courses', status: String(courseIds.length), detail: 'Courses assigned to this learner' },
+      { title: 'Enrolled courses', status: String(availableCourseCountForProfile(state, profile)), detail: 'Published courses available to this learner' },
       { title: 'Pending work', status: String(submissions.filter(item => item.status === 'Assigned').length), detail: 'Assignments and exams awaiting completion' },
       { title: 'Graded work', status: String(submissions.filter(item => item.status === 'Graded').length), detail: 'Submissions with feedback or a score' },
     ]
@@ -353,7 +353,7 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
     const actions = state.organizationActions.filter(item => item.organization === currentUser?.organization && item.status === 'Open')
     return [
       { title: 'Organization learners', status: String(learners.length), detail: currentUser?.organization ?? 'No organization linked' },
-      { title: 'Enrolled courses', status: String(new Set(learners.flatMap(item => item.courseIds)).size), detail: 'Distinct courses across organization learners' },
+      { title: 'Enrolled courses', status: String(availableCourseCountForProfile(state, profile)), detail: 'Published courses available across organization learners' },
       { title: 'Open actions', status: String(actions.length), detail: 'Organization follow-up queue' },
     ]
   }
