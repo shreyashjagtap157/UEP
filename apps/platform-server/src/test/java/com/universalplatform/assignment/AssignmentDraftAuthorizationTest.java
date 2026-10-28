@@ -108,7 +108,42 @@ class AssignmentDraftAuthorizationTest {
         assertThat(saved.textBody()).isEqualTo("my answer");
     }
 
+    @Test
+    void learnerAssignmentListExcludesDraftAndArchivedAssignmentsButKeepsClosedWorkVisible() {
+        UUID draftId = UUID.randomUUID();
+        UUID publishedId = UUID.randomUUID();
+        UUID closedId = UUID.randomUUID();
+        UUID archivedId = UUID.randomUUID();
+        when(enrollment.activeBatchIdsForMembership(membershipId)).thenReturn(Set.of(batchId));
+        when(links.findAllByTenantIdAndBatchIdIn(tenantId, List.of(batchId))).thenReturn(List.of(
+                assignmentLink(draftId), assignmentLink(publishedId), assignmentLink(closedId), assignmentLink(archivedId)));
+        Assignment published = assignment(publishedId, AssignmentStatus.PUBLISHED);
+        Assignment closed = assignment(closedId, AssignmentStatus.CLOSED);
+        when(assignments.findAllByTenantIdAndStatusInAndIdIn(tenantId,
+                List.of(AssignmentStatus.PUBLISHED, AssignmentStatus.CLOSED),
+                List.of(draftId, publishedId, closedId, archivedId))).thenReturn(List.of(published, closed));
+
+        AssignmentService.PageResult<AssignmentService.AssignmentView> result = service.list(0, 25);
+
+        assertThat(result.items()).extracting(AssignmentService.AssignmentView::id)
+                .containsExactly(publishedId, closedId);
+        verify(assignments, never()).findAllByTenantIdAndIdIn(tenantId,
+                List.of(draftId, publishedId, closedId, archivedId));
+    }
+
+    private AssignmentBatch assignmentLink(UUID targetAssignmentId) {
+        return new AssignmentBatch(UUID.randomUUID(), tenantId, targetAssignmentId, batchId, NOW);
+    }
+
     private Assignment assignment(AssignmentStatus status) {
+        return assignment(assignmentId, status);
+    }
+
+    private Assignment assignment(UUID id, AssignmentStatus status) {
+        return new Assignment(id, tenantId, "Scoped assignment", "Instructions", status,
+                100, 10000, NOW.plusSeconds(3600), NOW.minusSeconds(300));
+    }
+}
         return new Assignment(assignmentId, tenantId, "Scoped assignment", "Instructions", status,
                 100, 10000, NOW.plusSeconds(3600), NOW.minusSeconds(300));
     }
