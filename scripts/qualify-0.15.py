@@ -616,11 +616,17 @@ if assignment_service.count('requirePublishedAndAssignedToLearner(a, tid, mid);'
     errors.append('assignment submit and draft-save paths must share the learner eligibility guard')
 if 'private void requirePublishedAndAssignedToLearner(Assignment assignment, UUID tenantId, UUID membershipId)' not in assignment_service:
     errors.append('assignment learner guard must validate publication and active batch assignment')
+if 'List.of(AssignmentStatus.PUBLISHED, AssignmentStatus.CLOSED)' not in assignment_service or 'findAllByTenantIdAndStatusInAndIdIn(' not in assignment_service:
+    errors.append('learner assignment catalog must exclude DRAFT and ARCHIVED records while retaining closed work')
+assignment_repository = text('apps/platform-server/src/main/java/com/universalplatform/assignment/AssignmentRepository.java')
+if 'findAllByTenantIdAndStatusInAndIdIn' not in assignment_repository:
+    errors.append('assignment repository is missing status-constrained learner catalog query')
 assignment_draft_test = text('apps/platform-server/src/test/java/com/universalplatform/assignment/AssignmentDraftAuthorizationTest.java')
 for required in [
     'draftCannotBeSavedForAnUnpublishedAssignment',
     'draftCannotBeSavedForAnAssignmentOutsideTheLearnersActiveBatches',
     'draftCanBeSavedForAPublishedAssignmentInTheLearnersActiveBatch',
+    'learnerAssignmentListExcludesDraftAndArchivedAssignmentsButKeepsClosedWorkVisible',
 ]:
     if required not in assignment_draft_test:
         errors.append(f'missing assignment draft authorization regression test: {required}')
