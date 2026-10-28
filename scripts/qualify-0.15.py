@@ -77,6 +77,18 @@ required_webhook_files = [
 for rel in required_webhook_files:
     if not (ROOT / rel).exists():
         errors.append(f'missing durable webhook fan-out component: {rel}')
+
+fanout_worker = text('apps/platform-server/src/main/java/com/universalplatform/integration/WebhookEventFanoutWorker.java')
+delivery_worker = text('apps/platform-server/src/main/java/com/universalplatform/integration/WebhookWorker.java')
+webhook_outbox_test = text('apps/platform-server/src/test/java/com/universalplatform/integration/WebhookEventOutboxIntegrationTest.java')
+if 'fanout-initial-delay-ms:0' not in fanout_worker:
+    errors.append('webhook fan-out scheduler must expose an initial-delay control for deterministic tests')
+if 'poll-initial-delay-ms:0' not in delivery_worker:
+    errors.append('webhook delivery scheduler must expose an initial-delay control for deterministic tests')
+for required in ['platform.integrations.webhooks.poll-initial-delay-ms=3600000',
+                 'platform.integrations.webhooks.fanout-initial-delay-ms=3600000']:
+    if required not in webhook_outbox_test:
+        errors.append(f'webhook outbox integration test must prevent scheduled-worker races: {required}')
 listener = text('apps/platform-server/src/main/java/com/universalplatform/integration/WebhookNotificationListener.java')
 if 'WebhookEventOutboxService' not in listener or 'outbox.enqueue(event)' not in listener:
     errors.append('WebhookNotificationListener must persist fan-out intent in the transactional outbox')
