@@ -32,8 +32,9 @@ public class QuestionBankService implements QuestionBankDirectory {
 
     @Transactional(readOnly = true)
     public PageResult<QuestionView> list(int page, int size) {
-        authorization.require(PermissionKey.ASSESSMENTS_VIEW);
-        boolean includePayload = authorization.has(PermissionKey.ASSESSMENTS_MANAGE);
+        // The question bank is authoring material, not a tenant-wide learner discovery API.
+        authorization.require(PermissionKey.ASSESSMENTS_MANAGE);
+        boolean includePayload = true;
         var result = questions.findAllByTenantId(tenantContext.requireTenantId(),
                 PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100), Sort.by(Sort.Direction.DESC, "createdAt", "id")));
         return new PageResult<>(result.getContent().stream().map(q -> view(q, includePayload)).toList(), result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
@@ -70,10 +71,10 @@ public class QuestionBankService implements QuestionBankDirectory {
 
     @Transactional(readOnly = true)
     public List<QuestionVersionView> versions(UUID questionId) {
-        authorization.require(PermissionKey.ASSESSMENTS_VIEW);
+        authorization.require(PermissionKey.ASSESSMENTS_MANAGE);
         UUID tenantId = tenantContext.requireTenantId();
         questions.findByTenantIdAndId(tenantId, questionId).orElseThrow(() -> new IllegalArgumentException("Question not found"));
-        boolean includePayload = authorization.has(PermissionKey.ASSESSMENTS_MANAGE);
+        boolean includePayload = true;
         return versions.findAllByTenantIdAndQuestionIdOrderByVersionNumberDesc(tenantId, questionId).stream().map(v -> versionView(v, includePayload)).toList();
     }
 
