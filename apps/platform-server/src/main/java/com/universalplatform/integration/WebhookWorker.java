@@ -37,7 +37,7 @@ class WebhookWorker {
         this.deliveryTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    @Scheduled(fixedDelayString = "${platform.integrations.webhooks.poll-ms:2000}")
+    @Scheduled(initialDelayString = "${platform.integrations.webhooks.poll-initial-delay-ms:0}", fixedDelayString = "${platform.integrations.webhooks.poll-ms:2000}")
     void poll() {
         Instant n = clock.instant();
         for (UUID id : deliveries.findDue(n, PageRequest.of(0, 25)))
