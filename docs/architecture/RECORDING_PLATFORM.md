@@ -31,7 +31,7 @@ Master and thumbnail assets migrate together. Cross-provider migration is copy-t
 
 ## Playback protection
 
-Playback is never an unprotected storage locator. The server checks tenant ownership, recording readiness, the current membership, and `RECORDINGS_VIEW`, then issues a five-minute HMAC-signed token bound to both recording and membership. The stream endpoint revalidates the token before opening the storage adapter.
+Playback is never an unprotected storage locator. The server checks tenant ownership, recording readiness, the current membership, and `RECORDINGS_VIEW`, then issues a five-minute HMAC-signed token bound to both recording and membership. Unless the caller has `RECORDINGS_MANAGE`, direct recording details and playback are restricted to recordings for the caller's active batches, matching the list endpoint. The stream endpoint rechecks that batch access as well as the token, so enrollment revocation after token issuance blocks subsequent stream opens.
 
 The web player overlays the authorized learner/member identity and changes its screen position periodically. This is an intentional visible deterrent, not DRM and not a claim of absolute protection against screen capture or other client-side copying.
 
