@@ -610,6 +610,21 @@ for required in ['legacy browser state migrates to v4 with finance, support and 
     if required not in local_demo_tests:
         errors.append(f'missing finance/support regression test: {required}')
 
+# Draft and final submission paths must enforce identical published-assignment and active-batch eligibility.
+assignment_service = text('apps/platform-server/src/main/java/com/universalplatform/assignment/AssignmentService.java')
+if assignment_service.count('requirePublishedAndAssignedToLearner(a, tid, mid);') < 2:
+    errors.append('assignment submit and draft-save paths must share the learner eligibility guard')
+if 'private void requirePublishedAndAssignedToLearner(Assignment assignment, UUID tenantId, UUID membershipId)' not in assignment_service:
+    errors.append('assignment learner guard must validate publication and active batch assignment')
+assignment_draft_test = text('apps/platform-server/src/test/java/com/universalplatform/assignment/AssignmentDraftAuthorizationTest.java')
+for required in [
+    'draftCannotBeSavedForAnUnpublishedAssignment',
+    'draftCannotBeSavedForAnAssignmentOutsideTheLearnersActiveBatches',
+    'draftCanBeSavedForAPublishedAssignmentInTheLearnersActiveBatch',
+]:
+    if required not in assignment_draft_test:
+        errors.append(f'missing assignment draft authorization regression test: {required}')
+
 # Retire the disconnected six-role local demo implementation after consolidation.
 obsolete_local_demo_sources = [
     'LocalDashboard.tsx',
