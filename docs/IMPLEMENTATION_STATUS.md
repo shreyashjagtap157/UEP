@@ -2,7 +2,7 @@
 
 ## Current verified state — 2026-10-28
 
-`0.15.0.0-SNAPSHOT` remains the development version. The latest dependency merges are PR #25 (`@types/node` 26.6.5) and PR #22 (`livekit-client` 2.23.0); PR #22 merged as `8290fc16f9d18d3f3350f22934be5b1ee33a8ccc`. The last independently confirmed full CI run is GitHub Actions run `40686109376` / run #460, which completed successfully across web, backend, repository-policy/qualification, and vulnerability-scan jobs after the recording-access changes and regression tests were added. Subsequent assessment catalog, Guardian permission, question-bank authorization, and qualification-script changes are committed on `main` but are **not yet represented by a confirmed green CI result in this status record**.
+`0.15.0.0-SNAPSHOT` remains the development version. The latest dependency merges are PR #25 (`@types/node` 26.6.5) and PR #22 (`livekit-client` 2.23.0); PR #22 merged as `8290fc16f9d18d3f3350f22934be5b1ee33a8ccc`. The last independently confirmed full CI run is GitHub Actions run `40686109376` / run #460, which completed successfully across web, backend, repository-policy/qualification, and vulnerability-scan jobs after the recording-access changes and regression tests were added. Subsequent assessment catalog scoping, Student/Guardian permission migration, question-bank authorization, assignment draft/list scoping with database pagination, academic-review decision scoping, and qualification-gate changes are committed on `main` but are **not yet represented by a confirmed green CI result in this status record**.
 
 ### Verified CI evidence
 
@@ -12,7 +12,7 @@
 - Java dependency SBOM generation and OSV dependency scanning passed.
 - Dependabot updates to `@types/node` 26.6.5 (PR #25) and `livekit-client` 2.23.0 (PR #22) were merged only after their refreshed CI checks passed.
 
-Run #460 validated the PR merge candidate against the then-current `main` before the later assessment and question-bank changes described below. Those newest changes still require a fresh successful full CI run. This is repository CI evidence, not a claim that production deployment or local execution was performed here. This is strong repository-local qualification evidence, but it is **not** by itself Production Web GA evidence; production-scale capacity, external/provider qualification, accessibility, recovery, operational, interoperability, and native-client qualification remain separate requirements.
+Run #460 validated the PR merge candidate against the then-current `main` before the assessment, assignment, question-bank, and academic-review changes described below. Those newest changes still require a fresh successful full CI run. This is repository CI evidence, not a claim that production deployment or local execution was performed here. This is strong repository-local qualification evidence, but it is **not** by itself Production Web GA evidence; production-scale capacity, external/provider qualification, accessibility, recovery, operational, interoperability, and native-client qualification remain separate requirements.
 
 ## Scope correction: no swarm-agent functionality
 
