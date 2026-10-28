@@ -5,6 +5,7 @@ import {
   DEMO_PROFILES,
   activityForProfile,
   availableCourseCountForProfile,
+  linkedLearnerProgressForProfile,
   createDemoProduct,
   activeUserForProfile,
   attendanceForProfile,
@@ -277,6 +278,39 @@ test('learner and course catalog queries enforce active organization and relatio
   assert.deepEqual(coursesForProfile({ ...state, users: state.users.map(item => item.id === 'guardian-nina' ? { ...item, organization: 'East Valley Academy' } : item) }, profile('guardian')), [])
   assert.ok(!coursesForProfile(polluted, profile('client')).some(item => item.id === 'course-product-draft'))
   assert.deepEqual(coursesForProfile({ ...state, users: state.users.map(item => item.id === 'student-asha' ? { ...item, status: 'Suspended' } : item) }, profile('student')), [])
+})
+
+test('mentor summary metrics require an active same-organization relationship and count published courses only', () => {
+  const state = resetDemoState()
+  const mentor = profile('mentor')
+  const allowed = linkedLearnerProgressForProfile(state, mentor)
+  assert.equal(allowed.learner?.id, 'student-asha')
+  assert.deepEqual(allowed.courses.map(course => course.id), ['course-web', 'course-cloud'])
+  assert.equal(allowed.completedCourses, 0)
+
+  const crossOrganization = {
+    ...state,
+    users: state.users.map(user => user.id === mentor.userId ? { ...user, organization: 'East Valley Academy' } : user),
+  }
+  const denied = linkedLearnerProgressForProfile(crossOrganization, mentor)
+  assert.equal(denied.learner, undefined)
+  assert.deepEqual(denied.courses, [])
+  assert.equal(denied.completedCourses, 0)
+
+  const suspendedMentor = {
+    ...state,
+    users: state.users.map(user => user.id === mentor.userId ? { ...user, status: 'Suspended' } : user),
+  }
+  assert.equal(linkedLearnerProgressForProfile(suspendedMentor, mentor).learner, undefined)
+
+  const unpublishedCourse = {
+    ...state,
+    courses: state.courses.map(course => course.id === 'course-web' ? { ...course, status: 'Draft' } : course),
+    courseProgress: { ...state.courseProgress, 'student-asha:course-cloud': 100, 'student-asha:course-web': 100 },
+  }
+  const filtered = linkedLearnerProgressForProfile(unpublishedCourse, mentor)
+  assert.deepEqual(filtered.courses.map(course => course.id), ['course-cloud'])
+  assert.equal(filtered.completedCourses, 1, 'draft-course completion must not affect the visible published-course metric')
 })
 
 test('course-count metrics exclude unpublished courses outside the persona catalog', () => {
