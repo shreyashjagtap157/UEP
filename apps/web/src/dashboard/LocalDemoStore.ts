@@ -445,15 +445,18 @@ function isPersistedDemoState(value: unknown): value is PersistedDemoState {
     && candidate.courseProgress !== null
 }
 
-export function saveDemoState(state: DemoState): void {
+export function saveDemoState(state: DemoState): boolean {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   } catch {
-    // The current tab remains usable even when browser storage is unavailable.
+    // Do not emit a state-change event: subscribers would reload stale persisted data.
+    // Callers can still keep the new state in memory and tell the user it is not durable.
+    return false
   }
   // The StorageEvent is not emitted in the tab that made the write, so notify
   // current-tab subscribers separately and other tabs through the browser event.
   window.dispatchEvent(new Event(STORE_CHANGED_EVENT))
+  return true
 }
 
 export function subscribeDemoState(listener: () => void): () => void {
