@@ -43,7 +43,7 @@ Production qualification still requires production-like load/capacity evidence, 
 - The assessment catalog now returns published assessments assigned to the current member's active batches; version listing applies the same scope. Student permissions explicitly include `ASSESSMENTS_TAKE`, while Guardian permissions are separate and read-only for learner academic workflows.
 - Flyway migration `V039__student_assessment_take_guardian_read_only.sql` applies the Student/Guardian permission correction to existing tenants; the 0.15 qualification script checks its required grants/removals.
 - Question-bank catalog and version reads now require `ASSESSMENTS_MANAGE`; non-manager UI sessions do not fetch or render the question-bank catalog. Regression tests cover denied reads before repository access.
-- Assignment draft saves now share the same published-status and active-batch membership guard as final submissions, preventing drafts against unpublished or unrelated assignments. Regression tests cover denied and permitted paths.
+- Assignment draft saves now share the same published-status and active-batch membership guard as final submissions, preventing drafts against unpublished or unrelated assignments. Learner catalogs expose published and closed assignments but hide draft and archived work. Regression tests cover denied and permitted draft paths plus the catalog-state filter.
 - `scripts/qualify-0.15.py` now requires regression coverage for recording batch scope, assessment visibility, Student/Guardian permissions, and question-bank authorization.
 
 ## Current gradebook capability
