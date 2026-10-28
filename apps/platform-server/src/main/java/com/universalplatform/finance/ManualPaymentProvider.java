@@ -5,7 +5,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 @Component
-final class ManualPaymentProvider implements PaymentProvider {
+class ManualPaymentProvider implements PaymentProvider {
     @Override
     public String name() {
         return "MANUAL";
