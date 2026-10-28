@@ -243,6 +243,11 @@ export function coursesForProfile(state: DemoState, profile: DemoProfile): DemoC
   }
   return []
 }
+/** Number of published courses visible in a persona's current data scope. */
+export function availableCourseCountForProfile(state: DemoState, profile: DemoProfile): number {
+  return coursesForProfile(state, profile).length
+}
+
 function dateAt(dayOffset: number, hour: number, minute = 0): string {
   const date = new Date()
   date.setDate(date.getDate() + dayOffset)
