@@ -1,6 +1,7 @@
 package com.universalplatform.recording;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
@@ -13,6 +14,8 @@ import com.universalplatform.enrollment.EnrollmentDirectory;
 import com.universalplatform.security.ActorContext;
 import com.universalplatform.identity.AuthorizationService;
 import com.universalplatform.identity.MembershipDirectory;
+import com.universalplatform.identity.MembershipStatus;
+import com.universalplatform.identity.PermissionKey;
 import com.universalplatform.notification.NotificationPublisher;
 import com.universalplatform.security.TenantContext;
 import com.universalplatform.storage.StorageAdapter;
@@ -23,6 +26,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import com.universalplatform.liveclass.LiveClassDirectory;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +42,9 @@ class RecordingPurgeLifecycleTest {
     private final UUID liveClassId = UUID.randomUUID();
     private final UUID classSessionId = UUID.randomUUID();
     private final UUID recordingId = UUID.randomUUID();
+    private final UUID callerMembershipId = UUID.randomUUID();
+    private final UUID visibleBatchId = UUID.randomUUID();
+    private final UUID recordingBatchId = UUID.randomUUID();
 
     @Mock TenantContext tenants;
     @Mock ActorContext actors;
@@ -67,6 +74,14 @@ class RecordingPurgeLifecycleTest {
         service = new RecordingService(tenants, actors, auth, memberships, enrollment, liveClasses,
                 recordings, assets, policies, media, thumbnails, adapters, workerLock, transactionManager,
                 audit, notifications, "./target/test-recording-processing", "test-playback-secret");
+        lenient().when(tenants.requireTenantId()).thenReturn(tenantId);
+        lenient().when(auth.has(PermissionKey.RECORDINGS_MANAGE)).thenReturn(false);
+        lenient().when(liveClasses.require(liveClassId)).thenReturn(new LiveClassDirectory.LiveClassReference(
+                liveClassId, classSessionId, recordingBatchId, "recording-room", null, null, 0, 0,
+                false, false, null, null));
+        lenient().when(memberships.current()).thenReturn(new MembershipDirectory.MembershipReference(
+                callerMembershipId, UUID.randomUUID(), "recording-viewer", "viewer@example.invalid",
+                "Recording Viewer", null, MembershipStatus.ACTIVE));
 
         Instant oldReadyAt = Instant.now().minus(Duration.ofDays(100));
         recording = new Recording(recordingId, tenantId, liveClassId, classSessionId, "recording-room",
@@ -87,6 +102,40 @@ class RecordingPurgeLifecycleTest {
         when(policies.findById(tenantId)).thenReturn(Optional.of(policy));
         lenient().when(assets.findAllByTenantIdAndRecordingId(tenantId, recordingId)).thenReturn(List.of(master, thumbnail));
         lenient().when(adapters.require(StorageProviderType.LOCAL)).thenReturn(localStorage);
+    }
+
+    @Test
+    void directReadPlaybackAndStreamEnforceActiveBatchVisibility() throws Exception {
+        when(recordings.findByTenantIdAndId(tenantId, recordingId)).thenReturn(Optional.of(recording));
+        when(enrollment.activeBatchIdsForMembership(callerMembershipId)).thenReturn(Set.of(visibleBatchId));
+
+        assertThatThrownBy(() -> service.get(recordingId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Recording not found");
+        assertThatThrownBy(() -> service.playback(recordingId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Recording not found");
+
+        when(enrollment.activeBatchIdsForMembership(callerMembershipId)).thenReturn(Set.of(recordingBatchId));
+        RecordingService.PlaybackView playback = service.playback(recordingId);
+        assertThat(service.get(recordingId).id()).isEqualTo(recordingId);
+        String token = playback.streamUrl().substring(playback.streamUrl().indexOf("token=") + "token=".length());
+
+        // Enrollment revocation after token issuance must stop playback at stream-open time.
+        when(enrollment.activeBatchIdsForMembership(callerMembershipId)).thenReturn(Set.of());
+        assertThatThrownBy(() -> service.openStream(recordingId, token))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Recording not found");
+        verify(adapters, never()).require(StorageProviderType.LOCAL);
+    }
+
+    @Test
+    void recordingManagerCanReadAnyBatchRecordingWithinTheTenant() {
+        when(recordings.findByTenantIdAndId(tenantId, recordingId)).thenReturn(Optional.of(recording));
+        when(auth.has(PermissionKey.RECORDINGS_MANAGE)).thenReturn(true);
+
+        assertThat(service.get(recordingId).id()).isEqualTo(recordingId);
+        verify(enrollment, never()).activeBatchIdsForMembership(callerMembershipId);
     }
 
     @Test
