@@ -2,7 +2,7 @@
 
 ## Current verified state — 2026-10-28
 
-`0.15.0.0-SNAPSHOT` remains the development version. The latest feature/dependency merge is `8290fc16f9d18d3f3350f22934be5b1ee33a8ccc` (PR #22, LiveKit client update). The latest full CI merge-candidate run is GitHub Actions run `40686109376` / run #460, which completed successfully across web, backend, repository-policy/qualification, and vulnerability-scan jobs after the recording-access changes and regression tests were added.
+`0.15.0.0-SNAPSHOT` remains the development version. The latest dependency merges are PR #25 (`@types/node` 26.6.5) and PR #22 (`livekit-client` 2.23.0); PR #22 merged as `8290fc16f9d18d3f3350f22934be5b1ee33a8ccc`. The last independently confirmed full CI run is GitHub Actions run `40686109376` / run #460, which completed successfully across web, backend, repository-policy/qualification, and vulnerability-scan jobs after the recording-access changes and regression tests were added. Subsequent assessment catalog, Guardian permission, question-bank authorization, and qualification-script changes are committed on `main` but are **not yet represented by a confirmed green CI result in this status record**.
 
 ### Verified CI evidence
 
@@ -12,7 +12,7 @@
 - Java dependency SBOM generation and OSV dependency scanning passed.
 - Dependabot updates to `@types/node` 26.6.5 (PR #25) and `livekit-client` 2.23.0 (PR #22) were merged only after their refreshed CI checks passed.
 
-Run #460 validated the PR merge candidate against the then-current `main` after the implementation changes below. It is repository CI evidence, not a claim that production deployment or local execution was performed here. This is strong repository-local qualification evidence, but it is **not** by itself Production Web GA evidence; production-scale capacity, external/provider qualification, accessibility, recovery, operational, interoperability, and native-client qualification remain separate requirements.
+Run #460 validated the PR merge candidate against the then-current `main` before the later assessment and question-bank changes described below. Those newest changes still require a fresh successful full CI run. This is repository CI evidence, not a claim that production deployment or local execution was performed here. This is strong repository-local qualification evidence, but it is **not** by itself Production Web GA evidence; production-scale capacity, external/provider qualification, accessibility, recovery, operational, interoperability, and native-client qualification remain separate requirements.
 
 ## Scope correction: no swarm-agent functionality
 
@@ -40,6 +40,9 @@ Production qualification still requires production-like load/capacity evidence, 
 - Browser-demo course metrics now use the same published-catalog scope as role-specific course views. Mentor summaries resolve an active learner through the authorized mentor relationship and do not include draft-course progress.
 - Local-demo state writes now report storage failures, avoid broadcasting a change event for a failed write, retain the attempted state in the current tab, and retry persistence when storage recovers. The UI warns when a change is visible only in the current tab.
 - Recording detail, playback-token issuance, and stream opening now share a batch-scope authorization check. Members without `RECORDINGS_MANAGE` can access recordings only for their active batches; stream opening rechecks enrollment so a token issued before revocation is not sufficient afterward. Regression coverage was added for denied cross-batch access, permitted in-batch access, and revocation.
+- The assessment catalog now returns published assessments assigned to the current member's active batches; version listing applies the same scope. Student permissions explicitly include `ASSESSMENTS_TAKE`, while Guardian permissions are separate and read-only for learner academic workflows.
+- Question-bank catalog and version reads now require `ASSESSMENTS_MANAGE`; non-manager UI sessions do not fetch or render the question-bank catalog. Regression tests cover denied reads before repository access.
+- `scripts/qualify-0.15.py` now requires regression coverage for recording batch scope, assessment visibility, Student/Guardian permissions, and question-bank authorization.
 
 ## Current gradebook capability
 
