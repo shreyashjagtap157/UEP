@@ -14,7 +14,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest(properties = {
         "platform.integrations.webhooks.poll-ms=3600000",
-        "platform.integrations.webhooks.fanout-poll-ms=3600000"
+        "platform.integrations.webhooks.fanout-poll-ms=3600000",
+        "platform.integrations.webhooks.poll-initial-delay-ms=3600000",
+        "platform.integrations.webhooks.fanout-initial-delay-ms=3600000"
 })
 class WebhookEventOutboxIntegrationTest {
     private final UUID tenantId = UUID.randomUUID();
