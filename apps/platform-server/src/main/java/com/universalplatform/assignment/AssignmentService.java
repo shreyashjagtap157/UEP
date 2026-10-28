@@ -62,13 +62,10 @@ class AssignmentService implements AssignmentDirectory {
         if (visibleIds.isEmpty())
             return new PageResult<>(List.of(), safePage, safeSize, 0, 0);
         // Learners may continue viewing closed work, but must never discover draft or archived assignments.
-        List<Assignment> matching = assignments.findAllByTenantIdAndStatusInAndIdIn(
-                tid, List.of(AssignmentStatus.PUBLISHED, AssignmentStatus.CLOSED), visibleIds);
-        int start = Math.min((int) pageable.getOffset(), matching.size());
-        int end = Math.min(start + pageable.getPageSize(), matching.size());
-        List<AssignmentView> pageContent = matching.subList(start, end).stream().map(this::view).toList();
-        int totalPages = (int) Math.ceil((double) matching.size() / safeSize);
-        return new PageResult<>(pageContent, safePage, safeSize, matching.size(), totalPages);
+        Page<Assignment> matching = assignments.findAllByTenantIdAndStatusInAndIdIn(
+                tid, List.of(AssignmentStatus.PUBLISHED, AssignmentStatus.CLOSED), visibleIds, pageable);
+        return new PageResult<>(matching.getContent().stream().map(this::view).toList(), matching.getNumber(),
+                matching.getSize(), matching.getTotalElements(), matching.getTotalPages());
     }
 
     @Transactional
