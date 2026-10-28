@@ -70,6 +70,7 @@ class AcademicReviewAuthorizationTest {
                 "{\"answer\":\"revised\"}", "learner", NOW);
 
         lenient().when(tenant.requireTenantId()).thenReturn(tenantId);
+        lenient().when(actor.requireSubject()).thenReturn("reviewer-subject");
         lenient().when(memberships.current()).thenReturn(new MembershipDirectory.MembershipReference(
                 reviewerMembershipId, UUID.randomUUID(), "reviewer-subject", "reviewer@example.invalid",
                 "Reviewer", null, MembershipStatus.ACTIVE));
