@@ -163,14 +163,16 @@ test('storage failures are reported without publishing a stale-state change even
     localStorage.setItem = () => { throw new Error('storage quota exceeded') }
     assert.equal(saveDemoState(next), false)
     assert.equal(localStorage.getItem('uep.local-demo-data.v4'), persistedBefore, 'failed write must leave persisted data untouched')
+    assert.equal(loadDemoState().courseProgress['student-asha:course-web'], 79, 'later actions must read the unsaved in-memory state rather than stale storage')
     assert.equal(notifications, 0, 'failed write must not ask subscribers to reload stale persisted state')
   } finally {
     localStorage.setItem = originalSetItem
     unsubscribe()
   }
 
-  assert.equal(saveDemoState(next), true, 'storage recovery should allow state to be persisted again')
-  assert.equal(JSON.parse(localStorage.getItem('uep.local-demo-data.v4')).courseProgress['student-asha:course-web'], 79)
+  const recovered = loadDemoState()
+  assert.equal(recovered.courseProgress['student-asha:course-web'], 79, 'storage recovery must retain the in-memory change')
+  assert.equal(JSON.parse(localStorage.getItem('uep.local-demo-data.v4')).courseProgress['student-asha:course-web'], 79, 'the next load should durably persist the recovered state')
 })
 
 test('authorized attendance changes propagate through the shared persisted state', () => {
