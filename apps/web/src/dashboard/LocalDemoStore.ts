@@ -166,6 +166,10 @@ const STORAGE_KEY = 'uep.local-demo-data.v4'
 const LEGACY_STORAGE_KEYS = ['uep.local-demo-data.v3', 'uep.local-demo-data.v2', 'uep.local-demo-data.v1'] as const
 const STORE_CHANGED_EVENT = 'uep:local-demo-data-updated'
 
+// Retain the last known state in this tab if browser storage becomes temporarily unavailable.
+let latestDemoState: DemoState | undefined
+let persistenceWriteFailed = false
+
 const ROLE_RECORD_NAMES: Record<DemoRole, string> = {
   student: 'Student',
   teacher: 'Teacher',
@@ -396,6 +400,13 @@ type PersistedDemoState = Omit<DemoState, 'schemaVersion' | 'organizationActions
 }
 
 export function loadDemoState(): DemoState {
+  // When a write previously failed, prefer this tab's latest state over stale persisted data.
+  // saveDemoState retries the write; if storage is still unavailable it returns false without events.
+  if (persistenceWriteFailed && latestDemoState) {
+    saveDemoState(latestDemoState)
+    return latestDemoState
+  }
+
   try {
     const candidates = [STORAGE_KEY, ...LEGACY_STORAGE_KEYS]
       .map(key => ({ key, raw: window.localStorage.getItem(key) }))
@@ -412,6 +423,7 @@ export function loadDemoState(): DemoState {
         supportCases: Array.isArray(parsed.supportCases) ? parsed.supportCases : seed.supportCases,
         messages: Array.isArray(parsed.messages) ? parsed.messages : seed.messages,
       }
+      latestDemoState = state
       if (stored.key !== STORAGE_KEY || parsed.schemaVersion !== 4
           || !Array.isArray(parsed.organizationActions)
           || !Array.isArray(parsed.invoices)
@@ -422,11 +434,12 @@ export function loadDemoState(): DemoState {
       return state
     }
   } catch {
-    // Corrupt/unavailable browser storage starts a fresh local demonstration.
+    // Keep the last known in-memory state when storage reads or decoding fail.
+    if (latestDemoState) return latestDemoState
   }
   const initial = seedDemoState()
   saveDemoState(initial)
-  return initial
+  return latestDemoState ?? initial
 }
 
 function isPersistedDemoState(value: unknown): value is PersistedDemoState {
@@ -446,13 +459,16 @@ function isPersistedDemoState(value: unknown): value is PersistedDemoState {
 }
 
 export function saveDemoState(state: DemoState): boolean {
+  latestDemoState = state
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   } catch {
+    persistenceWriteFailed = true
     // Do not emit a state-change event: subscribers would reload stale persisted data.
-    // Callers can still keep the new state in memory and tell the user it is not durable.
+    // The current tab retains state in memory and callers can report its non-durable status.
     return false
   }
+  persistenceWriteFailed = false
   // The StorageEvent is not emitted in the tab that made the write, so notify
   // current-tab subscribers separately and other tabs through the browser event.
   window.dispatchEvent(new Event(STORE_CHANGED_EVENT))
