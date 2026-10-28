@@ -72,12 +72,12 @@ class GradebookAuthorizationTest {
   when(memberships.current()).thenReturn(new MembershipDirectory.MembershipReference(viewer,UUID.randomUUID(),"viewer","viewer@example.invalid","Viewer",null,MembershipStatus.ACTIVE));
   when(enrollment.requireBatch(batch)).thenReturn(new EnrollmentDirectory.BatchReference(batch,null,null,null,branch,"B-1","Batch",null,null,null));
   lenient().when(auth.currentScope(PermissionKey.GRADEBOOK_VIEW)).thenReturn(new AuthorizationService.AccessScope(false,Set.of()));
-  lenient().lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.STUDENT)).thenReturn(false);
-  lenient().lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.GUARDIAN)).thenReturn(false);
-  lenient().lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.ORGANIZATION_OWNER)).thenReturn(false);
-  lenient().lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.ORGANIZATION_ADMINISTRATOR)).thenReturn(false);
-  lenient().lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.ACADEMIC_ADMINISTRATOR)).thenReturn(false);
-  lenient().lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.EXAM_CONTROLLER)).thenReturn(false);
+  lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.STUDENT)).thenReturn(false);
+  lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.GUARDIAN)).thenReturn(false);
+  lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.ORGANIZATION_OWNER)).thenReturn(false);
+  lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.ORGANIZATION_ADMINISTRATOR)).thenReturn(false);
+  lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.ACADEMIC_ADMINISTRATOR)).thenReturn(false);
+  lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.EXAM_CONTROLLER)).thenReturn(false);
   lenient().when(assignments.gradebookAssignments(batch,learner)).thenReturn(List.of());
  }
  @Test void studentCannotReadAnotherLearnersGradebook(){
