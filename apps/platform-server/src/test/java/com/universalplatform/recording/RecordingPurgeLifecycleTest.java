@@ -106,7 +106,6 @@ class RecordingPurgeLifecycleTest {
 
     @Test
     void directReadPlaybackAndStreamEnforceActiveBatchVisibility() throws Exception {
-        when(recordings.findByTenantIdAndId(tenantId, recordingId)).thenReturn(Optional.of(recording));
         when(enrollment.activeBatchIdsForMembership(callerMembershipId)).thenReturn(Set.of(visibleBatchId));
 
         assertThatThrownBy(() -> service.get(recordingId))
@@ -131,7 +130,6 @@ class RecordingPurgeLifecycleTest {
 
     @Test
     void recordingManagerCanReadAnyBatchRecordingWithinTheTenant() {
-        when(recordings.findByTenantIdAndId(tenantId, recordingId)).thenReturn(Optional.of(recording));
         when(auth.has(PermissionKey.RECORDINGS_MANAGE)).thenReturn(true);
 
         assertThat(service.get(recordingId).id()).isEqualTo(recordingId);
