@@ -248,6 +248,23 @@ export function availableCourseCountForProfile(state: DemoState, profile: DemoPr
   return coursesForProfile(state, profile).length
 }
 
+/** Resolve the mentor's learner through the same active-identity and organization guard used by learner views. */
+export function linkedLearnerProgressForProfile(state: DemoState, profile: DemoProfile): {
+  learner: DemoUser | undefined
+  courses: DemoCourse[]
+  completedCourses: number
+} {
+  if (profile.role !== 'mentor') return { learner: undefined, courses: [], completedCourses: 0 }
+  const learner = linkedLearnerForProfile(state, profile)
+  if (!learner) return { learner: undefined, courses: [], completedCourses: 0 }
+  const courses = coursesForProfile(state, profile)
+  return {
+    learner,
+    courses,
+    completedCourses: courses.filter(course => progressFor(state, learner.id, course.id) >= 100).length,
+  }
+}
+
 function dateAt(dayOffset: number, hour: number, minute = 0): string {
   const date = new Date()
   date.setDate(date.getDate() + dayOffset)
