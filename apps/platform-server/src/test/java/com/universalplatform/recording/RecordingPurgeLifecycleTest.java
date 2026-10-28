@@ -98,8 +98,8 @@ class RecordingPurgeLifecycleTest {
         policy.retentionDays = 30;
         policy.deletedObjectGraceDays = 0;
 
-        when(recordings.findByTenantIdAndId(tenantId, recordingId)).thenReturn(Optional.of(recording));
-        when(policies.findById(tenantId)).thenReturn(Optional.of(policy));
+        lenient().when(recordings.findByTenantIdAndId(tenantId, recordingId)).thenReturn(Optional.of(recording));
+        lenient().when(policies.findById(tenantId)).thenReturn(Optional.of(policy));
         lenient().when(assets.findAllByTenantIdAndRecordingId(tenantId, recordingId)).thenReturn(List.of(master, thumbnail));
         lenient().when(adapters.require(StorageProviderType.LOCAL)).thenReturn(localStorage);
     }
@@ -153,7 +153,7 @@ class RecordingPurgeLifecycleTest {
 
     @Test
     void providerFailureLeavesRecordingAndAssetMetadataEligibleForRetry() throws Exception {
-        doThrow(new IOException("provider unavailable")).when(localStorage).delete("thumbnail-locator");
+        lenient().doThrow(new IOException("provider unavailable")).when(localStorage).delete("thumbnail-locator");
 
         service.purgeDue(recording);
 
