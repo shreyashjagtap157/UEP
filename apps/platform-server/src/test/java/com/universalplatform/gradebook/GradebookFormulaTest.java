@@ -72,18 +72,24 @@ class GradebookAuthorizationTest {
   when(memberships.current()).thenReturn(new MembershipDirectory.MembershipReference(viewer,UUID.randomUUID(),"viewer","viewer@example.invalid","Viewer",null,MembershipStatus.ACTIVE));
   when(enrollment.requireBatch(batch)).thenReturn(new EnrollmentDirectory.BatchReference(batch,null,null,null,branch,"B-1","Batch",null,null,null));
   lenient().when(auth.currentScope(PermissionKey.GRADEBOOK_VIEW)).thenReturn(new AuthorizationService.AccessScope(false,Set.of()));
+  lenient().lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.STUDENT)).thenReturn(false);
+  lenient().lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.GUARDIAN)).thenReturn(false);
+  lenient().lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.ORGANIZATION_OWNER)).thenReturn(false);
+  lenient().lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.ORGANIZATION_ADMINISTRATOR)).thenReturn(false);
+  lenient().lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.ACADEMIC_ADMINISTRATOR)).thenReturn(false);
+  lenient().lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.EXAM_CONTROLLER)).thenReturn(false);
   lenient().when(assignments.gradebookAssignments(batch,learner)).thenReturn(List.of());
  }
  @Test void studentCannotReadAnotherLearnersGradebook(){
   when(enrollment.activeBatchIdsForMembership(learner)).thenReturn(Set.of(batch));
-  when(memberships.hasSystemRole(viewer,SystemRoleKey.STUDENT)).thenReturn(true);
+  lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.STUDENT)).thenReturn(true);
   SecurityException ex=assertThrows(SecurityException.class,()->service.learner(batch,learner));
   assertEquals("Students may only view their own gradebook",ex.getMessage());
   verify(assignments,never()).gradebookAssignments(batch,learner);
  }
  @Test void guardianCannotReadAnotherLearnersGradebookWithoutVerifiedRelationship(){
   when(enrollment.activeBatchIdsForMembership(learner)).thenReturn(Set.of(batch));
-  when(memberships.hasSystemRole(viewer,SystemRoleKey.GUARDIAN)).thenReturn(true);
+  lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.GUARDIAN)).thenReturn(true);
   SecurityException ex=assertThrows(SecurityException.class,()->service.learner(batch,learner));
   assertEquals("Guardian gradebook access requires a verified learner relationship",ex.getMessage());
   verify(assignments,never()).gradebookAssignments(batch,learner);
@@ -103,7 +109,7 @@ class GradebookAuthorizationTest {
  }
  @Test void academicAdministratorCanReadLearnerAcrossBatches(){
   when(enrollment.activeBatchIdsForMembership(learner)).thenReturn(Set.of(batch));
-  when(memberships.hasSystemRole(viewer,SystemRoleKey.ACADEMIC_ADMINISTRATOR)).thenReturn(true);
+  lenient().when(memberships.hasSystemRole(viewer,SystemRoleKey.ACADEMIC_ADMINISTRATOR)).thenReturn(true);
   assertEquals(learner,service.learner(batch,learner).membershipId());
   verify(assignments).gradebookAssignments(batch,learner);
  }
