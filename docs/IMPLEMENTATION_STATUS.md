@@ -45,6 +45,7 @@ Production qualification still requires production-like load/capacity evidence, 
 - Question-bank catalog and version reads now require `ASSESSMENTS_MANAGE`; non-manager UI sessions do not fetch or render the question-bank catalog. Regression tests cover denied reads before repository access.
 - Assignment draft saves now share the same published-status and active-batch membership guard as final submissions, preventing drafts against unpublished or unrelated assignments. Learner catalogs expose published and closed assignments but hide draft and archived work, using database-side pagination. Regression tests cover denied and permitted draft paths plus the catalog-state filter.
 - Answer-revision decisions now apply the same review/batch-scope guard as review resolution, with regression tests for an out-of-scope reviewer and a reviewer sharing the learner's batch.
+- Gradebook learner reads now validate the requesting user's scope: Students can view only their own gradebook, staff need the target's active batch or a branch-scoped grant, and authorized academic administrators retain tenant academic access. Guardian cross-learner gradebook reads fail closed because the backend currently has no persisted relationship model to verify; tests cover the denied and permitted paths.
 - `scripts/qualify-0.15.py` now requires regression coverage for recording batch scope, assessment visibility, Student/Guardian permissions, and question-bank authorization.
 
 ## Current gradebook capability
