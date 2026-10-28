@@ -150,6 +150,14 @@ for required in [
 role_access_test = text('apps/platform-server/src/test/java/com/universalplatform/identity/DefaultRoleSeederPermissionTest.java')
 if 'studentSystemRoleIncludesAssessmentTakingPermission' not in role_access_test:
     errors.append('missing Student/Guardian assessment permission regression test')
+role_permission_migration = ROOT / 'apps/platform-server/src/main/resources/db/migration/V039__student_assessment_take_guardian_read_only.sql'
+if not role_permission_migration.exists():
+    errors.append('missing data migration for existing Student/Guardian permission rows')
+else:
+    migration_text = role_permission_migration.read_text(encoding='utf-8')
+    for required in ["rd.system_key = 'STUDENT'", "SELECT rd.id, 'ASSESSMENTS_TAKE'", "rd.system_key = 'GUARDIAN'", "'ASSESSMENTS_TAKE'", "'ASSIGNMENTS_TAKE'", "'REVIEW_SUBMIT'", "'LIVE_CLASS_CHAT'"]:
+        if required not in migration_text:
+            errors.append(f'Student/Guardian permission migration is missing: {required}')
 
 question_bank = text('apps/platform-server/src/main/java/com/universalplatform/questionbank/QuestionBankService.java')
 question_bank_list_start = question_bank.find('public PageResult<QuestionView> list(')
