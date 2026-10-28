@@ -62,6 +62,12 @@ class DefaultRoleSeeder {
                 PermissionKey.GRADEBOOK_VIEW, PermissionKey.REVIEW_VIEW, PermissionKey.REVIEW_SUBMIT, PermissionKey.LEARNING_OUTCOMES_VIEW, PermissionKey.CREDENTIALS_VIEW,
                 PermissionKey.CREDENTIALS_VERIFY, PermissionKey.MENTORING_VIEW, PermissionKey.SURVEYS_VIEW, PermissionKey.FEEDBACK_VIEW, PermissionKey.LIVE_CLASS_VIEW,
                 PermissionKey.LIVE_CLASS_CHAT, PermissionKey.PRESENCE_VIEW, PermissionKey.RECORDINGS_VIEW);
+        Set<PermissionKey> guardian = java.util.EnumSet.of(
+                PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW, PermissionKey.SCHEDULE_VIEW,
+                PermissionKey.ANNOUNCEMENTS_VIEW, PermissionKey.CONTENT_VIEW, PermissionKey.ASSESSMENTS_VIEW, PermissionKey.ASSIGNMENTS_VIEW,
+                PermissionKey.GRADEBOOK_VIEW, PermissionKey.REVIEW_VIEW, PermissionKey.LEARNING_OUTCOMES_VIEW, PermissionKey.CREDENTIALS_VIEW,
+                PermissionKey.CREDENTIALS_VERIFY, PermissionKey.MENTORING_VIEW, PermissionKey.SURVEYS_VIEW, PermissionKey.FEEDBACK_VIEW,
+                PermissionKey.LIVE_CLASS_VIEW, PermissionKey.PRESENCE_VIEW, PermissionKey.RECORDINGS_VIEW);
         Set<PermissionKey> support = java.util.EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.USERS_VIEW, PermissionKey.ROLES_VIEW, PermissionKey.SESSIONS_VIEW,
                 PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW, PermissionKey.SCHEDULE_VIEW, PermissionKey.ANNOUNCEMENTS_VIEW, PermissionKey.CONTENT_VIEW,
@@ -94,7 +100,7 @@ class DefaultRoleSeeder {
         map.put(SystemRoleKey.TEACHING_ASSISTANT, role("Teaching Assistant", "Teaching assistant identity with academic catalog visibility.", teacher));
         map.put(SystemRoleKey.MENTOR, role("Mentor", "Mentor identity with academic catalog visibility.", teacher));
         map.put(SystemRoleKey.STUDENT, role("Student", "Learner identity with academic catalog visibility and self-scoped enrollment access.", learner));
-        map.put(SystemRoleKey.GUARDIAN, role("Guardian", "Guardian identity with academic catalog visibility; learner data remains relationship-scoped.", learner));
+        map.put(SystemRoleKey.GUARDIAN, role("Guardian", "Guardian identity with read-only academic visibility; learner data remains relationship-scoped.", guardian));
         map.put(SystemRoleKey.SUPPORT_OPERATOR, role("Support Operator", "Tenant support visibility without academic mutation privileges.", support));
         map.put(SystemRoleKey.AUDITOR, role("Auditor", "Read-only governance visibility across identity and academic records.", auditor));
         return Map.copyOf(map);
