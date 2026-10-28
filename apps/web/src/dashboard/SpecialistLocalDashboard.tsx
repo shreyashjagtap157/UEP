@@ -3,6 +3,7 @@ import {
   activeUserForProfile,
   activityForProfile,
   availableCourseCountForProfile,
+  linkedLearnerProgressForProfile,
   advanceDemoProgress,
   courseFor,
   createDemoProduct,
@@ -401,12 +402,11 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
     { title: 'Graded records', status: String(submissions.filter(item => item.status === 'Graded').length), detail: 'Submitted work already graded' },
   ]
   if (profile.role === 'mentor') {
-    const mentee = state.users.find(item => item.id === 'student-asha' && item.status === 'Active')
-    const completedProgress = mentee ? mentee.courseIds.filter(courseId => progressFor(state, mentee.id, courseId) >= 100).length : 0
+    const mentorProgress = linkedLearnerProgressForProfile(state, profile)
     return [
-      { title: 'Linked learner', status: mentee?.name ?? 'Not linked', detail: 'Explicit seeded mentorship relationship' },
-      { title: 'Enrolled courses', status: String(mentee?.courseIds.length ?? 0), detail: 'Courses on the linked learner record' },
-      { title: 'Completed progress', status: String(completedProgress), detail: 'Courses at 100% recorded progress' },
+      { title: 'Linked learner', status: mentorProgress.learner?.name ?? 'Not linked', detail: 'Learner resolved through the active mentorship relationship' },
+      { title: 'Enrolled courses', status: String(mentorProgress.courses.length), detail: 'Published courses visible in this mentorship scope' },
+      { title: 'Completed progress', status: String(mentorProgress.completedCourses), detail: 'Visible published courses at 100% recorded progress' },
     ]
   }
   if (profile.role === 'support') return [
