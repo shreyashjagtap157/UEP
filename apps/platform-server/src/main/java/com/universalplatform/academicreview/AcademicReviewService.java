@@ -208,6 +208,7 @@ public class AcademicReviewService {
         var r = answerRevisions.findByTenantIdAndId(tid, revisionId)
                 .orElseThrow(() -> new IllegalArgumentException("Answer revision not found"));
         var review = require(tid, r.reviewCaseId());
+        requireReviewScope(tid, review);
         if (review.status() == ReviewStatus.RESOLVED || review.status() == ReviewStatus.REJECTED
                 || review.status() == ReviewStatus.WITHDRAWN)
             throw new IllegalStateException("Closed review cannot change revisions");
