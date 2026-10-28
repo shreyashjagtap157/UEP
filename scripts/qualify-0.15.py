@@ -610,6 +610,21 @@ for required in ['legacy browser state migrates to v4 with finance, support and 
     if required not in local_demo_tests:
         errors.append(f'missing finance/support regression test: {required}')
 
+# Every answer-revision decision must use the same scope boundary as review resolution.
+review_service = text('apps/platform-server/src/main/java/com/universalplatform/academicreview/AcademicReviewService.java')
+decision_start = review_service.find('public AnswerRevisionView decideRevision(')
+decision_end = review_service.find('    @Transactional(readOnly = true)', decision_start + 1)
+decision_method = review_service[decision_start:decision_end] if decision_start >= 0 and decision_end > decision_start else ''
+if 'requireReviewScope(tid, review);' not in decision_method:
+    errors.append('answer-revision decisions must enforce review batch scope')
+review_access_test = text('apps/platform-server/src/test/java/com/universalplatform/academicreview/AcademicReviewAuthorizationTest.java')
+for required in [
+    'reviewerCannotDecideRevisionForLearnerOutsideAssignedBatches',
+    'reviewerCanDecideRevisionWhenLearnerSharesAnAssignedBatch',
+]:
+    if required not in review_access_test:
+        errors.append(f'missing answer-revision scope regression test: {required}')
+
 # Draft and final submission paths must enforce identical published-assignment and active-batch eligibility.
 assignment_service = text('apps/platform-server/src/main/java/com/universalplatform/assignment/AssignmentService.java')
 if assignment_service.count('requirePublishedAndAssignedToLearner(a, tid, mid);') < 2:
