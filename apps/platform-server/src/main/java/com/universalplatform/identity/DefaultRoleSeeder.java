@@ -58,7 +58,7 @@ class DefaultRoleSeeder {
                 PermissionKey.PRESENCE_VIEW, PermissionKey.RECORDINGS_VIEW, PermissionKey.RECORDINGS_MANAGE);
         Set<PermissionKey> learner = java.util.EnumSet.of(
                 PermissionKey.ORGANIZATION_VIEW, PermissionKey.BRANCHES_VIEW, PermissionKey.ACADEMICS_VIEW, PermissionKey.CURRICULUM_VIEW, PermissionKey.SCHEDULE_VIEW,
-                PermissionKey.ANNOUNCEMENTS_VIEW, PermissionKey.CONTENT_VIEW, PermissionKey.ASSESSMENTS_VIEW, PermissionKey.ASSIGNMENTS_VIEW, PermissionKey.ASSIGNMENTS_TAKE,
+                PermissionKey.ANNOUNCEMENTS_VIEW, PermissionKey.CONTENT_VIEW, PermissionKey.ASSESSMENTS_VIEW, PermissionKey.ASSESSMENTS_TAKE, PermissionKey.ASSIGNMENTS_VIEW, PermissionKey.ASSIGNMENTS_TAKE,
                 PermissionKey.GRADEBOOK_VIEW, PermissionKey.REVIEW_VIEW, PermissionKey.REVIEW_SUBMIT, PermissionKey.LEARNING_OUTCOMES_VIEW, PermissionKey.CREDENTIALS_VIEW,
                 PermissionKey.CREDENTIALS_VERIFY, PermissionKey.MENTORING_VIEW, PermissionKey.SURVEYS_VIEW, PermissionKey.FEEDBACK_VIEW, PermissionKey.LIVE_CLASS_VIEW,
                 PermissionKey.LIVE_CLASS_CHAT, PermissionKey.PRESENCE_VIEW, PermissionKey.RECORDINGS_VIEW);
