@@ -153,17 +153,12 @@ class AssignmentService implements AssignmentDirectory {
     @Transactional
     SubmissionView submit(UUID id, String textBody, UUID resourceId) {
         auth.require(PermissionKey.ASSIGNMENTS_TAKE);
-        Assignment a = require(id);
-        if (a.status() != AssignmentStatus.PUBLISHED)
-            throw new IllegalStateException("Assignment is not accepting submissions");
-        if (resourceId != null)
-            content.requireReadableResource(resourceId);
         UUID tid = tenant.requireTenantId();
         UUID mid = memberships.current().membershipId();
-        boolean linked = links.findAllByTenantIdAndAssignmentId(tid, id).stream()
-                .anyMatch(l -> enrollment.activeLearnerMembershipIdsForBatch(l.batchId()).contains(mid));
-        if (!linked)
-            throw new SecurityException("Assignment is not assigned to this learner");
+        Assignment a = require(id);
+        requirePublishedAndAssignedToLearner(a, tid, mid);
+        if (resourceId != null)
+            content.requireReadableResource(resourceId);
         // Promote an existing DRAFT row into the submitted attempt so drafts never shadow graded work and
         // the attempt number stays contiguous; otherwise create a fresh next-attempt submission.
         AssignmentSubmission draft = submissions
@@ -200,6 +195,7 @@ class AssignmentService implements AssignmentDirectory {
         UUID tid = tenant.requireTenantId();
         UUID mid = memberships.current().membershipId();
         Assignment a = require(id);
+        requirePublishedAndAssignedToLearner(a, tid, mid);
         if (resourceId != null)
             content.requireReadableResource(resourceId);
         AssignmentSubmission latest = submissions
@@ -311,6 +307,17 @@ class AssignmentService implements AssignmentDirectory {
         enrollment.requireBatch(batchId);
         return links.findAllByTenantIdAndBatchId(tid, batchId).stream()
                 .map(l -> gradebookAssignment(l.assignmentId(), batchId, membershipId)).toList();
+    }
+
+    private void requirePublishedAndAssignedToLearner(Assignment assignment, UUID tenantId, UUID membershipId) {
+        if (assignment.status() != AssignmentStatus.PUBLISHED) {
+            throw new IllegalStateException("Assignment is not accepting submissions");
+        }
+        boolean linked = links.findAllByTenantIdAndAssignmentId(tenantId, assignment.id()).stream()
+                .anyMatch(link -> enrollment.activeLearnerMembershipIdsForBatch(link.batchId()).contains(membershipId));
+        if (!linked) {
+            throw new SecurityException("Assignment is not assigned to this learner");
+        }
     }
 
     private Assignment require(UUID id) {
