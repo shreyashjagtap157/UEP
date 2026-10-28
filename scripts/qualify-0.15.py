@@ -150,7 +150,7 @@ for required in [
 role_access_test = text('apps/platform-server/src/test/java/com/universalplatform/identity/DefaultRoleSeederPermissionTest.java')
 if 'studentSystemRoleIncludesAssessmentTakingPermission' not in role_access_test:
     errors.append('missing Student/Guardian assessment permission regression test')
-role_permission_migration = ROOT / 'apps/platform-server/src/main/resources/db/migration/V040__student_assessment_take_guardian_read_only.sql'
+role_permission_migration = ROOT / 'apps/platform-server/src/main/resources/db/migration/V044__student_assessment_take_guardian_read_only.sql'
 if not role_permission_migration.exists():
     errors.append('missing data migration for existing Student/Guardian permission rows')
 else:
