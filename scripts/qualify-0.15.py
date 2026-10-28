@@ -610,6 +610,28 @@ for required in ['legacy browser state migrates to v4 with finance, support and 
     if required not in local_demo_tests:
         errors.append(f'missing finance/support regression test: {required}')
 
+# Gradebook reads must scope the learner target and the requesting identity, not merely verify target enrollment.
+gradebook_service = text('apps/platform-server/src/main/java/com/universalplatform/gradebook/GradebookService.java')
+for required in [
+    'auth.require(PermissionKey.GRADEBOOK_VIEW,batch.branchId())',
+    'Students may only view their own gradebook',
+    'Guardian gradebook access requires a verified learner relationship',
+    'enrollment.activeBatchIdsForMembership(viewerMembershipId).contains(batch.id())',
+]:
+    if required not in gradebook_service:
+        errors.append(f'gradebook authorization is missing: {required}')
+gradebook_tests = text('apps/platform-server/src/test/java/com/universalplatform/gradebook/GradebookFormulaTest.java')
+for required in [
+    'studentCannotReadAnotherLearnersGradebook',
+    'guardianCannotReadAnotherLearnersGradebookWithoutVerifiedRelationship',
+    'staffOutsideLearnerBatchCannotReadGradebook',
+    'staffCanReadLearnerWithinTheirAssignedBatchScope',
+    'academicAdministratorCanReadLearnerAcrossBatches',
+    'branchScopedReaderCanReadWithinTheirAssignedBranch',
+]:
+    if required not in gradebook_tests:
+        errors.append(f'missing gradebook access regression test: {required}')
+
 # Every answer-revision decision must use the same scope boundary as review resolution.
 review_service = text('apps/platform-server/src/main/java/com/universalplatform/academicreview/AcademicReviewService.java')
 decision_start = review_service.find('public AnswerRevisionView decideRevision(')
