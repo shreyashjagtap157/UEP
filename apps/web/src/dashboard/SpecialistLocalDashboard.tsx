@@ -162,9 +162,7 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
       setNotice('No change was made; the record may be outside this role’s allowed scope.')
       return
     }
-    saveDemoState(next)
-    setState(next)
-    setNotice('Grade saved to shared demo state.')
+    commitState(next, 'Grade saved to shared demo state.')
   }
 
   function updateSupportCase(caseId: string, status: 'In progress' | 'Resolved') {
@@ -174,9 +172,15 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
       setNotice('No change was made; this case may be outside the support role’s allowed scope.')
       return
     }
-    saveDemoState(next)
+    commitState(next, `Support case updated: ${caseId} · ${status}.`)
+  }
+
+  function commitState(next: DemoState, successMessage: string) {
+    const persisted = saveDemoState(next)
     setState(next)
-    setNotice(`Support case updated: ${caseId} · ${status}.`)
+    setNotice(persisted
+      ? successMessage
+      : 'Change is visible in this tab only. Browser storage is unavailable, so reloading may discard it.')
   }
 
   function changeState(next: DemoState, successMessage: string, previousState?: DemoState) {
@@ -184,9 +188,7 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
       setNotice('No change was made; this action may be outside the signed-in role’s allowed scope.')
       return
     }
-    saveDemoState(next)
-    setState(next)
-    setNotice(successMessage)
+    commitState(next, successMessage)
   }
 
   function submitAssignment(submissionId: string) {
