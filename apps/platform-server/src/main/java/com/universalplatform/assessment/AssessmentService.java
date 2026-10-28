@@ -12,16 +12,52 @@ import com.universalplatform.questionbank.QuestionBankDirectory;
 import com.universalplatform.security.ActorContext;
 import com.universalplatform.security.TenantContext;
 import java.time.Clock; import java.time.Instant; import java.util.*;
-import org.springframework.data.domain.PageRequest; import org.springframework.data.domain.Sort; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page; import org.springframework.data.domain.PageRequest; import org.springframework.data.domain.Sort; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AssessmentService implements AssessmentReadDirectory {
  private final TenantContext tenantContext; private final ActorContext actorContext; private final AuthorizationService auth; private final MembershipDirectory memberships; private final EnrollmentDirectory enrollment; private final QuestionBankDirectory questionBank; private final AssessmentRepository assessments; private final AssessmentVersionRepository versions; private final AssessmentQuestionRepository questions; private final AssessmentBatchRepository batches; private final AttemptRepository attempts; private final AnswerRepository answers; private final AuditService audit; private final AttemptExpiryService expiry; private final ObjectMapper mapper; private final Clock clock=Clock.systemUTC();
  AssessmentService(TenantContext tenantContext,ActorContext actorContext,AuthorizationService auth,MembershipDirectory memberships,EnrollmentDirectory enrollment,QuestionBankDirectory questionBank,AssessmentRepository assessments,AssessmentVersionRepository versions,AssessmentQuestionRepository questions,AssessmentBatchRepository batches,AttemptRepository attempts,AnswerRepository answers,AuditService audit,AttemptExpiryService expiry,ObjectMapper mapper){this.tenantContext=tenantContext;this.actorContext=actorContext;this.auth=auth;this.memberships=memberships;this.enrollment=enrollment;this.questionBank=questionBank;this.assessments=assessments;this.versions=versions;this.questions=questions;this.batches=batches;this.attempts=attempts;this.answers=answers;this.audit=audit;this.expiry=expiry;this.mapper=mapper;}
- @Transactional(readOnly=true) public PageResult<AssessmentView> list(int page,int size){auth.require(PermissionKey.ASSESSMENTS_VIEW);var p=assessments.findAllByTenantId(tenantContext.requireTenantId(),PageRequest.of(Math.max(0,page),Math.min(Math.max(1,size),100),Sort.by(Sort.Direction.DESC,"createdAt","id")));return new PageResult<>(p.getContent().stream().map(this::view).toList(),p.getNumber(),p.getSize(),p.getTotalElements(),p.getTotalPages());}
+ @Transactional(readOnly = true)
+ public PageResult<AssessmentView> list(int page, int size) {
+  auth.require(PermissionKey.ASSESSMENTS_VIEW);
+  UUID tid = tenantContext.requireTenantId();
+  PageRequest pageable = PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 100),
+          Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+  Page<Assessment> result;
+  if (auth.has(PermissionKey.ASSESSMENTS_MANAGE)) {
+   result = assessments.findAllByTenantId(tid, pageable);
+  } else {
+   Set<UUID> batchIds = enrollment.activeBatchIdsForMembership(memberships.current().membershipId());
+   Set<UUID> assignedVersionIds = assignedVersionIds(tid, batchIds);
+   if (assignedVersionIds.isEmpty()) {
+    result = Page.empty(pageable);
+   } else {
+    Set<UUID> assignedAssessmentIds = versions.findAllByTenantIdAndIdIn(tid, assignedVersionIds).stream()
+            .map(AssessmentVersion::assessmentId).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    result = assignedAssessmentIds.isEmpty() ? Page.empty(pageable)
+            : assessments.findAllByTenantIdAndStatusAndIdIn(tid, AssessmentStatus.PUBLISHED, assignedAssessmentIds, pageable);
+   }
+  }
+  return new PageResult<>(result.getContent().stream().map(this::view).toList(), result.getNumber(),
+          result.getSize(), result.getTotalElements(), result.getTotalPages());
+ }
  @Transactional public AssessmentView create(String title){auth.require(PermissionKey.ASSESSMENTS_MANAGE);UUID tid=tenantContext.requireTenantId();Instant now=clock.instant();Assessment a=assessments.save(new Assessment(UUID.randomUUID(),tid,title.trim(),now));audit.record(tid,actorContext.requireSubject(),"ASSESSMENT_CREATED","assessment",a.id().toString());return view(a);}
  @Transactional public AssessmentVersionView createVersion(UUID assessmentId,VersionCommand c){auth.require(PermissionKey.ASSESSMENTS_MANAGE);UUID tid=tenantContext.requireTenantId();Assessment a=requireAssessment(tid,assessmentId);if(a.status()==AssessmentStatus.PUBLISHED)throw new IllegalStateException("Published assessments require a new assessment version before editing");validateWindow(c.availableFrom(),c.availableUntil());if(c.durationSeconds()!=null&&c.durationSeconds()<30)throw new IllegalArgumentException("Duration must be at least 30 seconds");if(c.maxAttempts()<1)throw new IllegalArgumentException("At least one attempt is required");if(c.totalMarks()<1||c.passMarks()<0||c.passMarks()>c.totalMarks())throw new IllegalArgumentException("Invalid marks configuration");int next=versions.findTopByTenantIdAndAssessmentIdOrderByVersionNumberDesc(tid,assessmentId).map(v->v.versionNumber()+1).orElse(1);var v=versions.save(new AssessmentVersion(UUID.randomUUID(),tid,assessmentId,next,c.durationSeconds(),c.maxAttempts(),c.totalMarks(),c.passMarks(),c.shuffleQuestions(),c.allowBacktracking(),c.availableFrom(),c.availableUntil(),c.settingsJson(),clock.instant()));audit.record(tid,actorContext.requireSubject(),"ASSESSMENT_VERSION_CREATED","assessment",assessmentId.toString());return versionView(v);}
- @Transactional(readOnly=true) public List<AssessmentVersionView> versions(UUID assessmentId){auth.require(PermissionKey.ASSESSMENTS_VIEW);UUID tid=tenantContext.requireTenantId();requireAssessment(tid,assessmentId);return versions.findAllByTenantIdAndAssessmentIdOrderByVersionNumberDesc(tid,assessmentId).stream().map(this::versionView).toList();}
+ @Transactional(readOnly = true)
+ public List<AssessmentVersionView> versions(UUID assessmentId) {
+  auth.require(PermissionKey.ASSESSMENTS_VIEW);
+  UUID tid = tenantContext.requireTenantId();
+  Assessment assessment = requireAssessment(tid, assessmentId);
+  List<AssessmentVersion> found = versions.findAllByTenantIdAndAssessmentIdOrderByVersionNumberDesc(tid, assessmentId);
+  if (auth.has(PermissionKey.ASSESSMENTS_MANAGE)) return found.stream().map(this::versionView).toList();
+  if (assessment.status() != AssessmentStatus.PUBLISHED) throw new IllegalArgumentException("Assessment not found");
+  Set<UUID> batchIds = enrollment.activeBatchIdsForMembership(memberships.current().membershipId());
+  Set<UUID> assignedVersionIds = assignedVersionIds(tid, batchIds);
+  List<AssessmentVersion> visible = found.stream().filter(version -> assignedVersionIds.contains(version.id())).toList();
+  if (visible.isEmpty()) throw new IllegalArgumentException("Assessment not found");
+  return visible.stream().map(this::versionView).toList();
+ }
  @Transactional(readOnly=true)
  public AssessmentPacket packet(UUID assessmentVersionId) {
   auth.require(PermissionKey.ASSESSMENTS_VIEW);
@@ -79,6 +115,12 @@ public class AssessmentService implements AssessmentReadDirectory {
  }
  @Transactional public AttemptView submit(UUID attemptId){auth.require(PermissionKey.ASSESSMENTS_TAKE);UUID tid=tenantContext.requireTenantId();Attempt a=requireAttempt(tid,attemptId);ensureAttemptOpen(tid,a);Instant now=clock.instant();a.submit(now,now.isAfter(a.expiresAt())?AttemptStatus.EXPIRED:AttemptStatus.SUBMITTED);audit.record(tid,actorContext.requireSubject(),"ASSESSMENT_ATTEMPT_SUBMITTED","attempt",attemptId.toString());var v=versions.findByTenantIdAndId(tid,a.assessmentVersionId()).orElseThrow();return attemptView(a,v);}
  @Transactional(readOnly=true) public AttemptView getAttempt(UUID attemptId){auth.require(PermissionKey.ASSESSMENTS_TAKE);UUID tid=tenantContext.requireTenantId();Attempt a=requireAttempt(tid,attemptId);var v=versions.findByTenantIdAndId(tid,a.assessmentVersionId()).orElseThrow();return attemptView(a,v);}
+ private Set<UUID> assignedVersionIds(UUID tenantId, Set<UUID> batchIds) {
+  if (batchIds == null || batchIds.isEmpty()) return Set.of();
+  return batches.findAllByTenantIdAndBatchIdIn(tenantId, batchIds).stream()
+          .map(AssessmentBatch::assessmentVersionId)
+          .collect(java.util.stream.Collectors.toUnmodifiableSet());
+ }
  private Assessment requireAssessment(UUID t,UUID id){return assessments.findByTenantIdAndId(t,id).orElseThrow(()->new IllegalArgumentException("Assessment not found"));} private Attempt requireAttempt(UUID t,UUID id){Attempt a=attempts.findByTenantIdAndId(t,id).orElseThrow(()->new IllegalArgumentException("Attempt not found"));if(!a.membershipId().equals(memberships.current().membershipId())&&!auth.has(PermissionKey.ASSESSMENTS_MANAGE))throw new SecurityException("Attempt is not visible to the current user");return a;}
  private void ensureAttemptOpen(UUID tenantId, Attempt a) {
   Instant now=clock.instant();
