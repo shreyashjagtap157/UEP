@@ -1,18 +1,18 @@
 # Implementation Status
 
-## Current verified state — 2026-10-26
+## Current verified state — 2026-10-28
 
-`0.15.0.0-SNAPSHOT` remains the development version. The latest verified `main` commit is `5e339353ce6c068c0921cae6a811c62bf8aaa837`. GitHub Actions run `40222362797` is fully green across web, backend, repository-policy/qualification, and vulnerability-scan jobs.
+`0.15.0.0-SNAPSHOT` remains the development version. The latest feature/dependency merge is `8290fc16f9d18d3f3350f22934be5b1ee33a8ccc` (PR #22, LiveKit client update). The latest full CI merge-candidate run is GitHub Actions run `40686109376` / run #460, which completed successfully across web, backend, repository-policy/qualification, and vulnerability-scan jobs after the recording-access changes and regression tests were added.
 
 ### Verified CI evidence
 
-- Backend Maven verification passed.
-- Packaged backend started against a fresh database and completed health smoke successfully.
+- Backend Maven verification passed, including application-context startup and packaged-server smoke coverage in the CI backend job.
 - Web dependency installation, lint, demo workflow tests, and production build passed.
 - Repository-policy qualification passed, including backup/restore safety guards, load-smoke percentile/latency checks, and the 0.15 qualification harness.
-- Java SBOM generation and OSV dependency scanning passed.
+- Java dependency SBOM generation and OSV dependency scanning passed.
+- Dependabot updates to `@types/node` 26.6.5 (PR #25) and `livekit-client` 2.23.0 (PR #22) were merged only after their refreshed CI checks passed.
 
-This is strong repository-local qualification evidence. It is **not** by itself Production Web GA evidence; production-scale capacity, external/provider qualification, accessibility, recovery, operational, interoperability, and native-client qualification remain separate requirements.
+Run #460 validated the PR merge candidate against the then-current `main` after the implementation changes below. It is repository CI evidence, not a claim that production deployment or local execution was performed here. This is strong repository-local qualification evidence, but it is **not** by itself Production Web GA evidence; production-scale capacity, external/provider qualification, accessibility, recovery, operational, interoperability, and native-client qualification remain separate requirements.
 
 ## Scope correction: no swarm-agent functionality
 
@@ -33,6 +33,13 @@ Implemented/qualified repository-local foundations include:
 - CI execution of the above gates.
 
 Production qualification still requires production-like load/capacity evidence, provider qualification, operational runbooks, failure injection, and recovery evidence where the relevant environment/provider is required.
+
+## Recent security and reliability fixes — 2026-10-28
+
+- The finance `MANUAL` payment provider is no longer `final`, allowing Spring Modulith's class-based observability proxy to be generated. This fixed the application-context failure observed in the earlier backend CI run; refreshed backend CI passed afterward.
+- Browser-demo course metrics now use the same published-catalog scope as role-specific course views. Mentor summaries resolve an active learner through the authorized mentor relationship and do not include draft-course progress.
+- Local-demo state writes now report storage failures, avoid broadcasting a change event for a failed write, retain the attempted state in the current tab, and retry persistence when storage recovers. The UI warns when a change is visible only in the current tab.
+- Recording detail, playback-token issuance, and stream opening now share a batch-scope authorization check. Members without `RECORDINGS_MANAGE` can access recordings only for their active batches; stream opening rechecks enrollment so a token issued before revocation is not sufficient afterward. Regression coverage was added for denied cross-batch access, permitted in-batch access, and revocation.
 
 ## Current gradebook capability
 
