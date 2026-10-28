@@ -46,7 +46,7 @@ export function AssessmentWorkspace({ me }: { me: CurrentIdentity }) {
   const [payload, setPayload] = useState('{"prompt":"","options":[{"id":"option-1","label":" "}]}')
   const [selectedVersion, setSelectedVersion] = useState<string>()
   const [activeAttemptId, setActiveAttemptId] = useState<string>()
-  const questions = useQuery({ queryKey: ['questions'], queryFn: fetchQuestions })
+  const questions = useQuery({ queryKey: ['questions'], queryFn: fetchQuestions, enabled: has(me, 'ASSESSMENTS_MANAGE') })
   const assessments = useQuery({
     queryKey: ['assessments'],
     queryFn: fetchAssessments,
@@ -97,7 +97,7 @@ export function AssessmentWorkspace({ me }: { me: CurrentIdentity }) {
       </section>
     </>}
 
-    <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Question bank</p><h3>Questions</h3></div><span className="count-badge">{questions.data?.totalElements ?? 0}</span></div>{questions.isPending ? <p className="muted">Loading…</p> : questions.isError ? <p className="error-text" role="alert">{questions.error.message}</p> : <div className="table-wrap"><table aria-label="Question bank"><thead><tr><th>Title</th><th>Type</th><th>Difficulty</th><th>Version</th><th>Status</th></tr></thead><tbody>{questions.data?.items.map(q => <tr key={q.id}><td><strong>{q.title}</strong><span>{q.latestVersion.language ?? '—'}</span></td><td>{q.latestVersion.type}</td><td>{q.latestVersion.difficulty}</td><td>{q.latestVersion.versionNumber}</td><td>{q.status}</td></tr>)}</tbody></table></div>}</section>
+    {canManage && <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Question bank</p><h3>Questions</h3></div><span className="count-badge">{questions.data?.totalElements ?? 0}</span></div>{questions.isPending ? <p className="muted">Loading…</p> : questions.isError ? <p className="error-text" role="alert">{questions.error.message}</p> : <div className="table-wrap"><table aria-label="Question bank"><thead><tr><th>Title</th><th>Type</th><th>Difficulty</th><th>Version</th><th>Status</th></tr></thead><tbody>{questions.data?.items.map(q => <tr key={q.id}><td><strong>{q.title}</strong><span>{q.latestVersion.language ?? '—'}</span></td><td>{q.latestVersion.type}</td><td>{q.latestVersion.difficulty}</td><td>{q.latestVersion.versionNumber}</td><td>{q.status}</td></tr>)}</tbody></table></div>}</section>}
 
     <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Assessments</p><h3>Examinations</h3></div><span className="count-badge">{assessments.data?.totalElements ?? 0}</span></div>
       {assessments.isPending ? <p className="muted">Loading…</p> : assessments.isError ? <p className="error-text" role="alert">{assessments.error.message}</p> : <div className="table-wrap"><table aria-label="Assessments"><thead><tr><th>Title</th><th>Status</th><th>Versions</th><th>Action</th></tr></thead><tbody>{assessments.data?.items.map(a => <AssessmentRow key={a.id} assessmentId={a.id} title={a.title} status={a.status} version={a.version} selectedVersion={selectedVersion} onSelectVersion={setSelectedVersion} canTake={canTake} canManage={canManage} />)}</tbody></table></div>}
