@@ -114,7 +114,7 @@ class RecordingService {
     }
 
     @Transactional(readOnly = true)
-    RecordingView get(UUID id) { auth.require(PermissionKey.RECORDINGS_VIEW); return view(require(id)); }
+    RecordingView get(UUID id) { return view(requireVisibleRecording(id)); }
 
     @Transactional
     void stop(UUID id) {
@@ -128,8 +128,7 @@ class RecordingService {
 
     @Transactional
     PlaybackView playback(UUID id) {
-        auth.require(PermissionKey.RECORDINGS_VIEW);
-        Recording r = require(id);
+        Recording r = requireVisibleRecording(id);
         if (!(r.status() == RecordingProcessingStatus.READY || r.status() == RecordingProcessingStatus.ARCHIVED))
             throw new IllegalStateException("Recording is not ready for playback");
         UUID mid = memberships.current().membershipId();
@@ -140,11 +139,10 @@ class RecordingService {
 
     @Transactional(readOnly = true)
     InputStream openStream(UUID id, String token) throws java.io.IOException {
-        Recording r = require(id);
+        Recording r = requireVisibleRecording(id);
         if (!(r.status() == RecordingProcessingStatus.READY || r.status() == RecordingProcessingStatus.ARCHIVED)) throw new IllegalStateException("Recording is not ready");
         PlaybackToken parsed = parseToken(token);
         if (!parsed.recordingId().equals(id) || !parsed.membershipId().equals(memberships.current().membershipId()) || parsed.expiresAt() < clock.instant().toEpochMilli()) throw new SecurityException("Playback token is invalid or expired");
-        if (!auth.has(PermissionKey.RECORDINGS_VIEW)) throw new SecurityException("Playback access denied");
         return adapters.require(r.storageProvider()).open(r.storageLocator());
     }
 
@@ -370,6 +368,22 @@ class RecordingService {
             List<NotificationPublisher.Recipient> target = recipients.stream().limit(5000).map(id -> new NotificationPublisher.Recipient(id, null)).toList();
             notifications.enqueue(new NotificationPublisher.NotificationRequest(r.tenantId(), NotificationEventType.RECORDING_READY, "recording", r.id(), "Class recording ready", "The recording is ready for playback.", com.universalplatform.notification.NotificationPriority.NORMAL, "recording", r.id(), "recording-ready-" + r.id(), clock.instant(), target));
         } catch (Exception ignored) {}
+    }
+
+    private Recording requireVisibleRecording(UUID id) {
+        auth.require(PermissionKey.RECORDINGS_VIEW);
+        Recording recording = require(id);
+        // Match list() visibility: recording managers can inspect the tenant, while read-only
+        // members are limited to recordings attached to their currently active batches.
+        if (auth.has(PermissionKey.RECORDINGS_MANAGE)) return recording;
+        UUID membershipId = memberships.current().membershipId();
+        Set<UUID> activeBatchIds = enrollment.activeBatchIdsForMembership(membershipId);
+        UUID recordingBatchId = liveClasses.require(recording.liveClassId()).batchId();
+        if (!activeBatchIds.contains(recordingBatchId)) {
+            // Do not disclose whether another member's recording exists in this tenant.
+            throw new IllegalArgumentException("Recording not found");
+        }
+        return recording;
     }
 
     private Recording require(UUID id) { return recordings.findByTenantIdAndId(tenants.requireTenantId(), id).orElseThrow(() -> new IllegalArgumentException("Recording not found")); }
