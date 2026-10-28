@@ -148,7 +148,3 @@ class AssignmentDraftAuthorizationTest {
                 100, 10000, NOW.plusSeconds(3600), NOW.minusSeconds(300));
     }
 }
-        return new Assignment(assignmentId, tenantId, "Scoped assignment", "Instructions", status,
-                100, 10000, NOW.plusSeconds(3600), NOW.minusSeconds(300));
-    }
-}
