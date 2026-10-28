@@ -3,6 +3,7 @@ package com.universalplatform.assignment;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -122,9 +123,9 @@ class AssignmentDraftAuthorizationTest {
                 assignmentLink(draftId), assignmentLink(publishedId), assignmentLink(closedId), assignmentLink(archivedId)));
         Assignment published = assignment(publishedId, AssignmentStatus.PUBLISHED);
         Assignment closed = assignment(closedId, AssignmentStatus.CLOSED);
-        when(assignments.findAllByTenantIdAndStatusInAndIdIn(tenantId,
-                List.of(AssignmentStatus.PUBLISHED, AssignmentStatus.CLOSED),
-                List.of(draftId, publishedId, closedId, archivedId), org.mockito.ArgumentMatchers.any(Pageable.class)))
+        when(assignments.findAllByTenantIdAndStatusInAndIdIn(eq(tenantId),
+                eq(List.of(AssignmentStatus.PUBLISHED, AssignmentStatus.CLOSED)),
+                eq(List.of(draftId, publishedId, closedId, archivedId)), org.mockito.ArgumentMatchers.any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(published, closed), PageRequest.of(0, 25), 2));
 
         AssignmentService.PageResult<AssignmentService.AssignmentView> result = service.list(0, 25);
