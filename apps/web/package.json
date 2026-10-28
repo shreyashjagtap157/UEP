@@ -15,7 +15,7 @@
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "keycloak-js": "26.2.4",
-    "livekit-client": "2.22.3"
+    "livekit-client": "2.23.0"
   },
   "devDependencies": {
     "@types/node": "26.6.5",
