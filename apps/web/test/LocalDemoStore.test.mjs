@@ -4,6 +4,7 @@ import { demoAccounts } from '../src/dashboard/localDemoAccounts.ts'
 import {
   DEMO_PROFILES,
   activityForProfile,
+  availableCourseCountForProfile,
   createDemoProduct,
   activeUserForProfile,
   attendanceForProfile,
@@ -276,6 +277,35 @@ test('learner and course catalog queries enforce active organization and relatio
   assert.deepEqual(coursesForProfile({ ...state, users: state.users.map(item => item.id === 'guardian-nina' ? { ...item, organization: 'East Valley Academy' } : item) }, profile('guardian')), [])
   assert.ok(!coursesForProfile(polluted, profile('client')).some(item => item.id === 'course-product-draft'))
   assert.deepEqual(coursesForProfile({ ...state, users: state.users.map(item => item.id === 'student-asha' ? { ...item, status: 'Suspended' } : item) }, profile('student')), [])
+})
+
+test('course-count metrics exclude unpublished courses outside the persona catalog', () => {
+  const state = resetDemoState()
+  const draftLearner = {
+    id: 'student-draft-only',
+    name: 'Uma Singh',
+    email: 'uma.draft@demo.uep',
+    role: 'Student',
+    status: 'Active',
+    organization: 'Northstar Learning Institute',
+    courseIds: ['course-product-draft'],
+  }
+  const draftStudent = { ...profile('student'), userId: draftLearner.id, name: draftLearner.name, email: draftLearner.email }
+  const studentState = { ...state, users: [...state.users, draftLearner] }
+  assert.equal(coursesForProfile(studentState, draftStudent).length, 0)
+  assert.equal(availableCourseCountForProfile(studentState, draftStudent), 0)
+
+  const client = profile('client')
+  const clientState = {
+    ...state,
+    users: state.users.map(user => user.role === 'Student' && user.organization === 'Northstar Learning Institute'
+      ? { ...user, courseIds: ['course-product-draft'] }
+      : user),
+  }
+  assert.equal(coursesForProfile(clientState, client).length, 0)
+  assert.equal(availableCourseCountForProfile(clientState, client), 0)
+  assert.equal(availableCourseCountForProfile(state, profile('student')), 3)
+  assert.equal(availableCourseCountForProfile(state, client), 3)
 })
 
 test('draft-course records are hidden from learner workflows and cannot be mutated', () => {
