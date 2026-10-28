@@ -148,6 +148,31 @@ test('unauthorized role, learner and course mutations are rejected', () => {
   assert.strictEqual(setDemoUserStatus(state, student.userId, 'Suspended', teacher), state)
 })
 
+test('storage failures are reported without publishing a stale-state change event', () => {
+  const state = resetDemoState()
+  const persistedBefore = localStorage.getItem('uep.local-demo-data.v4')
+  const originalSetItem = localStorage.setItem
+  let notifications = 0
+  const unsubscribe = subscribeDemoState(() => { notifications += 1 })
+  const next = {
+    ...state,
+    courseProgress: { ...state.courseProgress, 'student-asha:course-web': 79 },
+  }
+
+  try {
+    localStorage.setItem = () => { throw new Error('storage quota exceeded') }
+    assert.equal(saveDemoState(next), false)
+    assert.equal(localStorage.getItem('uep.local-demo-data.v4'), persistedBefore, 'failed write must leave persisted data untouched')
+    assert.equal(notifications, 0, 'failed write must not ask subscribers to reload stale persisted state')
+  } finally {
+    localStorage.setItem = originalSetItem
+    unsubscribe()
+  }
+
+  assert.equal(saveDemoState(next), true, 'storage recovery should allow state to be persisted again')
+  assert.equal(JSON.parse(localStorage.getItem('uep.local-demo-data.v4')).courseProgress['student-asha:course-web'], 79)
+})
+
 test('authorized attendance changes propagate through the shared persisted state', () => {
   const original = resetDemoState()
   const teacher = profile('teacher')
