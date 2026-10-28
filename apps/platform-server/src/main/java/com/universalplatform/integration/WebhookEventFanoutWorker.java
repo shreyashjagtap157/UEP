@@ -43,7 +43,7 @@ class WebhookEventFanoutWorker {
         this.batchSize = Math.max(1, Math.min(batchSize, 500));
     }
 
-    @Scheduled(fixedDelayString = "${platform.integrations.webhooks.fanout-poll-ms:1000}")
+    @Scheduled(initialDelayString = "${platform.integrations.webhooks.fanout-initial-delay-ms:0}", fixedDelayString = "${platform.integrations.webhooks.fanout-poll-ms:1000}")
     void poll() {
         Instant now = clock.instant();
         for (UUID id : outbox.findDueIds(now, PageRequest.of(0, batchSize))) {
