@@ -27,6 +27,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 @ExtendWith(MockitoExtension.class)
 class AssignmentDraftAuthorizationTest {
@@ -121,7 +124,8 @@ class AssignmentDraftAuthorizationTest {
         Assignment closed = assignment(closedId, AssignmentStatus.CLOSED);
         when(assignments.findAllByTenantIdAndStatusInAndIdIn(tenantId,
                 List.of(AssignmentStatus.PUBLISHED, AssignmentStatus.CLOSED),
-                List.of(draftId, publishedId, closedId, archivedId))).thenReturn(List.of(published, closed));
+                List.of(draftId, publishedId, closedId, archivedId), org.mockito.ArgumentMatchers.any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(published, closed), PageRequest.of(0, 25), 2));
 
         AssignmentService.PageResult<AssignmentService.AssignmentView> result = service.list(0, 25);
 
