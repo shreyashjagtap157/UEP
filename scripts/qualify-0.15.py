@@ -96,6 +96,78 @@ if 'recordings.save(recording)' not in recording_service:
     errors.append('recording retention purge must persist the final deleted state')
 if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/recording/RecordingPurgeLifecycleTest.java').exists():
     errors.append('missing recording purge lifecycle regression tests')
+
+# Direct recording reads must enforce the same active-batch boundary as list(), including at stream open.
+for required in [
+    'RecordingView get(UUID id) { return view(requireVisibleRecording(id)); }',
+    'Recording r = requireVisibleRecording(id);',
+    'private Recording requireVisibleRecording(UUID id)',
+    'if (auth.has(PermissionKey.RECORDINGS_MANAGE)) return recording;',
+    'if (!activeBatchIds.contains(recordingBatchId))',
+]:
+    if required not in recording_service:
+        errors.append(f'recording detail/playback is missing batch-scope enforcement: {required}')
+recording_access_test = text('apps/platform-server/src/test/java/com/universalplatform/recording/RecordingPurgeLifecycleTest.java')
+for required in [
+    'directReadPlaybackAndStreamEnforceActiveBatchVisibility',
+    'recordingManagerCanReadAnyBatchRecordingWithinTheTenant',
+    'Enrollment revocation after token issuance must stop playback at stream-open time',
+]:
+    if required not in recording_access_test:
+        errors.append(f'missing recording authorization regression test: {required}')
+
+# Learners can only enumerate published assessments assigned to active batches; question-bank authoring stays privileged.
+assessment_service = text('apps/platform-server/src/main/java/com/universalplatform/assessment/AssessmentService.java')
+assessment_repositories = text('apps/platform-server/src/main/java/com/universalplatform/assessment/AssessmentRepositories.java')
+role_seeder = text('apps/platform-server/src/main/java/com/universalplatform/identity/DefaultRoleSeeder.java')
+for required in [
+    'assignedVersionIds(tid, batchIds)',
+    'findAllByTenantIdAndStatusAndIdIn(tid, AssessmentStatus.PUBLISHED, assignedAssessmentIds, pageable)',
+    'List<AssessmentVersion> visible = found.stream().filter(version -> assignedVersionIds.contains(version.id())).toList()',
+]:
+    if required not in assessment_service:
+        errors.append(f'assessment catalog is missing published/assigned visibility enforcement: {required}')
+for required in [
+    'findAllByTenantIdAndStatusAndIdIn',
+    'findAllByTenantIdAndIdIn',
+    'findAllByTenantIdAndBatchIdIn',
+]:
+    if required not in assessment_repositories:
+        errors.append(f'assessment repositories are missing scope query: {required}')
+if 'PermissionKey.ASSESSMENTS_VIEW, PermissionKey.ASSESSMENTS_TAKE' not in role_seeder:
+    errors.append('Student role must receive ASSESSMENTS_TAKE to start and submit assigned attempts')
+if 'Set<PermissionKey> guardian = java.util.EnumSet.of(' not in role_seeder or 'role("Guardian", "Guardian identity with read-only academic visibility; learner data remains relationship-scoped.", guardian)' not in role_seeder:
+    errors.append('Guardian permissions must stay separate from learner submission permissions')
+assessment_access_test = text('apps/platform-server/src/test/java/com/universalplatform/assessment/AssessmentAccessScopeTest.java')
+for required in [
+    'learnerAssessmentListContainsOnlyPublishedAssessmentsAssignedToActiveBatches',
+    'learnerWithoutActiveBatchAssignmentsSeesNoAssessments',
+    'learnerCannotEnumerateAnUnassignedAssessmentVersions',
+    'assessmentManagerRetainsTenantWideAssessmentCatalogAccess',
+]:
+    if required not in assessment_access_test:
+        errors.append(f'missing assessment visibility regression test: {required}')
+role_access_test = text('apps/platform-server/src/test/java/com/universalplatform/identity/DefaultRoleSeederPermissionTest.java')
+if 'studentSystemRoleIncludesAssessmentTakingPermission' not in role_access_test:
+    errors.append('missing Student/Guardian assessment permission regression test')
+
+question_bank = text('apps/platform-server/src/main/java/com/universalplatform/questionbank/QuestionBankService.java')
+question_bank_list_start = question_bank.find('public PageResult<QuestionView> list(')
+question_bank_list_end = question_bank.find('@Transactional', question_bank_list_start + 1)
+question_bank_list = question_bank[question_bank_list_start:question_bank_list_end] if question_bank_list_start >= 0 and question_bank_list_end > question_bank_list_start else ''
+question_bank_versions_start = question_bank.find('public List<QuestionVersionView> versions(')
+question_bank_versions_end = question_bank.find('@Override', question_bank_versions_start + 1)
+question_bank_versions = question_bank[question_bank_versions_start:question_bank_versions_end] if question_bank_versions_start >= 0 and question_bank_versions_end > question_bank_versions_start else ''
+if 'authorization.require(PermissionKey.ASSESSMENTS_MANAGE)' not in question_bank_list:
+    errors.append('question-bank catalog reads must require assessment management permission')
+if 'authorization.require(PermissionKey.ASSESSMENTS_MANAGE)' not in question_bank_versions:
+    errors.append('question-version catalog reads must require assessment management permission')
+if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/questionbank/QuestionBankAccessScopeTest.java').exists():
+    errors.append('missing question-bank access-control regression tests')
+question_ui = text('apps/web/src/assessment/AssessmentWorkspace.tsx')
+if "enabled: has(me, 'ASSESSMENTS_MANAGE')" not in question_ui or '{canManage && <section className="panel">' not in question_ui:
+    errors.append('question bank UI must be absent for non-manager personas')
+
 drive_storage = text('apps/platform-server/src/main/java/com/universalplatform/storage/GoogleDriveStorageAdapter.java')
 if 'r.statusCode()!=404' not in drive_storage:
     errors.append('Google Drive deletes must treat already-missing objects as idempotently deleted')
