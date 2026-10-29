@@ -32,3 +32,9 @@ artifacts/
 *.zip
 *.tar.gz
 *.bundle
+
+# Local tooling output
+*.log
+apps/web/install_output.txt
+apps/web/test-results/
+apps/web/playwright-report/
