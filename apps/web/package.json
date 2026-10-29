@@ -8,14 +8,16 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint .",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test test/LocalDemoStore.test.mjs"
+    "test": "node --experimental-strip-types --test test/LocalDemoStore.test.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@tanstack/react-query": "5.104.5",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "keycloak-js": "26.2.4",
-    "livekit-client": "2.23.0"
+    "livekit-client": "2.23.0",
+    "playwright": "1.42.2"
   },
   "devDependencies": {
     "@types/node": "26.6.5",
@@ -23,6 +25,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.0.4",
     "oxlint": "1.75.0",
+    "playwright-test": "^0.6.4",
     "typescript": "7.0.2",
     "vite": "8.3.5"
   },
