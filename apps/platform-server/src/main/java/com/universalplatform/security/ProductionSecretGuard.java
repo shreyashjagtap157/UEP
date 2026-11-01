@@ -4,6 +4,7 @@ import jakarta.annotation.PostConstruct;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
@@ -65,6 +66,10 @@ final class ProductionSecretGuard {
                     "spring.security.oauth2.resourceserver.jwt.issuer-uri", "OIDC_ISSUER_URI");
             checkHttpsEndpoint(offenders, environment,
                     "spring.security.oauth2.resourceserver.jwt.jwk-set-uri", "OIDC_JWK_SET_URI");
+            checkSecureEndpoint(offenders, environment,
+                    "platform.live-learning.livekit.url", "LIVEKIT_URL", "wss");
+            checkSecureEndpoint(offenders, environment,
+                    "platform.live-learning.livekit.api-url", "LIVEKIT_API_URL", "https");
         }
 
         if (offenders.isEmpty()) return;
@@ -116,6 +121,26 @@ final class ProductionSecretGuard {
             }
         } catch (IllegalArgumentException exception) {
             offenders.add(label + " must be a valid absolute HTTPS URL");
+        }
+    }
+
+    private static void checkSecureEndpoint(List<String> offenders, Environment environment,
+                                            String property, String envVar, String requiredScheme) {
+        final String value = environment.getProperty(property);
+        final String label = property + " (env " + envVar + ")";
+        if (value == null || value.isBlank()) {
+            offenders.add(label + " is missing or blank");
+            return;
+        }
+        try {
+            URI uri = URI.create(value);
+            if (!requiredScheme.equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
+                    || uri.getHost().isBlank() || uri.getUserInfo() != null) {
+                offenders.add(label + " must be an absolute " + requiredScheme.toUpperCase(Locale.ROOT)
+                        + " URL without embedded credentials");
+            }
+        } catch (IllegalArgumentException exception) {
+            offenders.add(label + " must be a valid absolute " + requiredScheme.toUpperCase(Locale.ROOT) + " URL");
         }
     }
 
