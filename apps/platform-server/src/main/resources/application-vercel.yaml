@@ -1,0 +1,15 @@
+# Vercel API-service profile: safe defaults for stateless request containers.
+spring:
+  # Schema changes are applied only by the separately gated DatabaseMigrationRunner.
+  flyway:
+    enabled: false
+
+platform:
+  background-workers:
+    enabled: false
+  storage:
+    upload-staging:
+      enabled: false
+  live-learning:
+    livekit:
+      enabled: false
