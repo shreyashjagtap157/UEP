@@ -23,6 +23,7 @@ export default defineConfig({
     timeout: 5000,
   },
   retries: 0,
+  outputDir: 'e2e-test-results/test-output',
   fullyParallel: true,
   workers: 4,
   reporter: [
@@ -47,30 +48,12 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     viewport: { width: 1280, height: 720 },
   },
-  // Project-specific configurations
+  // Layer A is local-demo regression only. Remote staging acceptance has
+  // a separate fail-closed configuration and is never counted as demo coverage.
   projects: [
-    // Layer A: Local Demo Mode tests
     {
       name: 'Layer A: Local Demo',
       testMatch: '**/*.e2e.ts',
-    },
-    // Layer B: Remote Staging acceptance suite
-    {
-      name: 'Layer B: Remote Staging',
-      testMatch: '**/*.e2e.ts',
-      use: {
-        baseURL: process.env.UEP_E2E_BASE_URL,
-        trace: 'on-first-retry',
-        screenshot: 'only-on-failure',
-        viewport: { width: 1280, height: 700 },
-        actionTimeout: 30000,
-        navigationTimeout: 60000,
-        // Fail closed if local mode is enabled or base URL is localhost
-        ignoreHTTPSErrors: true,
-        // Environment validation — these are checked at test runtime
-        // VITE_LOCAL_MODE must be 'false' for remote execution
-      },
-      grep: /production|staging/i,
     },
   ],
 })

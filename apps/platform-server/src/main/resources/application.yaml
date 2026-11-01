@@ -8,13 +8,7 @@ server:
 spring:
   application:
     name: universal-education-platform
-  autoconfigure:
-    # Modulith's runtime auto-configuration eagerly builds the module model with
-    # ArchUnit, which takes minutes on a shared vCPU. Module boundaries are still
-    # enforced by ModularityTest in CI; the runtime auto-configuration is required
-    # for ModuleObservabilityAutoConfiguration and observability features.
-    exclude:
-      - jackson.deserialization.fail-on-null-for-primitives
+  jackson:
     deserialization:
       # Preserve existing API behavior: omitted primitive request fields use Java defaults.
       fail-on-null-for-primitives: false

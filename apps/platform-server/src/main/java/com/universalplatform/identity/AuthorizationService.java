@@ -66,6 +66,12 @@ public class AuthorizationService implements ApiCredentialAuthorizer {
     }
 
     @Transactional(readOnly = true)
+    public void requirePlatformSuperAdmin() {
+        if (!actorContext.hasRealmRole(PLATFORM_SUPER_ADMIN_ROLE)) {
+            throw new IdentityAccessDeniedException("Platform super administrator role required");
+        }
+    }
+
     public void require(PermissionKey permission) {
         require(permission, null);
     }

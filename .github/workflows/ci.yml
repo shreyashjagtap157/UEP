@@ -105,31 +105,32 @@ jobs:
         with:
           node-version: '22.22.0'
       - name: Install dependencies
-        run: npm --prefix apps/web install --ignore-scripts
+        working-directory: apps/web
+        run: npm ci --ignore-scripts
       - name: Install Playwright
-        run: npm --prefix apps/web exec playwright install --with-deps
-      - name: List Playwright tests (verify discovery)
-        run: npm --prefix apps/web exec playwright test --list
-      - name: Run Playwright E2E tests
+        working-directory: apps/web
+        run: npx playwright install --with-deps
+      - name: List local-demo browser tests (verify discovery)
+        working-directory: apps/web
+        run: npx playwright test --list --project="Layer A: Local Demo"
+      - name: Run local-demo browser regression (not production acceptance)
+        working-directory: apps/web
         env:
           VITE_LOCAL_MODE: "true"
-          SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform
-          SUPABASE_DB_USER: education
-          SUPABASE_DB_PASS: education
-        run: npm --prefix apps/web exec playwright test
+        run: npx playwright test --project="Layer A: Local Demo"
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: apps/web/test-results/
+          path: apps/web/e2e-test-results/
           retention-days: 30
       - name: Upload Playwright trace
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-trace
-          path: apps/web/test-results/trace.zip
+          path: apps/web/e2e-test-results/test-output/
           retention-days: 30
 
   repository-policy:

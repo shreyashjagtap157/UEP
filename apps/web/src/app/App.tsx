@@ -29,7 +29,6 @@ import { AdvancedAcademicWorkspace } from '../advanced/AdvancedAcademicWorkspace
 
 import { IntegrationWorkspace } from '../integration/IntegrationWorkspace'
 import { LocalExperience } from '../dashboard/LocalExperience'
-import { fetchAllClients, createNewClient, updateExistingClient, deleteClientById } from '../platform/api'
 import {
   createBranch,
   createRole,
@@ -46,7 +45,7 @@ import {
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
 
-type Section = 'overview' | 'advanced' | 'integrations' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security' | 'clients'
+type Section = 'overview' | 'advanced' | 'integrations' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
 
 const permissionOptions: PermissionKey[] = [
   'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
@@ -175,7 +174,6 @@ export function App() {
     { id: 'people', label: 'People', visible: has(me, 'USERS_VIEW') },
     { id: 'roles', label: 'Roles', visible: has(me, 'ROLES_VIEW') },
     { id: 'organization', label: 'Organization', visible: has(me, 'ORGANIZATION_VIEW') || has(me, 'BRANCHES_VIEW') },
-    { id: 'clients', label: 'Clients', visible: has(me, 'USERS_VIEW') || has(me, 'ORGANIZATION_MANAGE') },
     { id: 'security', label: 'Security', visible: true },
     
   ]
@@ -244,7 +242,6 @@ export function App() {
         {section === 'people' && <People me={me} />}
         {section === 'roles' && <Roles me={me} />}
         {section === 'organization' && <Organization me={me} />}
-        {section === 'clients' && <Clients me={me} />}
         {section === 'security' && <Security me={me} />}
         
       </main>
@@ -406,119 +403,6 @@ function Organization({ me }: { me: CurrentIdentity }) {
   )
 }
 
-function Clients({ me }: { me: CurrentIdentity }) {
-  const queryClient = useQueryClient()
-  const [createClientError, setCreateClientError] = useState<string | null>(null)
-  const clients = useQuery({ queryKey: ['clients'], queryFn: fetchAllClients })
-  const createMutation = useMutation({
-    mutationFn: createNewClient,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['clients'] }),
-    onError: (error) => setCreateClientError(error instanceof Error ? error.message : 'Failed to create client'),
-  })
-  
-  function handleCreateClient(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const form = event.currentTarget
-    const name = form.elements.namedItem('name') as HTMLInputElement
-    const businessName = form.elements.namedItem('businessName') as HTMLInputElement
-    const businessType = form.elements.namedItem('businessType') as HTMLSelectElement
-    const licensingPeriodStart = form.elements.namedItem('licensingPeriodStart') as HTMLInputElement
-    const licensingPeriodEnd = form.elements.namedItem('licensingPeriodEnd') as HTMLInputElement
-    const deploymentType = form.elements.namedItem('deploymentType') as HTMLSelectElement
-    const logoUrl = form.elements.namedItem('logoUrl') as HTMLInputElement
-    
-    if (!name.value) {
-      setCreateClientError('Name is required')
-      return
-    }
-    
-    createMutation.mutate({
-      name: name.value,
-      businessName: businessName.value || undefined,
-      businessType: businessType.value,
-      licensingPeriodStart: licensingPeriodStart.value,
-      licensingPeriodEnd: licensingPeriodEnd.value,
-      deploymentType: deploymentType.value,
-      logoUrl: logoUrl.value || undefined,
-    }, { onSuccess: () => {
-      setCreateClientError(null)
-      event.currentTarget.reset()
-    }, onError: (error) => {
-      setCreateClientError(error instanceof Error ? error.message : 'Failed to create client')
-    } })
-  }
-  const updateMutation = useMutation({
-    mutationFn: updateExistingClient,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['clients'] }),
-    onError: (error) => console.error('Update client error:', error),
-  })
-  const deleteMutation = useMutation({
-    mutationFn: deleteClientById,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['clients'] }),
-    onError: (error) => console.error('Delete client error:', error),
-  })
-
-  if (clients.isError) return <section className="panel"><p className="error-text" role="alert">{clients.error.message}</p></section>
-  if (clients.isPending || !clients.data) return <section className="panel"><p className="muted">Loading clients…</p></section>
-
-  return (
-    <div className="content-stack">
-      <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Clients</p><h3>Client management</h3></div></div>
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Business Name</th>
-                <th>Business Type</th>
-                <th>Licensing Period</th>
-                <th>Deployment Type</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.data.map((client: any) => (
-                <tr key={client.id}>
-                  <td>{client.name}</td>
-                  <td>{client.businessName || '-'}</td>
-                  <td>{client.businessType || '-'}</td>
-                  <td>
-                    {client.licensingPeriodEnd
-                      ? `${new Date(client.licensingPeriodEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (expires in ${Math.max(0, Math.ceil((new Date(client.licensingPeriodEnd).getTime() - new Date().getTime()) / 86400000))} days left)`
-                      : 'Perpetual'}
-                  </td>
-                  <td>{client.deploymentType || '—'}</td>
-                  <td>
-                    <button title="Edit client" onClick={() => updateMutation.mutate(client.id, {})}>Edit</button>
-                    <button title="Delete client" className="danger" onClick={() => deleteMutation.mutate(client.id)}>Delete</button>
-                  </td>
-                </tr>
-              ))}
-              {has(me, 'ORGANIZATION_MANAGE') && (
-                <tr>
-                  <td colSpan={6}>
-                    <form onSubmit={handleCreateClient} className="create-form">
-                      <input type="hidden" defaultValue={createMutation.isPending ? 'Creating...' : ''} />
-                      <label>Name<input name="name" required maxLength={200} placeholder="Client name" /></label>
-                      <label>Business Name<input name="businessName" placeholder="Business name" /></label>
-                      <label>Business Type<select name="businessType"><option value="educational">Educational</option><option value="corporate">Corporate</option><option value="non-profit">Non-profit</option></select></label>
-                      <label>Licensing Period Start<input type="date" name="licensingPeriodStart" required /></label>
-                      <label>Licensing Period End<input type="date" name="licensingPeriodEnd" required /></label>
-                      <label>Deployment Type<select name="deploymentType"><option value="fly">Fly.io</option><option value="cloudflare">Cloudflare Pages</option></select></label>
-                      <label>Logo URL<input name="logoUrl" placeholder="https://example.com/logo.png" /></label>
-                      <div className="form-actions"><button className="primary-button" disabled={createMutation.isPending}>Create client</button></div>
-                    </form>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  )
-}
-
 function BranchCards({ branches }: { branches: BranchView[] }) {
   if (!branches.length) return <p className="muted">No branches have been created.</p>
   return <div className="card-grid">{branches.map(branch => <article className="mini-card" key={branch.id}><div className="mini-card-title"><strong>{branch.displayName}</strong><span>{branch.status}</span></div><p><code>{branch.code}</code> · {branch.timezone}</p></article>)}</div>
@@ -544,4 +428,4 @@ function has(me: CurrentIdentity, permission: PermissionKey) { return me.permiss
 function hasScoped(me: CurrentIdentity, permission: PermissionKey) { return me.permissions.includes(permission) || me.primaryBranchPermissions.includes(permission) }
 function shortId(value: string) { return value.slice(0, 8) }
 function humanize(value: string) { return value.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()) }
-function sectionTitle(section: Section) { return ({ overview: 'Today', advanced: 'Advanced academics', integrations: 'Integrations', analytics: 'Analytics & Operations', live: 'Live Learning', recordings: 'Classroom recordings', finance: 'Finance', assessment: 'Assessments & grading', assignments: 'Assignments & gradebook', content: 'Learning Content', schedule: 'Schedule', announcements: 'Announcements', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions', clients: 'Clients' })[section] }
+function sectionTitle(section: Section) { return ({ overview: 'Today', advanced: 'Advanced academics', integrations: 'Integrations', analytics: 'Analytics & Operations', live: 'Live Learning', recordings: 'Classroom recordings', finance: 'Finance', assessment: 'Assessments & grading', assignments: 'Assignments & gradebook', content: 'Learning Content', schedule: 'Schedule', announcements: 'Announcements', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }

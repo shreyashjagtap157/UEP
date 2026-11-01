@@ -12,9 +12,6 @@ export interface BranchView{id:string;code:string;displayName:string;timezone:st
 export interface OrganizationSettings{tenantId:string;defaultTimezone:string;defaultLocale:string;weekStartsOn:number;supportEmail?:string;supportUrl?:string;version:number}
 export interface SessionView{id:string;startedAt:string;lastSeenAt:string;expiresAt?:string;revokedAt?:string;revocationReason?:string;current:boolean}
 export interface DeploymentInfo { platform: string; status: string; url: string; lastChecked: string }
-export interface ClientView { id: number; name: string; businessName?: string; businessType?: string; licensingPeriodStart?: string; licensingPeriodEnd?: string; deploymentType?: string; logoUrl?: string }
-export interface CreateClientInput { name: string; businessName?: string; businessType?: string; licensingPeriodStart: string; licensingPeriodEnd: string; deploymentType?: string; logoUrl?: string }
-export interface UpdateClientInput { name?: string; businessName?: string; businessType?: string; licensingPeriodStart?: string; licensingPeriodEnd?: string; deploymentType?: string; logoUrl?: string }
 export class PlatformApiError extends Error{readonly status:number;readonly problemDetail:unknown;constructor(status:number,message:string,problemDetail?:unknown){super(message);this.status=status;this.problemDetail=problemDetail}}
 function extractServerMessage(body:unknown,fallback:string):string{if(body&&typeof body==='object'){const detail=(body as {detail?:unknown}).detail;const message=(body as {message?:unknown}).message;const title=(body as {title?:unknown}).title;if(typeof detail==='string'&&detail.trim())return detail;if(typeof message==='string'&&message.trim())return message;if(typeof title==='string'&&title.trim())return title}return fallback}
 export const localMode = import.meta.env.VITE_LOCAL_MODE === 'true'
@@ -75,8 +72,3 @@ export function updateOrganizationSettings(input:OrganizationSettings):Promise<O
 export function revokeOwnSession(sessionId:string):Promise<void>{
   return request(`/api/v1/identity/sessions/me/${sessionId}`,{method:'DELETE'})
 }
-export const fetchAllClients=()=>request<ClientView[]>('/api/v1/clients')
-export const createNewClient=(input:CreateClientInput)=>request<ClientView>('/api/v1/clients',{method:'POST',body:JSON.stringify(input)})
-export const updateExistingClient = ({id, ...input}: { id: number } & UpdateClientInput) =>
-  request<ClientView>(`/api/v1/clients/${id}`, { method: 'PUT', body: JSON.stringify(input) });
-export const deleteClientById=(id: number)=>request<void>(`/api/v1/clients/${id}`,{method:'DELETE'})

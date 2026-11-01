@@ -16,12 +16,8 @@ COPY --from=build /app/target/*.jar app.jar
 # Expose application port
 EXPOSE 8080
 
-# Set environment variables with defaults
+# Database credentials and provider URLs are runtime secrets, supplied by Fly.io.
 ENV SPRING_PROFILES_ACTIVE=production
-ENV VITE_LOCAL_MODE=false
-ENV SUPABASE_DB_URL=${SUPABASE_DB_URL}
-ENV SUPABASE_DB_USER=${SUPABASE_DB_USER}
-ENV SUPABASE_DB_PASS=${SUPABASE_DB_PASS}
 
 # Run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]
