@@ -46,8 +46,7 @@ jobs:
           PGPASSWORD: ${{ env.UEP_CI_DB_PASSWORD }}
         run: |
           set -euo pipefail
-          psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 \\
-            -f apps/platform-server/src/main/resources/db/migration/beforeMigrate.sql
+          psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 -f apps/platform-server/src/main/resources/db/migration/beforeMigrate.sql
           psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           DECLARE generated uuid := public.uuidv7();
