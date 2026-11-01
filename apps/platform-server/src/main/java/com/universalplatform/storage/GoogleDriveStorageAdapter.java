@@ -76,9 +76,6 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
     @Override
     public String put(String key, InputStream source, long length, String contentType) throws IOException {
         try {
-            if (!sharedDriveId.isEmpty()) {
-                sharedDriveFolderValidator.validate(folderId, sharedDriveId, tokens.accessToken());
-            }
             if (key == null || key.isBlank()) {
                 throw new IOException("Google Drive object key must not be blank");
             }
@@ -89,6 +86,9 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
                         .toString();
             } catch (IllegalArgumentException invalidContentType) {
                 throw new IOException("Google Drive object content type is invalid", invalidContentType);
+            }
+            if (!sharedDriveId.isEmpty()) {
+                sharedDriveFolderValidator.validate(folderId, sharedDriveId, tokens.accessToken());
             }
             // Jackson safely encodes arbitrary Unicode, quotes, backslashes and control characters.
             var metadataNode = json.createObjectNode().put("name", key);
