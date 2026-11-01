@@ -1,0 +1,43 @@
+# Staging Keycloak identity provider.
+# Provisional region follows the repository's intended backend region. Verify the existing
+# Fly application region and account capacity before creating this second app.
+app = 'uep-keycloak-testing'
+primary_region = 'syd'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  KC_DB = 'postgres'
+  KC_DB_SCHEMA = 'keycloak'
+  KC_HOSTNAME = 'https://uep-keycloak-testing.fly.dev'
+  KC_HOSTNAME_STRICT = 'true'
+  KC_HOSTNAME_STRICT_HTTPS = 'true'
+  KC_HTTP_ENABLED = 'true'
+  KC_HTTP_PORT = '8080'
+  KC_HTTP_MANAGEMENT_PORT = '9000'
+  KC_PROXY_HEADERS = 'xforwarded'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  memory = '2048mb'
+  cpu_kind = 'shared'
+  cpus = 2
+
+# Health/ready is served by Keycloak's private management interface on port 9000.
+# This port is checked by Fly but is not exposed as a public service.
+[[checks]]
+  grace_period = '60s'
+  interval = '15s'
+  method = 'GET'
+  path = '/health/ready'
+  port = 9000
+  timeout = '5s'
+  type = 'http'
