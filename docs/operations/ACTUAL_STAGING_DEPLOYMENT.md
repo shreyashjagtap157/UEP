@@ -216,10 +216,17 @@ silence migration errors.
 ### Supabase PostgreSQL
 
 Use a dedicated staging project/database, not a production database with a
-different username. Fly Machines have outbound IPv6 connectivity, and Supabase
-recommends the direct PostgreSQL endpoint for persistent backends such as
-Fly.io VMs. For a fresh UEP staging project, use the direct connection string
-shown by the Supabase Dashboard's **Connect** panel:
+different username. Supabase's managed platform currently defaults to the
+PostgreSQL 17 major line; the repository's local Compose and CI database are
+pinned to the official `postgres:17.11` image so migration and ORM validation
+run against the intended staging major version. Confirm the actual server
+version on the newly created staging project before deployment; do not reuse
+the unrelated inactive Helios project.
+
+Fly Machines have outbound IPv6 connectivity, and Supabase recommends the
+direct PostgreSQL endpoint for persistent backends such as Fly.io VMs. For a
+fresh UEP staging project, use the direct connection string shown by the
+Supabase Dashboard's **Connect** panel:
 
 ```text
 SUPABASE_DB_URL=jdbc:postgresql://db.<project-ref>.supabase.co:5432/postgres?sslmode=require
