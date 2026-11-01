@@ -8,6 +8,8 @@ import com.universalplatform.identity.PermissionKey;
 import com.universalplatform.storage.StorageAdapter;
 import com.universalplatform.storage.StorageAdapterRegistry;
 import com.universalplatform.storage.StorageProviderType;
+import com.universalplatform.storage.TenantStorageBinding;
+import com.universalplatform.storage.TenantStorageBindingResolver;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -27,7 +29,9 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -42,6 +46,8 @@ class UploadService {
     private final UploadSessionRepository uploads;
     private final StorageObjectRepository objects;
     private final StorageAdapterRegistry adapters;
+    private final TenantStorageBindingResolver storageBindings;
+    private final boolean developmentMode;
     private final AuditService audit;
     private final MalwareScanner malwareScanner;
     private final StorageCleanupOutboxService storageCleanupOutbox;
@@ -56,18 +62,22 @@ class UploadService {
                   UploadSessionRepository uploads,
                   StorageObjectRepository objects,
                   StorageAdapterRegistry adapters,
+                  TenantStorageBindingResolver storageBindings,
                   AuditService audit,
                   MalwareScanner malwareScanner,
                   StorageCleanupOutboxService storageCleanupOutbox,
                   UploadStagingCleanupService uploadStagingCleanup,
                   @Value("${platform.storage.staging.root:./var/uploads}") String staging,
-                  @Value("${platform.storage.max-upload-bytes:5368709120}") long maxUploadBytes) {
+                  @Value("${platform.storage.max-upload-bytes:5368709120}") long maxUploadBytes,
+                  @Value("${platform.development-mode:false}") boolean developmentMode) {
         this.tenants = tenants;
         this.actors = actors;
         this.auth = auth;
         this.uploads = uploads;
         this.objects = objects;
         this.adapters = adapters;
+        this.storageBindings = storageBindings;
+        this.developmentMode = developmentMode;
         this.audit = audit;
         this.malwareScanner = malwareScanner;
         this.storageCleanupOutbox = storageCleanupOutbox;
@@ -77,20 +87,35 @@ class UploadService {
     }
 
     @Transactional
-    UploadView initiate(String fileName, String contentType, long bytes, String sha256, StorageProviderType provider)
-            throws IOException {
+    UploadView initiate(String fileName, String contentType, long bytes, String sha256) throws IOException {
         auth.require(PermissionKey.CONTENT_MANAGE);
         if (bytes < 0) throw new IllegalArgumentException("File size cannot be negative");
         if (bytes > maxUploadBytes)
             throw new IllegalArgumentException("File exceeds platform upload limit of " + maxUploadBytes + " bytes");
         UUID tenant = tenants.requireTenantId();
+        TenantStorageBinding binding = storageBindings.findByTenantId(tenant)
+                .orElseGet(() -> developmentMode
+                        ? new TenantStorageBinding(StorageProviderType.LOCAL, "")
+                        : null);
+        if (binding == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Configure a tenant storage provider before uploading files");
+        }
+        StorageProviderType provider = binding.providerType();
+        if (provider == StorageProviderType.LOCAL && !developmentMode) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Local filesystem storage is disabled outside development mode");
+        }
+        // Fail before creating a staging file if the configured adapter is unavailable.
+        adapters.require(provider);
+        String objectPrefix = normalizeObjectPrefix(binding.objectPrefix());
         UUID id = UUID.randomUUID();
         Path dir = staging.resolve(tenant.toString()).normalize();
         Files.createDirectories(dir);
         Path path = dir.resolve(id + ".part");
         Files.createFile(path);
         UploadSession u = uploads.save(new UploadSession(id, tenant, actors.requireSubject(), safeName(fileName),
-                safeType(contentType), bytes, hash(sha256), provider, path.toString(), clock.instant()));
+                safeType(contentType), bytes, hash(sha256), provider, objectPrefix, path.toString(), clock.instant()));
         audit.record(tenant, actors.requireSubject(), "UPLOAD_INITIATED", "upload_session", id.toString());
         return view(u);
     }
@@ -176,7 +201,8 @@ class UploadService {
             audit.record(tenant, actors.requireSubject(), "UPLOAD_REJECTED_MALWARE", "upload_session", u.id.toString());
             throw new UploadRejectedException("Upload rejected by malware scanner");
         }
-        String key = tenant + "/" + LocalDate.now(ZoneOffset.UTC) + "/" + UUID.randomUUID() + "/" + u.fileName;
+        String prefix = u.objectPrefix == null || u.objectPrefix.isBlank() ? "" : u.objectPrefix + "/";
+        String key = prefix + tenant + "/" + LocalDate.now(ZoneOffset.UTC) + "/" + UUID.randomUUID() + "/" + u.fileName;
         StorageAdapter adapter = adapters.require(u.provider);
         String locator;
         try (InputStream in = Files.newInputStream(path)) {
@@ -259,6 +285,16 @@ class UploadService {
             }
         }
         return HexFormat.of().formatHex(d.digest());
+    }
+
+    private static String normalizeObjectPrefix(String value) {
+        String prefix = value == null ? "" : value.trim();
+        while (prefix.endsWith("/")) prefix = prefix.substring(0, prefix.length() - 1);
+        if (prefix.length() > 200 || prefix.startsWith("/") || prefix.contains("..")
+                || prefix.contains("\\") || prefix.contains("//")) {
+            throw new IllegalArgumentException("Invalid tenant storage object prefix");
+        }
+        return prefix;
     }
 
     private static String safeName(String s) {

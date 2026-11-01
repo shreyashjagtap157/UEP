@@ -1,3 +1,79 @@
 package com.universalplatform.integration;
-import com.universalplatform.identity.*; import com.universalplatform.storage.*; import com.universalplatform.security.*; import java.time.*; import java.util.*; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
-@Service public class StorageIntegrationService { private final TenantContext tenants; private final AuthorizationService auth; private final StorageAdapterRegistry adapters; private final ExternalStorageBindingRepository repo; private final Clock clock=Clock.systemUTC(); StorageIntegrationService(TenantContext t,AuthorizationService a,StorageAdapterRegistry r,ExternalStorageBindingRepository p){tenants=t;auth=a;adapters=r;repo=p;} @Transactional public BindingView configure(StorageProviderType type,String prefix,long expectedVersion){auth.require(PermissionKey.EXTERNAL_STORAGE_MANAGE);if(type==null)throw new IllegalArgumentException("Storage provider is required");adapters.require(type);String p=prefix==null?"":prefix.trim();if(p.length()>200||p.startsWith("/")||p.contains(".."))throw new IllegalArgumentException("Invalid object prefix");UUID tenant=tenants.requireTenantId();ExternalStorageBinding b=repo.findByTenantId(tenant).orElse(null);if(b==null){if(expectedVersion!=0)throw new IllegalArgumentException("Storage binding version is stale");b=repo.save(new ExternalStorageBinding(UUID.randomUUID(),tenant,type.name(),p,clock.instant()));}else{if(b.version()!=expectedVersion)throw new IllegalArgumentException("Storage binding was modified by another request");b.update(type.name(),p,clock.instant());}return view(b);} @Transactional(readOnly=true) public BindingView current(){auth.require(PermissionKey.INTEROPERABILITY_VIEW);return repo.findByTenantId(tenants.requireTenantId()).map(this::view).orElse(null);} private BindingView view(ExternalStorageBinding b){return new BindingView(StorageProviderType.valueOf(b.providerType()),b.objectPrefix(),b.version());} public record BindingView(StorageProviderType providerType,String objectPrefix,long version){} }
+
+import com.universalplatform.identity.AuthorizationService;
+import com.universalplatform.identity.PermissionKey;
+import com.universalplatform.security.TenantContext;
+import com.universalplatform.storage.StorageAdapterRegistry;
+import com.universalplatform.storage.StorageProviderType;
+import java.time.Clock;
+import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class StorageIntegrationService {
+    private final TenantContext tenants;
+    private final AuthorizationService auth;
+    private final StorageAdapterRegistry adapters;
+    private final ExternalStorageBindingRepository repo;
+    private final boolean developmentMode;
+    private final Clock clock = Clock.systemUTC();
+
+    StorageIntegrationService(TenantContext tenants, AuthorizationService auth,
+                              StorageAdapterRegistry adapters, ExternalStorageBindingRepository repo,
+                              @Value("${platform.development-mode:false}") boolean developmentMode) {
+        this.tenants = tenants;
+        this.auth = auth;
+        this.adapters = adapters;
+        this.repo = repo;
+        this.developmentMode = developmentMode;
+    }
+
+    @Transactional
+    public BindingView configure(StorageProviderType type, String prefix, long expectedVersion) {
+        auth.require(PermissionKey.EXTERNAL_STORAGE_MANAGE);
+        if (type == null) throw new IllegalArgumentException("Storage provider is required");
+        if (type == StorageProviderType.LOCAL && !developmentMode) {
+            throw new IllegalArgumentException("Local filesystem storage cannot be configured outside development mode");
+        }
+        adapters.require(type);
+        String objectPrefix = normalizePrefix(prefix);
+        UUID tenantId = tenants.requireTenantId();
+        ExternalStorageBinding binding = repo.findByTenantId(tenantId).orElse(null);
+        if (binding == null) {
+            if (expectedVersion != 0) throw new IllegalArgumentException("Storage binding version is stale");
+            binding = repo.save(new ExternalStorageBinding(
+                    UUID.randomUUID(), tenantId, type.name(), objectPrefix, clock.instant()));
+        } else {
+            if (binding.version() != expectedVersion) {
+                throw new IllegalArgumentException("Storage binding was modified by another request");
+            }
+            binding.update(type.name(), objectPrefix, clock.instant());
+        }
+        return view(binding);
+    }
+
+    @Transactional(readOnly = true)
+    public BindingView current() {
+        auth.require(PermissionKey.EXTERNAL_STORAGE_MANAGE);
+        return repo.findByTenantId(tenants.requireTenantId()).map(this::view).orElse(null);
+    }
+
+    private static String normalizePrefix(String value) {
+        String prefix = value == null ? "" : value.trim();
+        while (prefix.endsWith("/")) prefix = prefix.substring(0, prefix.length() - 1);
+        if (prefix.length() > 200 || prefix.startsWith("/") || prefix.contains("..")
+                || prefix.contains("\\") || prefix.contains("//")) {
+            throw new IllegalArgumentException("Invalid object prefix");
+        }
+        return prefix;
+    }
+
+    private BindingView view(ExternalStorageBinding binding) {
+        return new BindingView(StorageProviderType.valueOf(binding.providerType()),
+                binding.objectPrefix(), binding.version());
+    }
+
+    public record BindingView(StorageProviderType providerType, String objectPrefix, long version) {}
+}

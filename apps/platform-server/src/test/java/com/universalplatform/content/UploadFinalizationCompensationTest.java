@@ -18,6 +18,7 @@ import com.universalplatform.security.TenantContext;
 import com.universalplatform.storage.StorageAdapter;
 import com.universalplatform.storage.StorageAdapterRegistry;
 import com.universalplatform.storage.StorageProviderType;
+import com.universalplatform.storage.TenantStorageBindingResolver;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,6 +52,7 @@ class UploadFinalizationCompensationTest {
     @Mock UploadSessionRepository uploads;
     @Mock StorageObjectRepository objects;
     @Mock StorageAdapterRegistry adapters;
+    @Mock TenantStorageBindingResolver storageBindings;
     @Mock AuditService audit;
     @Mock MalwareScanner malwareScanner;
     @Mock StorageCleanupOutboxService cleanupOutbox;
@@ -70,8 +72,8 @@ class UploadFinalizationCompensationTest {
         session.receivedBytes = FILE_BYTES.length;
         session.status = UploadStatus.UPLOADING;
 
-        service = new UploadService(tenants, actors, auth, uploads, objects, adapters, audit,
-                malwareScanner, cleanupOutbox, stagingCleanup, tempDir.toString(), 1024);
+        service = new UploadService(tenants, actors, auth, uploads, objects, adapters, storageBindings, audit,
+                malwareScanner, cleanupOutbox, stagingCleanup, tempDir.toString(), 1024, true);
 
         when(tenants.requireTenantId()).thenReturn(tenantId);
         when(actors.requireSubject()).thenReturn(actor);

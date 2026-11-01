@@ -7,7 +7,7 @@ export interface UploadView{id:string;fileName:string;contentType:string;expecte
 export interface StorageView{id:string;provider:string;contentType:string;sizeBytes:number;sha256:string;scanStatus:string}
 export const fetchResources=()=>request<PageResult<LearningResourceView>>('/api/v1/resources?size=100')
 export const createTextResource=(input:{title:string;description?:string;text:string;changeNote?:string;courseId?:string;language?:string;visibility:ResourceVisibility;downloadPolicy:DownloadPolicy})=>request<LearningResourceView>('/api/v1/resources/text',{method:'POST',body:JSON.stringify(input)})
-export const initiateUpload=(input:{fileName:string;contentType:string;expectedBytes:number;sha256?:string;provider:UploadView['provider']})=>request<UploadView>('/api/v1/uploads',{method:'POST',body:JSON.stringify(input)})
+export const initiateUpload=(input:{fileName:string;contentType:string;expectedBytes:number;sha256?:string})=>request<UploadView>('/api/v1/uploads',{method:'POST',body:JSON.stringify(input)})
 export async function uploadChunk(id:string,offset:number,bytes:Blob):Promise<UploadView>{return request<UploadView>(`/api/v1/uploads/${id}/content`,{method:'PUT',headers:{'Content-Type':'application/octet-stream','Upload-Offset':String(offset)},body:bytes})}
 export const completeUpload=(id:string)=>request<StorageView>(`/api/v1/uploads/${id}/complete`,{method:'POST'})
 export const createFileResource=(input:{title:string;description?:string;kind:ResourceKind;storageObjectId:string;changeNote?:string;courseId?:string;language?:string;visibility:ResourceVisibility;downloadPolicy:DownloadPolicy})=>request<LearningResourceView>('/api/v1/resources/file',{method:'POST',body:JSON.stringify(input)})
