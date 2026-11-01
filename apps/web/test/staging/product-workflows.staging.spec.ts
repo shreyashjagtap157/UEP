@@ -56,12 +56,12 @@ test('staging seeder dry-run verifies target identity and reports planned synthe
       getJson<PageResult<CodeRecord>>(owner.api, '/api/v1/academic-periods?page=0&size=100'),
     ])
     const plan = [
-      `branch UEPSTG${suffix}BR: ${branches.items.some(item => item.code === `UEPSTG${suffix}BR`) ? 'already present' : 'would create'}`,
-      `academic period UEPSTG${suffix}AP: ${periods.items.some(item => item.code === `UEPSTG${suffix}AP`) ? 'already present' : 'would create'}`,
+      'branch ' + 'UEPSTG' + suffix + 'BR: ' + (branches.items.some(item => item.code === 'UEPSTG' + suffix + 'BR') ? 'already present' : 'would create'),
+      'academic period ' + 'UEPSTG' + suffix + 'AP: ' + (periods.items.some(item => item.code === 'UEPSTG' + suffix + 'AP') ? 'already present' : 'would create'),
       'program, course, subject, batch, student enrollment, and teacher assignment: create-if-absent after resolving parent IDs',
       'assignment publication, student submission, teacher grading, and fresh-login persistence assertion',
     ]
-    console.info(`[UEP staging seed dry-run] database=${databaseIdentity.databaseHost}/${databaseIdentity.databaseName} tenant=${expectedTenantId}\\n${plan.map(item => `- ${item}`).join('\\n')}`)
+    console.info('[UEP staging seed dry-run] database=' + databaseIdentity.databaseHost + '/' + databaseIdentity.databaseName + ' tenant=' + expectedTenantId + '\\n' + plan.map(item => '- ' + item).join('\\n'))
   } finally {
     await owner.close()
   }
