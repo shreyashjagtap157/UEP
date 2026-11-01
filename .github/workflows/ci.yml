@@ -143,3 +143,39 @@ jobs:
           scan source
           --lockfile=/src/apps/web/package-lock.json
           --lockfile=/src/apps/platform-server/target/bom.json
+
+
+  keycloak-staging-container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate staging Keycloak realm and Fly configuration
+        run: |
+          python3 - <<'PY'
+          import json
+          import tomllib
+          from pathlib import Path
+
+          realm = json.loads(Path("infra/keycloak/education-realm-staging.json").read_text())
+          client = next(item for item in realm["clients"] if item["clientId"] == "platform-web")
+          assert realm["realm"] == "education"
+          assert client["publicClient"] is True
+          assert client["standardFlowEnabled"] is True
+          assert client["implicitFlowEnabled"] is False
+          assert client["directAccessGrantsEnabled"] is False
+          assert client["attributes"]["pkce.code.challenge.method"] == "S256"
+          assert client["redirectUris"] == ["https://uep-frontend-testing.pages.dev/*"]
+          assert client["webOrigins"] == ["https://uep-frontend-testing.pages.dev"]
+          assert "localhost" not in json.dumps(client)
+          fly = tomllib.loads(Path("infra/keycloak/fly.toml").read_text())
+          assert fly["app"] == "uep-keycloak-testing"
+          assert fly["primary_region"] == "syd"
+          assert fly["http_service"]["internal_port"] == 8080
+          assert fly["env"]["KC_DB"] == "postgres"
+          assert fly["env"]["KC_DB_SCHEMA"] == "keycloak"
+          assert fly["env"]["KC_PROXY_HEADERS"] == "xforwarded"
+          assert fly["checks"][0]["port"] == 9000
+          print("Staging Keycloak realm and Fly configuration passed.")
+          PY
+      - name: Build optimized staging Keycloak image
+        run: docker build --pull --tag uep-keycloak-staging:ci infra/keycloak
