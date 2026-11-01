@@ -45,7 +45,7 @@ test('staging seeder dry-run verifies target identity and reports planned synthe
   assertStagingTarget()
   const owner = await authenticate(browser, accounts.organization_owner as Account)
   try {
-    expect(owner.identity.tenantId).toBe(expectedTenantId)
+    assertOpaqueIdMatches(owner.identity.tenantId, expectedTenantId, 'Staging owner tenant identifier')
     const databaseIdentity = await getJson<{ verified: boolean; databaseHost: string; databaseName: string }>(
       owner.api, '/api/v1/platform/staging-database-identity',
     )
@@ -93,8 +93,7 @@ test('idempotently seed staging academic data and verify cross-role assignments,
       ['finance administrator', finance.identity],
       ['guardian', guardian.identity],
     ] as const) {
-      expect(identity.tenantId, `${label} must resolve to the explicitly configured staging tenant`)
-        .toBe(expectedTenantId)
+      assertOpaqueIdMatches(identity.tenantId, expectedTenantId, `${label} tenant identifier`)
     }
 
     // This must succeed before the first write. The backend compares live JDBC metadata
@@ -180,8 +179,8 @@ test('idempotently seed staging academic data and verify cross-role assignments,
     const studentMembership = memberships.find(item => item.oidcSubject === student.identity.oidcSubject)
     expect(teacherMembership, 'teacher must have an active tenant membership').toBeTruthy()
     expect(studentMembership, 'student must have an active tenant membership').toBeTruthy()
-    expect(teacherMembership?.membershipId).toBe(teacher.identity.membershipId)
-    expect(studentMembership?.membershipId).toBe(student.identity.membershipId)
+    assertOpaqueIdMatches(teacherMembership?.membershipId, teacher.identity.membershipId, 'Teacher membership identifier')
+    assertOpaqueIdMatches(studentMembership?.membershipId, student.identity.membershipId, 'Student membership identifier')
 
     const enrollments = await getAllItems<{
       id: string
@@ -286,7 +285,7 @@ test('idempotently seed staging academic data and verify cross-role assignments,
     }
     expect(schedule?.status).toBe('ACTIVE')
     expect(occurrence.status).toBe('SCHEDULED')
-    expect(occurrence.batchId).toBe(batch.id)
+    assertOpaqueIdMatches(occurrence.batchId, batch.id, 'Scheduled class batch identifier')
 
     const liveClasses = await getAllItems<{
       id: string
@@ -448,7 +447,7 @@ test('idempotently seed staging academic data and verify cross-role assignments,
       }
       const saved = await putJson<{ id: string; serverSequence: number }>(student.api, answerPath, answerData)
       const replay = await putJson<{ id: string; serverSequence: number }>(student.api, answerPath, answerData)
-      expect(replay.id).toBe(saved.id)
+      assertOpaqueIdMatches(replay.id, saved.id, 'Assessment answer idempotency identifier')
       expect(replay.serverSequence).toBe(saved.serverSequence)
       attempt = await postJson<AttemptRecord>(student.api, '/api/v1/attempts/' + attempt.id + '/submit', {})
     }
@@ -633,13 +632,15 @@ test('idempotently seed staging academic data and verify cross-role assignments,
     const secondaryAccountJson = process.env.UEP_E2E_SECOND_TENANT_TEACHER_ACCOUNT_JSON?.trim()
     if (secondaryAccountJson) {
       const secondaryTenantId = process.env.UEP_STAGING_SECOND_TENANT_ID?.trim()
-      expect(secondaryTenantId, 'A second-tenant account requires UEP_STAGING_SECOND_TENANT_ID').toBeTruthy()
+      assertOpaqueIdPresent(secondaryTenantId, 'Second staging tenant identifier')
       const secondaryAccount = JSON.parse(secondaryAccountJson) as Account
       expect(secondaryAccount.roleName).toBe('Teacher')
       const secondaryTeacher = await authenticate(browser, secondaryAccount)
       try {
-        expect(secondaryTeacher.identity.tenantId).toBe(secondaryTenantId)
-        expect(secondaryTeacher.identity.tenantId).not.toBe(expectedTenantId)
+        assertOpaqueIdMatches(secondaryTeacher.identity.tenantId, secondaryTenantId, 'Secondary teacher tenant identifier')
+        if (secondaryTeacher.identity.tenantId === expectedTenantId) {
+          throw new Error('Secondary staging teacher must belong to a tenant distinct from the primary tenant.')
+        }
         const foreignAssignment = await secondaryTeacher.api.get(`/api/v1/assignments/${assignment.id}/submissions?page=0&size=10`)
         expect(foreignAssignment.status(), 'a second-tenant teacher must not enumerate submissions for a primary-tenant assignment').toBe(404)
       } finally {
@@ -652,7 +653,7 @@ test('idempotently seed staging academic data and verify cross-role assignments,
     // A new browser context and a new OIDC sign-in prove the grade is not merely
     // held in the original browser's client-side state.
     freshStudent = await authenticate(browser, accounts.student as Account)
-    expect(freshStudent.identity.tenantId).toBe(expectedTenantId)
+    assertOpaqueIdMatches(freshStudent.identity.tenantId, expectedTenantId, 'Fresh student tenant identifier')
     submissions = await getAllItems<Submission>(freshStudent.api, '/api/v1/assignments/my-submissions')
     const persisted = submissions.find(item => item.assignmentId === assignment?.id)
     expect(persisted).toBeTruthy()
@@ -677,6 +678,18 @@ test('idempotently seed staging academic data and verify cross-role assignments,
     await freshStudent?.close()
   }
 })
+
+function assertOpaqueIdMatches(actual: unknown, expected: unknown, label: string): void {
+  if (typeof actual !== 'string' || typeof expected !== 'string' || actual !== expected) {
+    throw new Error(label + ' did not match the expected staging record.')
+  }
+}
+
+function assertOpaqueIdPresent(value: unknown, label: string): void {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(label + ' was missing from staging configuration or identity.')
+  }
+}
 
 type AuthenticatedIdentity = {
   identity: Identity
