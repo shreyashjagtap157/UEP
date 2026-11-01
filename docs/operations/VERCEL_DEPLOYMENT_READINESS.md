@@ -140,8 +140,10 @@ the runtime login is not superuser, cannot create roles/databases, cannot
 replicate, does not bypass RLS, and has no role memberships. It then grants only CONNECT, schema USAGE, table
 SELECT/INSERT/UPDATE/DELETE, sequence USAGE/SELECT/UPDATE, USAGE on existing
 and future public-schema types, and EXECUTE on `public.uuidv7()` (the
-PostgreSQL 17 compatibility default). Trigger functions remain non-callable
-directly by the application login. It explicitly revokes access to
+PostgreSQL 17 compatibility default). The runner revokes PostgreSQL's default `PUBLIC EXECUTE` on current
+public-schema functions and configures the migration role to withhold it from
+future functions; trigger functions remain callable only through their
+attached triggers, not directly by the application login. It explicitly revokes access to
 `flyway_schema_history` and configures table/sequence/type default privileges
 for objects created by the migration role in `public`. The runner also rejects
 a runtime login with database-level CREATE or schema-level CREATE on

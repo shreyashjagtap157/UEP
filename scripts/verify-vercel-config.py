@@ -71,6 +71,8 @@ assert 'can_create_database_objects' in migration_runner
 assert 'pg_type t JOIN pg_namespace' in migration_runner
 assert 'REVOKE ALL PRIVILEGES ON TABLE public.flyway_schema_history' in migration_runner
 assert 'GRANT EXECUTE ON FUNCTION public.uuidv7()' in migration_runner
+assert 'REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC' in migration_runner
+assert 'REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC' in migration_runner
 assert 'GRANT USAGE ON TYPES TO' in migration_runner
 assert 'grantUsageOnPublicTypes' in migration_runner
 assert 'GRANT EXECUTE ON ALL FUNCTIONS' not in migration_runner
