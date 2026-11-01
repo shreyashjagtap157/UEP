@@ -116,6 +116,7 @@ public final class DatabaseMigrationRunner {
                 JOIN pg_namespace n ON n.oid = t.typnamespace
                 WHERE n.nspname = 'public'
                   AND t.typelem = 0
+                  AND t.typtype <> 'p'
                 ORDER BY t.typname
                 """;
         try (PreparedStatement statement = connection.prepareStatement(query);
