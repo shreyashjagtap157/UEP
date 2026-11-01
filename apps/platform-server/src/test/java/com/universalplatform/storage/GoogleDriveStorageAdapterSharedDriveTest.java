@@ -27,6 +27,31 @@ class GoogleDriveStorageAdapterSharedDriveTest {
     private final HttpClient http = mock(HttpClient.class);
 
     @Test
+    void multipartBoundaryCannotBeInjectedByFileContents() throws Exception {
+        HttpResponse<String> folderResponse = response(200,
+                "{\\"id\\":\\"folder-123\\",\\"mimeType\\":\\"application/vnd.google-apps.folder\\",\\"driveId\\":\\"drive-456\\"}");
+        HttpResponse<String> uploadResponse = response(200, "{\\"id\\":\\"uploaded-file-789\\"}");
+        when(http.send(any(HttpRequest.class),
+                org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
+                .thenReturn(folderResponse, uploadResponse);
+        var adapter = adapter();
+        String payload = "prefix\\r\\n--uep-boundary--\\r\\nsuffix";
+
+        adapter.put("tenant-object-1",
+                new ByteArrayInputStream(payload.getBytes(StandardCharsets.UTF_8)),
+                payload.getBytes(StandardCharsets.UTF_8).length, "application/octet-stream");
+
+        ArgumentCaptor<HttpRequest> requests = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(2)).send(requests.capture(),
+                org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
+        HttpRequest upload = requests.getAllValues().get(1);
+        String contentType = upload.headers().firstValue("Content-Type").orElseThrow();
+        assertThat(contentType).contains("boundary=uep-");
+        assertThat(contentType).doesNotContain("boundary=uep-boundary");
+        assertThat(readBody(upload)).contains(payload);
+    }
+
+    @Test
     void rejectsWrongSharedDriveBeforeSendingAnyUploadRequest() throws Exception {
         HttpResponse<String> folderResponse = response(200,
                 "{\"id\":\"folder-123\",\"mimeType\":\"application/vnd.google-apps.folder\",\"driveId\":\"other-drive\"}");
