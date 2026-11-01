@@ -68,6 +68,7 @@ assert 'NOINHERIT' not in migration_runner  # role creation belongs to the opera
 assert 'rolbypassrls' in migration_runner and 'rolsuper' in migration_runner
 assert 'owns_public_objects' in migration_runner and 'can_create_public_objects' in migration_runner
 assert 'can_create_database_objects' in migration_runner
+assert 'pg_type t JOIN pg_namespace' in migration_runner
 assert 'REVOKE ALL PRIVILEGES ON TABLE public.flyway_schema_history' in migration_runner
 assert 'GRANT EXECUTE ON FUNCTION public.uuidv7()' in migration_runner
 assert 'GRANT EXECUTE ON ALL FUNCTIONS' not in migration_runner
