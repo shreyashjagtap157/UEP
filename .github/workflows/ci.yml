@@ -108,24 +108,8 @@ jobs:
         run: npm --prefix apps/web install --ignore-scripts
       - name: Install Playwright
         run: npm --prefix apps/web exec playwright install --with-deps
-      - name: Start Vite dev server (local demo mode)
-        run: |
-          export VITE_LOCAL_MODE=true
-          cd apps/web
-          npx vite --mode development &
-          VITE_PID=$!
-          # Wait for server to be ready
-          for attempt in $(seq 1 30); do
-            if curl --output /dev/null --silent --fail http://localhost:5173/; then
-              break
-            fi
-            sleep 2
-          done
-          if [ "$attempt" -eq 30 ]; then
-            echo "Vite dev server did not become ready in 60 seconds"
-            kill $VITE_PID 2>/dev/null || true
-            exit 1
-          fi
+      - name: List Playwright tests (verify discovery)
+        run: npm --prefix apps/web exec playwright test --list
       - name: Run Playwright E2E tests
         env:
           VITE_LOCAL_MODE: "true"

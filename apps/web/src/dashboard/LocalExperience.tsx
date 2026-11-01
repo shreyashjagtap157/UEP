@@ -36,15 +36,23 @@ export function LocalExperience() {
 }
 
 function readSessionAccount(): LocalAccount | null {
-  // Demo sessions are deliberately not restored on a fresh page load. Shared
-  // devices therefore always return to the account picker instead of staying
-  // signed in as the previous persona.
+  // Restore a stored demo session only after validating the account is still active.
+  // Inactive or invalid accounts are rejected, cleared, and return to login.
   try {
-    sessionStorage.removeItem('uep-local-account')
+    const raw = sessionStorage.getItem('uep-local-account')
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<LocalAccount>
+    const account = demoAccounts.find(item => item.email === parsed.email && item.role === parsed.role)
+    if (!account || !activeUserForProfile(loadDemoState(), account.profile)) {
+      sessionStorage.removeItem('uep-local-account')
+      return null
+    }
+    return account
   } catch {
-    // ignore storage access failures
+    // ignore storage/parse failures - treat as no session
+    try { sessionStorage.removeItem('uep-local-account') } catch { /* ignore */ }
+    return null
   }
-  return null
 }
 
 function LocalLogin({ onLogin }: { onLogin: (account: LocalAccount) => void }) {

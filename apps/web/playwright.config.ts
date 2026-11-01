@@ -1,16 +1,16 @@
 /**
  * Playwright Configuration for UEP Role-Based E2E Tests
- * 
+ *
  * Layer A: Local Demo Mode (VITE_LOCAL_MODE=true)
  * Tests interact with the rendered React application in a real browser,
  * exercising the local/demo workspace with 13 seeded personas.
- * 
+ *
  * Prerequisites for execution:
  * 1. npm install (or pnpm install) to install dependencies
  * 2. Node.js >= 22.22.0
  * 3. Playwright browsers installed: npx playwright install
  * 4. Vite dev server running with VITE_LOCAL_MODE=true
- * 
+ *
  * See: docs/DEMO_INTERACTION_MATRIX.md for test-to-role mapping
  */
 
@@ -30,26 +30,22 @@ export default defineConfig({
     ['html', { outputFolder: 'test-results/html' }],
     ['junit', { outputFolder: 'test-results/junit' }],
   ],
-  use: {
-    baseURL: 'http://127.0.0.1:5173', // Will be overridden by test runner
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
-    viewport: { width: 1280, height: 720 },
-    // Local demo mode is enabled via environment variable injected by the test server
-    // VITE_LOCAL_MODE=true is set when the Vite dev server starts with this env var
-    // Vite reserves .local env-file naming and rejects the mode. Use a valid mode.
+  // Top-level webServer configuration (NOT inside 'use')
+  // Playwright manages the Vite server lifecycle reliably
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://127.0.0.1:5173',
+    timeout: 120000,
+    reuseExistingServer: !process.env.CI,
     env: {
       VITE_LOCAL_MODE: 'true',
     },
-    // Use Playwright webServer to start Vite reliably
-    // (replaces fragile manually backgrounded processes)
-    webServer: {
-      command: 'npm --prefix ./../.. run dev',
-      url: 'http://127.0.0.1:5173',
-      timeout: 120000,
-      reuse: 'once',
-      // Env vars are passed through the test runner configuration
-    },
+  },
+  use: {
+    baseURL: 'http://127.0.0.1:5173',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    viewport: { width: 1280, height: 720 },
   },
   // Project-specific configurations
   projects: [
@@ -57,12 +53,8 @@ export default defineConfig({
     {
       name: 'Layer A: Local Demo',
       testMatch: '**/*.e2e.ts',
-      grep: /@localDemo|@demo|@layerA/,
-      // Dependencies are resolved at test runtime; see test runner scripts
+      // Match tests by their title tags - use actual test titles, not comments
+      grep: /local demo|demo account|layer a/i,
     },
   ],
 })
-
-// Configure test environment for local demo mode
-// The VITE_LOCAL_MODE=true is injected when the Vite dev server starts with this env var
-// See scripts/test-runner.ps1 for the complete launch configuration

@@ -1,5 +1,4 @@
 import { request, type PageResult, type UploadView } from './api-core'
-import { accessToken } from '../auth/keycloak'
 export type ResourceVisibility='PRIVATE'|'STAFF'|'ENROLLED_LEARNERS'|'TENANT'
 export type DownloadPolicy='DOWNLOAD_ALLOWED'|'STREAM_ONLY'|'NO_DOWNLOAD'
 export type ResourceKind='TEXT_NOTE'|'DOCUMENT'|'PRESENTATION'|'IMAGE'|'AUDIO'|'VIDEO'|'ARCHIVE'|'OTHER'

@@ -28,6 +28,7 @@ import { AnalyticsWorkspace } from '../analytics/AnalyticsWorkspace'
 import { AdvancedAcademicWorkspace } from '../advanced/AdvancedAcademicWorkspace'
 
 import { IntegrationWorkspace } from '../integration/IntegrationWorkspace'
+import { LocalExperience } from '../dashboard/LocalExperience'
 import { fetchAllClients, createNewClient, updateExistingClient, deleteClientById } from '../platform/api'
 import {
   createBranch,
@@ -64,7 +65,6 @@ export function App() {
   const [oidcAuthenticated, setOidcAuthenticated] = useState<boolean>(() => isOidcAuthenticated())
   const [signInPending, setSignInPending] = useState(false)
   const [signInError, setSignInError] = useState<string | null>(null)
-  const [createClientError, setCreateClientError] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: oidcAuthenticated && !localMode })
   const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated && !localMode })
@@ -408,11 +408,12 @@ function Organization({ me }: { me: CurrentIdentity }) {
 
 function Clients({ me }: { me: CurrentIdentity }) {
   const queryClient = useQueryClient()
+  const [createClientError, setCreateClientError] = useState<string | null>(null)
   const clients = useQuery({ queryKey: ['clients'], queryFn: fetchAllClients })
   const createMutation = useMutation({
     mutationFn: createNewClient,
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['clients'] }),
-    onError: (error) => console.error('Create client error:', error),
+    onError: (error) => setCreateClientError(error instanceof Error ? error.message : 'Failed to create client'),
   })
   
   function handleCreateClient(event: FormEvent<HTMLFormElement>) {
@@ -441,7 +442,7 @@ function Clients({ me }: { me: CurrentIdentity }) {
       logoUrl: logoUrl.value || undefined,
     }, { onSuccess: () => {
       setCreateClientError(null)
-      setSection('clients')
+      event.currentTarget.reset()
     }, onError: (error) => {
       setCreateClientError(error instanceof Error ? error.message : 'Failed to create client')
     } })
@@ -483,13 +484,13 @@ function Clients({ me }: { me: CurrentIdentity }) {
                   <td>{client.businessType || '-'}</td>
                   <td>
                     {client.licensingPeriodEnd
-                      ? `${new Date(client.licensingPeriodEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (expires in ${Math.max(0, Math.ceil((new Date(client.licensingPeriodEnd).getTime() - new Date().getTime()) / 86400000)} days left)`
+                      ? `${new Date(client.licensingPeriodEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (expires in ${Math.max(0, Math.ceil((new Date(client.licensingPeriodEnd).getTime() - new Date().getTime()) / 86400000))} days left)`
                       : 'Perpetual'}
                   </td>
                   <td>{client.deploymentType || '—'}</td>
                   <td>
-                    <button title="Edit client" onClick={() => setSection('clients')}>Edit</button>
-                    <button title="Delete client" className="danger" onClick={() => deleteClientById(client.id)}>Delete</button>
+                    <button title="Edit client" onClick={() => updateMutation.mutate(client.id, {})}>Edit</button>
+                    <button title="Delete client" className="danger" onClick={() => deleteMutation.mutate(client.id)}>Delete</button>
                   </td>
                 </tr>
               ))}
@@ -543,4 +544,4 @@ function has(me: CurrentIdentity, permission: PermissionKey) { return me.permiss
 function hasScoped(me: CurrentIdentity, permission: PermissionKey) { return me.permissions.includes(permission) || me.primaryBranchPermissions.includes(permission) }
 function shortId(value: string) { return value.slice(0, 8) }
 function humanize(value: string) { return value.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()) }
-function sectionTitle(section: Section) { return ({ overview: 'Today', advanced: 'Advanced academics', integrations: 'Integrations', analytics: 'Analytics & Operations', live: 'Live Learning', recordings: 'Classroom recordings', finance: 'Finance', assessment: 'Assessments & grading', assignments: 'Assignments & gradebook', content: 'Learning Content', schedule: 'Schedule', announcements: 'Announcements', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }
+function sectionTitle(section: Section) { return ({ overview: 'Today', advanced: 'Advanced academics', integrations: 'Integrations', analytics: 'Analytics & Operations', live: 'Live Learning', recordings: 'Classroom recordings', finance: 'Finance', assessment: 'Assessments & grading', assignments: 'Assignments & gradebook', content: 'Learning Content', schedule: 'Schedule', announcements: 'Announcements', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions', clients: 'Clients' })[section] }
