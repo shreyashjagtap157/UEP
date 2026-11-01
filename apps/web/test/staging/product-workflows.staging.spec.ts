@@ -16,7 +16,7 @@ type Identity = {
   displayName: string
 }
 
-type PageResult<T> = { items: T[] }
+type PageResult<T> = { items: T[]; totalPages: number }
 
 type Versioned = { id: string; version: number; status?: string }
 type CodeRecord = Versioned & { code: string }
@@ -52,12 +52,12 @@ test('staging seeder dry-run verifies target identity and reports planned synthe
     expect(databaseIdentity.verified).toBe(true)
     const suffix = owner.identity.tenantId.replaceAll('-', '').slice(0, 8).toUpperCase()
     const [branches, periods] = await Promise.all([
-      getJson<PageResult<CodeRecord>>(owner.api, '/api/v1/organization/branches?page=0&size=100'),
-      getJson<PageResult<CodeRecord>>(owner.api, '/api/v1/academic-periods?page=0&size=100'),
+      getAllItems<CodeRecord>(owner.api, '/api/v1/organization/branches'),
+      getAllItems<CodeRecord>(owner.api, '/api/v1/academic-periods'),
     ])
     const plan = [
-      'branch ' + 'UEPSTG' + suffix + 'BR: ' + (branches.items.some(item => item.code === 'UEPSTG' + suffix + 'BR') ? 'already present' : 'would create'),
-      'academic period ' + 'UEPSTG' + suffix + 'AP: ' + (periods.items.some(item => item.code === 'UEPSTG' + suffix + 'AP') ? 'already present' : 'would create'),
+      'branch ' + 'UEPSTG' + suffix + 'BR: ' + (branches.some(item => item.code === 'UEPSTG' + suffix + 'BR') ? 'already present' : 'would create'),
+      'academic period ' + 'UEPSTG' + suffix + 'AP: ' + (periods.some(item => item.code === 'UEPSTG' + suffix + 'AP') ? 'already present' : 'would create'),
       'program, course, subject, batch, student enrollment, and teacher assignment: create-if-absent after resolving parent IDs',
       'assignment publication, student submission, teacher grading, and fresh-login persistence assertion',
     ]
@@ -111,22 +111,16 @@ test('idempotently seed staging academic data and verify assignment submission/g
     const subjectCode = `UEPSTG${tenantSuffix}SB`
     const batchCode = `UEPSTG${tenantSuffix}BT`
 
-    const branches = await getJson<PageResult<CodeRecord & { status: string }>>(
-      owner.api,
-      '/api/v1/organization/branches?page=0&size=100',
-    )
-    const branch = await ensureCodeRecord(owner.api, '/api/v1/organization/branches', branches.items, branchCode, {
+    const branches = await getAllItems<CodeRecord & { status: string }>(owner.api, '/api/v1/organization/branches')
+    const branch = await ensureCodeRecord(owner.api, '/api/v1/organization/branches', branches, branchCode, {
       code: branchCode,
       displayName: `UEP Staging Qualification ${tenantSuffix}`,
       timezone: 'Asia/Kolkata',
     })
     expect(branch.status).toBe('ACTIVE')
 
-    const periods = await getJson<PageResult<CodeRecord & { status: string }>>(
-      owner.api,
-      '/api/v1/academic-periods?page=0&size=100',
-    )
-    const period = await ensureCodeRecord(owner.api, '/api/v1/academic-periods', periods.items, periodCode, {
+    const periods = await getAllItems<CodeRecord & { status: string }>(owner.api, '/api/v1/academic-periods')
+    const period = await ensureCodeRecord(owner.api, '/api/v1/academic-periods', periods, periodCode, {
       code: periodCode,
       displayName: `UEP Staging Academic Period ${tenantSuffix}`,
       startsOn: '2020-01-01',
@@ -134,11 +128,8 @@ test('idempotently seed staging academic data and verify assignment submission/g
     })
     expect(['PLANNED', 'ACTIVE']).toContain(period.status)
 
-    const programs = await getJson<PageResult<CodeRecord & { status: string }>>(
-      owner.api,
-      `/api/v1/programs?academicPeriodId=${period.id}&page=0&size=100`,
-    )
-    const program = await ensureCodeRecord(owner.api, '/api/v1/programs', programs.items, programCode, {
+    const programs = await getAllItems<CodeRecord & { status: string }>(owner.api, `/api/v1/programs?academicPeriodId=${period.id}`)
+    const program = await ensureCodeRecord(owner.api, '/api/v1/programs', programs, programCode, {
       academicPeriodId: period.id,
       code: programCode,
       displayName: `UEP Staging Program ${tenantSuffix}`,
@@ -146,11 +137,8 @@ test('idempotently seed staging academic data and verify assignment submission/g
     })
     expect(program.status).toBe('ACTIVE')
 
-    const courses = await getJson<PageResult<CodeRecord & { status: string }>>(
-      owner.api,
-      `/api/v1/courses?programId=${program.id}&page=0&size=100`,
-    )
-    const course = await ensureCodeRecord(owner.api, '/api/v1/courses', courses.items, courseCode, {
+    const courses = await getAllItems<CodeRecord & { status: string }>(owner.api, `/api/v1/courses?programId=${program.id}`)
+    const course = await ensureCodeRecord(owner.api, '/api/v1/courses', courses, courseCode, {
       programId: program.id,
       code: courseCode,
       displayName: `UEP Staging Course ${tenantSuffix}`,
@@ -158,11 +146,8 @@ test('idempotently seed staging academic data and verify assignment submission/g
     })
     expect(course.status).toBe('ACTIVE')
 
-    const subjects = await getJson<PageResult<CodeRecord & { status: string }>>(
-      owner.api,
-      `/api/v1/subjects?courseId=${course.id}&page=0&size=100`,
-    )
-    const subject = await ensureCodeRecord(owner.api, '/api/v1/subjects', subjects.items, subjectCode, {
+    const subjects = await getAllItems<CodeRecord & { status: string }>(owner.api, `/api/v1/subjects?courseId=${course.id}`)
+    const subject = await ensureCodeRecord(owner.api, '/api/v1/subjects', subjects, subjectCode, {
       courseId: course.id,
       code: subjectCode,
       displayName: `UEP Staging Subject ${tenantSuffix}`,
@@ -178,11 +163,8 @@ test('idempotently seed staging academic data and verify assignment submission/g
       page: '0',
       size: '100',
     })
-    const batches = await getJson<PageResult<CodeRecord & { status: string }>>(
-      owner.api,
-      `/api/v1/batches?${batchQuery.toString()}`,
-    )
-    const batch = await ensureCodeRecord(owner.api, '/api/v1/batches', batches.items, batchCode, {
+    const batches = await getAllItems<CodeRecord & { status: string }>(owner.api, `/api/v1/batches?${new URLSearchParams({ academicPeriodId: period.id, programId: program.id, courseId: course.id, branchId: branch.id }).toString()}`)
+    const batch = await ensureCodeRecord(owner.api, '/api/v1/batches', batches, batchCode, {
       academicPeriodId: period.id,
       programId: program.id,
       courseId: course.id,
@@ -196,24 +178,21 @@ test('idempotently seed staging academic data and verify assignment submission/g
     })
     expect(['PLANNED', 'ACTIVE']).toContain(batch.status)
 
-    const memberships = await getJson<PageResult<Membership>>(
-      owner.api,
-      '/api/v1/identity/memberships?page=0&size=100',
-    )
-    const teacherMembership = memberships.items.find(item => item.oidcSubject === teacher.identity.oidcSubject)
-    const studentMembership = memberships.items.find(item => item.oidcSubject === student.identity.oidcSubject)
+    const memberships = await getAllItems<Membership>(owner.api, '/api/v1/identity/memberships')
+    const teacherMembership = memberships.find(item => item.oidcSubject === teacher.identity.oidcSubject)
+    const studentMembership = memberships.find(item => item.oidcSubject === student.identity.oidcSubject)
     expect(teacherMembership, 'teacher must have an active tenant membership').toBeTruthy()
     expect(studentMembership, 'student must have an active tenant membership').toBeTruthy()
     expect(teacherMembership?.membershipId).toBe(teacher.identity.membershipId)
     expect(studentMembership?.membershipId).toBe(student.identity.membershipId)
 
-    const enrollments = await getJson<PageResult<{
+    const enrollments = await getAllItems<{
       id: string
       membershipId: string
       batchId: string
       status: string
-    }>>(owner.api, '/api/v1/enrollments?page=0&size=100')
-    if (!enrollments.items.some(item =>
+    }>(owner.api, '/api/v1/enrollments')
+    if (!enrollments.some(item =>
       item.membershipId === student.identity.membershipId
       && item.batchId === batch.id
       && item.status === 'ENROLLED')) {
@@ -224,13 +203,13 @@ test('idempotently seed staging academic data and verify assignment submission/g
       })
     }
 
-    const teacherAssignments = await getJson<PageResult<{
+    const teacherAssignments = await getAllItems<{
       id: string
       membershipId: string
       batchId: string | null
       status: string
-    }>>(owner.api, '/api/v1/teacher-assignments?page=0&size=100')
-    if (!teacherAssignments.items.some(item =>
+    }>(owner.api, '/api/v1/teacher-assignments')
+    if (!teacherAssignments.some(item =>
       item.membershipId === teacher.identity.membershipId
       && item.batchId === batch.id
       && item.status === 'ACTIVE')) {
@@ -243,11 +222,8 @@ test('idempotently seed staging academic data and verify assignment submission/g
     }
 
     const assignmentTitle = `UEP Staging Acceptance ${tenantSuffix}`
-    const assignmentPage = await getJson<PageResult<Assignment>>(
-      teacher.api,
-      '/api/v1/assignments?page=0&size=100',
-    )
-    let assignment = assignmentPage.items.find(item => item.title === assignmentTitle)
+    const assignmentPage = await getAllItems<Assignment>(teacher.api, '/api/v1/assignments')
+    let assignment = assignmentPage.find(item => item.title === assignmentTitle)
     if (!assignment) {
       assignment = await postJson<Assignment>(teacher.api, '/api/v1/assignments', {
         title: assignmentTitle,
@@ -273,17 +249,11 @@ test('idempotently seed staging academic data and verify assignment submission/g
     }
     expect(assignment.status).toBe('PUBLISHED')
 
-    const visibleAssignments = await getJson<PageResult<Assignment>>(
-      student.api,
-      '/api/v1/assignments?page=0&size=100',
-    )
-    expect(visibleAssignments.items.some(item => item.id === assignment?.id)).toBe(true)
+    const visibleAssignments = await getAllItems<Assignment>(student.api, '/api/v1/assignments')
+    expect(visibleAssignments.some(item => item.id === assignment?.id)).toBe(true)
 
-    const mySubmissions = await getJson<PageResult<Submission>>(
-      student.api,
-      '/api/v1/assignments/my-submissions?page=0&size=100',
-    )
-    let submission = mySubmissions.items.find(item => item.assignmentId === assignment?.id)
+    const mySubmissions = await getAllItems<Submission>(student.api, '/api/v1/assignments/my-submissions')
+    let submission = mySubmissions.find(item => item.assignmentId === assignment?.id)
     if (!submission) {
       submission = await postJson<Submission>(
         student.api,
@@ -298,11 +268,8 @@ test('idempotently seed staging academic data and verify assignment submission/g
       )
     }
 
-    let submissions = await getJson<PageResult<Submission>>(
-      teacher.api,
-      `/api/v1/assignments/${assignment.id}/submissions?page=0&size=100`,
-    )
-    submission = submissions.items.find(item => item.membershipId === student.identity.membershipId)
+    let submissions = await getAllItems<Submission>(teacher.api, `/api/v1/assignments/${assignment.id}/submissions`)
+    submission = submissions.find(item => item.membershipId === student.identity.membershipId)
     if (!submission) {
       throw new Error('Teacher did not see the exact student membership submission after it was submitted.')
     }
@@ -326,11 +293,8 @@ test('idempotently seed staging academic data and verify assignment submission/g
     // held in the original browser's client-side state.
     freshStudent = await authenticate(browser, accounts.student as Account)
     expect(freshStudent.identity.tenantId).toBe(expectedTenantId)
-    submissions = await getJson<PageResult<Submission>>(
-      freshStudent.api,
-      '/api/v1/assignments/my-submissions?page=0&size=100',
-    )
-    const persisted = submissions.items.find(item => item.assignmentId === assignment?.id)
+    submissions = await getAllItems<Submission>(freshStudent.api, '/api/v1/assignments/my-submissions')
+    const persisted = submissions.find(item => item.assignmentId === assignment?.id)
     expect(persisted).toBeTruthy()
     expect(persisted?.awardedPoints).toBe(expectedScore)
     expect(persisted?.graderFeedback).toBe(expectedFeedback)
@@ -391,6 +355,25 @@ async function getJson<T>(api: APIRequestContext, path: string): Promise<T> {
     throw new Error(`GET ${path} failed with HTTP ${response.status()}: ${(await response.text()).slice(0, 1200)}`)
   }
   return await response.json() as T
+}
+
+async function getAllItems<T>(api: APIRequestContext, path: string): Promise<T[]> {
+  const items: T[] = []
+  let page = 0
+  let totalPages = 1
+  while (page < totalPages) {
+    const url = new URL(path, 'https://uep-staging.invalid')
+    url.searchParams.set('page', String(page))
+    url.searchParams.set('size', '100')
+    const result = await getJson<PageResult<T>>(api, url.pathname + url.search)
+    items.push(...result.items)
+    totalPages = result.totalPages
+    page += 1
+    if (page > 1000) {
+      throw new Error('Staging seed pagination exceeded the 1000-page safety limit.')
+    }
+  }
+  return items
 }
 
 async function postJson<T>(api: APIRequestContext, path: string, data: unknown): Promise<T> {
