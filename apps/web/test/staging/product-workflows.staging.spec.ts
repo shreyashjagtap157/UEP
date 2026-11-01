@@ -416,6 +416,9 @@ test('idempotently seed staging academic data and verify assignment submission/g
         targets: [{ kind: 'BATCH', id: batch.id }],
       })
     }
+    if (!announcement) {
+      throw new Error('The staging announcement must be created or found before recipient verification.')
+    }
     expect(announcement.status).toBe('PUBLISHED')
     expect(announcement.acknowledgementRequired).toBe(true)
 
