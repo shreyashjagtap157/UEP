@@ -127,8 +127,13 @@ jobs:
         run: npm --prefix apps/web run lint
       - name: Demo workflow tests
         run: npm --prefix apps/web test
-      - name: Build
-        run: npm --prefix apps/web run build
+      - name: Build with the Vercel production-mode contract
+        env:
+          VITE_LOCAL_MODE: "false"
+          VITE_KEYCLOAK_URL: https://identity.example.invalid
+          VITE_KEYCLOAK_REALM: education
+          VITE_KEYCLOAK_CLIENT_ID: platform-web
+        run: npm --prefix apps/web run build:vercel
 
   repository-policy:
     runs-on: ubuntu-latest
