@@ -96,6 +96,18 @@ class UploadFinalizationCompensationTest {
     }
 
     @Test
+    void finalizationUsesTheStoragePrefixSnapshottedOnTheUploadSession() throws Exception {
+        session.objectPrefix = "course-assets";
+
+        service.finalizeUpload(uploadId);
+
+        ArgumentCaptor<String> objectKey = ArgumentCaptor.forClass(String.class);
+        verify(adapter).put(objectKey.capture(), any(), eq((long) FILE_BYTES.length), eq("application/octet-stream"));
+        assertThat(objectKey.getValue()).startsWith("course-assets/" + tenantId + "/");
+        assertThat(objectKey.getValue()).endsWith("/report.bin");
+    }
+
+    @Test
     void malwareRejectionCommitsTerminalAbortAndRemovesStagingFile() throws Exception {
         when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.REJECTED);
 
