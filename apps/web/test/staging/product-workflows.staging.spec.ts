@@ -219,17 +219,18 @@ test('idempotently seed staging academic data and verify assignment submission/g
       status: string
     }>(owner.api, '/api/v1/schedule/series')
     let schedule = scheduleSeries.find(item => item.title === scheduleTitle)
-    let occurrence: {
+    type ScheduleOccurrence = {
       id: string
       seriesId: string
       classSessionId: string
       batchId: string | null
       status: string
-    } | undefined
+    }
+    let occurrence: ScheduleOccurrence | undefined
     if (!schedule) {
       const created = await postJson<{
         series: { id: string; title: string; status: string }
-        occurrences: typeof occurrence[]
+        occurrences: ScheduleOccurrence[]
       }>(owner.api, '/api/v1/schedule/series', {
         kind: 'CLASS',
         title: scheduleTitle,
@@ -260,7 +261,7 @@ test('idempotently seed staging academic data and verify assignment submission/g
         from: '2099-12-29T00:00:00Z',
         to: '2099-12-31T00:00:00Z',
       })
-      const occurrences = await getJson<typeof occurrence[]>(
+      const occurrences = await getJson<ScheduleOccurrence[]>(
         owner.api,
         `/api/v1/schedule/occurrences?${range.toString()}`,
       )
@@ -269,6 +270,8 @@ test('idempotently seed staging academic data and verify assignment submission/g
     if (!occurrence?.classSessionId) {
       throw new Error('Staging attendance schedule must resolve to a batch-backed class session.')
     }
+    expect(schedule?.status).toBe('ACTIVE')
+    expect(occurrence.status).toBe('SCHEDULED')
     expect(occurrence.batchId).toBe(batch.id)
 
     const liveClasses = await getAllItems<{
@@ -278,7 +281,7 @@ test('idempotently seed staging academic data and verify assignment submission/g
     }>(owner.api, '/api/v1/live-classes')
     let liveClass = liveClasses.find(item => item.classSessionId === occurrence?.classSessionId)
     if (!liveClass) {
-      liveClass = await postJson(owner.api, '/api/v1/live-classes', {
+      liveClass = await postJson<{ id: string; classSessionId: string; status: string }>(owner.api, '/api/v1/live-classes', {
         classSessionId: occurrence.classSessionId,
         attendancePolicy: 'MANUAL',
         minimumAttendanceSeconds: 0,
@@ -289,7 +292,7 @@ test('idempotently seed staging academic data and verify assignment submission/g
     }
     expect(['SCHEDULED', 'LIVE', 'ENDED']).toContain(liveClass.status)
     if (liveClass.status === 'SCHEDULED') {
-      liveClass = await postJson(owner.api, `/api/v1/live-classes/${liveClass.id}/start`, {})
+      liveClass = await postJson<{ id: string; classSessionId: string; status: string }>(owner.api, `/api/v1/live-classes/${liveClass.id}/start`, {})
     }
 
     const attendancePath = `/api/v1/live-classes/${liveClass.id}/attendance`
@@ -308,13 +311,19 @@ test('idempotently seed staging academic data and verify assignment submission/g
       })
     }
     await postNoContent(owner.api, `${attendancePath}/finalize`, {})
-    attendance = await getJson(owner.api, attendancePath)
+    attendance = await getJson<Array<{
+      membershipId: string
+      status: string
+      finalizedAt: string | null
+      source: string
+      notes: string | null
+    }>>(owner.api, attendancePath)
     const verifiedAttendance = attendance.find(item => item.membershipId === student.identity.membershipId)
     expect(verifiedAttendance?.status).toBe('PRESENT')
     expect(verifiedAttendance?.source).toBe('MANUAL')
     expect(verifiedAttendance?.finalizedAt).toBeTruthy()
     if (liveClass.status === 'LIVE') {
-      liveClass = await postJson(owner.api, `/api/v1/live-classes/${liveClass.id}/end`, {})
+      liveClass = await postJson<{ id: string; classSessionId: string; status: string }>(owner.api, `/api/v1/live-classes/${liveClass.id}/end`, {})
     }
 
     const assignmentTitle = `UEP Staging Acceptance ${tenantSuffix}`
