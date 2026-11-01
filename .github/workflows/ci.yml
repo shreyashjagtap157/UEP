@@ -47,6 +47,9 @@ jobs:
           OIDC_JWK_SET_URI: http://localhost:18081/realms/education/protocol/openid-connect/certs
           PLATFORM_DEV_MODE: "false"
         run: mvn -B -f apps/platform-server/pom.xml verify
+      - name: Build the Fly deployment image with its Java 21 toolchain
+        working-directory: apps/platform-server
+        run: docker build --pull --tag uep-platform-server:ci .
       - name: Start packaged server on a fresh database and run health smoke
         timeout-minutes: 5
         env:
