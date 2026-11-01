@@ -31,8 +31,8 @@ class S3StorageAdapter implements StorageAdapter {
     @Autowired
     S3StorageAdapter(@Value("${platform.storage.s3.endpoint}") URI endpoint,
                      @Value("${platform.storage.s3.region:us-east-1}") String region,
-                     @Value("${platform.storage.s3.access-key}") String accessKey,
-                     @Value("${platform.storage.s3.secret-key}") String secretKey,
+                     @Value("${platform.storage.s3.access-key:}") String accessKey,
+                     @Value("${platform.storage.s3.secret-key:}") String secretKey,
                      @Value("${platform.storage.s3.bucket}") String bucket,
                      @Value("${platform.development-mode:false}") boolean developmentMode) {
         if (endpoint == null || endpoint.getHost() == null
@@ -66,7 +66,7 @@ class S3StorageAdapter implements StorageAdapter {
                         .apiCallAttemptTimeout(Duration.ofMinutes(10))
                         .apiCallTimeout(Duration.ofMinutes(30))
                         .build());
-        builder.credentialsProvider(accessKey.isBlank() || secretKey.isBlank()
+        builder.credentialsProvider(accessKeyMissing || secretKeyMissing
                 ? DefaultCredentialsProvider.create()
                 : StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)));
         this.client = builder.build();
