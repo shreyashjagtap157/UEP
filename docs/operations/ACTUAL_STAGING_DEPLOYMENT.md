@@ -41,9 +41,13 @@ active tenant membership and roles in that database.
   not start staging tests or synthetic writes. An operator must dispatch the
   workflow with `confirm_staging_e2e=yes` (the default is `no`); the job also
   requires `UEP_STAGING_E2E_ENABLED=true` and the configured GitHub `staging`
-  Environment. Product-data writes remain separately gated by the explicit
-  confirmation secret and `UEP_STAGING_SEED_DRY_RUN=false`. Re-dispatch is
-  required for every staging run.
+  Environment. Product-data writes require a second per-run input,
+  `authorize_synthetic_writes=yes` (default `no`), **and** the repository
+  variable `UEP_STAGING_SEED_DRY_RUN=false`, **and** the exact confirmation
+  secret. If any condition is absent, the workflow forces dry-run mode. This
+  prevents a prior configuration choice from silently authorizing writes on
+  a later dispatch. Re-dispatch and explicit authorization are required for
+  every staging write run.
 - No successful Cloudflare Pages, Fly.io, Supabase, or Keycloak provider-side
   deployment was established by repository CI. A successful build is not a
   deployment, and a pages.dev URL alone is not proof of connected identity/API/DB.
@@ -288,7 +292,7 @@ Set these GitHub repository variables:
 | `UEP_E2E_KEYCLOAK_ISSUER` | Exact `https://.../realms/education` issuer |
 | `UEP_STAGING_PRODUCT_E2E_ENABLED` | `true` only after the database identity endpoint and test accounts are ready |
 | `UEP_STAGING_SEED_TENANT_ID` | Exact expected tenant UUID for the primary staging dataset |
-| `UEP_STAGING_SEED_DRY_RUN` | Set to `true` for the read-only preflight; set to `false` only after reviewing its output and approving synthetic writes |
+| `UEP_STAGING_SEED_DRY_RUN` | Keep `true` for read-only preflight; set to `false` only as an additional repository-side write gate. Each write run also requires dispatch input `authorize_synthetic_writes=yes` (default `no`) |
 | `UEP_STAGING_ALLOWED_FRONTEND_HOST` | Exact hostname of the isolated staging Cloudflare Pages frontend; no scheme or path |
 | `UEP_STAGING_ALLOWED_BACKEND_HOST` | Exact hostname of the isolated staging Fly API; no scheme or path |
 | `UEP_STAGING_SECOND_TENANT_ID` | Separate staging tenant UUID used for a real cross-tenant access-denial assertion |
