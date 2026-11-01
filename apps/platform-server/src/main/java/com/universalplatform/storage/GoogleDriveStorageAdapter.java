@@ -20,7 +20,13 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
     GoogleDriveStorageAdapter(@Value("${platform.storage.google-drive.access-token}") String token,
                               @Value("${platform.storage.google-drive.folder-id:}") String folderId,
                               @Value("${platform.storage.google-drive.shared-drive-id:}") String sharedDriveId) {
-        this.token=token; this.folderId=folderId; this.sharedDriveId=sharedDriveId;
+        this.token = token;
+        this.folderId = folderId == null ? "" : folderId.trim();
+        this.sharedDriveId = sharedDriveId == null ? "" : sharedDriveId.trim();
+        if (!this.sharedDriveId.isEmpty() && this.folderId.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Google Shared Drive storage requires a folder ID inside the configured shared drive");
+        }
     }
     public StorageProviderType type(){ return sharedDriveId.isBlank()?StorageProviderType.GOOGLE_DRIVE:StorageProviderType.GOOGLE_SHARED_DRIVE; }
     public String put(String key, InputStream source, long length, String contentType) throws IOException {
