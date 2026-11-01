@@ -104,6 +104,8 @@ public final class DatabaseMigrationRunner {
                                     WHERE n.nspname = 'public' AND c.relowner = r.oid)
                          OR EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                                     WHERE n.nspname = 'public' AND p.proowner = r.oid)
+                         OR EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+                                    WHERE n.nspname = 'public' AND t.typowner = r.oid)
                        ) AS owns_public_objects,
                        has_schema_privilege(r.rolname, 'public', 'CREATE') AS can_create_public_objects,
                        has_database_privilege(r.rolname, current_database(), 'CREATE') AS can_create_database_objects
