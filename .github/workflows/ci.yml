@@ -15,11 +15,15 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres-version: ['17.11', '18.4']
     env:
       UEP_CI_DB_PASSWORD: ${{ format('uep-ci-{0}-{1}', github.run_id, github.run_attempt) }}
     services:
       postgres:
-        image: postgres:18.4
+        image: postgres:${{ matrix.postgres-version }}
         env:
           POSTGRES_DB: education_platform
           POSTGRES_USER: education
@@ -37,6 +41,25 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+      - name: Verify UUIDv7 migration callback on PostgreSQL ${{ matrix.postgres-version }}
+        env:
+          PGPASSWORD: ${{ env.UEP_CI_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 \\
+            -f apps/platform-server/src/main/resources/db/migration/beforeMigrate.sql
+          psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 <<'SQL'
+          DO $
+          DECLARE generated uuid := public.uuidv7();
+          BEGIN
+            IF substring(generated::text, 15, 1) <> '7' THEN
+              RAISE EXCEPTION 'UUIDv7 version nibble is incorrect: %', generated;
+            END IF;
+            IF substring(generated::text, 20, 1) NOT IN ('8', '9', 'a', 'b') THEN
+              RAISE EXCEPTION 'UUID RFC 4122 variant is incorrect: %', generated;
+            END IF;
+          END $;
+          SQL
       - name: Verify backend
         env:
           SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform
@@ -46,6 +69,8 @@ jobs:
           OIDC_JWK_SET_URI: http://localhost:18081/realms/education/protocol/openid-connect/certs
           PLATFORM_DEV_MODE: "false"
         run: mvn -B -f apps/platform-server/pom.xml verify
+      - name: Build Vercel backend container image
+        run: docker build --pull --tag uep-platform-api:ci apps/platform-server
       - name: Start packaged server on a fresh database and run health smoke
         env:
           SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform_smoke
