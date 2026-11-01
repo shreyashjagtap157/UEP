@@ -189,7 +189,7 @@ if "enabled: has(me, 'ASSESSMENTS_MANAGE')" not in question_ui or '{canManage &&
     errors.append('question bank UI must be absent for non-manager personas')
 
 drive_storage = text('apps/platform-server/src/main/java/com/universalplatform/storage/GoogleDriveStorageAdapter.java')
-if 'r.statusCode()!=404' not in drive_storage:
+if not re.search(r'statusCode\\(\\)\\s*!=\\s*404', drive_storage):
     errors.append('Google Drive deletes must treat already-missing objects as idempotently deleted')
 for timeout_contract in [
     'connectTimeout(Duration.ofSeconds(5))',
