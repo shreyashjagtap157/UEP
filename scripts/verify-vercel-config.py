@@ -15,7 +15,6 @@ backend = services['backend']
 assert frontend['root'] == 'apps/web'
 assert frontend['framework'] == 'vite'
 assert frontend['installCommand'] == 'npm ci --ignore-scripts'
-assert frontend['buildCommand'] == 'npm run build'
 assert frontend['outputDirectory'] == 'dist'
 assert frontend['buildCommand'] == 'npm run build:vercel'
 assert frontend['routes'] == [{
