@@ -35,16 +35,6 @@ class S3StorageAdapter implements StorageAdapter {
                      @Value("${platform.storage.s3.secret-key}") String secretKey,
                      @Value("${platform.storage.s3.bucket}") String bucket,
                      @Value("${platform.development-mode:false}") boolean developmentMode) {
-        this(endpoint, region, accessKey, secretKey, bucket, developmentMode, true);
-    }
-
-    // Preserve a concise production-mode constructor for focused adapter tests.
-    S3StorageAdapter(URI endpoint, String region, String accessKey, String secretKey, String bucket) {
-        this(endpoint, region, accessKey, secretKey, bucket, false, true);
-    }
-
-    private S3StorageAdapter(URI endpoint, String region, String accessKey, String secretKey, String bucket,
-                             boolean developmentMode, boolean ignored) {
         if (endpoint == null || endpoint.getHost() == null
                 || !("http".equalsIgnoreCase(endpoint.getScheme()) || "https".equalsIgnoreCase(endpoint.getScheme()))) {
             throw new IllegalArgumentException("S3 endpoint must be an absolute HTTP(S) URI");
@@ -80,6 +70,12 @@ class S3StorageAdapter implements StorageAdapter {
                 ? DefaultCredentialsProvider.create()
                 : StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)));
         this.client = builder.build();
+    }
+    }
+
+    // Preserve a concise production-mode constructor for focused adapter tests.
+    S3StorageAdapter(URI endpoint, String region, String accessKey, String secretKey, String bucket) {
+        this(endpoint, region, accessKey, secretKey, bucket, false);
     }
 
     @Override
