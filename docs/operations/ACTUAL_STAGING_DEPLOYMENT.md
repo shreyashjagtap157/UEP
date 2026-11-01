@@ -94,6 +94,8 @@ Set these Fly secrets in the Fly app (never commit their values):
 | `OIDC_JWK_SET_URI` | Realm JWKS endpoint |
 | `PLATFORM_RECORDING_PLAYBACK_SECRET` | Random secret, at least 32 characters |
 | `PLATFORM_INTEGRATION_SECRET_KEY` | Random secret, at least 32 characters |
+| `LIVEKIT_URL` | Public secure LiveKit client endpoint, `wss://...` (not localhost) |
+| `LIVEKIT_API_URL` | Public secure LiveKit server API endpoint, `https://...` (not localhost) |
 | `LIVEKIT_API_KEY` | Staging LiveKit API key, at least 16 characters |
 | `LIVEKIT_API_SECRET` | Staging LiveKit API secret, at least 32 characters |
 | `PLATFORM_DEV_MODE` | Must be `false` |
@@ -304,7 +306,10 @@ npx wrangler pages deploy dist --project-name uep-frontend-testing --branch main
 The frontend's backend URL is not inferred from the Vite development proxy.
 The deployed application calls `VITE_BACKEND_URL` directly and sends a
 Keycloak bearer token. The API must return the matching CORS headers for the
-Pages origin.
+Pages origin. The production backend startup guard requires the Fly runtime
+to set `LIVEKIT_URL` to a public `wss://` endpoint and `LIVEKIT_API_URL`
+to a public `https://` endpoint; leaving the development localhost defaults
+will make the production process fail closed.
 
 ## Staging identity and data qualification
 
