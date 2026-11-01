@@ -108,11 +108,25 @@ Content manager access only to the UEP storage Shared Drive, do not add it to
 other Shared Drives, and keep unrelated files out of its My Drive and
 "Shared with me". Mint the refresh token only after granting the exact scope.
 If the OAuth consent grant changes, obtain a new refresh token with the new
-scope. Google requires restricted-scope app verification, and applications
-that store or transmit restricted-scope data on servers must complete the
-applicable security assessment before public/production use. If this access
-model and its compliance requirements are unacceptable, use the S3-compatible
-provider rather than weakening the Drive authorization checks.
+scope.
+
+For a Workspace-only staging deployment, use an OAuth consent-screen
+**Internal** user type and keep the storage principal in that Workspace
+organization. Do not rely on an External app left in **Testing** for a
+long-lived staging credential: Google issues refresh tokens for that setup
+with a seven-day lifetime when Drive scopes are requested. For public
+production, publish the External app and complete restricted-scope OAuth
+verification; applications that store or transmit restricted-scope data on
+servers must also complete the applicable security assessment. If these
+requirements or the broad Drive access model are unacceptable, use the
+S3-compatible provider rather than weakening the Drive authorization checks.
+
+When generating the refresh token, use an authorization-code flow with
+`access_type=offline` so Google issues a refresh token. If a new refresh
+token is not returned after a prior grant, repeat consent with
+`prompt=consent` after verifying the account and exact scope. Store the
+result only as the Fly secret; never commit it, print it, or paste it into
+chat.
 
 For `GOOGLE_SHARED_DRIVE`, also set
 `PLATFORM_STORAGE_GOOGLE_DRIVE_SHARED_DRIVE_ID` and configure the folder ID
