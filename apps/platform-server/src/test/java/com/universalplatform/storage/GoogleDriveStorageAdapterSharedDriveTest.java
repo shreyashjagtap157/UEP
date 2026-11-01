@@ -48,7 +48,7 @@ class GoogleDriveStorageAdapterSharedDriveTest {
 
         assertThatThrownBy(() -> adapter.put("tenant-object-1",
                 new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8)),
-                7, "application/octet-stream\\r\\nX-Injected: true"))
+                7, "application/octet-stream\r\nX-Injected: true"))
                 .isInstanceOf(java.io.IOException.class)
                 .hasMessageContaining("content type is invalid");
 
