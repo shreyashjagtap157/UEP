@@ -13,6 +13,40 @@ import org.junit.jupiter.api.Test;
 
 class S3StorageAdapterHttpIntegrationTest {
     @Test
+    void rejectsContentTypeHeaderInjectionBeforeSendingAnyProviderRequest() throws Exception {
+        List<String> requests = new CopyOnWriteArrayList<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            requests.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getRawPath());
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        server.start();
+        S3StorageAdapter adapter = null;
+        try {
+            adapter = new S3StorageAdapter(
+                    URI.create("http://127.0.0.1:" + server.getAddress().getPort()),
+                    "us-east-1",
+                    "test-access-key",
+                    "test-secret-key",
+                    "uep-test-bucket",
+                    true);
+            S3StorageAdapter finalAdapter = adapter;
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> finalAdapter.put(
+                    "tenant-a/content/unsafe.txt",
+                    new java.io.ByteArrayInputStream(new byte[] {1}),
+                    1,
+                    "text/plain\\r\\nX-Injected: true"))
+                    .isInstanceOf(java.io.IOException.class)
+                    .hasMessageContaining("content type is invalid");
+            assertThat(requests).isEmpty();
+        } finally {
+            if (adapter != null) adapter.close();
+            server.stop(0);
+        }
+    }
+
+    @Test
     void writesReadsAndDeletesAnObjectThroughTheS3CompatibleHttpContract() throws Exception {
         AtomicReference<byte[]> object = new AtomicReference<>();
         List<String> requests = new CopyOnWriteArrayList<>();
