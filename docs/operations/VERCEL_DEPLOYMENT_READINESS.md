@@ -137,10 +137,14 @@ Configure GitHub Environment `vercel-database-migrations` with:
 
 After Flyway migrates and validates, `DatabaseMigrationRunner` validates that
 the runtime login is not superuser, cannot create roles/databases, cannot
-replicate, does not bypass RLS, and has no role memberships. It then grants
-only CONNECT, schema USAGE, table SELECT/INSERT/UPDATE/DELETE, sequence
-USAGE/SELECT/UPDATE, and function EXECUTE privileges. It also configures
-default privileges for objects created by the migration role in `public`.
+replicate, does not bypass RLS, and has no role memberships. It then grants only CONNECT, schema USAGE, table
+SELECT/INSERT/UPDATE/DELETE, sequence USAGE/SELECT/UPDATE, and EXECUTE on
+`public.uuidv7()` (the PostgreSQL 17 compatibility default). Trigger
+functions remain non-callable directly by the application login. It explicitly
+revokes access to `flyway_schema_history` and configures table/sequence default
+privileges for objects created by the migration role in `public`. The runner
+also rejects a runtime login with CREATE on `public`, or ownership of the
+schema, tables, sequences, indexes, or routines.
 Re-running the workflow is safe: Flyway applies only pending migrations and
 the privilege grants are idempotent.
 
@@ -191,7 +195,7 @@ No Vercel project was created, no Marketplace database was provisioned, and no d
 - `.github/workflows/ci.yml` tests PostgreSQL 17.11 and 18.4, runs backend tests, builds the backend container, starts the packaged application against a fresh database, and checks health/load behavior.
 - The web job runs lint, frontend tests, and the production-mode build contract.
 - Repository policy validates the Vercel route/config contract and deployment safety gates.
-- The most recent observed run for commit `49c24455bf2163cc2c55f53f87369ddc0d4ee77a` was still running when this document was written. Re-check the Actions result before marking CI green.
+- The latest CI status must be checked against the exact current `main` SHA; historical green runs are not evidence for later commits. A green web/repository-policy job does not substitute for both PostgreSQL backend matrix jobs completing their Flyway, container-image and packaged-server health steps.
 
 Acceptance requires, at minimum: green PostgreSQL 17/18 CI, successful packaged-container smoke test, verified OIDC issuer/JWKS, verified least-privilege database connection and migration, durable storage, a worker execution design for asynchronous workflows, and real browser E2E tests against the deployed product. Demo/local Playwright results are not product acceptance evidence.
 

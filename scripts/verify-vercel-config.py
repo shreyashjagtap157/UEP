@@ -61,6 +61,18 @@ upload_service = (root / 'apps/platform-server/src/main/java/com/universalplatfo
 assert 'PLATFORM_UPLOAD_STAGING_ENABLED' in upload_service or 'platform.storage.upload-staging.enabled' in upload_service
 assert 'platform.live-learning.livekit.enabled' in live_service
 assert 'platform.live-learning.livekit.enabled' in recording_service
+migration_runner = (root / 'apps/platform-server/src/main/java/com/universalplatform/DatabaseMigrationRunner.java').read_text(encoding='utf-8')
+migration_workflow = (root / '.github/workflows/database-migration.yml').read_text(encoding='utf-8')
+assert 'UEP_DATABASE_RUNTIME_USERNAME' in migration_runner and 'UEP_DATABASE_RUNTIME_USERNAME' in migration_workflow
+assert 'NOINHERIT' not in migration_runner  # role creation belongs to the operator; runner validates the role
+assert 'rolbypassrls' in migration_runner and 'rolsuper' in migration_runner
+assert 'owns_public_objects' in migration_runner and 'can_create_public_objects' in migration_runner
+assert 'REVOKE ALL PRIVILEGES ON TABLE public.flyway_schema_history' in migration_runner
+assert 'GRANT EXECUTE ON FUNCTION public.uuidv7()' in migration_runner
+assert 'GRANT EXECUTE ON ALL FUNCTIONS' not in migration_runner
+assert 'ALTER DEFAULT PRIVILEGES FOR ROLE' in migration_runner
+assert 'confirm_database_migration' in migration_workflow and 'default: "no"' in migration_workflow
+assert 'UEP_DATABASE_MIGRATION_JDBC_URL' in migration_workflow
 web_package = json.loads((root / 'apps/web/package.json').read_text(encoding='utf-8'))
 assert 'guard-vercel-build.mjs' in web_package['scripts']['build']
 assert 'verify-deployment-env.mjs' in web_package['scripts']['build:vercel']
