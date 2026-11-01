@@ -143,7 +143,7 @@ SELECT/INSERT/UPDATE/DELETE, sequence USAGE/SELECT/UPDATE, and EXECUTE on
 functions remain non-callable directly by the application login. It explicitly
 revokes access to `flyway_schema_history` and configures table/sequence default
 privileges for objects created by the migration role in `public`. The runner
-also rejects a runtime login with CREATE on `public`, or ownership of the
+also rejects a runtime login with database-level CREATE or schema-level CREATE on `public`, or ownership of the
 schema, tables, sequences, indexes, or routines.
 Re-running the workflow is safe: Flyway applies only pending migrations and
 the privilege grants are idempotent.
