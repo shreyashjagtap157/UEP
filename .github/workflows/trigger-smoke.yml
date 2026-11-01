@@ -1,4 +1,5 @@
 name: UEP Workflow Trigger Smoke
+# Diagnostic: verify that GitHub Actions starts jobs for pushes to main.
 
 on:
   push:
