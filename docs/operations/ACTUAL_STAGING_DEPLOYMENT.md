@@ -299,7 +299,16 @@ GitHub `staging` Environment secret. First run with
 `UEP_STAGING_SEED_DRY_RUN=true`; review the database/tenant identity and
 planned record list before switching it to `false`. Also configure the
 `UEP_STAGING_SEED_CONFIRMATION` Environment secret to the exact value
-`UEP-STAGING-SEED-CONFIRMED`; this is an explicit opt-in to synthetic writes. Use non-customer accounts and test data.
+`UEP-STAGING-SEED-CONFIRMED`; the seeder compares this setting with a fixed
+literal in the checked-in test source. **This value is public and is not a
+security secret or an independent authorization factor.** It is only a
+configuration-presence sentinel that causes the seeder to abort when missing
+or incorrect. Do not rely on it to protect staging credentials or authorize
+writes; the main-only GitHub Environment deployment policy and required
+reviewers are the server-enforced trust boundary, while the per-run workflow
+input, repository dry-run variable, owner authorization, tenant/host allowlists,
+and database identity check are additional operational gates. Use non-customer
+accounts and test data.
 
 Set these GitHub repository variables:
 
@@ -362,8 +371,9 @@ At minimum, prepare:
 Seed only through the guarded, idempotent staging seeder in
 `apps/web/test/staging/product-workflows.staging.spec.ts`. Before its first
 write, it requires all of the following: the exact staging frontend/backend
-hostnames from the GitHub Environment allowlist, the expected tenant UUID, the explicit confirmation secret, an
-authenticated organization-owner identity, and a successful call to
+hostnames from the GitHub Environment allowlist, the expected tenant UUID, the
+confirmation configuration sentinel (not a security secret), an authenticated
+organization-owner identity, and a successful call to
 `GET /api/v1/platform/staging-database-identity`. That backend endpoint is
 available only when `PLATFORM_STAGING_DATABASE_IDENTITY_ENABLED=true`, requires
 `OPERATIONS_MANAGE`, reads the actual JDBC connection metadata, and fails
