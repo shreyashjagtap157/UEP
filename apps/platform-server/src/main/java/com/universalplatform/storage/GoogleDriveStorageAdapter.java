@@ -11,6 +11,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
+import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -78,16 +79,35 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
             if (!sharedDriveId.isEmpty()) {
                 sharedDriveFolderValidator.validate(folderId, sharedDriveId, tokens.accessToken());
             }
-            String metadata = "{\"name\":\"" + escape(key) + "\""
-                    + (folderId.isEmpty() ? "" : ",\"parents\":[\"" + escape(folderId) + "\"]") + "}";
+            if (key == null || key.isBlank()) {
+                throw new IOException("Google Drive object key must not be blank");
+            }
+            final String validatedContentType;
+            try {
+                validatedContentType = MediaType.parseMediaType(
+                        contentType == null || contentType.isBlank() ? "application/octet-stream" : contentType)
+                        .toString();
+            } catch (IllegalArgumentException invalidContentType) {
+                throw new IOException("Google Drive object content type is invalid", invalidContentType);
+            }
+            // Jackson safely encodes arbitrary Unicode, quotes, backslashes and control characters.
+            var metadataNode = json.createObjectNode().put("name", key);
+            if (!folderId.isEmpty()) {
+                metadataNode.putArray("parents").add(folderId);
+            }
+            byte[] metadata = json.writeValueAsBytes(metadataNode);
             String boundary = "uep-boundary";
             byte[] head = ("--" + boundary
-                    + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"
-                    + metadata + "\r\n--" + boundary
-                    + "\r\nContent-Type: " + contentType + "\r\n\r\n").getBytes(StandardCharsets.UTF_8);
+                    + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n")
+                    .getBytes(StandardCharsets.UTF_8);
+            byte[] metadataTail = ("\r\n--" + boundary
+                    + "\r\nContent-Type: " + validatedContentType + "\r\n\r\n")
+                    .getBytes(StandardCharsets.UTF_8);
             byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
             HttpRequest.BodyPublisher body = HttpRequest.BodyPublishers.concat(
                     HttpRequest.BodyPublishers.ofByteArray(head),
+                    HttpRequest.BodyPublishers.ofByteArray(metadata),
+                    HttpRequest.BodyPublishers.ofByteArray(metadataTail),
                     HttpRequest.BodyPublishers.ofInputStream(() -> source),
                     HttpRequest.BodyPublishers.ofByteArray(tail));
             String uri = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true";
@@ -156,7 +176,5 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
         return value == null ? "" : value.trim();
     }
 
-    private static String escape(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
+
 }
