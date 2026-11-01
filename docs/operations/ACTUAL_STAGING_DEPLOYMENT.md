@@ -69,10 +69,61 @@ Set these Fly secrets in the Fly app (never commit their values):
 | `LIVEKIT_API_SECRET` | Staging LiveKit API secret, at least 32 characters |
 | `PLATFORM_DEV_MODE` | Must be `false` |
 
-If storage is configured as S3, also set the platform's S3 endpoint, bucket,
-region, access key, secret, and path-style settings required by the adapter.
+#### Durable object storage — recommended Supabase Storage S3 adapter
+
+The existing UEP backend already provides an S3-compatible adapter. For this
+staging project, use the managed Supabase Storage S3 endpoint rather than the
+local filesystem or an unenabled Cloudflare R2 account.
+
+Before configuring Fly:
+
+1. In Supabase Dashboard, open Storage → Configuration → S3, enable S3
+   protocol access, and create a private bucket named
+   `uep-staging-assets`.
+2. Generate a dedicated S3 access-key pair for the UEP backend. Copy the
+   endpoint, region, Access Key ID and Secret Access Key into the approved
+   secret manager. The secret key is shown once.
+3. The documented direct storage endpoint format is
+   `https://<project-ref>.storage.supabase.co/storage/v1/s3`. For this
+   project, the expected endpoint is
+   `https://rykmwcslbzmkzmnnzvxm.storage.supabase.co/storage/v1/s3`.
+   Use the region shown by the S3 configuration page; the current project
+   region is `ap-southeast-1`.
+4. Set the following Fly application configuration (the S3 credentials are
+   secrets and must never be stored in GitHub variables, Pages variables, or
+   frontend bundles):
+
+   | Variable | Value |
+   |---|---|
+   | `PLATFORM_STORAGE_S3_ENABLED` | `true` |
+   | `PLATFORM_STORAGE_S3_ENDPOINT` | Direct Supabase Storage S3 endpoint above |
+   | `PLATFORM_STORAGE_S3_REGION` | Exact region shown in Supabase S3 settings |
+   | `PLATFORM_STORAGE_S3_BUCKET` | `uep-staging-assets` |
+   | `PLATFORM_STORAGE_S3_ACCESS_KEY` | Generated S3 Access Key ID (secret) |
+   | `PLATFORM_STORAGE_S3_SECRET_KEY` | Generated S3 Secret Access Key (secret) |
+
+The S3 adapter uses path-style addressing, as required by Supabase's
+documented S3 client configuration. Supabase-generated S3 credentials grant
+full S3 operations across all buckets and bypass Storage RLS. They are for
+trusted server-side use only. Keep the bucket private; all downloads must
+continue through UEP's authenticated backend authorization path.
+
+After Fly secrets and configuration are set, an active tenant administrator
+must configure that tenant's storage binding as `S3_COMPATIBLE` through the
+UEP storage integration API/UI. Upload finalization writes an object key
+containing the tenant identifier. Do not assume a global adapter is usable by
+a tenant until its binding is configured.
+
+The Supabase project's Free plan and Storage limits must be checked in the
+Dashboard before setting the production upload-size limit. The current
+application default is 5 GiB, while the adapter currently performs a single
+S3 `PutObject`; qualify the provider's maximum object size and the app's
+configured upload cap together. Validate a real upload, download, checksum,
+tenant isolation, and retrieval after backend restart before marking storage
+ready.
+
 Do not use the ephemeral Fly container filesystem as durable student content
-or recording storage.
+or recording storage. Local staging files are temporary upload state only.
 
 Before deployment, verify the Supabase project reference and database name are
 the isolated staging target. Do not point Fly at an unknown or customer
