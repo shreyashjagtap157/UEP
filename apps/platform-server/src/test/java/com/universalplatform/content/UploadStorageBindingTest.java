@@ -91,7 +91,7 @@ class UploadStorageBindingTest {
 
     @Test
     void serverlessDeploymentRejectsChunkedUploadsBeforeCreatingLocalStagingFiles() {
-        UploadService service = service(false);
+        UploadService service = serviceWithoutTenantStub(false);
         ReflectionTestUtils.setField(service, "uploadStagingEnabled", false);
 
         assertThatThrownBy(() -> service.initiate("lesson.pdf", "application/pdf", 12, null))
@@ -105,6 +105,10 @@ class UploadStorageBindingTest {
 
     private UploadService service(boolean developmentMode) {
         when(tenants.requireTenantId()).thenReturn(TENANT);
+        return serviceWithoutTenantStub(developmentMode);
+    }
+
+    private UploadService serviceWithoutTenantStub(boolean developmentMode) {
         return new UploadService(tenants, actors, auth, uploads, objects, adapters, bindings, audit,
                 scanner, cleanup, stagingCleanup, staging.toString(), 1024, developmentMode);
     }
