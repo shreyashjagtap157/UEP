@@ -46,7 +46,7 @@ final class ProductionSecretGuard {
      */
     static void validateProductionSecrets(Environment environment) {
         List<String> offenders = new ArrayList<>();
-        check(offenders, environment, "spring.datasource.password", "DATABASE_PASSWORD", "education", 16);
+        check(offenders, environment, "spring.datasource.password", "SUPABASE_DB_PASS", "education", 16);
         check(offenders, environment, "platform.recording.playback-secret",
                 "PLATFORM_RECORDING_PLAYBACK_SECRET", "change-me-in-production", 32);
         check(offenders, environment, "platform.integrations.secret-key",

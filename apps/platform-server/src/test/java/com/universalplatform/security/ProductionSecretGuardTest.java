@@ -19,7 +19,7 @@ class ProductionSecretGuardTest {
 
         assertThatThrownBy(() -> ProductionSecretGuard.validateProductionSecrets(environment))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("DATABASE_PASSWORD")
+                .hasMessageContaining("SUPABASE_DB_PASS")
                 .hasMessageContaining("PLATFORM_RECORDING_PLAYBACK_SECRET")
                 .satisfies(exception -> assertThat(exception.getMessage())
                         .doesNotContain("integration-secret-that-is-long-enough"));

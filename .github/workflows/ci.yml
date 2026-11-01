@@ -21,7 +21,7 @@ jobs:
         env:
           POSTGRES_DB: education_platform
           POSTGRES_USER: education
-          POSTGRES_PASSWORD: education
+          POSTGRES_PASSWORD: uep-ci-postgres-password-2026
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U education -d education_platform"
@@ -39,7 +39,7 @@ jobs:
         env:
           SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform
           SUPABASE_DB_USER: education
-          SUPABASE_DB_PASS: education
+          SUPABASE_DB_PASS: uep-ci-postgres-password-2026
           OIDC_ISSUER_URI: http://localhost:18081/realms/education
           OIDC_JWK_SET_URI: http://localhost:18081/realms/education/protocol/openid-connect/certs
           PLATFORM_DEV_MODE: "false"
@@ -48,13 +48,17 @@ jobs:
         env:
           SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform_smoke
           SUPABASE_DB_USER: education
-          SUPABASE_DB_PASS: education
+          SUPABASE_DB_PASS: uep-ci-postgres-password-2026
           OIDC_ISSUER_URI: http://localhost:18081/realms/education
           OIDC_JWK_SET_URI: http://localhost:18081/realms/education/protocol/openid-connect/certs
+          PLATFORM_RECORDING_PLAYBACK_SECRET: "uep-ci-recording-playback-secret-2026-11-01"
+          PLATFORM_INTEGRATION_SECRET_KEY: "uep-ci-integration-secret-key-2026-11-01"
+          LIVEKIT_API_KEY: "uep-ci-livekit-key-2026"
+          LIVEKIT_API_SECRET: "uep-ci-livekit-api-secret-2026-11-01"
           PLATFORM_DEV_MODE: "false"
         run: |
           set -euo pipefail
-          psql "postgresql://education:education@localhost:5432/postgres" -X -v ON_ERROR_STOP=1 \
+          psql "postgresql://education:uep-ci-postgres-password-2026@localhost:5432/postgres" -X -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE education_platform_smoke OWNER education;"
           jar="apps/platform-server/target/platform-server-0.15.0.0-SNAPSHOT.jar"
           test -f "$jar"
