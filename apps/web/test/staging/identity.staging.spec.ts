@@ -1,6 +1,22 @@
 import { expect, test } from '@playwright/test'
 import { accounts, backendUrl, issuerUrl, requiredRoles, baseUrl } from '../../playwright.staging.config'
 
+function assertOpaqueIdMatches(actual: unknown, expected: unknown, label: string): void {
+  if (typeof actual !== 'string' || typeof expected !== 'string' || actual !== expected) {
+    throw new Error(label + ' did not match the configured identity.')
+  }
+}
+
+function assertOpaqueIdPresent(value: unknown, label: string): void {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(label + ' was missing from the identity response.')
+  }
+}
+
+function assertSafeTextMatches(actual: string | null, expected: string, label: string): void {
+  if (actual !== expected) throw new Error(label + ' did not match the configured account.')
+}
+
 test.describe('Deployed UEP product — staging integration', () => {
   test('frontend, backend database health, and Keycloak discovery are reachable', async ({ request }) => {
     const [healthResponse, oidcResponse] = await Promise.all([
@@ -60,15 +76,16 @@ test.describe('Deployed UEP product — staging integration', () => {
         userId: string
       }
 
-      expect(identity.tenantId).toBe(account.tenantId)
+      assertOpaqueIdMatches(identity.tenantId, account.tenantId, 'Authenticated tenant identifier')
       expect(identity.membershipStatus).toBe('ACTIVE')
-      expect(identity.displayName).toBe(account.displayName)
-      expect(identity.membershipId).toBeTruthy()
-      expect(identity.userId).toBeTruthy()
+      assertSafeTextMatches(identity.displayName, account.displayName, 'Authenticated display name')
+      assertOpaqueIdPresent(identity.membershipId, 'Membership identifier')
+      assertOpaqueIdPresent(identity.userId, 'User identifier')
       expect(identity.roles.map(role => role.toLowerCase())).toContain(roleName.toLowerCase())
 
       await expect(page.locator('.app-frame')).toBeVisible()
-      await expect(page.locator('.sidebar-footer .signed-in')).toHaveText(account.displayName)
+      const signedInLabel = await page.locator('.sidebar-footer .signed-in').textContent()
+      assertSafeTextMatches(signedInLabel, account.displayName, 'Signed-in account label')
       await expect(page.locator('.local-mode-badge')).toHaveCount(0)
       await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
     })
