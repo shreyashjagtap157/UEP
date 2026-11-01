@@ -82,6 +82,8 @@ platform:
   development-mode: ${PLATFORM_DEV_MODE:false}
   storage:
     type: ${PLATFORM_STORAGE_TYPE:local} # local | s3 | google-drive
+    upload-staging:
+      enabled: ${PLATFORM_UPLOAD_STAGING_ENABLED:true}
     upload-cleanup-poll-ms: ${PLATFORM_UPLOAD_CLEANUP_POLL_MS:3600000}
     retention-poll-ms: ${PLATFORM_CONTENT_RETENTION_POLL_MS:3600000}
     max-upload-bytes: ${PLATFORM_MAX_UPLOAD_BYTES:5368709120}
