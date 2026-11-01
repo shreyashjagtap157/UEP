@@ -54,6 +54,8 @@ class UploadService {
     private final UploadStagingCleanupService uploadStagingCleanup;
     private final Path staging;
     private final long maxUploadBytes;
+    @Value("${platform.storage.upload-staging.enabled:true}")
+    private boolean uploadStagingEnabled = true;
     private final Clock clock = Clock.systemUTC();
 
     UploadService(TenantContext tenants,
@@ -89,6 +91,7 @@ class UploadService {
     @Transactional
     UploadView initiate(String fileName, String contentType, long bytes, String sha256) throws IOException {
         auth.require(PermissionKey.CONTENT_MANAGE);
+        requireUploadStagingEnabled();
         if (bytes < 0) throw new IllegalArgumentException("File size cannot be negative");
         if (bytes > maxUploadBytes)
             throw new IllegalArgumentException("File exceeds platform upload limit of " + maxUploadBytes + " bytes");
@@ -123,6 +126,7 @@ class UploadService {
     @Transactional
     UploadView append(UUID id, long offset, InputStream body, long contentLength) throws IOException {
         auth.require(PermissionKey.CONTENT_MANAGE);
+        requireUploadStagingEnabled();
         UploadSession u = uploads.lock(tenants.requireTenantId(), id)
                 .orElseThrow(() -> new IllegalArgumentException("Upload not found"));
         if (u.status == UploadStatus.COMPLETED || u.status == UploadStatus.ABORTED || u.status == UploadStatus.EXPIRED) {
@@ -173,6 +177,7 @@ class UploadService {
     @Transactional(noRollbackFor = UploadRejectedException.class)
     StorageView finalizeUpload(UUID id) throws IOException, GeneralSecurityException {
         auth.require(PermissionKey.CONTENT_MANAGE);
+        requireUploadStagingEnabled();
         UUID tenant = tenants.requireTenantId();
         UploadSession u = uploads.lock(tenant, id)
                 .orElseThrow(() -> new IllegalArgumentException("Upload not found"));
@@ -316,6 +321,14 @@ class UploadService {
 
     private static UploadView view(UploadSession u) {
         return new UploadView(u.id, u.fileName, u.contentType, u.expectedBytes, u.receivedBytes, u.provider, u.status, u.expiresAt);
+    }
+
+
+    private void requireUploadStagingEnabled() {
+        if (!uploadStagingEnabled) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Chunked uploads are unavailable until durable shared upload staging is configured");
+        }
     }
 
     private static StorageView view(StorageObject o) {
