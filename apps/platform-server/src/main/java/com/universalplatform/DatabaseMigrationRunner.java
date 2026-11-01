@@ -77,7 +77,11 @@ public final class DatabaseMigrationRunner {
                         + runtimeRole);
                 statement.execute("GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO "
                         + runtimeRole);
-                statement.execute("GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO " + runtimeRole);
+                // The only direct application call into a public-schema helper is
+                // the UUIDv7 default function used by PostgreSQL 17 compatibility.
+                // Trigger functions execute through their attached triggers and do
+                // not need to be callable directly by the application role.
+                statement.execute("GRANT EXECUTE ON FUNCTION public.uuidv7() TO " + runtimeRole);
                 statement.execute("REVOKE ALL PRIVILEGES ON TABLE public.flyway_schema_history FROM "
                         + runtimeRole);
 
@@ -85,8 +89,6 @@ public final class DatabaseMigrationRunner {
                         + " IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + runtimeRole);
                 statement.execute("ALTER DEFAULT PRIVILEGES FOR ROLE " + migrationRole
                         + " IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO " + runtimeRole);
-                statement.execute("ALTER DEFAULT PRIVILEGES FOR ROLE " + migrationRole
-                        + " IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO " + runtimeRole);
             }
         }
     }
@@ -102,7 +104,8 @@ public final class DatabaseMigrationRunner {
                                     WHERE n.nspname = 'public' AND c.relowner = r.oid)
                          OR EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                                     WHERE n.nspname = 'public' AND p.proowner = r.oid)
-                       ) AS owns_public_objects
+                       ) AS owns_public_objects,
+                       has_schema_privilege(r.rolname, 'public', 'CREATE') AS can_create_public_objects
                 FROM pg_roles r
                 WHERE r.rolname = ?
                 """;
@@ -120,7 +123,8 @@ public final class DatabaseMigrationRunner {
                         && !result.getBoolean("rolreplication")
                         && !result.getBoolean("rolbypassrls")
                         && !result.getBoolean("has_role_memberships")
-                        && !result.getBoolean("owns_public_objects");
+                        && !result.getBoolean("owns_public_objects")
+                        && !result.getBoolean("can_create_public_objects");
                 if (!safe) {
                     throw new IllegalStateException(
                             "Runtime database role must be a standalone login without administrative privileges, RLS bypass, role memberships, or ownership of public objects.");
