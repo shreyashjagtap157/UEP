@@ -101,7 +101,7 @@ jobs:
           );
           CREATE FUNCTION public.uep_ci_existing_trigger_fn() RETURNS trigger
             LANGUAGE plpgsql AS $function$
-            BEGIN NEW.details := NEW.details || '-triggered'; RETURN NEW; END
+            BEGIN NEW.details := NEW.details || '-triggered'; RETURN NEW; END;
             $function$;
           CREATE TRIGGER trg_uep_ci_existing_probe
             BEFORE INSERT ON public.uep_ci_existing_probe
@@ -121,7 +121,7 @@ jobs:
           );
           CREATE FUNCTION public.uep_ci_future_trigger_fn() RETURNS trigger
             LANGUAGE plpgsql AS $function$
-            BEGIN NEW.details := NEW.details || '-triggered'; RETURN NEW; END
+            BEGIN NEW.details := NEW.details || '-triggered'; RETURN NEW; END;
             $function$;
           CREATE TRIGGER trg_uep_ci_future_probe
             BEFORE INSERT ON public.uep_ci_future_probe
