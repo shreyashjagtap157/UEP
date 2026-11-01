@@ -442,22 +442,22 @@ test('idempotently seed staging academic data and verify assignment submission/g
     }>(student.api, '/api/v1/announcements/me')
     expect(acknowledgedAnnouncements.find(item => item.id === announcement?.id)?.acknowledgedAt).toBeTruthy()
 
-    const secondaryAccountJson = process.env.UEP_E2E_SECOND_TENANT_STUDENT_ACCOUNT_JSON?.trim()
+    const secondaryAccountJson = process.env.UEP_E2E_SECOND_TENANT_TEACHER_ACCOUNT_JSON?.trim()
     if (secondaryAccountJson) {
       const secondaryTenantId = process.env.UEP_STAGING_SECOND_TENANT_ID?.trim()
       expect(secondaryTenantId, 'A second-tenant account requires UEP_STAGING_SECOND_TENANT_ID').toBeTruthy()
       const secondaryAccount = JSON.parse(secondaryAccountJson) as Account
-      const secondaryStudent = await authenticate(browser, secondaryAccount)
+      const secondaryTeacher = await authenticate(browser, secondaryAccount)
       try {
         expect(secondaryStudent.identity.tenantId).toBe(secondaryTenantId)
         expect(secondaryStudent.identity.tenantId).not.toBe(expectedTenantId)
         const foreignAssignment = await secondaryStudent.api.get(`/api/v1/assignments/${assignment.id}`)
-        expect(foreignAssignment.status(), 'a second-tenant identity must not resolve a primary-tenant assignment').toBe(404)
+        expect(foreignAssignment.status(), 'a second-tenant teacher must not enumerate submissions for a primary-tenant assignment').toBe(404)
       } finally {
         await secondaryStudent.close()
       }
     } else {
-      console.warn('Tenant-isolation staging assertion not executed: configure UEP_E2E_SECOND_TENANT_STUDENT_ACCOUNT_JSON and UEP_STAGING_SECOND_TENANT_ID.')
+      console.warn('Tenant-isolation staging assertion not executed: configure UEP_E2E_SECOND_TENANT_TEACHER_ACCOUNT_JSON and UEP_STAGING_SECOND_TENANT_ID.')
     }
 
     // A new browser context and a new OIDC sign-in prove the grade is not merely
