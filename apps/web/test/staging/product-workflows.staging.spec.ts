@@ -79,6 +79,7 @@ test('idempotently seed staging academic data and verify cross-role assignments,
   const owner = await authenticate(browser, accounts.organization_owner as Account)
   const teacher = await authenticate(browser, accounts.teacher as Account)
   const student = await authenticate(browser, accounts.student as Account)
+  const finance = await authenticate(browser, accounts.finance_administrator as Account)
   let freshStudent: AuthenticatedIdentity | undefined
 
   try {
@@ -86,6 +87,7 @@ test('idempotently seed staging academic data and verify cross-role assignments,
       ['owner', owner.identity],
       ['teacher', teacher.identity],
       ['student', student.identity],
+      ['finance administrator', finance.identity],
     ] as const) {
       expect(identity.tenantId, `${label} must resolve to the explicitly configured staging tenant`)
         .toBe(expectedTenantId)
@@ -558,6 +560,64 @@ test('idempotently seed staging academic data and verify cross-role assignments,
     }>(student.api, '/api/v1/announcements/me')
     expect(acknowledgedAnnouncements.find(item => item.id === announcement?.id)?.acknowledgedAt).toBeTruthy()
 
+    const invoiceAmount = Number((10 + (Number.parseInt(tenantSuffix.slice(0, 4), 16) % 9000) / 100).toFixed(2))
+    const invoiceDueOn = '2099-12-31'
+    type InvoiceRecord = {
+      id: string
+      membershipId: string
+      totalAmount: number
+      paidAmount: number
+      currency: string
+      status: string
+      dueOn: string
+      version: number
+      installments: Array<{ amount: number; dueOn: string; status: string }>
+    }
+    const invoicePage = await getJson<{
+      items: InvoiceRecord[]
+      size: number
+      totalElements: number
+    }>(finance.api, '/api/v1/finance/invoices?page=0&size=100')
+    const invoicePages = Math.ceil(invoicePage.totalElements / Math.max(1, invoicePage.size))
+    const allInvoices = [...invoicePage.items]
+    for (let page = 1; page < invoicePages; page += 1) {
+      const nextPage = await getJson<{ items: InvoiceRecord[] }>(
+        finance.api,
+        '/api/v1/finance/invoices?page=' + page + '&size=100',
+      )
+      allInvoices.push(...nextPage.items)
+    }
+    const matchingInvoices = allInvoices.filter(item =>
+      item.membershipId === student.identity.membershipId
+      && Number(item.totalAmount) === invoiceAmount
+      && item.currency === 'INR'
+      && item.dueOn === invoiceDueOn)
+    expect(matchingInvoices.length).toBeLessThanOrEqual(1)
+    let invoice = matchingInvoices[0]
+    if (!invoice) {
+      invoice = await postJson<InvoiceRecord>(finance.api, '/api/v1/finance/invoices', {
+        membershipId: student.identity.membershipId,
+        totalAmount: invoiceAmount,
+        currency: 'INR',
+        dueOn: invoiceDueOn,
+        installments: [{ amount: invoiceAmount, dueOn: invoiceDueOn }],
+      })
+    }
+    if (!invoice) throw new Error('Staging finance invoice creation did not return a record.')
+    if (invoice.status === 'DRAFT') {
+      invoice = await postJson<InvoiceRecord>(
+        finance.api,
+        '/api/v1/finance/invoices/' + invoice.id + '/issue',
+        { expectedVersion: invoice.version },
+      )
+    }
+    expect(invoice.status).toBe('ISSUED')
+    const issuedInvoice = await getJson<InvoiceRecord>(finance.api, '/api/v1/finance/invoices/' + invoice.id)
+    expect(issuedInvoice.status).toBe('ISSUED')
+    expect(Number(issuedInvoice.paidAmount)).toBe(0)
+    expect(issuedInvoice.installments).toHaveLength(1)
+    expect(issuedInvoice.installments[0].dueOn).toBe(invoiceDueOn)
+
     const secondaryAccountJson = process.env.UEP_E2E_SECOND_TENANT_TEACHER_ACCOUNT_JSON?.trim()
     if (secondaryAccountJson) {
       const secondaryTenantId = process.env.UEP_STAGING_SECOND_TENANT_ID?.trim()
@@ -600,6 +660,7 @@ test('idempotently seed staging academic data and verify cross-role assignments,
     await owner.close()
     await teacher.close()
     await student.close()
+    await finance.close()
     await freshStudent?.close()
   }
 })
