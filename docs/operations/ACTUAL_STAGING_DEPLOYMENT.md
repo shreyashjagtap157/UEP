@@ -111,6 +111,16 @@ the upload session; clients cannot choose a provider. Enable and configure
 every provider you intend to offer, but do not set a global
 `PLATFORM_STORAGE_TYPE` selector.
 
+**Manual-test consequence:** The production backend returns HTTP 409 from
+upload initiation until the tenant has an explicit storage binding and its
+selected provider adapter is enabled and configured. The local filesystem
+provider is intentionally rejected outside development mode, and the Fly
+container has no persistent volume. A backend health check can pass while
+upload workflows remain unavailable. Until an S3-compatible or Google Drive
+provider has been configured and bound to the test tenant, mark upload,
+download, retention and recording-archive workflows as **not deployed**, not
+as passed or failed application functionality.
+
 For S3-compatible storage, set
 `PLATFORM_STORAGE_S3_ENABLED=true` and configure the exact adapter properties
 through these Fly secrets/environment variables:
