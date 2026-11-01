@@ -87,7 +87,7 @@ Set these Fly secrets in the Fly app (never commit their values):
 
 | Secret | Requirement |
 |---|---|
-| `SUPABASE_DB_URL` | JDBC URL for the isolated staging Supabase PostgreSQL database |
+| `SUPABASE_DB_URL` | JDBC URL for the isolated staging Supabase PostgreSQL database; must use `sslmode=require`, `verify-ca`, or `verify-full` in the production profile |
 | `SUPABASE_DB_USER` | Staging database user |
 | `SUPABASE_DB_PASS` | Strong staging database password, at least 16 characters |
 | `OIDC_ISSUER_URI` | Exact issuer URL for the deployed `education` realm |
@@ -204,8 +204,41 @@ silence migration errors.
 ### Supabase PostgreSQL
 
 Use a dedicated staging project/database, not a production database with a
-different username. Verify the connection identity with a read-only query
-before the first deployment:
+different username. Fly Machines have outbound IPv6 connectivity, and Supabase
+recommends the direct PostgreSQL endpoint for persistent backends such as
+Fly.io VMs. For a fresh UEP staging project, use the direct connection string
+shown by the Supabase Dashboard's **Connect** panel:
+
+```text
+SUPABASE_DB_URL=jdbc:postgresql://db.<project-ref>.supabase.co:5432/postgres?sslmode=require
+SUPABASE_DB_USER=postgres
+SUPABASE_DB_PASS=<database-password>
+```
+
+Use the actual project reference and password; never commit or print them.
+The direct endpoint is IPv6-only on the Free tier unless an IPv4 add-on is
+enabled. If a runtime connectivity test proves that the Fly machine cannot
+reach the direct IPv6 endpoint, switch to the **Shared Pooler — Session**
+connection mode, copying its exact host from the Connect panel and using the
+username `postgres.<project-ref>`:
+
+```text
+SUPABASE_DB_URL=jdbc:postgresql://<exact-session-pooler-host>:5432/postgres?sslmode=require
+SUPABASE_DB_USER=postgres.<project-ref>
+```
+
+Do not use Shared Pooler transaction mode (port 6543) for this Spring Data JPA
+and Flyway service: transaction pooling does not preserve all session features
+and does not support prepared statements. Session mode (port 5432) supports
+them. The production startup guard now rejects a missing/non-PostgreSQL JDBC
+URL, a missing database username, a missing or insecure SSL mode, or non-HTTPS
+OIDC issuer/JWKS URLs when the Docker image's `production` profile is active.
+Use `sslmode=require` as the minimum encrypted transport setting; after
+installing the Supabase CA certificate into the Fly image as a protected secret
+file, prefer `sslmode=verify-full` for certificate and hostname verification.
+
+Before the first deployment, verify the connection identity with read-only
+queries:
 
 ```sql
 SELECT current_database(), current_user, inet_server_addr(), version();
