@@ -101,8 +101,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22.22.0'
-      - name: Install
-        run: npm --prefix apps/web install --ignore-scripts
+      - name: Install locked web dependencies
+        run: npm --prefix apps/web ci --ignore-scripts
       - name: Lint
         run: npm --prefix apps/web run lint
       - name: Demo workflow tests
