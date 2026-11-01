@@ -26,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class UploadStorageBindingTest {
@@ -86,6 +87,20 @@ class UploadStorageBindingTest {
         UploadService.UploadView result = service.initiate("lesson.pdf", "application/pdf", 12, null);
 
         assertThat(result.provider()).isEqualTo(StorageProviderType.LOCAL);
+    }
+
+    @Test
+    void serverlessDeploymentRejectsChunkedUploadsBeforeCreatingLocalStagingFiles() {
+        UploadService service = service(false);
+        ReflectionTestUtils.setField(service, "uploadStagingEnabled", false);
+
+        assertThatThrownBy(() -> service.initiate("lesson.pdf", "application/pdf", 12, null))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
+                        .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));
+
+        assertThat(staging.resolve(TENANT.toString())).doesNotExist();
+        org.mockito.Mockito.verifyNoInteractions(bindings, uploads, adapters, audit);
     }
 
     private UploadService service(boolean developmentMode) {
