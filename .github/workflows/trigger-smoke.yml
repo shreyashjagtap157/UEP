@@ -1,0 +1,13 @@
+name: UEP Workflow Trigger Smoke
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  trigger-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm GitHub Actions workflow execution
+        run: echo "UEP workflow trigger smoke passed."
