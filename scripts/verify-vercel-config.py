@@ -62,9 +62,13 @@ assert 'PLATFORM_UPLOAD_STAGING_ENABLED' in upload_service or 'platform.storage.
 assert 'platform.live-learning.livekit.enabled' in live_service
 assert 'platform.live-learning.livekit.enabled' in recording_service
 migration_runner = (root / 'apps/platform-server/src/main/java/com/universalplatform/DatabaseMigrationRunner.java').read_text(encoding='utf-8')
+backend_pom = (root / 'apps/platform-server/pom.xml').read_text(encoding='utf-8')
 migration_workflow = (root / '.github/workflows/database-migration.yml').read_text(encoding='utf-8')
 ci_workflow = (root / '.github/workflows/ci.yml').read_text(encoding='utf-8')
 assert 'UEP_DATABASE_RUNTIME_USERNAME' in migration_runner and 'UEP_DATABASE_RUNTIME_USERNAME' in migration_workflow
+assert '<mainClass>com.universalplatform.DatabaseMigrationRunner</mainClass>' in backend_pom
+assert '<classpathScope>runtime</classpathScope>' in backend_pom
+assert '-Dexec.mainClass' not in ci_workflow and '-Dexec.mainClass' not in migration_workflow
 assert 'NOINHERIT' not in migration_runner  # role creation belongs to the operator; runner validates the role
 assert 'rolbypassrls' in migration_runner and 'rolsuper' in migration_runner
 assert 'owns_public_objects' in migration_runner and 'can_create_public_objects' in migration_runner
