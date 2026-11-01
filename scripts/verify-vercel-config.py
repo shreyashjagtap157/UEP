@@ -39,12 +39,16 @@ assert 'rewrite:' not in vite_config, 'Local Vite proxy must preserve /api prefi
 
 
 app_config = (root / 'apps/platform-server/src/main/resources/application.yaml').read_text(encoding='utf-8')
+vercel_profile = (root / 'apps/platform-server/src/main/resources/application-vercel.yaml').read_text(encoding='utf-8')
 app_main = (root / 'apps/platform-server/src/main/java/com/universalplatform/PlatformServerApplication.java').read_text(encoding='utf-8')
 scheduler = (root / 'apps/platform-server/src/main/java/com/universalplatform/BackgroundWorkerConfiguration.java').read_text(encoding='utf-8')
 secret_guard = (root / 'apps/platform-server/src/main/java/com/universalplatform/security/ProductionSecretGuard.java').read_text(encoding='utf-8')
 assert 'PLATFORM_BACKGROUND_WORKERS_ENABLED' in app_config
 assert 'PLATFORM_LIVEKIT_ENABLED' in app_config
 assert 'PLATFORM_UPLOAD_STAGING_ENABLED' in app_config
+assert 'enabled: false' in vercel_profile
+assert 'spring:\n  # Schema changes are applied only by the separately gated DatabaseMigrationRunner.\n  flyway:\n    enabled: false' in vercel_profile
+assert 'background-workers:' in vercel_profile and 'upload-staging:' in vercel_profile and 'livekit:' in vercel_profile
 assert '@ConditionalOnProperty' in scheduler and 'platform.background-workers' in scheduler
 assert '@EnableScheduling' not in app_main
 assert 'platform.live-learning.livekit.enabled' in secret_guard
