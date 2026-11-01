@@ -99,8 +99,7 @@ class ProductionSecretGuardTest {
         assertThatThrownBy(() -> ProductionSecretGuard.validateProductionOidcConfiguration(environment))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("OIDC_ISSUER_URI")
-                .hasMessageContaining("OIDC_JWK_SET_URI")
-                .doesNotReturn();
+                .hasMessageContaining("OIDC_JWK_SET_URI");
     }
 
     @Test
