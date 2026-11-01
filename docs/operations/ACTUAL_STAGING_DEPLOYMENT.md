@@ -71,6 +71,23 @@ Set these Fly secrets in the Fly app (never commit their values):
 
 If storage is configured as S3, also set the platform's S3 endpoint, bucket,
 region, access key, secret, and path-style settings required by the adapter.
+
+If storage is configured as Google Drive, set the corresponding
+`PLATFORM_STORAGE_GOOGLE_DRIVE_ENABLED`, `PLATFORM_STORAGE_GOOGLE_DRIVE_ACCESS_TOKEN`,
+and `PLATFORM_STORAGE_GOOGLE_DRIVE_FOLDER_ID` Fly secrets. For
+`GOOGLE_SHARED_DRIVE`, also set `PLATFORM_STORAGE_GOOGLE_DRIVE_SHARED_DRIVE_ID`
+and configure the folder ID to a folder inside that shared drive. The adapter
+now refuses to start in Shared Drive mode when no destination folder is set;
+without a `parents` folder ID, Drive API places created files in the user's
+My Drive root rather than the intended shared drive.
+
+**Google Drive authentication is not yet production-qualified:** the current
+adapter accepts a static OAuth access token and does not refresh it. Google
+access tokens have limited lifetimes; a durable server-side integration must
+use an OAuth refresh-token flow or another supported renewable credential
+mechanism before relying on Drive for long-running production storage. Do not
+treat a one-time access token as a permanent Fly secret.
+
 Do not use the ephemeral Fly container filesystem as durable student content
 or recording storage.
 
