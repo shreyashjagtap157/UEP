@@ -112,6 +112,42 @@ References:
 - [Neon Free plan limits and quotas](https://neon.com/docs/introduction/plans)
 - [Neon connection pooling](https://neon.com/docs/connect/connection-pooling)
 
+### Dedicated database roles
+
+Create a dedicated login role in the Neon project before running the migration
+workflow. It must be a standalone login and must not own the schema:
+
+```sql
+CREATE ROLE uep_runtime
+  WITH LOGIN
+  NOSUPERUSER NOCREATEDB NOCREATEROLE
+  NOINHERIT NOREPLICATION NOBYPASSRLS;
+```
+
+Set its strong password through the Neon role UI or a password-prompted
+administrative client; do not put a literal password in a SQL script, Git
+commit, or Actions log. Do not grant it membership in an administrative role.
+
+Configure GitHub Environment `vercel-database-migrations` with:
+
+- Secret `UEP_DATABASE_MIGRATION_JDBC_URL`: **direct/unpooled** JDBC URL.
+- Secret `UEP_DATABASE_MIGRATION_USERNAME`: schema-owner migration login.
+- Secret `UEP_DATABASE_MIGRATION_PASSWORD`: migration login password.
+- Variable `UEP_DATABASE_RUNTIME_USERNAME`: `uep_runtime` (the name, not password).
+
+After Flyway migrates and validates, `DatabaseMigrationRunner` validates that
+the runtime login is not superuser, cannot create roles/databases, cannot
+replicate, does not bypass RLS, and has no role memberships. It then grants
+only CONNECT, schema USAGE, table SELECT/INSERT/UPDATE/DELETE, sequence
+USAGE/SELECT/UPDATE, and function EXECUTE privileges. It also configures
+default privileges for objects created by the migration role in `public`.
+Re-running the workflow is safe: Flyway applies only pending migrations and
+the privilege grants are idempotent.
+
+The Spring API must use `uep_runtime`, never the migration/schema-owner role.
+Set its username and password in Vercel's encrypted runtime environment.
+Keep the migration credentials confined to the protected GitHub Environment.
+
 ### Connection contract for Spring Boot
 
 The Vercel/Neon integration provides a pooled `DATABASE_URL` and an unpooled
