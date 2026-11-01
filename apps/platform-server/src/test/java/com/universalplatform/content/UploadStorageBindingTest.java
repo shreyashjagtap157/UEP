@@ -48,6 +48,7 @@ class UploadStorageBindingTest {
 
     @Test
     void uploadUsesTenantConfiguredS3ProviderAndSnapshotsPrefix() throws Exception {
+        when(actors.requireSubject()).thenReturn("staging-owner");
         UploadService service = service(false);
         when(bindings.findByTenantId(TENANT))
                 .thenReturn(Optional.of(new TenantStorageBinding(StorageProviderType.S3_COMPATIBLE, "course-assets")));
@@ -76,6 +77,7 @@ class UploadStorageBindingTest {
 
     @Test
     void localProviderFallbackIsAvailableOnlyInDevelopmentMode() throws Exception {
+        when(actors.requireSubject()).thenReturn("staging-owner");
         UploadService service = service(true);
         when(bindings.findByTenantId(TENANT)).thenReturn(Optional.empty());
         when(adapters.require(StorageProviderType.LOCAL)).thenReturn(adapter);
@@ -88,7 +90,6 @@ class UploadStorageBindingTest {
 
     private UploadService service(boolean developmentMode) {
         when(tenants.requireTenantId()).thenReturn(TENANT);
-        when(actors.requireSubject()).thenReturn("staging-owner");
         return new UploadService(tenants, actors, auth, uploads, objects, adapters, bindings, audit,
                 scanner, cleanup, stagingCleanup, staging.toString(), 1024, developmentMode);
     }
