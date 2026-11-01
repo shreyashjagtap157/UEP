@@ -56,6 +56,18 @@ class S3StorageAdapterConfigurationTest {
     }
 
     @Test
+    void acceptsBothCredentialsOmittedForTheDefaultAwsCredentialChain() {
+        var adapter = new S3StorageAdapter(
+                URI.create("https://s3.example.test"),
+                "us-east-1",
+                "",
+                "",
+                "education-assets");
+        assertThat(adapter.type()).isEqualTo(StorageProviderType.S3_COMPATIBLE);
+        adapter.close();
+    }
+
+    @Test
     void allowsPlainHttpEndpointOnlyInDevelopmentMode() {
         var adapter = new S3StorageAdapter(
                 URI.create("http://localhost:9000"),
