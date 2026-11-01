@@ -212,6 +212,111 @@ test('idempotently seed staging academic data and verify assignment submission/g
       })
     }
 
+    const scheduleTitle = `UEP Staging Attendance ${tenantSuffix}`
+    const scheduleSeries = await getAllItems<{
+      id: string
+      title: string
+      status: string
+    }>(owner.api, '/api/v1/schedule/series')
+    let schedule = scheduleSeries.find(item => item.title === scheduleTitle)
+    let occurrence: {
+      id: string
+      seriesId: string
+      classSessionId: string
+      batchId: string | null
+      status: string
+    } | undefined
+    if (!schedule) {
+      const created = await postJson<{
+        series: { id: string; title: string; status: string }
+        occurrences: typeof occurrence[]
+      }>(owner.api, '/api/v1/schedule/series', {
+        kind: 'CLASS',
+        title: scheduleTitle,
+        description: 'Synthetic staging attendance qualification session.',
+        timezone: 'Asia/Kolkata',
+        deliveryMode: 'OFFLINE',
+        branchId: branch.id,
+        batchId: batch.id,
+        courseId: course.id,
+        subjectId: subject.id,
+        primaryTeacherMembershipId: teacher.identity.membershipId,
+        roomCode: 'UEP-STAGING',
+        startLocal: '2099-12-30T10:00:00',
+        durationMinutes: 30,
+        recurrenceFrequency: 'NONE',
+        recurrenceInterval: 1,
+        recurrenceDays: [],
+        recurrenceDayOfMonth: null,
+        recurrenceUntilLocal: null,
+        recurrenceCount: null,
+        allowConflicts: false,
+        conflictOverrideReason: null,
+      })
+      schedule = created.series
+      occurrence = created.occurrences[0]
+    } else {
+      const range = new URLSearchParams({
+        from: '2099-12-29T00:00:00Z',
+        to: '2099-12-31T00:00:00Z',
+      })
+      const occurrences = await getJson<typeof occurrence[]>(
+        owner.api,
+        `/api/v1/schedule/occurrences?${range.toString()}`,
+      )
+      occurrence = occurrences.find(item => item.seriesId === schedule?.id)
+    }
+    if (!occurrence?.classSessionId) {
+      throw new Error('Staging attendance schedule must resolve to a batch-backed class session.')
+    }
+    expect(occurrence.batchId).toBe(batch.id)
+
+    const liveClasses = await getAllItems<{
+      id: string
+      classSessionId: string
+      status: string
+    }>(owner.api, '/api/v1/live-classes')
+    let liveClass = liveClasses.find(item => item.classSessionId === occurrence?.classSessionId)
+    if (!liveClass) {
+      liveClass = await postJson(owner.api, '/api/v1/live-classes', {
+        classSessionId: occurrence.classSessionId,
+        attendancePolicy: 'MANUAL',
+        minimumAttendanceSeconds: 0,
+        attendanceThresholdBasisPoints: 0,
+        lowBandwidth: true,
+        chatEnabled: false,
+      })
+    }
+    expect(['SCHEDULED', 'LIVE', 'ENDED']).toContain(liveClass.status)
+    if (liveClass.status === 'SCHEDULED') {
+      liveClass = await postJson(owner.api, `/api/v1/live-classes/${liveClass.id}/start`, {})
+    }
+
+    const attendancePath = `/api/v1/live-classes/${liveClass.id}/attendance`
+    let attendance = await getJson<Array<{
+      membershipId: string
+      status: string
+      finalizedAt: string | null
+      source: string
+      notes: string | null
+    }>>(owner.api, attendancePath)
+    const studentAttendance = attendance.find(item => item.membershipId === student.identity.membershipId)
+    if (!studentAttendance || studentAttendance.status !== 'PRESENT' || studentAttendance.source !== 'MANUAL') {
+      await postNoContent(owner.api, `${attendancePath}/${student.identity.membershipId}`, {
+        status: 'PRESENT',
+        notes: 'Synthetic staging manual attendance qualification.',
+      })
+    }
+    await postNoContent(owner.api, `${attendancePath}/finalize`, {})
+    attendance = await getJson(owner.api, attendancePath)
+    const verifiedAttendance = attendance.find(item => item.membershipId === student.identity.membershipId)
+    expect(verifiedAttendance?.status).toBe('PRESENT')
+    expect(verifiedAttendance?.source).toBe('MANUAL')
+    expect(verifiedAttendance?.finalizedAt).toBeTruthy()
+    if (liveClass.status === 'LIVE') {
+      liveClass = await postJson(owner.api, `/api/v1/live-classes/${liveClass.id}/end`, {})
+    }
+
     const assignmentTitle = `UEP Staging Acceptance ${tenantSuffix}`
     const assignmentPage = await getAllItems<Assignment>(teacher.api, '/api/v1/assignments')
     let assignment = assignmentPage.find(item => item.title === assignmentTitle)
@@ -432,6 +537,13 @@ async function postJson<T>(api: APIRequestContext, path: string, data: unknown):
     throw new Error(`POST ${path} failed with HTTP ${response.status()}: ${(await response.text()).slice(0, 1200)}`)
   }
   return await response.json() as T
+}
+
+async function postNoContent(api: APIRequestContext, path: string, data: unknown): Promise<void> {
+  const response = await api.post(path, { data })
+  if (!response.ok()) {
+    throw new Error(`POST ${path} failed with HTTP ${response.status()}: ${(await response.text()).slice(0, 1200)}`)
+  }
 }
 
 async function putJson<T>(api: APIRequestContext, path: string, data: unknown): Promise<T> {
