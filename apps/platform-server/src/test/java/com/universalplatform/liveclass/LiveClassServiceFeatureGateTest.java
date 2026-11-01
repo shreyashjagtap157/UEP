@@ -10,7 +10,7 @@ import com.universalplatform.enrollment.EnrollmentDirectory;
 import com.universalplatform.identity.MembershipDirectory;
 import com.universalplatform.scheduling.ScheduleDirectory;
 import com.universalplatform.security.ActorContext;
-import com.universalplatform.security.AuthorizationService;
+import com.universalplatform.identity.AuthorizationService;
 import com.universalplatform.security.TenantContext;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
