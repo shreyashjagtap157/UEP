@@ -5,10 +5,19 @@
       "root": "apps/web",
       "framework": "vite",
       "installCommand": "npm ci --ignore-scripts",
-      "buildCommand": "npm run build",
+      "buildCommand": "npm run build:vercel",
       "outputDirectory": "dist",
-      "rewrites": [
-        { "source": "/(.*)", "destination": "/index.html" }
+      "routes": [
+        {
+          "src": "/((?!assets/|.*\\.[^/]+$).*)",
+          "transforms": [
+            {
+              "type": "request.path",
+              "op": "set",
+              "args": "/index.html"
+            }
+          ]
+        }
       ]
     },
     "backend": {
@@ -18,7 +27,17 @@
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": { "service": "backend" } },
-    { "source": "/(.*)", "destination": { "service": "frontend" } }
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    }
   ]
 }
