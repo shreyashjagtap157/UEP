@@ -2,6 +2,7 @@ package com.universalplatform.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -66,8 +67,8 @@ class StagingDatabaseIdentityControllerTest {
 
     @Test
     void checksAuthorizationBeforeOpeningTheDatabaseConnection() throws Exception {
-        when(authorization.require(PermissionKey.OPERATIONS_MANAGE))
-                .thenThrow(new SecurityException("forbidden"));
+        doThrow(new SecurityException("forbidden"))
+                .when(authorization).require(PermissionKey.OPERATIONS_MANAGE);
         var controller = new StagingDatabaseIdentityController(
                 dataSource, authorization, "uep-staging-ref.supabase.co", "postgres");
 
