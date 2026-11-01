@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,7 +54,7 @@ class GoogleDriveSharedDriveFolderValidatorTest {
 
     @Test
     void rejectsNonFolderItems() throws Exception {
-        respond(200, "{\"id\":\"file-123\",\"mimeType\":\"application/pdf\",\"driveId\":\"drive-456\"}");
+        respond(200, "{\"id\":\"folder-123\",\"mimeType\":\"application/pdf\",\"driveId\":\"drive-456\"}");
 
         assertThatThrownBy(() -> validator.validate("folder-123", "drive-456", "access-token"))
                 .isInstanceOf(IOException.class)
@@ -73,6 +74,9 @@ class GoogleDriveSharedDriveFolderValidatorTest {
     void rejectsMissingFolderOrDriveIdentifiersBeforeMakingARequest() {
         assertThatThrownBy(() -> validator.validate(" ", "drive-456", "access-token"))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> validator.validate("folder-123", " ", "access-token"))
+                .isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(http);
     }
 
     private void respond(int status, String body) throws Exception {
