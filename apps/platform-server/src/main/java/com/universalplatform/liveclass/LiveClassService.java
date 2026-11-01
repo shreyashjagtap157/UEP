@@ -122,6 +122,7 @@ class LiveClassService implements LiveClassDirectory {
     @Transactional
     TokenView join(UUID id, String clientProfile) {
         auth.require(PermissionKey.LIVE_CLASS_VIEW);
+        requireLiveKitEnabled();
         UUID tid = tenant.requireTenantId();
         UUID mid = memberships.current().membershipId();
         LiveClass lc = require0(id);
