@@ -346,8 +346,12 @@ records. It seeds the minimum coherent branch/academic/curriculum/batch/
 enrollment/teacher-assignment data, then exercises assignment submission and
 grading, scheduled-class manual attendance, batch-targeted announcement delivery
 and acknowledgement, question-bank redaction plus assessment attempt/autosave/
-submission, and finance-administrator invoice creation/issuance. The finance
-fixture creates no payment and never invokes settlement or capture APIs. Do not run blind SQL inserts to bypass domain
+submission, finance-administrator invoice creation/issuance, and a guardian
+cross-learner gradebook denial assertion. The guardian assertion proves only
+that access fails closed: the backend currently has no persisted, verified
+Guardian-to-learner relationship model, so positive guardian data access remains
+an explicit product blocker. The finance fixture creates no payment and never
+invokes settlement or capture APIs. Do not run blind SQL inserts to bypass domain
 invariants.
 
 ### Cross-role product acceptance
