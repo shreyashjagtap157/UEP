@@ -105,7 +105,8 @@ public final class DatabaseMigrationRunner {
                          OR EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                                     WHERE n.nspname = 'public' AND p.proowner = r.oid)
                        ) AS owns_public_objects,
-                       has_schema_privilege(r.rolname, 'public', 'CREATE') AS can_create_public_objects
+                       has_schema_privilege(r.rolname, 'public', 'CREATE') AS can_create_public_objects,
+                       has_database_privilege(r.rolname, current_database(), 'CREATE') AS can_create_database_objects
                 FROM pg_roles r
                 WHERE r.rolname = ?
                 """;
@@ -124,10 +125,11 @@ public final class DatabaseMigrationRunner {
                         && !result.getBoolean("rolbypassrls")
                         && !result.getBoolean("has_role_memberships")
                         && !result.getBoolean("owns_public_objects")
-                        && !result.getBoolean("can_create_public_objects");
+                        && !result.getBoolean("can_create_public_objects")
+                        && !result.getBoolean("can_create_database_objects");
                 if (!safe) {
                     throw new IllegalStateException(
-                            "Runtime database role must be a standalone login without administrative privileges, RLS bypass, role memberships, or ownership of public objects.");
+                            "Runtime database role must be a standalone login without administrative privileges, database/schema CREATE, RLS bypass, role memberships, or ownership of public objects.");
                 }
             }
         }
