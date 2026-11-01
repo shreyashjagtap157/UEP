@@ -278,6 +278,7 @@ Set these GitHub repository variables:
 | `UEP_STAGING_SEED_DRY_RUN` | Set to `true` for the read-only preflight; set to `false` only after reviewing its output and approving synthetic writes |
 | `UEP_STAGING_ALLOWED_FRONTEND_HOST` | Exact hostname of the isolated staging Cloudflare Pages frontend; no scheme or path |
 | `UEP_STAGING_ALLOWED_BACKEND_HOST` | Exact hostname of the isolated staging Fly API; no scheme or path |
+| `UEP_STAGING_SECOND_TENANT_ID` | Separate staging tenant UUID used for a real cross-tenant access-denial assertion |
 
 The staging test workflow fails closed unless all endpoints are HTTPS and all
 14 role accounts are present. It verifies:
