@@ -51,8 +51,12 @@ final class ProductionSecretGuard {
                 "PLATFORM_RECORDING_PLAYBACK_SECRET", "change-me-in-production", 32);
         check(offenders, environment, "platform.integrations.secret-key",
                 "PLATFORM_INTEGRATION_SECRET_KEY", "change-me-in-production", 32);
-        check(offenders, environment, "platform.live-learning.livekit.api-key", "LIVEKIT_API_KEY", "devkey", 16);
-        check(offenders, environment, "platform.live-learning.livekit.api-secret", "LIVEKIT_API_SECRET", "secret", 32);
+        boolean liveKitEnabled = environment.getProperty(
+                "platform.live-learning.livekit.enabled", Boolean.class, true);
+        if (liveKitEnabled) {
+            check(offenders, environment, "platform.live-learning.livekit.api-key", "LIVEKIT_API_KEY", "devkey", 16);
+            check(offenders, environment, "platform.live-learning.livekit.api-secret", "LIVEKIT_API_SECRET", "secret", 32);
+        }
         if (offenders.isEmpty()) return;
         throw new IllegalStateException(
                 "Refusing to start: one or more production secrets are missing, blank, too short, "
