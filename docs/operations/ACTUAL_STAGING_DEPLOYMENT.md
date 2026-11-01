@@ -81,9 +81,28 @@ If storage is configured as Google Drive, set these Fly secrets:
 destination isolation). The backend refreshes access tokens from the OAuth
 refresh token and caches them only until shortly before expiry. The static
 `PLATFORM_STORAGE_GOOGLE_DRIVE_ACCESS_TOKEN` setting is development-only;
-production requires the complete refresh credential set. The OAuth grant
-must include Drive metadata-read access for Shared Drive folder verification
-and file access sufficient for upload, download, and delete operations.
+production requires the complete refresh credential set. The OAuth grant used by this adapter must request the exact scope
+`https://www.googleapis.com/auth/drive`. This is the supported scope for the
+current manual-folder-ID integration: it permits metadata lookup plus file
+creation, download, and deletion for the OAuth principal. Do not use
+`drive.metadata.readonly` (read-only; it cannot perform content operations)
+or assume `drive.file` can access an arbitrary manually configured folder.
+`drive.file` is limited to files created/opened by the app or explicitly
+shared with it through a file-picker flow; this adapter does not implement
+that picker/bootstrap flow.
+
+The `drive` scope is a **restricted, broad-access scope**: it grants view and
+manage access to all Drive files available to the OAuth principal. Use a
+dedicated Google Workspace storage user, not a personal account; give it
+Content manager access only to the UEP storage Shared Drive, do not add it to
+other Shared Drives, and keep unrelated files out of its My Drive and
+"Shared with me". Mint the refresh token only after granting the exact scope.
+If the OAuth consent grant changes, obtain a new refresh token with the new
+scope. Google requires restricted-scope app verification, and applications
+that store or transmit restricted-scope data on servers must complete the
+applicable security assessment before public/production use. If this access
+model and its compliance requirements are unacceptable, use the S3-compatible
+provider rather than weakening the Drive authorization checks.
 
 For `GOOGLE_SHARED_DRIVE`, also set
 `PLATFORM_STORAGE_GOOGLE_DRIVE_SHARED_DRIVE_ID` and configure the folder ID
