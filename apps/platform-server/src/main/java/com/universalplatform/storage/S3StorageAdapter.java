@@ -43,11 +43,6 @@ class S3StorageAdapter implements StorageAdapter {
         this(endpoint, region, accessKey, secretKey, bucket, false, true);
     }
 
-    S3StorageAdapter(URI endpoint, String region, String accessKey, String secretKey, String bucket,
-                     boolean developmentMode) {
-        this(endpoint, region, accessKey, secretKey, bucket, developmentMode, true);
-    }
-
     private S3StorageAdapter(URI endpoint, String region, String accessKey, String secretKey, String bucket,
                              boolean developmentMode, boolean ignored) {
         if (endpoint == null || endpoint.getHost() == null
