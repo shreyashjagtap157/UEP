@@ -605,6 +605,7 @@ The backend container listens on `PORT` (fallback 8080) and expects:
 - `PLATFORM_BACKGROUND_WORKERS_ENABLED=false` until a separate worker service
   is available.
 - `PLATFORM_LIVEKIT_ENABLED=false` until LiveKit and Egress are deployed.
+- `PLATFORM_UPLOAD_STAGING_ENABLED=false` until uploads use durable shared staging or provider-direct multipart upload; the current chunk handler writes to container-local disk.
 - Strong unique `PLATFORM_RECORDING_PLAYBACK_SECRET` and
   `PLATFORM_INTEGRATION_SECRET_KEY` values (at least 32 characters each).
 - `PLATFORM_STORAGE_TYPE=s3` only after a durable S3-compatible provider and
