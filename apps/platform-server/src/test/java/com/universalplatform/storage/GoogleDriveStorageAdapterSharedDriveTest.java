@@ -86,13 +86,13 @@ class GoogleDriveStorageAdapterSharedDriveTest {
     @Test
     void serializesObjectNamesAsJsonInsteadOfInterpolatingUntrustedText() throws Exception {
         HttpResponse<String> folderResponse = response(200,
-                "{\\"id\\":\\"folder-123\\",\\"mimeType\\":\\"application/vnd.google-apps.folder\\",\\"driveId\\":\\"drive-456\\"}");
-        HttpResponse<String> uploadResponse = response(200, "{\\"id\\":\\"uploaded-file-789\\"}");
+                "{\"id\":\"folder-123\",\"mimeType\":\"application/vnd.google-apps.folder\",\"driveId\":\"drive-456\"}");
+        HttpResponse<String> uploadResponse = response(200, "{\"id\":\"uploaded-file-789\"}");
         when(http.send(any(HttpRequest.class),
                 org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
                 .thenReturn(folderResponse, uploadResponse);
         var adapter = adapter();
-        String objectName = "tenant-object\\n\\\"quoted\\\"";
+        String objectName = "tenant-object\n\"quoted\"";
 
         adapter.put(objectName,
                 new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8)),
@@ -102,8 +102,8 @@ class GoogleDriveStorageAdapterSharedDriveTest {
         verify(http, times(2)).send(requests.capture(),
                 org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
         String multipart = readBody(requests.getAllValues().get(1));
-        assertThat(multipart).contains("\\"name\\":\\"tenant-object\\\\n\\\\\\\"quoted\\\\\\\"\\"");
-        assertThat(multipart).doesNotContain("tenant-object\\n");
+        assertThat(multipart).contains("\"name\":\"tenant-object\\n\\\"quoted\\\"\"");
+        assertThat(multipart).doesNotContain("tenant-object\n");
     }
 
     private static String readBody(HttpRequest request) throws Exception {
