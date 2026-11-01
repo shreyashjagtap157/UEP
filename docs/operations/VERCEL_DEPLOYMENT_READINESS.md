@@ -80,6 +80,65 @@ Vercel documents long-running workers separately under Daemons. The Vercel Servi
 - A separate PostgreSQL provider (for example, a Vercel Marketplace Neon resource) is a candidate, not a provisioned or approved database. Confirm the selected plan, region, connection pooling, quotas, backups, and pricing before creating a resource.
 - The explicit migration runner is `com.universalplatform.DatabaseMigrationRunner`; it validates and applies Flyway migrations only when invoked with dedicated migration credentials. Never run migrations automatically from request-serving Vercel instances.
 
+## Vercel Marketplace database candidate: Neon Postgres
+
+A Vercel-native Neon Marketplace resource is the preferred database candidate
+for the Vercel-first profile. It keeps database provisioning and environment
+connection under the Vercel project rather than reusing the currently connected
+Supabase project. No Neon resource has been provisioned yet.
+
+As checked on **November 2, 2026**, Neon's documented Free plan includes:
+
+| Limit | Free allowance |
+|---|---:|
+| Compute | 100 CU-hours per project per month |
+| Maximum autoscaling | 2 CU |
+| Storage | 1 GB per project (20 GB account-wide) |
+| Public network transfer | 5 GB per project per month |
+| Branches | 10 per project |
+| Idle suspend | 5 minutes |
+| Instant restore history | 6 hours |
+
+A 0.25-CU compute can use about 400 active hours from a 100-CU-hour allowance.
+It is still a constrained staging/prototype database: a continuously busy
+instance, larger tenants, file metadata growth, or high data transfer can
+consume the included allowance. Neon's Free plan suspends compute when the
+compute/transfer allowance is exhausted; writes that would exceed the storage
+cap fail until capacity becomes available or the plan changes. Review the
+current Dashboard quotas before provisioning and periodically during use.
+
+References:
+- [Vercel Marketplace — Neon](https://vercel.com/marketplace/neon)
+- [Neon Free plan limits and quotas](https://neon.com/docs/introduction/plans)
+- [Neon connection pooling](https://neon.com/docs/connect/connection-pooling)
+
+### Connection contract for Spring Boot
+
+The Vercel/Neon integration provides a pooled `DATABASE_URL` and an unpooled
+`DATABASE_URL_UNPOOLED` connection. UEP currently expects a JDBC URL and
+separate datasource username/password; it does not directly consume Neon's
+raw `postgresql://` URL. Configure these Vercel runtime variables explicitly:
+
+- `SPRING_DATASOURCE_URL`: the pooled connection translated to
+  `jdbc:postgresql://...`, with TLS required.
+- `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD`: the
+  dedicated least-privilege runtime role, not the schema-owner migration role.
+- GitHub Environment `vercel-database-migrations` secrets:
+  `UEP_DATABASE_MIGRATION_JDBC_URL` from the **direct/unpooled** connection,
+  `UEP_DATABASE_MIGRATION_USERNAME`, and
+  `UEP_DATABASE_MIGRATION_PASSWORD` for the schema-owner migration role.
+
+Keep Hikari bounded (the current defaults are maximum pool size 5 and minimum
+idle 0). Do not run Flyway through Neon's pooled transaction endpoint; invoke
+the manually confirmed migration workflow with the direct connection instead.
+The API runtime uses the pooled endpoint. The Vercel Spring profile disables
+startup Flyway.
+
+The Marketplace integration's existence does not itself configure Spring's
+JDBC URL, create the least-privilege runtime role, or apply migrations. Those
+steps remain explicit deployment gates. Do not place either connection string
+in frontend Vite variables or commit it to Git.
+
 ## Account and deployment verification
 
 The Vercel account connector did not return any teams or projects for this repository in the current session. Therefore these items remain **unverified**:
