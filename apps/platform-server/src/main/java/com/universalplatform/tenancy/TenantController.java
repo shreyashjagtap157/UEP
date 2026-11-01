@@ -15,16 +15,16 @@ import org.springframework.web.bind.annotation.*;
 class TenantController {
 
     private final TenantDirectoryService tenantService;
-    private final com.universalplatform.identity.AuthorizationService authorization;
+    private final PlatformAdministratorGuard platformAdministrator;
 
     TenantController(TenantDirectoryService tenantService,
-                     com.universalplatform.identity.AuthorizationService authorization) {
+                     PlatformAdministratorGuard platformAdministrator) {
         this.tenantService = tenantService;
-        this.authorization = authorization;
+        this.platformAdministrator = platformAdministrator;
     }
 
     private void requirePlatformSuperAdmin() {
-        authorization.requirePlatformSuperAdmin();
+        platformAdministrator.requirePlatformSuperAdmin();
     }
 
     @GetMapping
