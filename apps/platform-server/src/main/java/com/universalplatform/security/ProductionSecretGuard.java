@@ -38,6 +38,7 @@ final class ProductionSecretGuard {
         if (developmentMode) return;
         if (runningUnderTestHarness()) return;
         validateProductionSecrets(environment);
+        if (productionProfile) validateProductionOidcConfiguration(environment);
     }
 
     /**
@@ -64,6 +65,63 @@ final class ProductionSecretGuard {
                         + "environment variables (or set " + DEV_MODE_PROPERTY
                         + "=true / env PLATFORM_DEV_MODE=true for non-production environments only): "
                         + String.join("; ", offenders));
+    }
+
+
+    /**
+     * The resource-server issuer and JWKS endpoint are trust anchors. A production
+     * deployment must never fall back to the sample localhost HTTP endpoints.
+     * Values are deliberately excluded from diagnostics to avoid leaking URLs
+     * that may contain deployment-specific routing information.
+     */
+    static void validateProductionOidcConfiguration(Environment environment) {
+        String issuerValue = environment.getProperty(
+                "spring.security.oauth2.resourceserver.jwt.issuer-uri");
+        String jwksValue = environment.getProperty(
+                "spring.security.oauth2.resourceserver.jwt.jwk-set-uri");
+        List<String> offenders = new ArrayList<>();
+        java.net.URI issuer = safeHttpsUri(issuerValue);
+        java.net.URI jwks = safeHttpsUri(jwksValue);
+
+        if (issuer == null || !"/realms/education".equals(issuer.getPath())) {
+            offenders.add("OIDC_ISSUER_URI must be an absolute HTTPS issuer ending in /realms/education");
+        }
+        if (jwks == null) {
+            offenders.add("OIDC_JWK_SET_URI must be an absolute HTTPS JWKS endpoint");
+        } else if (issuer != null) {
+            String expectedPath = issuer.getPath() + "/protocol/openid-connect/certs";
+            if (!sameOrigin(issuer, jwks) || !expectedPath.equals(jwks.getPath())) {
+                offenders.add("OIDC_JWK_SET_URI must use the issuer origin and /protocol/openid-connect/certs path");
+            }
+        }
+
+        if (!offenders.isEmpty()) {
+            throw new IllegalStateException("Refusing to start: production OIDC configuration is invalid: "
+                    + String.join("; ", offenders));
+        }
+    }
+
+    private static java.net.URI safeHttpsUri(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            java.net.URI uri = java.net.URI.create(value);
+            if (!"https".equalsIgnoreCase(uri.getScheme())
+                    || uri.getHost() == null
+                    || uri.getRawUserInfo() != null
+                    || uri.getRawQuery() != null
+                    || uri.getRawFragment() != null) return null;
+            String host = uri.getHost().toLowerCase(java.util.Locale.ROOT);
+            if ("localhost".equals(host) || "127.0.0.1".equals(host) || "::1".equals(host)) return null;
+            return uri;
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
+    }
+
+    private static boolean sameOrigin(java.net.URI left, java.net.URI right) {
+        return left.getScheme().equalsIgnoreCase(right.getScheme())
+                && left.getHost().equalsIgnoreCase(right.getHost())
+                && left.getPort() == right.getPort();
     }
 
     private static void check(List<String> offenders, Environment environment, String property,

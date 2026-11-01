@@ -52,6 +52,8 @@ assert 'background-workers:' in vercel_profile and 'upload-staging:' in vercel_p
 assert '@ConditionalOnProperty' in scheduler and 'platform.background-workers' in scheduler
 assert '@EnableScheduling' not in app_main
 assert 'platform.live-learning.livekit.enabled' in secret_guard
+assert 'validateProductionOidcConfiguration(environment)' in secret_guard
+assert 'OIDC_ISSUER_URI' in secret_guard and 'OIDC_JWK_SET_URI' in secret_guard
 live_service = (root / 'apps/platform-server/src/main/java/com/universalplatform/liveclass/LiveClassService.java').read_text(encoding='utf-8')
 recording_service = (root / 'apps/platform-server/src/main/java/com/universalplatform/recording/RecordingService.java').read_text(encoding='utf-8')
 upload_service = (root / 'apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java').read_text(encoding='utf-8')

@@ -77,4 +77,44 @@ class ProductionSecretGuardTest {
         ProductionSecretGuard.validateProductionSecrets(environment);
     }
 
+    @Test
+    void productionOidcRequiresMatchingHttpsIssuerAndJwksOnSameOrigin() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("spring.security.oauth2.resourceserver.jwt.issuer-uri",
+                        "https://identity.example.test/realms/education")
+                .withProperty("spring.security.oauth2.resourceserver.jwt.jwk-set-uri",
+                        "https://identity.example.test/realms/education/protocol/openid-connect/certs");
+
+        ProductionSecretGuard.validateProductionOidcConfiguration(environment);
+    }
+
+    @Test
+    void productionOidcRejectsHttpLocalhostAndMismatchedJwksOrigins() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("spring.security.oauth2.resourceserver.jwt.issuer-uri",
+                        "http://localhost:8081/realms/education")
+                .withProperty("spring.security.oauth2.resourceserver.jwt.jwk-set-uri",
+                        "https://other.example.test/realms/education/protocol/openid-connect/certs");
+
+        assertThatThrownBy(() -> ProductionSecretGuard.validateProductionOidcConfiguration(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("OIDC_ISSUER_URI")
+                .hasMessageContaining("OIDC_JWK_SET_URI")
+                .doesNotReturn();
+    }
+
+    @Test
+    void productionOidcRejectsIncorrectIssuerRealmPath() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("spring.security.oauth2.resourceserver.jwt.issuer-uri",
+                        "https://identity.example.test/realms/not-education")
+                .withProperty("spring.security.oauth2.resourceserver.jwt.jwk-set-uri",
+                        "https://identity.example.test/realms/not-education/protocol/openid-connect/certs");
+
+        assertThatThrownBy(() -> ProductionSecretGuard.validateProductionOidcConfiguration(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("OIDC_ISSUER_URI");
+    }
+
+
 }
