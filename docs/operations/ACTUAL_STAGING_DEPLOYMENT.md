@@ -37,7 +37,13 @@ active tenant membership and roles in that database.
 - The local presentation Playwright suite is now a separate manual workflow.
   Its results are never product acceptance evidence.
 - The real deployed-product E2E workflow is `.github/workflows/staging-e2e.yml`.
-  It runs only after the staging environment has been configured and enabled.
+  It is **manual-dispatch-only**: routine CI completion or merges to `main` do
+  not start staging tests or synthetic writes. An operator must dispatch the
+  workflow with `confirm_staging_e2e=yes` (the default is `no`); the job also
+  requires `UEP_STAGING_E2E_ENABLED=true` and the configured GitHub `staging`
+  Environment. Product-data writes remain separately gated by the explicit
+  confirmation secret and `UEP_STAGING_SEED_DRY_RUN=false`. Re-dispatch is
+  required for every staging run.
 - No successful Cloudflare Pages, Fly.io, Supabase, or Keycloak provider-side
   deployment was established by repository CI. A successful build is not a
   deployment, and a pages.dev URL alone is not proof of connected identity/API/DB.
