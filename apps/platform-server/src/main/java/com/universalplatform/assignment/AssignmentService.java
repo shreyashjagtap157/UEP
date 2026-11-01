@@ -321,7 +321,7 @@ class AssignmentService implements AssignmentDirectory {
 
     private Assignment require(UUID id) {
         return assignments.findByTenantIdAndId(tenant.requireTenantId(), id)
-                .orElseThrow(() -> new IllegalArgumentException("Assignment not found"));
+                .orElseThrow(AssignmentNotFoundException::new);
     }
 
     private AssignmentView view(Assignment a) {

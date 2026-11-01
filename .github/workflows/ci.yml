@@ -15,11 +15,12 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       UEP_CI_DB_PASSWORD: ${{ format('uep-ci-{0}-{1}', github.run_id, github.run_attempt) }}
     services:
       postgres:
-        image: postgres:18.4
+        image: postgres:17.11
         env:
           POSTGRES_DB: education_platform
           POSTGRES_USER: education
@@ -46,7 +47,11 @@ jobs:
           OIDC_JWK_SET_URI: http://localhost:18081/realms/education/protocol/openid-connect/certs
           PLATFORM_DEV_MODE: "false"
         run: mvn -B -f apps/platform-server/pom.xml verify
+      - name: Build the Fly deployment image with its Java 21 toolchain
+        working-directory: apps/platform-server
+        run: docker build --pull --tag uep-platform-server:ci .
       - name: Start packaged server on a fresh database and run health smoke
+        timeout-minutes: 5
         env:
           SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform_smoke
           SUPABASE_DB_USER: education
@@ -72,8 +77,10 @@ jobs:
           }
           trap cleanup EXIT
           ready=false
-          for attempt in $(seq 1 60); do
-            if curl --fail --silent --show-error http://localhost:8080/actuator/health >/tmp/uep-health.json; then
+          for attempt in $(seq 1 40); do
+            # Bound each probe: an accepted TCP connection with a stalled HTTP
+            # response must not bypass the readiness deadline indefinitely.
+            if curl --fail --silent --show-error --connect-timeout 1 --max-time 2 http://localhost:8080/actuator/health >/tmp/uep-health.json; then
               ready=true
               break
             fi
@@ -81,11 +88,11 @@ jobs:
               cat /tmp/uep-platform-server.log
               exit 1
             fi
-            sleep 2
+            sleep 1
           done
           if [ "$ready" != "true" ]; then
             tail -n 200 /tmp/uep-platform-server.log
-            echo "Packaged server did not become healthy in 120 seconds" >&2
+            echo "Packaged server did not become healthy within the 120-second readiness window" >&2
             exit 1
           fi
           python3 scripts/load-smoke.py http://localhost:8080/actuator/health 30 6 2500 4000
@@ -97,14 +104,43 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22.22.0'
-      - name: Install
-        run: npm --prefix apps/web install --ignore-scripts
+      - name: Install locked web dependencies
+        run: npm --prefix apps/web ci --ignore-scripts
       - name: Lint
         run: npm --prefix apps/web run lint
       - name: Demo workflow tests
         run: npm --prefix apps/web test
-      - name: Build
-        run: npm --prefix apps/web run build
+      - name: Build Cloudflare local-demo bundle
+        working-directory: apps/web
+        env:
+          VITE_LOCAL_MODE: "true"
+        run: npm run build
+      - name: Build authenticated product bundle
+        working-directory: apps/web
+        env:
+          VITE_LOCAL_MODE: "false"
+          VITE_BACKEND_URL: https://uep-backend-testing.fly.dev
+          VITE_KEYCLOAK_URL: https://identity.example.invalid
+          VITE_KEYCLOAK_REALM: education
+          VITE_KEYCLOAK_CLIENT_ID: platform-web
+        run: npm run build
+      - name: Type-check and discover remote staging Playwright tests
+        working-directory: apps/web
+        env:
+          UEP_E2E_BASE_URL: https://uep-frontend-testing.pages.dev
+          UEP_E2E_BACKEND_URL: https://uep-backend-testing.fly.dev
+          UEP_E2E_KEYCLOAK_ISSUER: https://identity.example.invalid/realms/education
+          UEP_STAGING_PRODUCT_E2E_ENABLED: "false"
+          UEP_STAGING_SEED_DRY_RUN: "true"
+          UEP_STAGING_SEED_CONFIRMATION: "CI-ONLY-NOT-A-VALID-SEED-CONFIRMATION"
+          UEP_STAGING_SEED_TENANT_ID: "00000000-0000-0000-0000-000000000000"
+          UEP_STAGING_ALLOWED_FRONTEND_HOST: uep-frontend-testing.pages.dev
+          UEP_STAGING_ALLOWED_BACKEND_HOST: uep-backend-testing.fly.dev
+          UEP_E2E_TEST_ACCOUNTS_JSON: >-
+            {"organization_owner":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Organization Owner","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"organization_administrator":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Organization Administrator","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"branch_administrator":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Branch Administrator","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"academic_administrator":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Academic Administrator","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"exam_controller":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Exam Controller","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"finance_administrator":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Finance Administrator","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"teacher":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Teacher","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"evaluator":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Evaluator","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"teaching_assistant":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Teaching Assistant","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"mentor":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Mentor","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"student":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Student","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"guardian":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Guardian","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"support_operator":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Support Operator","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"auditor":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Auditor","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"}}
+        run: |
+          npx tsc --ignoreConfig --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck --types node playwright.staging.config.ts test/staging/*.ts
+          npx playwright test --config=playwright.staging.config.ts --list
 
   repository-policy:
     runs-on: ubuntu-latest

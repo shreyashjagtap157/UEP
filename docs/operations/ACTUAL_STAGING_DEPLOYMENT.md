@@ -37,7 +37,36 @@ active tenant membership and roles in that database.
 - The local presentation Playwright suite is now a separate manual workflow.
   Its results are never product acceptance evidence.
 - The real deployed-product E2E workflow is `.github/workflows/staging-e2e.yml`.
-  It runs only after the staging environment has been configured and enabled.
+  It is **manual-dispatch-only**: routine CI completion or merges to `main` do
+  not start staging tests or synthetic writes. An operator must dispatch the
+  workflow from the trusted `main` branch with `confirm_staging_e2e=yes`
+  (the default is `no`); dispatches from feature/PR branches are rejected so
+  unreviewed workflow revisions cannot receive staging Environment secrets.
+  Configure the GitHub `staging` Environment with required reviewers and
+  restrict its deployment branches to `main` before adding any staging
+  secrets or enabling the workflow. This is a mandatory, server-enforced
+  security boundary: the `github.ref == 'refs/heads/main'` job condition is
+  defense in depth only, because manual dispatch selects the workflow revision
+  from the requested ref. A modified non-main workflow revision could remove
+  its own condition; only the Environment deployment-branch policy prevents
+  that revision from receiving Environment secrets. Do not enable staging
+  until the main-only Environment restriction has been verified in GitHub
+  Settings. This repository connection cannot verify that external setting.
+  The job also requires `UEP_STAGING_E2E_ENABLED=true`. Product-data writes
+  require a second per-run input, `authorize_synthetic_writes=yes` (default
+  `no`), and the repository variable `UEP_STAGING_SEED_DRY_RUN=false`.
+  The workflow sets dry-run mode to false only when both of those gates pass;
+  otherwise it forces dry-run. The confirmation secret is checked later by
+  the seeder as a separate hard-stop before writes. If the first two gates
+  enable write mode but the secret is missing or incorrect, the seeder aborts
+  rather than silently switching back to dry-run. Treat the secret as an
+  additional authorization check, not as an input to the workflow expression.
+  Re-dispatch and explicit authorization are required for every staging write
+  run. The staging Playwright configuration disables
+  browser trace and screenshot retention because those can capture OIDC state,
+  bearer headers, login fields, or tenant data. The workflow uploads HTML/JUnit
+  test reports only; do not re-enable traces/screenshots without a reviewed
+  redaction and restricted-artifact design.
 - No successful Cloudflare Pages, Fly.io, Supabase, or Keycloak provider-side
   deployment was established by repository CI. A successful build is not a
   deployment, and a pages.dev URL alone is not proof of connected identity/API/DB.
@@ -58,19 +87,112 @@ Set these Fly secrets in the Fly app (never commit their values):
 
 | Secret | Requirement |
 |---|---|
-| `SUPABASE_DB_URL` | JDBC URL for the isolated staging Supabase PostgreSQL database |
+| `SUPABASE_DB_URL` | JDBC URL for the isolated staging Supabase PostgreSQL database; must use `sslmode=require`, `verify-ca`, or `verify-full` in the production profile |
 | `SUPABASE_DB_USER` | Staging database user |
 | `SUPABASE_DB_PASS` | Strong staging database password, at least 16 characters |
 | `OIDC_ISSUER_URI` | Exact issuer URL for the deployed `education` realm |
 | `OIDC_JWK_SET_URI` | Realm JWKS endpoint |
 | `PLATFORM_RECORDING_PLAYBACK_SECRET` | Random secret, at least 32 characters |
 | `PLATFORM_INTEGRATION_SECRET_KEY` | Random secret, at least 32 characters |
+| `LIVEKIT_URL` | Public secure LiveKit client endpoint, `wss://...` (not localhost) |
+| `LIVEKIT_API_URL` | Public secure LiveKit server API endpoint, `https://...` (not localhost) |
 | `LIVEKIT_API_KEY` | Staging LiveKit API key, at least 16 characters |
 | `LIVEKIT_API_SECRET` | Staging LiveKit API secret, at least 32 characters |
 | `PLATFORM_DEV_MODE` | Must be `false` |
+| `PLATFORM_STAGING_DATABASE_IDENTITY_ENABLED` | Set to `true` only on the isolated staging Fly app to expose the permission-gated seed safety check |
+| `PLATFORM_STAGING_EXPECTED_DB_HOST` | Exact PostgreSQL hostname of the isolated staging Supabase project; must match the live JDBC connection metadata |
+| `PLATFORM_STAGING_EXPECTED_DB_NAME` | Exact staging database name (normally `postgres`); must match the live JDBC connection metadata |
 
-If storage is configured as S3, also set the platform's S3 endpoint, bucket,
-region, access key, secret, and path-style settings required by the adapter.
+Tenant provider selection is **per tenant**, not a single global provider
+setting. An authorized tenant administrator selects one configured provider
+and its object prefix through the external-storage binding. The upload service
+resolves that tenant binding server-side and snapshots the provider/prefix in
+the upload session; clients cannot choose a provider. Enable and configure
+every provider you intend to offer, but do not set a global
+`PLATFORM_STORAGE_TYPE` selector.
+
+**Manual-test consequence:** The production backend returns HTTP 409 from
+upload initiation until the tenant has an explicit storage binding and its
+selected provider adapter is enabled and configured. The local filesystem
+provider is intentionally rejected outside development mode, and the Fly
+container has no persistent volume. A backend health check can pass while
+upload workflows remain unavailable. Until an S3-compatible or Google Drive
+provider has been configured and bound to the test tenant, mark upload,
+download, retention and recording-archive workflows as **not deployed**, not
+as passed or failed application functionality.
+
+For S3-compatible storage, set
+`PLATFORM_STORAGE_S3_ENABLED=true` and configure the exact adapter properties
+through these Fly secrets/environment variables:
+
+- `PLATFORM_STORAGE_S3_ENDPOINT` — absolute HTTP(S) endpoint URI
+- `PLATFORM_STORAGE_S3_BUCKET` — bucket name
+- `PLATFORM_STORAGE_S3_REGION` — region (defaults to `us-east-1`)
+- `PLATFORM_STORAGE_S3_ACCESS_KEY` and `PLATFORM_STORAGE_S3_SECRET_KEY` —
+  both set together, or both omitted when the Fly machine's default AWS
+  credential chain is deliberately configured
+
+The adapter uses path-style addressing. Use TLS for non-local staging and
+production endpoints. Scope the credentials to the dedicated UEP bucket and
+minimum required object operations; do not reuse a broad account key.
+
+If storage is configured as Google Drive, set these Fly secrets:
+`PLATFORM_STORAGE_GOOGLE_DRIVE_ENABLED=true`,
+`PLATFORM_STORAGE_GOOGLE_DRIVE_CLIENT_ID`,
+`PLATFORM_STORAGE_GOOGLE_DRIVE_CLIENT_SECRET`,
+`PLATFORM_STORAGE_GOOGLE_DRIVE_REFRESH_TOKEN`, and
+`PLATFORM_STORAGE_GOOGLE_DRIVE_FOLDER_ID` (recommended for explicit
+destination isolation). The backend refreshes access tokens from the OAuth
+refresh token and caches them only until shortly before expiry. The static
+`PLATFORM_STORAGE_GOOGLE_DRIVE_ACCESS_TOKEN` setting is development-only;
+production requires the complete refresh credential set. The OAuth grant used by this adapter must request the exact scope
+`https://www.googleapis.com/auth/drive`. This is the supported scope for the
+current manual-folder-ID integration: it permits metadata lookup plus file
+creation, download, and deletion for the OAuth principal. Do not use
+`drive.metadata.readonly` (read-only; it cannot perform content operations)
+or assume `drive.file` can access an arbitrary manually configured folder.
+`drive.file` is limited to files created/opened by the app or explicitly
+shared with it through a file-picker flow; this adapter does not implement
+that picker/bootstrap flow.
+
+The `drive` scope is a **restricted, broad-access scope**: it grants view and
+manage access to all Drive files available to the OAuth principal. Use a
+dedicated Google Workspace storage user, not a personal account; give it
+Content manager access only to the UEP storage Shared Drive, do not add it to
+other Shared Drives, and keep unrelated files out of its My Drive and
+"Shared with me". Mint the refresh token only after granting the exact scope.
+If the OAuth consent grant changes, obtain a new refresh token with the new
+scope.
+
+For a Workspace-only staging deployment, use an OAuth consent-screen
+**Internal** user type and keep the storage principal in that Workspace
+organization. Do not rely on an External app left in **Testing** for a
+long-lived staging credential: Google issues refresh tokens for that setup
+with a seven-day lifetime when Drive scopes are requested. For public
+production, publish the External app and complete restricted-scope OAuth
+verification; applications that store or transmit restricted-scope data on
+servers must also complete the applicable security assessment. If these
+requirements or the broad Drive access model are unacceptable, use the
+S3-compatible provider rather than weakening the Drive authorization checks.
+
+When generating the refresh token, use an authorization-code flow with
+`access_type=offline` so Google issues a refresh token. If a new refresh
+token is not returned after a prior grant, repeat consent with
+`prompt=consent` after verifying the account and exact scope. Store the
+result only as the Fly secret; never commit it, print it, or paste it into
+chat.
+
+For `GOOGLE_SHARED_DRIVE`, also set
+`PLATFORM_STORAGE_GOOGLE_DRIVE_SHARED_DRIVE_ID` and configure the folder ID
+to a folder inside that shared drive. The adapter refuses to start in Shared
+Drive mode when no destination folder is set. Before every upload, it now
+queries Drive for the configured folder's ID, folder MIME type, and
+`driveId`, and fails closed unless the folder belongs to the configured
+Shared Drive. This prevents a My Drive folder or a folder from another Shared
+Drive from silently receiving tenant content. Verify the configured folder
+and permissions with a staging upload/download/delete test before enabling
+tenant bindings.
+
 Do not use the ephemeral Fly container filesystem as durable student content
 or recording storage.
 
@@ -86,7 +208,7 @@ cd apps/platform-server
 flyctl deploy --remote-only --config fly.toml --dockerfile Dockerfile
 ```
 
-Flyway applies the repository migrations on startup. Migrations V001–V045
+Flyway applies the repository migrations on startup. Migrations V001–V046
 must be applied against a fresh isolated staging database in CI before this
 deployment is accepted. Do not manually baseline or edit Flyway history to
 silence migration errors.
@@ -94,8 +216,48 @@ silence migration errors.
 ### Supabase PostgreSQL
 
 Use a dedicated staging project/database, not a production database with a
-different username. Verify the connection identity with a read-only query
-before the first deployment:
+different username. Supabase's managed platform currently defaults to the
+PostgreSQL 17 major line; the repository's local Compose and CI database are
+pinned to the official `postgres:17.11` image so migration and ORM validation
+run against the intended staging major version. Confirm the actual server
+version on the newly created staging project before deployment; do not reuse
+the unrelated inactive Helios project.
+
+Fly Machines have outbound IPv6 connectivity, and Supabase recommends the
+direct PostgreSQL endpoint for persistent backends such as Fly.io VMs. For a
+fresh UEP staging project, use the direct connection string shown by the
+Supabase Dashboard's **Connect** panel:
+
+```text
+SUPABASE_DB_URL=jdbc:postgresql://db.<project-ref>.supabase.co:5432/postgres?sslmode=require
+SUPABASE_DB_USER=postgres
+SUPABASE_DB_PASS=<database-password>
+```
+
+Use the actual project reference and password; never commit or print them.
+The direct endpoint is IPv6-only on the Free tier unless an IPv4 add-on is
+enabled. If a runtime connectivity test proves that the Fly machine cannot
+reach the direct IPv6 endpoint, switch to the **Shared Pooler — Session**
+connection mode, copying its exact host from the Connect panel and using the
+username `postgres.<project-ref>`:
+
+```text
+SUPABASE_DB_URL=jdbc:postgresql://<exact-session-pooler-host>:5432/postgres?sslmode=require
+SUPABASE_DB_USER=postgres.<project-ref>
+```
+
+Do not use Shared Pooler transaction mode (port 6543) for this Spring Data JPA
+and Flyway service: transaction pooling does not preserve all session features
+and does not support prepared statements. Session mode (port 5432) supports
+them. The production startup guard now rejects a missing/non-PostgreSQL JDBC
+URL, a missing database username, a missing or insecure SSL mode, or non-HTTPS
+OIDC issuer/JWKS URLs when the Docker image's `production` profile is active.
+Use `sslmode=require` as the minimum encrypted transport setting; after
+installing the Supabase CA certificate into the Fly image as a protected secret
+file, prefer `sslmode=verify-full` for certificate and hostname verification.
+
+Before the first deployment, verify the connection identity with read-only
+queries:
 
 ```sql
 SELECT current_database(), current_user, inet_server_addr(), version();
@@ -143,10 +305,18 @@ These are build-time Vite variables. Changing them in a runtime Cloudflare
 secret store does not rewrite an already built JavaScript bundle; rebuild and
 redeploy the frontend after changes.
 
-### Cloudflare Pages — frontend
+### Cloudflare Pages — authenticated product frontend
 
-The target project name is `uep-frontend-testing`, with production branch
-`main`, root/build directory `apps/web`, and build output `dist`.
+The real product staging project is `uep-frontend-testing`
+(`https://uep-frontend-testing.pages.dev`), with production branch `main`,
+root/build directory `apps/web`, and build output `dist`.
+
+Keep the local presentation build in a separate project named
+`uep-frontend-demo` with `VITE_LOCAL_MODE=true`. Do not deploy that local
+bundle to `uep-frontend-testing`: this authenticated product project must use
+`VITE_LOCAL_MODE=false` and the real API/Keycloak values below. The two
+project names and their deployment roles are documented in
+`docs/CLOUDFLARE_DEMO_DEPLOY.md`.
 
 Build and deploy only after the backend and Keycloak endpoints are configured:
 
@@ -161,12 +331,16 @@ npx wrangler pages deploy dist --project-name uep-frontend-testing --branch main
 The frontend's backend URL is not inferred from the Vite development proxy.
 The deployed application calls `VITE_BACKEND_URL` directly and sends a
 Keycloak bearer token. The API must return the matching CORS headers for the
-Pages origin.
+Pages origin. The production backend startup guard requires the Fly runtime
+to set `LIVEKIT_URL` to a public `wss://` endpoint and `LIVEKIT_API_URL`
+to a public `https://` endpoint; leaving the development localhost defaults
+will make the production process fail closed.
 
 ## Staging identity and data qualification
 
 The staging account matrix is supplied to GitHub Actions as an environment
-secret named `UEP_E2E_TEST_ACCOUNTS_JSON`. It must be a JSON object with these
+secret named `UEP_E2E_TEST_ACCOUNTS_JSON`. The product workflow remains disabled
+until the identity and database safety gates have been configured. It must be a JSON object with these
 keys:
 
 `organization_owner`, `organization_administrator`,
@@ -176,8 +350,28 @@ keys:
 `support_operator`, and `auditor`.
 
 Each value must contain `username`, `password`, `roleName`,
-`displayName`, and `tenantId`. Store real test credentials only in the
-GitHub `staging` Environment secret. Use non-customer accounts and test data.
+`displayName`, and `tenantId`.
+An optional `UEP_E2E_SECOND_TENANT_TEACHER_ACCOUNT_JSON` secret contains one
+additional account object with the same fields; its `tenantId` must equal
+`UEP_STAGING_SECOND_TENANT_ID` and differ from the primary tenant. When
+configured, the product test verifies that this second-tenant teacher receives
+HTTP 404 when requesting submissions for an existing primary-tenant assignment.
+Without it, the cross-tenant live assertion is explicitly skipped and remains a
+release-qualification gap. Store real test credentials only in the
+GitHub `staging` Environment secret. First run with
+`UEP_STAGING_SEED_DRY_RUN=true`; review the database/tenant identity and
+planned record list before switching it to `false`. Also configure the
+`UEP_STAGING_SEED_CONFIRMATION` Environment secret to the exact value
+`UEP-STAGING-SEED-CONFIRMED`; the seeder compares this setting with a fixed
+literal in the checked-in test source. **This value is public and is not a
+security secret or an independent authorization factor.** It is only a
+configuration-presence sentinel that causes the seeder to abort when missing
+or incorrect. Do not rely on it to protect staging credentials or authorize
+writes; the main-only GitHub Environment deployment policy and required
+reviewers are the server-enforced trust boundary, while the per-run workflow
+input, repository dry-run variable, owner authorization, tenant/host allowlists,
+and database identity check are additional operational gates. Use non-customer
+accounts and test data.
 
 Set these GitHub repository variables:
 
@@ -187,6 +381,12 @@ Set these GitHub repository variables:
 | `UEP_E2E_BASE_URL` | `https://uep-frontend-testing.pages.dev` |
 | `UEP_E2E_BACKEND_URL` | `https://uep-backend-testing.fly.dev` |
 | `UEP_E2E_KEYCLOAK_ISSUER` | Exact `https://.../realms/education` issuer |
+| `UEP_STAGING_PRODUCT_E2E_ENABLED` | `true` only after the database identity endpoint and test accounts are ready |
+| `UEP_STAGING_SEED_TENANT_ID` | Exact expected tenant UUID for the primary staging dataset |
+| `UEP_STAGING_SEED_DRY_RUN` | Keep `true` for read-only preflight; set to `false` only as an additional repository-side write gate. Each write run also requires dispatch input `authorize_synthetic_writes=yes` (default `no`) |
+| `UEP_STAGING_ALLOWED_FRONTEND_HOST` | Exact hostname of the isolated staging Cloudflare Pages frontend; no scheme or path |
+| `UEP_STAGING_ALLOWED_BACKEND_HOST` | Exact hostname of the isolated staging Fly API; no scheme or path |
+| `UEP_STAGING_SECOND_TENANT_ID` | Separate staging tenant UUID used for a real cross-tenant access-denial assertion |
 
 The staging test workflow fails closed unless all endpoints are HTTPS and all
 14 role accounts are present. It verifies:
@@ -231,10 +431,30 @@ At minimum, prepare:
   unassigned teachers, disabled/suspended users, missing permissions and
   expired entitlements.
 
-Seed only through an idempotent staging seeder that uses the application's
-domain services or authenticated APIs. It must verify the database's staging
-identity before writing, have a dry-run, use stable IDs, and never delete
-unrelated records. Do not run blind SQL inserts to bypass domain invariants.
+Seed only through the guarded, idempotent staging seeder in
+`apps/web/test/staging/product-workflows.staging.spec.ts`. Before its first
+write, it requires all of the following: the exact staging frontend/backend
+hostnames from the GitHub Environment allowlist, the expected tenant UUID, the
+confirmation configuration sentinel (not a security secret), an authenticated
+organization-owner identity, and a successful call to
+`GET /api/v1/platform/staging-database-identity`. That backend endpoint is
+available only when `PLATFORM_STAGING_DATABASE_IDENTITY_ENABLED=true`, requires
+`OPERATIONS_MANAGE`, reads the actual JDBC connection metadata, and fails
+closed unless its host and database name match the independently configured
+`PLATFORM_STAGING_EXPECTED_DB_HOST` and
+`PLATFORM_STAGING_EXPECTED_DB_NAME`. The seeder uses authenticated domain APIs,
+stable tenant-derived codes, create-if-absent behavior, and never deletes
+records. It seeds the minimum coherent branch/academic/curriculum/batch/
+enrollment/teacher-assignment data, then exercises assignment submission and
+grading, scheduled-class manual attendance, batch-targeted announcement delivery
+and acknowledgement, question-bank redaction plus assessment attempt/autosave/
+submission, finance-administrator invoice creation/issuance, and a guardian
+cross-learner gradebook denial assertion. The guardian assertion proves only
+that access fails closed: the backend currently has no persisted, verified
+Guardian-to-learner relationship model, so positive guardian data access remains
+an explicit product blocker. The finance fixture creates no payment and never
+invokes settlement or capture APIs. Do not run blind SQL inserts to bypass domain
+invariants.
 
 ### Cross-role product acceptance
 

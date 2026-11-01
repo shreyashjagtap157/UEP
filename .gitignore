@@ -34,6 +34,7 @@ artifacts/
 *.bundle
 
 # Local tooling output
+.wrangler/
 *.log
 apps/web/install_output.txt
 apps/web/test-results/

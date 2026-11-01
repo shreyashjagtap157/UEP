@@ -10,6 +10,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice(basePackages = "com.universalplatform.assignment")
 class AssignmentApiExceptionHandler {
+    @ExceptionHandler(AssignmentNotFoundException.class)
+    ResponseEntity<Map<String, String>> notFound(AssignmentNotFoundException exception) {
+        return response(HttpStatus.NOT_FOUND, "ASSIGNMENT_NOT_FOUND", "Assignment not found");
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<Map<String, String>> invalid(IllegalArgumentException exception) {
         return response(HttpStatus.BAD_REQUEST, "INVALID_ASSIGNMENT_REQUEST", exception.getMessage());

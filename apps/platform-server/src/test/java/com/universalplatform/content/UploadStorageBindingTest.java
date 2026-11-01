@@ -3,6 +3,7 @@ package com.universalplatform.content;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -88,7 +89,7 @@ class UploadStorageBindingTest {
 
     private UploadService service(boolean developmentMode) {
         when(tenants.requireTenantId()).thenReturn(TENANT);
-        when(actors.requireSubject()).thenReturn("staging-owner");
+        lenient().when(actors.requireSubject()).thenReturn("staging-owner");
         return new UploadService(tenants, actors, auth, uploads, objects, adapters, bindings, audit,
                 scanner, cleanup, stagingCleanup, staging.toString(), 1024, developmentMode);
     }

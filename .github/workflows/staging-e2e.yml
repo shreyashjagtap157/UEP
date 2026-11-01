@@ -11,10 +11,14 @@ on:
           - "no"
           - "yes"
         default: "no"
-  workflow_run:
-    workflows: ["UEP CI"]
-    types: [completed]
-    branches: [main]
+      authorize_synthetic_writes:
+        description: Explicitly authorize synthetic staging data writes for this run (requires the repository write gate to be false)
+        required: true
+        type: choice
+        options:
+          - "no"
+          - "yes"
+        default: "no"
 
 permissions:
   contents: read
@@ -25,7 +29,7 @@ concurrency:
 
 jobs:
   staging-e2e:
-    if: ${{ vars.UEP_STAGING_E2E_ENABLED == 'true' && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || (github.event_name == 'workflow_dispatch' && inputs.confirm_staging_e2e == 'yes')) }}
+    if: ${{ vars.UEP_STAGING_E2E_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_staging_e2e == 'yes' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: staging
@@ -34,11 +38,19 @@ jobs:
       UEP_E2E_BACKEND_URL: ${{ vars.UEP_E2E_BACKEND_URL }}
       UEP_E2E_KEYCLOAK_ISSUER: ${{ vars.UEP_E2E_KEYCLOAK_ISSUER }}
       UEP_E2E_TEST_ACCOUNTS_JSON: ${{ secrets.UEP_E2E_TEST_ACCOUNTS_JSON }}
+      UEP_E2E_SECOND_TENANT_TEACHER_ACCOUNT_JSON: ${{ secrets.UEP_E2E_SECOND_TENANT_TEACHER_ACCOUNT_JSON }}
+      UEP_STAGING_SECOND_TENANT_ID: ${{ vars.UEP_STAGING_SECOND_TENANT_ID }}
+      UEP_STAGING_PRODUCT_E2E_ENABLED: ${{ vars.UEP_STAGING_PRODUCT_E2E_ENABLED }}
+      UEP_STAGING_SEED_CONFIRMATION: ${{ secrets.UEP_STAGING_SEED_CONFIRMATION }}
+      UEP_STAGING_SEED_TENANT_ID: ${{ vars.UEP_STAGING_SEED_TENANT_ID }}
+      UEP_STAGING_SEED_DRY_RUN: ${{ inputs.authorize_synthetic_writes == 'yes' && vars.UEP_STAGING_SEED_DRY_RUN == 'false' && 'false' || 'true' }}
+      UEP_STAGING_ALLOWED_FRONTEND_HOST: ${{ vars.UEP_STAGING_ALLOWED_FRONTEND_HOST }}
+      UEP_STAGING_ALLOWED_BACKEND_HOST: ${{ vars.UEP_STAGING_ALLOWED_BACKEND_HOST }}
       VITE_LOCAL_MODE: "false"
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: '22.22.0'
@@ -54,7 +66,7 @@ jobs:
       - name: Run real deployed product identity and integration matrix
         working-directory: apps/web
         run: npx playwright test --config=playwright.staging.config.ts
-      - name: Upload staging report and traces
+      - name: Upload staging test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:

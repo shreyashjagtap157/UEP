@@ -100,8 +100,10 @@ export default defineConfig({
   outputDir: 'e2e-staging-results/test-output',
   use: {
     baseURL: baseUrl,
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
+    // Staging traces/screenshots can capture OIDC state, bearer headers, login
+    // fields, and tenant data. Keep artifacts limited to test reports.
+    trace: 'off',
+    screenshot: 'off',
     viewport: { width: 1440, height: 900 },
   },
 })
