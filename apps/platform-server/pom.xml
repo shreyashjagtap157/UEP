@@ -16,13 +16,13 @@
   <description>Control plane for the Universal Education Platform</description>
 
   <properties>
-    <java.version>25</java.version>
+    <java.version>21</java.version>
     <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
     <jackson-bom.version>3.1.7</jackson-bom.version>
     <tomcat.version>11.0.25</tomcat.version>
     <spring-modulith.version>2.1.2</spring-modulith.version>
     <aws-sdk.version>2.57.3</aws-sdk.version>
-    <maven.compiler.release>25</maven.compiler.release>
+    <maven.compiler.release>21</maven.compiler.release>
     <jacoco.version>0.8.15</jacoco.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
@@ -118,6 +118,11 @@
       <artifactId>postgresql</artifactId>
       <scope>runtime</scope>
     </dependency>
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>runtime</scope>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -173,7 +178,7 @@
             <goals><goal>enforce</goal></goals>
             <configuration>
               <rules>
-                <requireJavaVersion><version>[23,26)</version></requireJavaVersion>
+                <requireJavaVersion><version>[21,)</version></requireJavaVersion>
                 <requireMavenVersion><version>[3.9,)</version></requireMavenVersion>
               </rules>
             </configuration>

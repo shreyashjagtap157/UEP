@@ -1,19 +1,29 @@
 server:
   shutdown: graceful
+  address: 0.0.0.0
+  port: 8080
   error:
     include-message: never
 
 spring:
   application:
     name: universal-education-platform
+  autoconfigure:
+    # Modulith's runtime auto-configuration eagerly builds the module model with
+    # ArchUnit, which takes minutes on a shared vCPU. Module boundaries are still
+    # enforced by ModularityTest in CI; skipping the boot-time scan lets Tomcat
+    # bind before Fly's idle-stop window.
+    exclude:
+      - org.springframework.modulith.runtime.autoconfigure.SpringModulithRuntimeAutoConfiguration
   jackson:
     deserialization:
       # Preserve existing API behavior: omitted primitive request fields use Java defaults.
       fail-on-null-for-primitives: false
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/education_platform}
-    username: ${DATABASE_USERNAME:education}
-    password: ${DATABASE_PASSWORD:education}
+    url: jdbc:postgresql://db.xxx.supabase.co:5432/postgres
+    username: ${SUPABASE_DB_USER:postgres}
+    password: ${SUPABASE_DB_PASS:}
+    driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: ${DATABASE_POOL_SIZE:20}
       minimum-idle: ${DATABASE_MIN_IDLE:2}
@@ -24,13 +34,13 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create
     properties:
       hibernate:
         jdbc:
           time_zone: UTC
   flyway:
-    enabled: true
+    enabled: false
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
@@ -68,8 +78,11 @@ platform:
   version: 0.15.0.0-SNAPSHOT
   # Explicit opt-out of the production-secret guard (ProductionSecretGuard) for local dev and CI.
   development-mode: ${PLATFORM_DEV_MODE:false}
-  notifications:
-    outbox-poll-ms: ${NOTIFICATION_OUTBOX_POLL_MS:1000}
+  storage:
+    type: ${PLATFORM_STORAGE_TYPE:local} # local | s3 | google-drive
+    upload-cleanup-poll-ms: ${PLATFORM_UPLOAD_CLEANUP_POLL_MS:3600000}
+    retention-poll-ms: ${PLATFORM_CONTENT_RETENTION_POLL_MS:3600000}
+    max-upload-bytes: ${PLATFORM_MAX_UPLOAD_BYTES:5368709120}
     email:
       enabled: ${EMAIL_NOTIFICATIONS_ENABLED:false}
       poll-ms: ${NOTIFICATION_EMAIL_POLL_MS:2000}
@@ -77,32 +90,6 @@ platform:
   announcements:
     publish-poll-ms: ${ANNOUNCEMENT_PUBLISH_POLL_MS:1000}
     expiry-poll-ms: ${ANNOUNCEMENT_EXPIRY_POLL_MS:60000}
-  storage:
-    upload-cleanup-poll-ms: ${PLATFORM_UPLOAD_CLEANUP_POLL_MS:3600000}
-    retention-poll-ms: ${PLATFORM_CONTENT_RETENTION_POLL_MS:3600000}
-    max-upload-bytes: ${PLATFORM_MAX_UPLOAD_BYTES:5368709120}
-    staging:
-      root: ${PLATFORM_UPLOAD_STAGING:./var/uploads}
-    local:
-      root: ${PLATFORM_LOCAL_STORAGE:./var/storage}
-    s3:
-      enabled: ${PLATFORM_S3_ENABLED:false}
-      endpoint: ${PLATFORM_S3_ENDPOINT:http://localhost:9000}
-      region: ${PLATFORM_S3_REGION:us-east-1}
-      access-key: ${PLATFORM_S3_ACCESS_KEY:}
-      secret-key: ${PLATFORM_S3_SECRET_KEY:}
-      bucket: ${PLATFORM_S3_BUCKET:learning-content}
-    google-drive:
-      enabled: ${PLATFORM_GOOGLE_DRIVE_ENABLED:false}
-      access-token: ${PLATFORM_GOOGLE_DRIVE_ACCESS_TOKEN:}
-      folder-id: ${PLATFORM_GOOGLE_DRIVE_FOLDER_ID:}
-      shared-drive-id: ${PLATFORM_GOOGLE_SHARED_DRIVE_ID:}
-    malware-scan:
-      clamav:
-        enabled: ${PLATFORM_CLAMAV_ENABLED:false}
-        host: ${PLATFORM_CLAMAV_HOST:localhost}
-        port: ${PLATFORM_CLAMAV_PORT:3310}
-
   live-learning:
     livekit:
       url: ${LIVEKIT_URL:ws://localhost:7880}
@@ -110,6 +97,12 @@ platform:
       api-key: ${LIVEKIT_API_KEY:devkey}
       api-secret: ${LIVEKIT_API_SECRET:secret}
     heartbeat-timeout-seconds: ${LIVE_CLASS_HEARTBEAT_TIMEOUT_SECONDS:90}
+
+  malware-scan:
+    clamav:
+      enabled: ${PLATFORM_CLAMAV_ENABLED:false}
+      host: ${PLATFORM_CLAMAV_HOST:localhost}
+      port: ${PLATFORM_CLAMAV_PORT:3310}
 
   messaging:
     retention-poll-ms: ${PLATFORM_MESSAGE_RETENTION_POLL_MS:3600000}

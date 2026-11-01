@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { activeUserForProfile, loadDemoState, subscribeDemoState } from './LocalDemoStore'
+import { demoAccounts, type LocalAccount } from './localDemoAccounts'
 import { SpecialistLocalDashboard } from './SpecialistLocalDashboard'
-import { demoAccounts } from './localDemoAccounts'
-import type { LocalAccount } from './localDemoAccounts'
 
 
 export function LocalExperience() {
@@ -37,15 +36,15 @@ export function LocalExperience() {
 }
 
 function readSessionAccount(): LocalAccount | null {
+  // Demo sessions are deliberately not restored on a fresh page load. Shared
+  // devices therefore always return to the account picker instead of staying
+  // signed in as the previous persona.
   try {
-    const raw = sessionStorage.getItem('uep-local-account')
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<LocalAccount>
-    const account = demoAccounts.find(account => account.email === parsed.email && account.role === parsed.role)
-    return account && activeUserForProfile(loadDemoState(), account.profile) ? account : null
+    sessionStorage.removeItem('uep-local-account')
   } catch {
-    return null
+    // ignore storage access failures
   }
+  return null
 }
 
 function LocalLogin({ onLogin }: { onLogin: (account: LocalAccount) => void }) {

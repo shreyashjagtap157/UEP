@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import {
   activeUserForProfile,
   activityForProfile,
+  addDemoUser,
+  addDemoMaterial,
   availableCourseCountForProfile,
   linkedLearnerProgressForProfile,
   advanceDemoProgress,
@@ -14,7 +16,9 @@ import {
   coursesForProfile,
   learnersForProfile,
   linkedLearnerForProfile,
+  messageRecipientsForProfile,
   scheduleForProfile,
+  sendDemoMessage,
   loadDemoState,
   markDemoMessageRead,
   messagesForProfile,
@@ -254,6 +258,36 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
     changeState(setDemoUserStatus(fresh, userId, status, profile), 'User status updated.', fresh)
   }
 
+  function inviteUser(name: string, email: string, role: 'Student' | 'Teacher') {
+    const fresh = loadDemoState()
+    const next = addDemoUser(fresh, { name, email, role }, profile)
+    if (next === fresh) {
+      setNotice('User was not invited; check the name, email and role, and avoid duplicate emails.')
+      return
+    }
+    changeState(next, 'User invited to the organization.', fresh)
+  }
+
+  function sendMessage(subject: string, body: string, recipientId: string) {
+    const fresh = loadDemoState()
+    const next = sendDemoMessage(fresh, { subject, body, recipientIds: recipientId ? [recipientId] : [] }, profile)
+    if (next === fresh) {
+      setNotice('Message was not sent; choose a recipient and enter a subject and message.')
+      return
+    }
+    changeState(next, 'Message sent to the selected recipient.', fresh)
+  }
+
+  function addMaterial(courseId: string, title: string, summary: string) {
+    const fresh = loadDemoState()
+    const next = addDemoMaterial(fresh, { courseId, title, summary }, profile)
+    if (next === fresh) {
+      setNotice('Material was not added; choose a course taught in your scope and enter a title.')
+      return
+    }
+    changeState(next, 'Learning material added to the course.', fresh)
+  }
+
   const summaryItems = summaryFor(profile, state, submissions, schedule, attendance.length, activity.length)
 
   return (
@@ -270,14 +304,26 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
         <div className="sidebar-footer">
           <p className="signed-in">{profile.email}</p>
           <p className="muted small">Role-scoped local session</p>
-          <button className="text-button" onClick={onSignOut}>Sign out</button>
+          <div className="footer-actions">
+            <button className="primary-button" onClick={onSignOut}>Sign out</button>
+          </div>
         </div>
       </aside>
 
       <main className="workspace">
         <header className="workspace-header">
           <div><p className="eyebrow">Local seeded dataset · {profile.label}</p><h2>{nav.find(item => item.id === section)?.label ?? 'Workspace'}</h2></div>
-          <span className="version-badge">Demo data · v0.15.0</span>
+          <div className="workspace-header-actions">
+            <span className="version-badge">Demo data · v0.15.0</span>
+            <div className="session-chip">
+              <span className="session-avatar" aria-hidden="true">{initialsFor(profile.name)}</span>
+              <span className="session-meta">
+                <strong>{profile.name}</strong>
+                <small>{profile.label}</small>
+              </span>
+              <button className="secondary-button" onClick={onSignOut} title="Sign out of your workspace">Sign out</button>
+            </div>
+          </div>
         </header>
 
         {section === 'today' && (
@@ -299,27 +345,30 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
         {section === 'schedule' && <PanelList eyebrow="Assigned schedule" title={profile.role === 'exam-controller' ? 'Examination sessions' : 'Assigned classes'} items={schedule.map(item => ({ title: item.title, detail: `${courseFor(state, item.courseId)?.title ?? 'Assigned course'} · ${new Date(item.startsAt).toLocaleString()} · ${item.durationMinutes} min`, status: `${item.kind} · ${item.status}` }))} />}
         {section === 'submissions' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} onGradeExam={gradeExamAttempt} onSubmitExam={submitExamAttempt} />}
         {section === 'results' && <PanelList eyebrow="Academic results" title="Graded submissions" items={submissions.filter(item => item.status === 'Graded').map(item => ({ title: item.title, detail: `${courseFor(state, item.courseId)?.title ?? 'Assigned course'} · ${state.users.find(person => person.id === item.studentId)?.name ?? 'Learner'}${item.feedback ? ' · ' + item.feedback : ''}`, status: typeof item.score === 'number' ? `${item.score}/100` : 'Graded' }))} />}
-        {section === 'people' && <PeoplePanel state={state} profile={profile} onUserStatus={changeUserStatus} />}
+        {section === 'people' && <PeoplePanel state={state} profile={profile} onUserStatus={changeUserStatus} onInvite={inviteUser} />}
         {section === 'organization' && <OrganizationPanel state={state} profile={profile} onResolve={resolveOrganizationAction} />}
         {section === 'analytics' && <AnalyticsPanel state={state} profile={profile} submissions={submissions} attendance={attendance} schedule={schedule} />}
-        {section === 'content' && <ContentPanel state={state} profile={profile} onCreateProduct={createProduct} onProductTitle={setProductTitle} onProductDescription={setProductDescription} productTitle={productTitle} productDescription={productDescription} onPublishProduct={publishProduct} onPublishCourse={publishCourse} />}
+        {section === 'content' && <ContentPanel state={state} profile={profile} onCreateProduct={createProduct} onProductTitle={setProductTitle} onProductDescription={setProductDescription} productTitle={productTitle} productDescription={productDescription} onPublishProduct={publishProduct} onPublishCourse={publishCourse} onAddMaterial={addMaterial} />}
         {section === 'operations' && <OperationsPanel state={state} profile={profile} onResolve={resolveOrganizationAction} onSupportStatus={updateSupportCase} />}
         {section === 'integrations' && <IntegrationsPanel state={state} profile={profile} />}
-        {section === 'messages' && <MessagesPanel state={state} profile={profile} messages={messages} onMarkRead={markMessageRead} />}
+        {section === 'messages' && <MessagesPanel state={state} profile={profile} messages={messages} onMarkRead={markMessageRead} onSend={sendMessage} />}
         {section === 'settings' && <SettingsPanel state={state} profile={profile} />}
         {section === 'attendance' && <AttendancePanel state={state} profile={profile} attendance={attendance} onMarkPresent={markAttendance} />}
         {section === 'mentee' && <MenteePanel state={state} profile={profile} />}
         {section === 'activity' && <PanelList eyebrow={profile.role === 'auditor' ? 'Compliance' : 'Scoped activity'} title={profile.role === 'auditor' ? 'Audit log' : 'Relevant recorded activity'} items={activity.map(item => ({ title: item.action, detail: `${item.at} · ${item.actor} · ${item.detail}`, status: 'Recorded' }))} />}
         {section === 'finance' && <FinanceScopePanel invoices={financeInvoices} users={state.users} />}
         {section === 'support' && <SupportScopePanel state={state} profile={profile} onStatus={updateSupportCase} />}
-        <section className="panel" aria-live="polite"><p className="eyebrow">Walkthrough status</p><p>{notice}</p><small className="muted">Data shown here is seeded browser state. This mode does not call the production API or settle real payments.</small></section>
+        <section className="panel" aria-live="polite"><p>{notice}</p></section>
       </main>
     </div>
   )
 }
 
-function summaryTitle(role: DemoRole) {
-  switch (role) {
+function initialsFor(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || 'U'
+}
+
+function summaryTitle(role: DemoRole) {  switch (role) {
     case 'student': return 'Student learning workspace'
     case 'teacher': return 'Teaching and assessment workspace'
     case 'client': return 'Institution overview'
@@ -367,7 +416,6 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
   ]
   if (profile.role === 'admin') return [
     { title: 'Active accounts', status: String(state.users.filter(item => item.status === 'Active').length), detail: 'Platform-wide user count' },
-    { title: 'Pending work', status: String(submissions.filter(item => item.status === 'Submitted').length), detail: 'Submitted academic work' },
     { title: 'Operational cases', status: String(state.supportCases.filter(item => item.status !== 'Resolved').length), detail: 'Support cases not yet resolved' },
   ]
   if (profile.role === 'guardian') {
@@ -454,12 +502,17 @@ function LearningPanel({ state, profile, onProgress }: { state: DemoState; profi
     : activeUserForProfile(state, profile)
   const learnerId = learner?.id ?? ''
   const courses = coursesForProfile(state, profile)
+  const materials = state.materials.filter(material => courses.some(course => course.id === material.courseId))
   return <section className="panel">
     <div className="panel-heading"><div><p className="eyebrow">Learning progress</p><h3>{profile.role === 'guardian' || profile.role === 'mentor' ? (learner?.name ?? 'Linked learner') + ' · learning progress' : 'My enrolled courses'}</h3></div><span className="count-badge">{courses.length}</span></div>
     {courses.length ? <div className="local-module-list">{courses.map(course => {
       const percent = progressFor(state, learnerId, course.id)
       return <article className="local-module" key={course.id}><div><strong>{course.title}</strong><p>{course.category} · {course.lessonCount} lessons · {percent}% recorded progress</p></div><div><span className="chip">{course.status}</span>{profile.role === 'student' && percent < 100 && <button type="button" className="text-button" onClick={() => onProgress(course.id)}>Record progress +10%</button>}</div></article>
     })}</div> : <p className="muted">No courses are linked to this account.</p>}
+    <div className="panel-heading" style={{ marginTop: '1.5rem' }}><div><p className="eyebrow">Course materials</p><h3>Resources from your teachers</h3></div><span className="count-badge">{materials.length}</span></div>
+    {materials.length ? <div className="local-module-list">{materials.map(material => <article className="local-module" key={material.id}>
+      <div><strong>{material.title}</strong><p>{material.summary}</p><small className="muted">{courses.find(course => course.id === material.courseId)?.title ?? 'Course'} · added by {material.addedBy} on {new Date(material.addedAt).toLocaleDateString()}</small></div>
+    </article>)}</div> : <p className="muted">No learning materials are published for these courses yet.</p>}
   </section>
 }
 
@@ -473,10 +526,37 @@ function AttendancePanel({ state, profile, attendance, onMarkPresent }: { state:
   </section>
 }
 
-function PeoplePanel({ state, profile, onUserStatus }: { state: DemoState; profile: DemoProfile; onUserStatus: (userId: string, status: 'Active' | 'Suspended') => void }) {
-  const users = learnersForProfile(state, profile)
-  return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">People & role scope</p><h3>{profile.role === 'admin' ? 'Platform user directory' : profile.role === 'teacher' ? 'Assigned learner roster' : 'Organization learners'}</h3></div><span className="count-badge">{users.length}</span></div>
-    {users.length ? <div className="local-module-list">{users.map(item => <article className="local-module" key={item.id}><div><strong>{item.name}</strong><p>{item.role} · {item.organization}</p></div><div><span className="chip">{item.status}</span>{profile.role === 'admin' && item.id !== profile.userId && <button type="button" className="text-button" onClick={() => onUserStatus(item.id, item.status === 'Active' ? 'Suspended' : 'Active')}>{item.status === 'Active' ? 'Suspend' : 'Reactivate'}</button>}</div></article>)}</div> : <p className="muted">No people are available in this role's scope.</p>}
+function PeoplePanel({ state, profile, onUserStatus, onInvite }: { state: DemoState; profile: DemoProfile; onUserStatus: (userId: string, status: 'Active' | 'Suspended') => void; onInvite: (name: string, email: string, role: 'Student' | 'Teacher') => void }) {
+  const currentUser = activeUserForProfile(state, profile)
+  const canManage = profile.role === 'admin' || profile.role === 'client'
+  const users = profile.role === 'admin'
+    ? state.users
+    : profile.role === 'client'
+      ? state.users.filter(item => item.organization === currentUser?.organization)
+      : learnersForProfile(state, profile)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [role, setRole] = useState<'Student' | 'Teacher'>('Student')
+  const heading = profile.role === 'admin' ? 'Platform user directory' : profile.role === 'client' ? 'Teachers & students' : profile.role === 'teacher' ? 'Assigned learner roster' : 'Organization learners'
+  function invite() {
+    onInvite(name, email, role)
+    setName('')
+    setEmail('')
+    setRole('Student')
+  }
+  function canChangeStatus(item: DemoState['users'][number]) {
+    if (item.id === profile.userId) return false
+    if (profile.role === 'admin') return item.role !== 'Platform Administrator'
+    return profile.role === 'client' && (item.role === 'Student' || item.role === 'Teacher')
+  }
+  return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">People & role scope</p><h3>{heading}</h3></div><span className="count-badge">{users.length}</span></div>
+    {canManage && <div className="local-form" style={{ marginBottom: '1.25rem' }}>
+      <label>Full name<input value={name} onChange={event => setName(event.target.value)} placeholder="New teacher or student" /></label>
+      <label>Email address<input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="person@institute.edu" autoComplete="off" /></label>
+      <label>Role<select value={role} onChange={event => setRole(event.target.value === 'Teacher' ? 'Teacher' : 'Student')}><option value="Student">Student</option><option value="Teacher">Teacher</option></select></label>
+      <button type="button" className="primary-button" onClick={invite}>Invite user</button>
+    </div>}
+    {users.length ? <div className="local-module-list">{users.map(item => <article className="local-module" key={item.id}><div><strong>{item.name}</strong><p>{item.role} · {item.organization}</p></div><div><span className="chip">{item.status}</span>{canChangeStatus(item) && <button type="button" className="text-button" onClick={() => onUserStatus(item.id, item.status === 'Active' ? 'Suspended' : 'Active')}>{item.status === 'Active' ? 'Suspend' : 'Activate'}</button>}</div></article>)}</div> : <p className="muted">No people are available in this role's scope.</p>}
   </section>
 }
 
@@ -489,9 +569,20 @@ function OrganizationPanel({ state, profile, onResolve }: { state: DemoState; pr
     const learners = state.users.filter(item => item.role === 'Student' && item.status === 'Active' && item.organization === organization)
     const courseIds = new Set(learners.flatMap(item => item.courseIds))
     const actions = state.organizationActions.filter(item => item.organization === organization)
-    return { organization, learners, courseIds, actions }
+    const tenant = state.tenants.find(item => item.name === organization)
+    const activeTeachers = state.users.filter(item => item.role === 'Teacher' && item.status === 'Active' && item.organization === organization).length
+    const activeStudents = state.users.filter(item => item.role === 'Student' && item.status === 'Active' && item.organization === organization).length
+    return { organization, learners, courseIds, actions, tenant, activeTeachers, activeStudents }
   })
-  return <div className="content-stack">{rows.map(row => <section className="panel" key={row.organization}><div className="panel-heading"><div><p className="eyebrow">Organization</p><h3>{row.organization}</h3></div><span className="count-badge">{row.learners.length} learners</span></div><div className="metric-grid"><article className="metric"><span>Active learners</span><strong>{row.learners.length}</strong><small>Active learner records</small></article><article className="metric"><span>Courses</span><strong>{row.courseIds.size}</strong><small>Courses linked to learner enrollments</small></article><article className="metric"><span>Open actions</span><strong>{row.actions.filter(item => item.status === 'Open').length}</strong><small>Follow-up queue</small></article></div>
+  return <div className="content-stack">{rows.map(row => <section className="panel" key={row.organization}>
+    <div className="panel-heading"><div><p className="eyebrow">Organization</p><h3>{row.organization}</h3></div><span className="count-badge">{row.learners.length} learners</span></div>
+    <div className="metric-grid">
+      <article className="metric"><span>Active learners</span><strong>{row.learners.length}</strong><small>Active learner records</small></article>
+      <article className="metric"><span>Courses</span><strong>{row.courseIds.size}</strong><small>Courses linked to learner enrollments</small></article>
+      <article className="metric"><span>Open actions</span><strong>{row.actions.filter(item => item.status === 'Open').length}</strong><small>Follow-up queue</small></article>
+      <article className="metric"><span>Deployment</span><strong>{row.tenant?.deploymentStatus ?? 'Live'}</strong><small>{row.tenant ? `${row.tenant.region} · updated ${new Date(row.tenant.lastDeployedAt).toLocaleDateString()}` : 'Workspace provisioned'}</small></article>
+      <article className="metric"><span>Licensed seats</span><strong>{row.tenant ? row.tenant.licensedTeachers + row.tenant.licensedStudents : row.activeTeachers + row.activeStudents}</strong><small>{row.activeTeachers} teachers · {row.activeStudents} students active</small></article>
+    </div>
     {row.actions.length ? <div className="local-module-list">{row.actions.map(item => <article className="local-module" key={item.id}><div><strong>{item.title}</strong><p>{item.description}</p></div><div><span className="chip">{item.status}</span>{profile.role === 'client' && item.status === 'Open' && <button type="button" className="text-button" onClick={() => onResolve(item.id)}>Resolve action</button>}</div></article>)}</div> : <p className="muted">No organization actions are recorded.</p>}
     </section>)}</div>
 }
@@ -543,20 +634,41 @@ function AnalyticsPanel({ state, profile, submissions, attendance, schedule }: {
   return <PanelList eyebrow="Calculated from shared state" title="Workspace analytics" items={items} />
 }
 
-function ContentPanel({ state, profile, onCreateProduct, onProductTitle, onProductDescription, productTitle, productDescription, onPublishProduct, onPublishCourse }: { state: DemoState; profile: DemoProfile; onCreateProduct: () => void; onProductTitle: (value: string) => void; onProductDescription: (value: string) => void; productTitle: string; productDescription: string; onPublishProduct: (id: string) => void; onPublishCourse: (id: string) => void }) {
+function ContentPanel({ state, profile, onCreateProduct, onProductTitle, onProductDescription, productTitle, productDescription, onPublishProduct, onPublishCourse, onAddMaterial }: { state: DemoState; profile: DemoProfile; onCreateProduct: () => void; onProductTitle: (value: string) => void; onProductDescription: (value: string) => void; productTitle: string; productDescription: string; onPublishProduct: (id: string) => void; onPublishCourse: (id: string) => void; onAddMaterial: (courseId: string, title: string, summary: string) => void }) {
+  const visibleCourses = coursesForProfile(state, profile)
+  const canAuthorMaterial = profile.role === 'teacher' || profile.role === 'admin'
+  const [materialCourseId, setMaterialCourseId] = useState(visibleCourses[0]?.id ?? '')
+  const [materialTitle, setMaterialTitle] = useState('')
+  const [materialSummary, setMaterialSummary] = useState('')
+  const materials = state.materials.filter(item => visibleCourses.some(course => course.id === item.courseId))
   if (profile.role === 'developer') {
     return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Product authoring</p><h3>Educational products</h3></div><span className="count-badge">{state.products.length}</span></div>
       <form className="local-login-form" onSubmit={event => { event.preventDefault(); onCreateProduct() }}><label>Product title<input value={productTitle} onChange={event => onProductTitle(event.target.value)} maxLength={200} required /></label><label>Description<textarea value={productDescription} onChange={event => onProductDescription(event.target.value)} maxLength={2000} rows={3} /></label><button type="submit" className="primary-button">Create draft</button></form>
       <div className="local-module-list">{state.products.map(product => <article className="local-module" key={product.id}><div><strong>{product.title} · v{product.version}</strong><p>{product.description} · updated {new Date(product.updatedAt).toLocaleDateString()}</p></div><div><span className="chip">{product.status}</span>{product.status !== 'Published' && <button type="button" className="text-button" onClick={() => onPublishProduct(product.id)}>Publish</button>}</div></article>)}</div>
     </section>
   }
-  const visibleCourses = coursesForProfile(state, profile)
+  function submitMaterial() {
+    onAddMaterial(materialCourseId, materialTitle, materialSummary)
+    setMaterialTitle('')
+    setMaterialSummary('')
+  }
   return <section className="panel">
     <div className="panel-heading"><div><p className="eyebrow">Course catalog</p><h3>{profile.role === 'admin' ? 'Manage courses' : 'Courses available in role scope'}</h3></div><span className="count-badge">{visibleCourses.length}</span></div>
+    {canAuthorMaterial && <div className="local-form" style={{ marginBottom: '1.25rem' }}>
+      <p className="eyebrow" style={{ margin: 0 }}>Add learning material</p>
+      <label>Course<select value={materialCourseId} onChange={event => setMaterialCourseId(event.target.value)}>{visibleCourses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}</select></label>
+      <label>Material title<input value={materialTitle} onChange={event => setMaterialTitle(event.target.value)} placeholder="Week 2 · Session notes" /></label>
+      <label>Summary<textarea value={materialSummary} onChange={event => setMaterialSummary(event.target.value)} rows={2} placeholder="What does this material cover?" /></label>
+      <button type="button" className="primary-button" onClick={submitMaterial}>Add material</button>
+    </div>}
     {visibleCourses.length ? <div className="local-module-list">{visibleCourses.map(course => <article className="local-module" key={course.id}>
       <div><strong>{course.title}</strong><p>{course.description}</p></div>
       <div><span className="chip">{course.status}</span>{profile.role === 'admin' && course.status === 'Draft' && <button type="button" className="text-button" onClick={() => onPublishCourse(course.id)}>Publish course</button>}</div>
     </article>)}</div> : <p className="muted">No courses are available in this role's scope.</p>}
+    <div className="panel-heading" style={{ marginTop: '1.5rem' }}><div><p className="eyebrow">Teaching materials</p><h3>Shared resources</h3></div><span className="count-badge">{materials.length}</span></div>
+    {materials.length ? <div className="local-module-list">{materials.map(material => <article className="local-module" key={material.id}>
+      <div><strong>{material.title}</strong><p>{material.summary}</p><small className="muted">{visibleCourses.find(course => course.id === material.courseId)?.title ?? 'Course'} · added by {material.addedBy} on {new Date(material.addedAt).toLocaleDateString()}</small></div>
+    </article>)}</div> : <p className="muted">No learning materials have been added for these courses yet.</p>}
   </section>
 }
 
@@ -576,9 +688,25 @@ function IntegrationsPanel({ state, profile }: { state: DemoState; profile: Demo
   return <PanelList eyebrow="Integration health" title="Webhook delivery summary" items={state.webhooks.map(item => ({ title: item.name, detail: item.endpoint, status: item.status + ' · ' + item.successfulDeliveries + ' delivered · ' + item.failedDeliveries + ' failed' }))} />
 }
 
-function MessagesPanel({ state, profile, messages, onMarkRead }: { state: DemoState; profile: DemoProfile; messages: DemoState['messages']; onMarkRead: (id: string) => void }) {
+function MessagesPanel({ state, profile, messages, onMarkRead, onSend }: { state: DemoState; profile: DemoProfile; messages: DemoState['messages']; onMarkRead: (id: string) => void; onSend: (subject: string, body: string, recipientId: string) => void }) {
   const unread = messages.filter(message => !message.readBy.includes(profile.userId)).length
+  const recipients = messageRecipientsForProfile(state, profile)
+  const [recipientId, setRecipientId] = useState(recipients[0]?.id ?? '')
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  function send() {
+    onSend(subject, body, recipientId)
+    setSubject('')
+    setBody('')
+  }
   return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Recipient-scoped communication</p><h3>Inbox</h3></div><span className="count-badge">{unread} unread</span></div>
+    {recipients.length > 0 && <div className="local-form" style={{ marginBottom: '1.25rem' }}>
+      <p className="eyebrow" style={{ margin: 0 }}>{profile.role === 'student' ? 'Ask a teacher' : 'Send a message'}</p>
+      <label>Recipient<select value={recipientId} onChange={event => setRecipientId(event.target.value)}>{recipients.map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select></label>
+      <label>Subject<input value={subject} onChange={event => setSubject(event.target.value)} placeholder="Request a meeting or ask a question" /></label>
+      <label>Message<textarea value={body} onChange={event => setBody(event.target.value)} rows={3} placeholder="Describe what you need help with" /></label>
+      <button type="button" className="primary-button" onClick={send}>{profile.role === 'student' ? 'Send request' : 'Send message'}</button>
+    </div>}
     {messages.length ? <div className="local-module-list">{messages.map(message => <article className="local-module" key={message.id}><div><strong>{message.subject}</strong><p>{message.body}</p><small className="muted">From {state.users.find(person => person.id === message.senderId)?.name ?? 'Platform'} · {new Date(message.sentAt).toLocaleString()}</small></div><div><span className="chip">{message.readBy.includes(profile.userId) ? 'Read' : 'Unread'}</span>{!message.readBy.includes(profile.userId) && <button type="button" className="text-button" onClick={() => onMarkRead(message.id)}>Mark as read</button>}</div></article>)}</div> : <p className="muted">No messages are addressed to this account.</p>}
   </section>
 }

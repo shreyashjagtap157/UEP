@@ -11,18 +11,71 @@ export interface RoleView{id:string;systemKey?:string;name:string;description?:s
 export interface BranchView{id:string;code:string;displayName:string;timezone:string;status:'ACTIVE'|'INACTIVE'|'CLOSED';createdAt:string;version:number}
 export interface OrganizationSettings{tenantId:string;defaultTimezone:string;defaultLocale:string;weekStartsOn:number;supportEmail?:string;supportUrl?:string;version:number}
 export interface SessionView{id:string;startedAt:string;lastSeenAt:string;expiresAt?:string;revokedAt?:string;revocationReason?:string;current:boolean}
-export class PlatformApiError extends Error{readonly status:number;readonly problemDetail:unknown;constructor(status:number,message:string,problemDetail?:unknown){super(message);this.name='PlatformApiError';this.status=status;this.problemDetail=problemDetail}}
+export interface DeploymentInfo { platform: string; status: string; url: string; lastChecked: string }
+export interface ClientView { id: number; name: string; businessName?: string; businessType?: string; licensingPeriodStart?: string; licensingPeriodEnd?: string; deploymentType?: string; logoUrl?: string }
+export interface CreateClientInput { name: string; businessName?: string; businessType?: string; licensingPeriodStart: string; licensingPeriodEnd: string; deploymentType?: string; logoUrl?: string }
+export interface UpdateClientInput { name?: string; businessName?: string; businessType?: string; licensingPeriodStart?: string; licensingPeriodEnd?: string; deploymentType?: string; logoUrl?: string }
+export class PlatformApiError extends Error{readonly status:number;readonly problemDetail:unknown;constructor(status:number,message:string,problemDetail?:unknown){super(message);this.status=status;this.problemDetail=problemDetail}}
 function extractServerMessage(body:unknown,fallback:string):string{if(body&&typeof body==='object'){const detail=(body as {detail?:unknown}).detail;const message=(body as {message?:unknown}).message;const title=(body as {title?:unknown}).title;if(typeof detail==='string'&&detail.trim())return detail;if(typeof message==='string'&&message.trim())return message;if(typeof title==='string'&&title.trim())return title}return fallback}
-export async function request<T>(path:string,init:RequestInit={}):Promise<T>{let token:string;try{token=await accessToken()}catch(error){const reason=error instanceof Error&&error.message?error.message:String(error);throw new PlatformApiError(0,`Network error: the authentication session could not provide an access token (${reason})`)}const headers=new Headers(init.headers);headers.set('Accept','application/json');headers.set('Authorization',`Bearer ${token}`);if(init.body&&!headers.has('Content-Type'))headers.set('Content-Type','application/json');let response:Response;try{response=await fetch(path,{...init,headers})}catch(error){const reason=error instanceof Error&&error.message?error.message:String(error);throw new PlatformApiError(0,`Network error: the platform service could not be reached for ${path} (${reason})`)}if(response.status===204)return undefined as T;const text=await response.text();let body:unknown;if(text){try{body=JSON.parse(text) as unknown}catch{body=text}}if(!response.ok)throw new PlatformApiError(response.status,extractServerMessage(body,`Platform request failed: ${response.status} ${response.statusText}`),body);return body as T}
-export async function fetchPlatformVersion(signal?:AbortSignal):Promise<PlatformVersion|undefined>{try{const init:RequestInit={headers:{Accept:'application/json'}};if(signal)init.signal=signal;const response=await fetch('/api/v1/platform/version',init);if(!response.ok)return undefined;return await response.json() as PlatformVersion}catch{return undefined}}
+export const localMode = import.meta.env.VITE_LOCAL_MODE === 'true'
+// Prefer explicitly‑set backend URL; fall back to per‑mode defaults only if omitted.
+export const backendUrl = () => import.meta.env.VITE_BACKEND_URL || (localMode ? (import.meta.env.VITE_LOCAL_BACKEND_URL || 'http://localhost:8080') : 'https://uep-backend-testing.fly.dev')
+export async function request<T>(path:string,init:RequestInit={}):Promise<T>{
+  let token:string
+  try{token=await accessToken()}catch(error){
+    const reason=error instanceof Error&&error.message?error.message:String(error)
+    throw new PlatformApiError(0,`Network error: the authentication session could not provide an access token (${reason})`)
+  }
+  const headers=new Headers(init.headers)
+  headers.set('Accept','application/json')
+  headers.set('Authorization',`Bearer ${token}`)
+  if(init.body&&!headers.has('Content-Type'))headers.set('Content-Type','application/json')
+  const fullPath = backendUrl() + path
+  let response:Response
+  try{
+    response=await fetch(fullPath,{...init,headers})
+  }catch(error){
+    const reason=error instanceof Error&&error.message?error.message:String(error)
+    throw new PlatformApiError(0,`Network error: the platform service could not be reached for ${fullPath} (${reason})`)
+  }
+  if(response.status===204)return undefined as T
+  const text=await response.text()
+  let body:unknown
+  if(text){try{body=JSON.parse(text) as unknown}catch{body=text}}
+  if(!response.ok)throw new PlatformApiError(response.status,extractServerMessage(body,`Platform request failed: ${response.status} ${response.statusText}`),body)
+  return body as T
+}
+export async function fetchPlatformVersion(signal?:AbortSignal):Promise<PlatformVersion|undefined>{
+  try{
+    const init:RequestInit={headers:{Accept:'application/json'}}
+    if(signal)init.signal=signal
+    const response=await request('/api/v1/platform/version',init)
+    if(!response)return undefined
+    return response as PlatformVersion
+  }catch{return undefined}
+}
 export const fetchCurrentIdentity=()=>request<CurrentIdentity>('/api/v1/me')
 export const fetchMembers=()=>request<PageResult<MemberView>>('/api/v1/identity/memberships?size=100')
 export const fetchRoles=()=>request<PageResult<RoleView>>('/api/v1/identity/roles?size=100')
 export const fetchBranches=()=>request<PageResult<BranchView>>('/api/v1/organization/branches?size=100')
 export const fetchOrganizationSettings=()=>request<OrganizationSettings>('/api/v1/organization/settings')
 export const fetchMySessions=()=>request<PageResult<SessionView>>('/api/v1/identity/sessions/me?size=100')
-export function provisionMembership(input:{subject:string;email?:string;displayName:string;roleIds:string[]}):Promise<MemberView>{return request('/api/v1/identity/memberships',{method:'POST',body:JSON.stringify(input)})}
-export function createRole(input:{name:string;description?:string;permissions:PermissionKey[]}):Promise<RoleView>{return request('/api/v1/identity/roles',{method:'POST',body:JSON.stringify({...input,expectedVersion:0})})}
-export function createBranch(input:{code:string;displayName:string;timezone:string}):Promise<BranchView>{return request('/api/v1/organization/branches',{method:'POST',body:JSON.stringify(input)})}
-export function updateOrganizationSettings(input:OrganizationSettings):Promise<OrganizationSettings>{return request('/api/v1/organization/settings',{method:'PUT',body:JSON.stringify({defaultTimezone:input.defaultTimezone,defaultLocale:input.defaultLocale,weekStartsOn:input.weekStartsOn,supportEmail:input.supportEmail,supportUrl:input.supportUrl,expectedVersion:input.version})})}
-export function revokeOwnSession(sessionId:string):Promise<void>{return request(`/api/v1/identity/sessions/me/${sessionId}`,{method:'DELETE'})}
+export function provisionMembership(input:{subject:string;email?:string;displayName:string;roleIds:string[]}):Promise<MemberView>{
+  return request('/api/v1/identity/memberships',{method:'POST',body:JSON.stringify(input)})
+}
+export function createRole(input:{name:string;description?:string;permissions:PermissionKey[]}):Promise<RoleView>{
+  return request('/api/v1/identity/roles',{method:'POST',body:JSON.stringify({...input,expectedVersion:0})})
+}
+export function createBranch(input:{code:string;displayName:string;timezone:string}):Promise<BranchView>{
+  return request('/api/v1/organization/branches',{method:'POST',body:JSON.stringify(input)})
+}
+export function updateOrganizationSettings(input:OrganizationSettings):Promise<OrganizationSettings>{
+  return request('/api/v1/organization/settings',{method:'PUT',body:JSON.stringify({defaultTimezone:input.defaultTimezone,defaultLocale:input.defaultLocale,weekStartsOn:input.weekStartsOn,supportEmail:input.supportEmail,supportUrl:input.supportUrl,expectedVersion:input.version})})
+}
+export function revokeOwnSession(sessionId:string):Promise<void>{
+  return request(`/api/v1/identity/sessions/me/${sessionId}`,{method:'DELETE'})
+}
+export const fetchAllClients=()=>request<ClientView[]>('/api/v1/clients')
+export const createNewClient=(input:CreateClientInput)=>request<ClientView>('/api/v1/clients',{method:'POST',body:JSON.stringify(input)})
+export const updateExistingClient=(id: number,input:UpdateClientInput)=>request<ClientView>(`/api/v1/clients/${id}`,{method:'PUT',body:JSON.stringify(input)})
+export const deleteClientById=(id: number)=>request<void>(`/api/v1/clients/${id}`,{method:'DELETE'})

@@ -6,5 +6,16 @@ import java.util.UUID;
 public interface TenantDirectory {
     Optional<TenantSummary> find(UUID tenantId);
 
-    record TenantSummary(UUID id, String slug, String displayName, TenantStatus status) {}
+    record TenantSummary(
+            UUID id,
+            String slug,
+            String displayName,
+            TenantStatus status,
+            String deploymentPlatform,
+            String deploymentStatus,
+            int licensedUserCount,
+            int maxLicensedUsers,
+            String subscriptionTier,
+            String customDomain
+    ) {}
 }

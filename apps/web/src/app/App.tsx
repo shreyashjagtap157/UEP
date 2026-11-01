@@ -8,7 +8,6 @@ import {
   logout,
   onOidcStatus,
   openAccountManagement,
-  localMode,
   signIn,
 } from '../auth/keycloak'
 import { AcademicOverview } from '../academic/AcademicOverview'
@@ -16,7 +15,6 @@ import { AcademicWorkspace } from '../academic/AcademicWorkspace'
 import { EnrollmentWorkspace } from '../academic/EnrollmentWorkspace'
 import { AnnouncementWorkspace } from '../communication/AnnouncementWorkspace'
 import { TodayOverview } from '../dashboard/TodayOverview'
-import { LocalExperience } from '../dashboard/LocalExperience'
 import { NotificationWorkspace } from '../notifications/NotificationWorkspace'
 import { ScheduleWorkspace } from '../scheduling/ScheduleWorkspace'
 import { ContentWorkspace } from '../content/ContentWorkspace'
@@ -27,6 +25,7 @@ import { RecordingWorkspace } from '../recording/RecordingWorkspace'
 import { FinanceWorkspace } from '../finance/FinanceWorkspace'
 import { AnalyticsWorkspace } from '../analytics/AnalyticsWorkspace'
 import { AdvancedAcademicWorkspace } from '../advanced/AdvancedAcademicWorkspace'
+
 import { IntegrationWorkspace } from '../integration/IntegrationWorkspace'
 import {
   createBranch,
@@ -110,7 +109,23 @@ export function App() {
 
   function handleSignOut() {
     queryClient.clear()
+    // Clear any local demo session if in local mode
+    if (localMode) {
+      sessionStorage.removeItem('uep-local-account')
+      setOidcAuthenticated(false)
+      setSignInPending(false)
+    }
+    // Perform Keycloak logout for production mode
     void logout()
+      .then(() => {
+        setOidcAuthenticated(false)
+        setSignInPending(false)
+      })
+      .catch(() => {
+        // Ensure state is cleared even if logout fails
+        setOidcAuthenticated(false)
+        setSignInPending(false)
+      })
   }
 
   if (!oidcAuthenticated) {
@@ -137,6 +152,7 @@ export function App() {
     if (identity.isError) return <CenteredStatus title="Access unavailable" detail={identity.error.message} />
 
   const me = identity.data
+  const initials = me.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || 'U'
   const nav: Array<{ id: Section; label: string; visible: boolean }> = [
     { id: 'overview', label: 'Today', visible: true },
     { id: 'analytics', label: 'Analytics & Operations', visible: has(me, 'ANALYTICS_VIEW') },
@@ -156,7 +172,9 @@ export function App() {
     { id: 'people', label: 'People', visible: has(me, 'USERS_VIEW') },
     { id: 'roles', label: 'Roles', visible: has(me, 'ROLES_VIEW') },
     { id: 'organization', label: 'Organization', visible: has(me, 'ORGANIZATION_VIEW') || has(me, 'BRANCHES_VIEW') },
+    { id: 'clients', label: 'Clients', visible: has(me, 'USERS_VIEW') || has(me, 'ORGANIZATION_MANAGE') },
     { id: 'security', label: 'Security', visible: true },
+    
   ]
 
   return (
@@ -176,7 +194,13 @@ export function App() {
         <div className="sidebar-footer">
           <p className="signed-in">{me.displayName}</p>
           <p className="muted small">{me.roles.join(' · ') || 'No assigned role'}</p>
-          <button className="text-button" onClick={handleSignOut}>Switch Role / Sign out</button>
+          {localMode && (
+            <div className="footer-actions">
+              <button className="secondary-button" onClick={() => setSection('overview')}>
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -186,7 +210,17 @@ export function App() {
             <p className="eyebrow">Tenant {shortId(me.tenantId)}</p>
             <h2>{sectionTitle(section)}</h2>
           </div>
-          <span className="version-badge">{version.data?.version ?? 'Platform'}</span>
+          <div className="workspace-header-actions">
+            <span className="version-badge">{version.data?.version ?? 'Platform'}</span>
+            <div className="session-chip">
+              <span className="session-avatar" aria-hidden="true">{initials}</span>
+              <span className="session-meta">
+                <strong>{me.displayName}</strong>
+                <small>{me.roles[0] ?? 'Signed in'}</small>
+              </span>
+              <button className="secondary-button" onClick={handleSignOut} title="End your session">Sign out</button>
+            </div>
+          </div>
         </header>
 
         {section === 'overview' && <Overview me={me} />}
@@ -207,7 +241,9 @@ export function App() {
         {section === 'people' && <People me={me} />}
         {section === 'roles' && <Roles me={me} />}
         {section === 'organization' && <Organization me={me} />}
+        {section === 'clients' && <Clients me={me} />}
         {section === 'security' && <Security me={me} />}
+        
       </main>
     </div>
   )
@@ -363,6 +399,86 @@ function Organization({ me }: { me: CurrentIdentity }) {
       {has(me, 'BRANCHES_MANAGE') && <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Structure</p><h3>Add branch</h3></div></div><form className="form-grid" onSubmit={submitBranch}><label>Code<input name="code" required maxLength={64} placeholder="MAIN" /></label><label>Display name<input name="displayName" required maxLength={200} /></label><label>Timezone<input name="timezone" required maxLength={80} defaultValue="Asia/Kolkata" /></label><div className="form-actions"><button className="primary-button" disabled={create.isPending}>Create branch</button></div>{create.isError && <p className="error-text" role="alert">{create.error.message}</p>}</form></section>}
       {has(me, 'BRANCHES_VIEW') && <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Locations</p><h3>Branches</h3></div></div>{branches.isPending ? <LoadingLine /> : branches.isError ? <ErrorLine error={branches.error} /> : <BranchCards branches={branches.data.items} />}</section>}
       {has(me, 'ORGANIZATION_VIEW') && <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Defaults</p><h3>Organization settings</h3></div></div>{settings.isPending ? <LoadingLine /> : settings.isError ? <ErrorLine error={settings.error} /> : <SettingsForm settings={settings.data} editable={has(me, 'ORGANIZATION_MANAGE')} onSubmit={submitSettings} pending={saveSettings.isPending} error={saveSettings.error} />}</section>}
+    </div>
+  )
+}
+
+function Clients({ me }: { me: CurrentIdentity }) {
+  const queryClient = useQueryClient()
+  const clients = useQuery({ queryKey: ['clients'], queryFn: fetchAllClients })
+  const createMutation = useMutation({
+    mutationFn: createNewClient,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['clients'] }),
+    onError: (error) => console.error('Create client error:', error),
+  })
+  const updateMutation = useMutation({
+    mutationFn: updateExistingClient,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['clients'] }),
+    onError: (error) => console.error('Update client error:', error),
+  })
+  const deleteMutation = useMutation({
+    mutationFn: deleteClientById,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['clients'] }),
+    onError: (error) => console.error('Delete client error:', error),
+  })
+
+  if (clients.isError) return <section className="panel"><p className="error-text" role="alert">{clients.error.message}</p></section>
+  if (clients.isPending || !clients.data) return <section className="panel"><p className="muted">Loading clients…</p></section>
+
+  return (
+    <div className="content-stack">
+      <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Clients</p><h3>Client management</h3></div></div>
+        <div className="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Business Name</th>
+                <th>Business Type</th>
+                <th>Licensing Period</th>
+                <th>Deployment Type</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clients.data.map((client: any) => (
+                <tr key={client.id}>
+                  <td>{client.name}</td>
+                  <td>{client.businessName || '-'}</td>
+                  <td>{client.businessType || '-'}</td>
+                  <td>
+                    {client.licensingPeriodEnd
+                      ? `${new Date(client.licensingPeriodEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (expires in ${Math.max(0, Math.ceil((new Date(client.licensingPeriodEnd).getTime() - new Date().getTime()) / 86400000)} days left)`
+                      : 'Perpetual'}
+                  </td>
+                  <td>{client.deploymentType || '—'}</td>
+                  <td>
+                    <button title="Edit client">Edit</button>
+                    <button title="Delete client" className="danger">Delete</button>
+                  </td>
+                </tr>
+              ))}
+              {has(me, 'ORGANIZATION_MANAGE') && (
+                <tr>
+                  <td colSpan={6}>
+                    <form onSubmit={handleCreateClient} className="create-form">
+                      <input type="hidden" defaultValue={createMutation.isPending ? 'Creating...' : ''} />
+                      <label>Name<input name="name" required maxLength={200} placeholder="Client name" />
+                      <label>Business Name<input name="businessName" placeholder="Business name" />
+                      <label>Business Type<select name="businessType"><option value="educational">Educational</option><option value="corporate">Corporate</option><option value="non-profit">Non-profit</option></select></label>
+                      <label>Licensing Period Start<input type="date" name="licensingPeriodStart" required />
+                      <label>Licensing Period End<input type="date" name="licensingPeriodEnd" required /></label>
+                      <label>Deployment Type<select name="deploymentType"><option value="fly">Fly.io</option><option value="cloudflare">Cloudflare Pages</option></select></label>
+                      <label>Logo URL<input name="logoUrl" placeholder="https://example.com/logo.png" /></label>
+                      <div className="form-actions"><button className="primary-button" disabled={createMutation.isPending}>Create client</button></div>
+                    </form>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   )
 }

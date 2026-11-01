@@ -1,7 +1,7 @@
 import { request, type PageResult } from './api-core'
 export interface AcademicPeriodView { id:string; code:string; displayName:string; startsOn:string; endsOn:string; status:'PLANNED'|'ACTIVE'|'CLOSED'|'ARCHIVED'; createdAt:string; version:number }
 export interface ProgramView { id:string; academicPeriodId?:string; code:string; displayName:string; description?:string; status:'ACTIVE'|'INACTIVE'|'ARCHIVED'; createdAt:string; version:number }
-export interface CourseView { id:string; programId?:string; code:string; displayName:string; description?:string; status:'ACTIVE'|'INACTIVE'|'ARCHIVED'; createdAt:string; version:number }
+export interface CourseView { id:string; programId?:string; code:string; displayName:string; description?:string; status:'ACTIVE'|'INACTIVE'|'ARCHIVED'|'FIXED'|'VARIABLE'; createdAt:string; version:number; courseType?: 'FIXED' | 'VARIABLE'; }
 export interface SubjectView { id:string; courseId?:string; code:string; displayName:string; description?:string; status:'ACTIVE'|'INACTIVE'|'ARCHIVED'; createdAt:string; version:number }
 export interface CurriculumModuleView { id:string; programId?:string; courseId?:string; subjectId?:string; code:string; displayName:string; description?:string; sequenceNumber?:number; status:'ACTIVE'|'INACTIVE'|'ARCHIVED'; createdAt:string; version:number }
 export interface BatchView { id:string; academicPeriodId?:string; programId?:string; courseId?:string; branchId?:string; code:string; displayName:string; sectionCode?:string; startsOn?:string; endsOn?:string; capacity?:number; status:'PLANNED'|'ACTIVE'|'CLOSED'|'ARCHIVED'; createdAt:string; version:number }

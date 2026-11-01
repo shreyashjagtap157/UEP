@@ -145,6 +145,25 @@ export interface DemoMessage {
   readBy: string[]
 }
 
+export interface DemoMaterial {
+  id: string
+  courseId: string
+  title: string
+  summary: string
+  addedBy: string
+  addedAt: string
+}
+
+export interface DemoTenant {
+  id: string
+  name: string
+  deploymentStatus: 'Live' | 'Provisioning' | 'Suspended'
+  region: string
+  licensedTeachers: number
+  licensedStudents: number
+  lastDeployedAt: string
+}
+
 export interface DemoState {
   schemaVersion: 4
   users: DemoUser[]
@@ -158,6 +177,8 @@ export interface DemoState {
   invoices: DemoInvoice[]
   supportCases: DemoSupportCase[]
   messages: DemoMessage[]
+  materials: DemoMaterial[]
+  tenants: DemoTenant[]
   courseProgress: Record<string, number>
   activity: DemoActivity[]
 }
@@ -360,6 +381,16 @@ function seedDemoState(): DemoState {
     { id: 'message-client-delivery', senderId: 'client-priya', recipientIds: ['teacher-rahul', 'admin-platform'], subject: 'Delivery review reminder', body: 'Please review the current attendance exceptions and note follow-up actions for the academic team.', sentAt: dateAt(-1, 11), readBy: [] },
     { id: 'message-support-update', senderId: 'support-alex', recipientIds: ['client-priya'], subject: 'Support case update', body: 'The low-bandwidth video playback case is being investigated by support.', sentAt: dateAt(-1, 16), readBy: [] },
   ]
+  const materials: DemoMaterial[] = [
+    { id: 'material-web-components', courseId: 'course-web', title: 'Week 1 · Component architecture', summary: 'Slides and reference patterns for building reusable React components.', addedBy: 'Rahul Deshmukh', addedAt: dateAt(-12, 9) },
+    { id: 'material-data-normalisation', courseId: 'course-data', title: 'Normalisation cheat sheet', summary: '1NF to 3NF walkthrough with worked examples and practice questions.', addedBy: 'Rahul Deshmukh', addedAt: dateAt(-9, 11) },
+    { id: 'material-cloud-ci', courseId: 'course-cloud', title: 'CI pipeline walkthrough', summary: 'Recorded walkthrough of the build, test and deploy pipeline used in class.', addedBy: 'Rahul Deshmukh', addedAt: dateAt(-5, 15) },
+  ]
+  const tenants: DemoTenant[] = [
+    { id: 'tenant-northstar', name: 'Northstar Learning Institute', deploymentStatus: 'Live', region: 'ap-south-1', licensedTeachers: 10, licensedStudents: 250, lastDeployedAt: dateAt(-2, 9) },
+    { id: 'tenant-uep-product', name: 'UEP Product Team', deploymentStatus: 'Live', region: 'ap-south-1', licensedTeachers: 5, licensedStudents: 25, lastDeployedAt: dateAt(-6, 14) },
+    { id: 'tenant-uep-platform', name: 'UEP Platform', deploymentStatus: 'Provisioning', region: 'ap-south-1', licensedTeachers: 2, licensedStudents: 10, lastDeployedAt: dateAt(-1, 8) },
+  ]
   const webhooks: DemoWebhook[] = [
     { id: 'webhook-enrollment', name: 'Enrollment events', endpoint: 'https://client.example.test/hooks/enrollment', status: 'Healthy', successfulDeliveries: 142, failedDeliveries: 1 },
     { id: 'webhook-results', name: 'Published results', endpoint: 'https://client.example.test/hooks/results', status: 'Healthy', successfulDeliveries: 86, failedDeliveries: 0 },
@@ -378,6 +409,8 @@ function seedDemoState(): DemoState {
     invoices,
     supportCases,
     messages,
+    materials,
+    tenants,
     courseProgress: {
       'student-asha:course-web': 68, 'student-asha:course-data': 82, 'student-asha:course-cloud': 34,
       'student-ravi:course-web': 54, 'student-ravi:course-data': 61,
@@ -391,12 +424,14 @@ function seedDemoState(): DemoState {
   }
 }
 
-type PersistedDemoState = Omit<DemoState, 'schemaVersion' | 'organizationActions' | 'invoices' | 'supportCases' | 'messages'> & {
+type PersistedDemoState = Omit<DemoState, 'schemaVersion' | 'organizationActions' | 'invoices' | 'supportCases' | 'messages' | 'materials' | 'tenants'> & {
   schemaVersion: 1 | 2 | 3 | 4
   organizationActions?: DemoOrganizationAction[]
   invoices?: DemoInvoice[]
   supportCases?: DemoSupportCase[]
   messages?: DemoMessage[]
+  materials?: DemoMaterial[]
+  tenants?: DemoTenant[]
 }
 
 export function loadDemoState(): DemoState {
@@ -422,13 +457,17 @@ export function loadDemoState(): DemoState {
         invoices: Array.isArray(parsed.invoices) ? parsed.invoices : seed.invoices,
         supportCases: Array.isArray(parsed.supportCases) ? parsed.supportCases : seed.supportCases,
         messages: Array.isArray(parsed.messages) ? parsed.messages : seed.messages,
+        materials: Array.isArray(parsed.materials) ? parsed.materials : seed.materials,
+        tenants: Array.isArray(parsed.tenants) ? parsed.tenants : seed.tenants,
       }
       latestDemoState = state
       if (stored.key !== STORAGE_KEY || parsed.schemaVersion !== 4
           || !Array.isArray(parsed.organizationActions)
           || !Array.isArray(parsed.invoices)
           || !Array.isArray(parsed.supportCases)
-          || !Array.isArray(parsed.messages)) {
+          || !Array.isArray(parsed.messages)
+          || !Array.isArray(parsed.materials)
+          || !Array.isArray(parsed.tenants)) {
         saveDemoState(state)
       }
       return state
@@ -740,15 +779,118 @@ export function invoicesForFinanceProfile(state: DemoState, profile: DemoProfile
     && studentIds.has(invoice.studentId))
 }
 
+const CLIENT_MANAGED_ROLES = ['Student', 'Teacher'] as const
+
 export function setDemoUserStatus(state: DemoState, userId: string, status: DemoUser['status'], actor: DemoProfile): DemoState {
-  if (actor.role !== 'admin' || !activeActor(state, actor)) return state
+  if (actor.role !== 'admin' && actor.role !== 'client') return state
+  const current = activeActor(state, actor)
+  if (!current) return state
   const target = state.users.find(item => item.id === userId)
   if (!target || target.id === actor.userId || target.role === 'Platform Administrator' || target.status === status) return state
+  if (actor.role === 'client') {
+    if (target.organization !== current.organization) return state
+    if (!CLIENT_MANAGED_ROLES.some(role => role === target.role)) return state
+  }
   const users = state.users.map(item => item.id === userId ? { ...item, status } : item)
   return recordDemoActivity({ ...state, users }, actor.name, 'User status updated', target.name + ': ' + status, {
     subjectUserId: target.id,
     organization: target.organization,
   })
+}
+
+export interface DemoNewUserInput {
+  name: string
+  email: string
+  role: 'Student' | 'Teacher'
+}
+
+export function addDemoUser(state: DemoState, input: DemoNewUserInput, actor: DemoProfile): DemoState {
+  if (actor.role !== 'admin' && actor.role !== 'client') return state
+  const current = activeActor(state, actor)
+  if (!current) return state
+  const name = input.name.trim()
+  const email = input.email.trim().toLowerCase()
+  if (name.length < 2 || !email.includes('@') || (input.role !== 'Student' && input.role !== 'Teacher')) return state
+  if (state.users.some(user => user.email.toLowerCase() === email)) return state
+  const organization = current.organization
+  const user: DemoUser = {
+    id: 'user-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+    name,
+    email,
+    role: input.role,
+    status: 'Invited',
+    organization,
+    courseIds: [],
+  }
+  return recordDemoActivity({ ...state, users: [...state.users, user] }, actor.name, 'User invited', name + ' · ' + input.role, {
+    subjectUserId: user.id,
+    organization,
+  })
+}
+
+export interface DemoMessageInput {
+  subject: string
+  body: string
+  recipientIds: string[]
+}
+
+export function sendDemoMessage(state: DemoState, input: DemoMessageInput, actor: DemoProfile): DemoState {
+  const current = activeActor(state, actor)
+  if (!current) return state
+  const subject = input.subject.trim()
+  const body = input.body.trim()
+  if (!subject || !body || input.recipientIds.length === 0) return state
+  const recipients = state.users.filter(user => input.recipientIds.includes(user.id)
+    && user.status === 'Active'
+    && user.id !== current.id
+    && (actor.role === 'admin' || user.organization === current.organization))
+  if (!recipients.length) return state
+  const message: DemoMessage = {
+    id: 'message-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+    senderId: current.id,
+    recipientIds: recipients.map(user => user.id),
+    subject,
+    body,
+    sentAt: new Date().toISOString(),
+    readBy: [],
+  }
+  return recordDemoActivity({ ...state, messages: [message, ...state.messages] }, actor.name, 'Message sent', subject + ' → ' + recipients.map(user => user.name).join(', '), {
+    organization: current.organization,
+  })
+}
+
+export function addDemoMaterial(state: DemoState, input: { courseId: string; title: string; summary: string }, actor: DemoProfile): DemoState {
+  if (actor.role !== 'teacher' && actor.role !== 'admin') return state
+  const current = activeActor(state, actor)
+  if (!current) return state
+  const course = state.courses.find(item => item.id === input.courseId)
+  const title = input.title.trim()
+  if (!course || !title) return state
+  if (actor.role === 'teacher' && course.teacherId !== current.id) return state
+  const material: DemoMaterial = {
+    id: 'material-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+    courseId: course.id,
+    title,
+    summary: input.summary.trim(),
+    addedBy: current.name,
+    addedAt: new Date().toISOString(),
+  }
+  return recordDemoActivity({ ...state, materials: [material, ...state.materials] }, actor.name, 'Material added', title + ' · ' + course.title, {
+    courseId: course.id,
+    organization: current.organization,
+  })
+}
+
+export function messageRecipientsForProfile(state: DemoState, profile: DemoProfile): DemoUser[] {
+  const current = activeActor(state, profile)
+  if (!current) return []
+  const active = state.users.filter(user => user.status === 'Active' && user.id !== current.id)
+  if (profile.role === 'admin' || profile.role === 'developer' || profile.role === 'support') return active
+  const sameOrganization = active.filter(user => user.organization === current.organization)
+  if (profile.role === 'student' || profile.role === 'guardian') {
+    return sameOrganization.filter(user => user.role === 'Teacher' || user.role === 'Teaching Assistant' || user.role === 'Mentor')
+  }
+  return sameOrganization
 }
 
 export function submissionsForProfile(state: DemoState, profile: DemoProfile): DemoSubmission[] {

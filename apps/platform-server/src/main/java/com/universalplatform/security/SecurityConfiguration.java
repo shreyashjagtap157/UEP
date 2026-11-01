@@ -1,5 +1,6 @@
 package com.universalplatform.security;
 
+import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -7,9 +8,35 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 class SecurityConfiguration {
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        final CorsConfiguration config = new CorsConfiguration();
+        // Allow the deployed frontend pages.dev domains and localhost for development
+        config.setAllowedOriginPatterns(List.of(
+            "https://uep-frontend-testing.pages.dev",
+            "https://*.uep-frontend-testing.pages.dev",
+            "http://localhost:*",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:8080"
+        ));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setAllowCredentials(false);
+        config.setMaxAge(3600L);
+        config.setExposedHeaders(List.of("Location"));
+
+        final UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", config);
+        return source;
+    }
+
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, ApiCredentialService credentials,
             TenantContext tenantContext, com.universalplatform.tenancy.TenantDirectory tenants) throws Exception {
@@ -20,6 +47,7 @@ class SecurityConfiguration {
         JwtTenantContextFilter tenantFilter = new JwtTenantContextFilter();
         TenantLifecycleFilter tenantLifecycleFilter = new TenantLifecycleFilter(tenantContext, tenants);
         return http
+                .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
