@@ -715,10 +715,14 @@ async function authenticate(browser: Browser, account: Account): Promise<Authent
   expect(identityResponse.status(), `authenticated identity lookup for ${account.roleName}`).toBe(200)
   const identity = await identityResponse.json() as Identity
   const authorization = await identityResponse.request().headerValue('authorization')
-  expect(authorization, 'browser API request must carry the Keycloak bearer token').toMatch(/^Bearer\s+\S+$/)
+  // Never pass the bearer-token value to a matcher: Playwright may include the
+  // received value in a failed assertion, and HTML/JUnit reports are retained.
+  if (typeof authorization !== 'string' || !/^Bearer\s+\S+$/.test(authorization)) {
+    throw new Error('Browser API request did not carry a valid bearer token.')
+  }
   const api = await playwrightRequest.newContext({
     baseURL: backendUrl,
-    extraHTTPHeaders: { Authorization: authorization as string, Accept: 'application/json' },
+    extraHTTPHeaders: { Authorization: authorization, Accept: 'application/json' },
   })
   return {
     identity,
