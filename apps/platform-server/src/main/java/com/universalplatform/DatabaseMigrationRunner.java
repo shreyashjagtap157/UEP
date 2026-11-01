@@ -79,6 +79,7 @@ public final class DatabaseMigrationRunner {
                         + runtimeRole);
                 statement.execute("GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO "
                         + runtimeRole);
+                grantUsageOnPublicTypes(connection, runtimeRole);
                 // The only direct application call into a public-schema helper is
                 // the UUIDv7 default function used by PostgreSQL 17 compatibility.
                 // Trigger functions execute through their attached triggers and do
@@ -91,6 +92,28 @@ public final class DatabaseMigrationRunner {
                         + " IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + runtimeRole);
                 statement.execute("ALTER DEFAULT PRIVILEGES FOR ROLE " + migrationRole
                         + " IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO " + runtimeRole);
+                statement.execute("ALTER DEFAULT PRIVILEGES FOR ROLE " + migrationRole
+                        + " IN SCHEMA public GRANT USAGE ON TYPES TO " + runtimeRole);
+            }
+        }
+    }
+
+    private static void grantUsageOnPublicTypes(Connection connection, String runtimeRole)
+            throws SQLException {
+        String query = """
+                SELECT t.typname
+                FROM pg_type t
+                JOIN pg_namespace n ON n.oid = t.typnamespace
+                WHERE n.nspname = 'public'
+                ORDER BY t.typname
+                """;
+        try (PreparedStatement statement = connection.prepareStatement(query);
+                ResultSet result = statement.executeQuery();
+                Statement grant = connection.createStatement()) {
+            while (result.next()) {
+                String typeName = result.getString("typname");
+                grant.execute("GRANT USAGE ON TYPE public." + quoteIdentifier(typeName)
+                        + " TO " + runtimeRole);
             }
         }
     }
