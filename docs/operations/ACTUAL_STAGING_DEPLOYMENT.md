@@ -434,16 +434,26 @@ function, and no UUIDv7 extension is available in the project's installed
 extension catalog. PostgreSQL documents `uuidv7()` as a PostgreSQL 18
 addition: https://www.postgresql.org/docs/18/release-18.html
 
-Consequently, the present V001–V046 chain is not qualified for this PostgreSQL
-17.11 target and will fail before the application schema is established.
-Do not start Flyway or create an ad hoc UUID shim to bypass this mismatch.
-Resolve it by verifying whether this Supabase project can be upgraded to a
-compatible PostgreSQL 18 service, or by making and testing a deliberate
-PostgreSQL 17 compatibility change in the repository. Supabase documents its
-project-upgrade process and downtime considerations here:
-https://supabase.com/docs/guides/platform/upgrading
-Do not assume a PostgreSQL 18 upgrade option is available until the target
-version and project eligibility are confirmed in the dashboard.
+The repository now includes a Flyway SQL `beforeMigrate` callback at
+`apps/platform-server/src/main/resources/db/migration/beforeMigrate.sql`.
+On PostgreSQL 17 it supplies an RFC 9562 UUIDv7 implementation using a
+48-bit Unix-millisecond timestamp, the version-7 field, the RFC variant
+bits and 74 random bits. On PostgreSQL 18 the built-in
+`pg_catalog.uuidv7()` remains preferred. The CI database matrix runs the
+callback through Flyway before V001, applies the full V001–V046 migration
+chain, and checks UUID version/variant fields plus a 1,000-value uniqueness
+probe on PostgreSQL 17.11 and 18.4. The callback and migration steps have
+completed in the observed matrix runs; later failures were in backend test
+setup/packaging and are being resolved separately.
+
+This resolves the PostgreSQL 17 function-availability blocker at the
+repository level. It does **not** authorize initializing the connected
+Supabase project. That project still needs an explicit environment decision,
+database-role review and tenant-isolation design before Flyway is run there.
+Do not manually install a one-off function in the hosted database; the
+repository callback is the versioned, repeatable compatibility mechanism.
+Supabase's project-upgrade process and downtime considerations are documented
+here: https://supabase.com/docs/guides/platform/upgrading.
 
 At audit time the project had zero public application tables, no application
 Flyway history table, zero Auth users, zero Storage buckets and zero Storage
@@ -514,32 +524,42 @@ correct commit and configuration.
 
 ### Database role and RLS boundary
 
-A read-only role inventory found no UEP-specific login role in the connected
-project. The connected SQL session used `postgres`; that Supabase-managed
-login has `BYPASSRLS=true`. `supabase_admin` is a superuser, while
-`service_role` also has `BYPASSRLS=true` but is not a login role. This
-inventory does not reveal the Fly secret's value or establish which username
-Fly is configured to use. Do not infer the backend username from the SQL
-connector session.
+A read-only catalog audit of the connected Supabase project found:
 
-The application schema has not been created, so there are no application
-tables or application RLS policies to inspect yet. The automatic
-`ensure_rls` trigger enables RLS on new public tables; that alone is not proof
-of tenant isolation for backend queries. A repository search of the reviewed
-security and migration sources did not establish a per-tenant database
-session-variable/policy contract. Before creating application tables, decide
-and document the migration-owner/runtime-role arrangement, the expected
-grants, and whether tenant isolation is enforced at the database layer,
-application service layer, or both. Any runtime role with `BYPASSRLS` or
-table ownership can bypass ordinary RLS unless the table is forced through
-RLS. Validate the actual Fly database identity and verify tenant-boundary
-requests against the running backend; do not weaken RLS to resolve permissions.
+- PostgreSQL 17.11; zero public UEP application tables and zero public
+  application policies at audit time.
+- No UEP-specific login role. The SQL connector session used Supabase's
+  `postgres` role, which has `BYPASSRLS=true`; do not infer that Fly or a
+  future Vercel service uses the same username.
+- Supabase's `ensure_rls` event trigger is enabled. It invokes
+  `public.rls_auto_enable()` for newly created public tables. The function
+  is `SECURITY DEFINER`, owned by `postgres`, and its direct EXECUTE grant
+  is restricted to `postgres` after the ACL remediation. The trigger
+  enables RLS, but does not create tenant policies.
+- The reviewed UEP application code enforces tenant boundaries in its
+  Spring service/repository layer. No database session-GUC contract or
+  corresponding per-tenant RLS policy set was found in the reviewed sources.
 
-After the function ACL change, a transaction-scoped probe created a temporary
-public table, verified that `ensure_rls` enabled `relrowsecurity`, and
-dropped the table in the same SQL block. The probe passed. The Supabase
-security advisor returned zero lints after the ACL remediation.
+Therefore, do not run the application migrations against this Supabase
+project and then attempt to make the API work by using `postgres` or
+`service_role` as a broad bypass-RLS runtime identity. RLS enabled without
+matching policies will deny normal application data access to a non-bypass
+role; granting a bypass identity would defeat the intended database boundary.
+Do not grant `anon` or `authenticated` direct access to the application
+tables or expose them through PostgREST.
 
+For a separate Vercel database, require a fresh isolated PostgreSQL resource,
+a migration-owner credential used only by the confirmed migration workflow,
+and a separate runtime login that is not a superuser, table owner or
+BYPASSRLS role. Keep the application API as the only public data access path.
+The current UEP tenant isolation remains application-enforced; database RLS
+with transaction-scoped tenant context is a separate hardening requirement
+before exposing tables directly through a database API. Verify tenant
+isolation against the running service with cross-tenant negative tests before
+production acceptance.
+
+The connected Supabase project remains uninitialized. Its project name alone
+is not independent proof that it is a disposable staging environment.
 
 ## Vercel-first deployment profile
 
@@ -618,6 +638,18 @@ ephemeral and requests may not be pinned to one instance. Therefore the
 existing resumable-upload and recording pipelines are not accepted on Vercel
 until staging is moved to shared durable object storage (or a provider-direct
 upload design is implemented) and verified across requests/restarts.
+
+### Current Vercel access/deployment state
+
+A team authorization request has been issued for the existing Vercel team
+connection. It is pending explicit approval by the account owner. Until that
+approval is completed, the Vercel API returns HTTP 403 for team-scoped project
+and integration queries. No Vercel project has been created by this work, no
+deployment has been triggered, and no billing resource has been provisioned.
+The one-time deployment and post-success pause remain pending the access
+grant, a verified free-plan/resource review, passing repository CI, and a
+real Keycloak issuer plus database environment. Do not substitute a guessed
+issuer or deploy demo/local mode.
 
 ### Deployment acceptance / stop condition
 
