@@ -66,7 +66,7 @@ jobs:
       - name: Run real deployed product identity and integration matrix
         working-directory: apps/web
         run: npx playwright test --config=playwright.staging.config.ts
-      - name: Upload staging report and traces
+      - name: Upload staging test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
