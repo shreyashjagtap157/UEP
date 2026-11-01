@@ -50,7 +50,11 @@ active tenant membership and roles in that database.
   secret. If any condition is absent, the workflow forces dry-run mode. This
   prevents a prior configuration choice from silently authorizing writes on
   a later dispatch. Re-dispatch and explicit authorization are required for
-  every staging write run.
+  every staging write run. The staging Playwright configuration disables
+  browser trace and screenshot retention because those can capture OIDC state,
+  bearer headers, login fields, or tenant data. The workflow uploads HTML/JUnit
+  test reports only; do not re-enable traces/screenshots without a reviewed
+  redaction and restricted-artifact design.
 - No successful Cloudflare Pages, Fly.io, Supabase, or Keycloak provider-side
   deployment was established by repository CI. A successful build is not a
   deployment, and a pages.dev URL alone is not proof of connected identity/API/DB.
