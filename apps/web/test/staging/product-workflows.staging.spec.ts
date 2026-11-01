@@ -67,7 +67,7 @@ test('staging seeder dry-run verifies target identity and reports planned synthe
   }
 })
 
-test('idempotently seed staging academic data and verify cross-role assignments, attendance, announcements, assessments, and finance', async ({
+test('idempotently seed staging academic data and verify cross-role assignments, attendance, announcements, assessments, finance, and guardian isolation', async ({
   browser,
 }) => {
   test.skip(!productE2eEnabled || !writeEnabled, 'Writes require product E2E opt-in and UEP_STAGING_SEED_DRY_RUN=false explicitly.')
