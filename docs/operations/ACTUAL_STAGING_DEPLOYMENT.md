@@ -43,14 +43,26 @@ active tenant membership and roles in that database.
   (the default is `no`); dispatches from feature/PR branches are rejected so
   unreviewed workflow revisions cannot receive staging Environment secrets.
   Configure the GitHub `staging` Environment with required reviewers and
-  restrict its deployment branches to `main`. The job also requires
-  `UEP_STAGING_E2E_ENABLED=true`. Product-data writes require a second per-run input,
-  `authorize_synthetic_writes=yes` (default `no`), **and** the repository
-  variable `UEP_STAGING_SEED_DRY_RUN=false`, **and** the exact confirmation
-  secret. If any condition is absent, the workflow forces dry-run mode. This
-  prevents a prior configuration choice from silently authorizing writes on
-  a later dispatch. Re-dispatch and explicit authorization are required for
-  every staging write run. The staging Playwright configuration disables
+  restrict its deployment branches to `main` before adding any staging
+  secrets or enabling the workflow. This is a mandatory, server-enforced
+  security boundary: the `github.ref == 'refs/heads/main'` job condition is
+  defense in depth only, because manual dispatch selects the workflow revision
+  from the requested ref. A modified non-main workflow revision could remove
+  its own condition; only the Environment deployment-branch policy prevents
+  that revision from receiving Environment secrets. Do not enable staging
+  until the main-only Environment restriction has been verified in GitHub
+  Settings. This repository connection cannot verify that external setting.
+  The job also requires `UEP_STAGING_E2E_ENABLED=true`. Product-data writes
+  require a second per-run input, `authorize_synthetic_writes=yes` (default
+  `no`), and the repository variable `UEP_STAGING_SEED_DRY_RUN=false`.
+  The workflow sets dry-run mode to false only when both of those gates pass;
+  otherwise it forces dry-run. The confirmation secret is checked later by
+  the seeder as a separate hard-stop before writes. If the first two gates
+  enable write mode but the secret is missing or incorrect, the seeder aborts
+  rather than silently switching back to dry-run. Treat the secret as an
+  additional authorization check, not as an input to the workflow expression.
+  Re-dispatch and explicit authorization are required for every staging write
+  run. The staging Playwright configuration disables
   browser trace and screenshot retention because those can capture OIDC state,
   bearer headers, login fields, or tenant data. The workflow uploads HTML/JUnit
   test reports only; do not re-enable traces/screenshots without a reviewed
