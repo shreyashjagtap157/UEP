@@ -57,16 +57,27 @@ jobs:
           set -euo pipefail
           psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 -f apps/platform-server/src/main/resources/db/migration/beforeMigrate.sql
           psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 <<'SQL'
-          DO $$
-          DECLARE generated uuid := public.uuidv7();
+          DO $
+          DECLARE
+            generated uuid;
+            unique_count integer;
           BEGIN
-            IF substring(generated::text, 15, 1) <> '7' THEN
-              RAISE EXCEPTION 'UUIDv7 version nibble is incorrect: %', generated;
+            FOR iteration IN 1..100 LOOP
+              generated := public.uuidv7();
+              IF substring(generated::text, 15, 1) <> '7' THEN
+                RAISE EXCEPTION 'UUIDv7 version nibble is incorrect: %', generated;
+              END IF;
+              IF substring(generated::text, 20, 1) NOT IN ('8', '9', 'a', 'b') THEN
+                RAISE EXCEPTION 'UUID RFC 9562 variant is incorrect: %', generated;
+              END IF;
+            END LOOP;
+
+            SELECT count(DISTINCT public.uuidv7()) INTO unique_count
+            FROM generate_series(1, 1000);
+            IF unique_count <> 1000 THEN
+              RAISE EXCEPTION 'UUIDv7 uniqueness probe failed: % unique values out of 1000', unique_count;
             END IF;
-            IF substring(generated::text, 20, 1) NOT IN ('8', '9', 'a', 'b') THEN
-              RAISE EXCEPTION 'UUID RFC 4122 variant is incorrect: %', generated;
-            END IF;
-          END $$;
+          END $;
           SQL
       - name: Build Vercel backend container image
         run: docker build --pull --tag uep-platform-api:ci apps/platform-server
