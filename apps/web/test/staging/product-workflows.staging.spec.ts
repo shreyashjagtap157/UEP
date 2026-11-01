@@ -402,6 +402,9 @@ test('idempotently seed staging academic data and verify assignment submission/g
       )
     }
     expect(assessment.status).toBe('PUBLISHED')
+    const authoredQuestion = packet.questions.find(item => item.questionVersionId === question.latestVersion.id)
+    if (!authoredQuestion) throw new Error('The assessment authoring packet must contain the seeded question.')
+    expect(JSON.parse(authoredQuestion.payloadJson)).toHaveProperty('correctAnswer', 'A')
 
     const learnerAssessments = await getAllItems<{ id: string; title: string }>(student.api, '/api/v1/assessments')
     expect(learnerAssessments.some(item => item.id === assessment?.id)).toBe(true)
@@ -582,6 +585,11 @@ test('idempotently seed staging academic data and verify assignment submission/g
     expect(persisted).toBeTruthy()
     expect(persisted?.awardedPoints).toBe(expectedScore)
     expect(persisted?.graderFeedback).toBe(expectedFeedback)
+    const freshAttempts = await getAllItems<{ id: string; assessmentVersionId: string; status: string }>(
+      freshStudent.api,
+      '/api/v1/attempts/me',
+    )
+    expect(freshAttempts.find(item => item.assessmentVersionId === assessmentVersion?.id)?.status).toBe('SUBMITTED')
     const persistedAnnouncement = await getAllItems<{
       id: string
       acknowledgedAt: string | null
