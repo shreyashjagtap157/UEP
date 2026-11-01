@@ -49,13 +49,17 @@ class ProductionSecretGuardTest {
                 .withProperty("spring.security.oauth2.resourceserver.jwt.issuer-uri",
                         "http://identity.example.test/realms/education")
                 .withProperty("spring.security.oauth2.resourceserver.jwt.jwk-set-uri",
-                        "https://user:password@identity.example.test/realms/education/certs");
+                        "https://user:password@identity.example.test/realms/education/certs")
+                .withProperty("platform.live-learning.livekit.url", "ws://localhost:7880")
+                .withProperty("platform.live-learning.livekit.api-url", "http://localhost:7880");
 
         assertThatThrownBy(() -> ProductionSecretGuard.validateProductionSecrets(environment))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("SUPABASE_DB_URL")
                 .hasMessageContaining("OIDC_ISSUER_URI")
                 .hasMessageContaining("OIDC_JWK_SET_URI")
+                .hasMessageContaining("LIVEKIT_URL")
+                .hasMessageContaining("LIVEKIT_API_URL")
                 .satisfies(exception -> assertThat(exception.getMessage())
                         .doesNotContain("user:password"));
     }
@@ -90,6 +94,8 @@ class ProductionSecretGuardTest {
                         "https://identity.example.test/realms/education")
                 .withProperty("spring.security.oauth2.resourceserver.jwt.jwk-set-uri",
                         "https://identity.example.test/realms/education/protocol/openid-connect/certs")
+                .withProperty("platform.live-learning.livekit.url", "wss://livekit.example.test")
+                .withProperty("platform.live-learning.livekit.api-url", "https://livekit.example.test")
                 .withProperty("platform.recording.playback-secret", "playback-key-2026-0123456789abcdef")
                 .withProperty("platform.integrations.secret-key", "integration-key-2026-0123456789abcdef")
                 .withProperty("platform.live-learning.livekit.api-key", "livekit-production-key-2026")
