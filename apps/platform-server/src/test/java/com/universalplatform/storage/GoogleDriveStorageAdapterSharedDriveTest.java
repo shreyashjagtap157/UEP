@@ -29,13 +29,13 @@ class GoogleDriveStorageAdapterSharedDriveTest {
     @Test
     void multipartBoundaryCannotBeInjectedByFileContents() throws Exception {
         HttpResponse<String> folderResponse = response(200,
-                "{\\"id\\":\\"folder-123\\",\\"mimeType\\":\\"application/vnd.google-apps.folder\\",\\"driveId\\":\\"drive-456\\"}");
-        HttpResponse<String> uploadResponse = response(200, "{\\"id\\":\\"uploaded-file-789\\"}");
+                "{\"id\":\"folder-123\",\"mimeType\":\"application/vnd.google-apps.folder\",\"driveId\":\"drive-456\"}");
+        HttpResponse<String> uploadResponse = response(200, "{\"id\":\"uploaded-file-789\"}");
         when(http.send(any(HttpRequest.class),
                 org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
                 .thenReturn(folderResponse, uploadResponse);
         var adapter = adapter();
-        String payload = "prefix\\r\\n--uep-boundary--\\r\\nsuffix";
+        String payload = "prefix\r\n--uep-boundary--\r\nsuffix";
 
         adapter.put("tenant-object-1",
                 new ByteArrayInputStream(payload.getBytes(StandardCharsets.UTF_8)),
