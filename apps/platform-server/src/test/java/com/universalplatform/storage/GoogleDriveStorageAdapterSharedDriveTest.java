@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,6 +40,19 @@ class GoogleDriveStorageAdapterSharedDriveTest {
                 org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
         assertThat(request.getValue().method()).isEqualTo("GET");
         assertThat(request.getValue().uri().getPath()).isEqualTo("/drive/v3/files/folder-123");
+    }
+
+    @Test
+    void rejectsContentTypeHeaderInjectionBeforeCallingGoogle() {
+        var adapter = adapter();
+
+        assertThatThrownBy(() -> adapter.put("tenant-object-1",
+                new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8)),
+                7, "application/octet-stream\\r\\nX-Injected: true"))
+                .isInstanceOf(java.io.IOException.class)
+                .hasMessageContaining("content type is invalid");
+
+        verifyNoInteractions(http);
     }
 
     @Test
