@@ -4,7 +4,6 @@ import jakarta.annotation.PostConstruct;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.regex.Pattern;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
