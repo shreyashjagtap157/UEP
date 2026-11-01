@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   staging-e2e:
-    if: ${{ vars.UEP_STAGING_E2E_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && inputs.confirm_staging_e2e == 'yes' }}
+    if: ${{ vars.UEP_STAGING_E2E_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_staging_e2e == 'yes' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: staging
