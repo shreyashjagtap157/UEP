@@ -155,14 +155,6 @@ test('idempotently seed staging academic data and verify assignment submission/g
     })
     expect(subject.status).toBe('ACTIVE')
 
-    const batchQuery = new URLSearchParams({
-      academicPeriodId: period.id,
-      programId: program.id,
-      courseId: course.id,
-      branchId: branch.id,
-      page: '0',
-      size: '100',
-    })
     const batches = await getAllItems<CodeRecord & { status: string }>(owner.api, `/api/v1/batches?${new URLSearchParams({ academicPeriodId: period.id, programId: program.id, courseId: course.id, branchId: branch.id }).toString()}`)
     const batch = await ensureCodeRecord(owner.api, '/api/v1/batches', batches, batchCode, {
       academicPeriodId: period.id,
