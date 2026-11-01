@@ -55,5 +55,3 @@ jobs:
         run: >-
           mvn -B -f apps/platform-server/pom.xml
           org.codehaus.mojo:exec-maven-plugin:3.5.0:java
-          -Dexec.mainClass=com.universalplatform.DatabaseMigrationRunner
-          -Dexec.classpathScope=runtime
