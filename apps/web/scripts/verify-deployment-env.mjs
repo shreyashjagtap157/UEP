@@ -8,6 +8,14 @@ for (const key of ['VITE_KEYCLOAK_URL', 'VITE_KEYCLOAK_REALM', 'VITE_KEYCLOAK_CL
   if (!process.env[key]?.trim()) failures.push(key + ' must be set at build time.');
 }
 
+
+if (process.env.VITE_KEYCLOAK_REALM?.trim() !== 'education') {
+  failures.push('VITE_KEYCLOAK_REALM must be exactly education.');
+}
+if (process.env.VITE_KEYCLOAK_CLIENT_ID?.trim() !== 'platform-web') {
+  failures.push('VITE_KEYCLOAK_CLIENT_ID must be exactly platform-web.');
+}
+
 const issuer = process.env.VITE_KEYCLOAK_URL?.trim();
 if (issuer) {
   try {

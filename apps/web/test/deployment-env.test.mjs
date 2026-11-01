@@ -51,3 +51,13 @@ test('rejects cross-origin API URLs in single-origin Vercel mode', () => {
   assert.notEqual(result.status, 0)
   assert.match(result.stderr, /VITE_BACKEND_URL must be unset/)
 })
+
+test('rejects a realm or browser client different from the declared product identity contract', () => {
+  const wrongRealm = run({ VITE_KEYCLOAK_REALM: 'master' })
+  assert.notEqual(wrongRealm.status, 0)
+  assert.match(wrongRealm.stderr, /VITE_KEYCLOAK_REALM must be exactly education/)
+
+  const wrongClient = run({ VITE_KEYCLOAK_CLIENT_ID: 'another-client' })
+  assert.notEqual(wrongClient.status, 0)
+  assert.match(wrongClient.stderr, /VITE_KEYCLOAK_CLIENT_ID must be exactly platform-web/)
+})
