@@ -15,6 +15,7 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       UEP_CI_DB_PASSWORD: ${{ format('uep-ci-{0}-{1}', github.run_id, github.run_attempt) }}
     services:
@@ -47,6 +48,7 @@ jobs:
           PLATFORM_DEV_MODE: "false"
         run: mvn -B -f apps/platform-server/pom.xml verify
       - name: Start packaged server on a fresh database and run health smoke
+        timeout-minutes: 5
         env:
           SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform_smoke
           SUPABASE_DB_USER: education
@@ -72,8 +74,10 @@ jobs:
           }
           trap cleanup EXIT
           ready=false
-          for attempt in $(seq 1 60); do
-            if curl --fail --silent --show-error http://localhost:8080/actuator/health >/tmp/uep-health.json; then
+          for attempt in $(seq 1 40); do
+            # Bound each probe: an accepted TCP connection with a stalled HTTP
+            # response must not bypass the readiness deadline indefinitely.
+            if curl --fail --silent --show-error --connect-timeout 1 --max-time 2 http://localhost:8080/actuator/health >/tmp/uep-health.json; then
               ready=true
               break
             fi
@@ -81,11 +85,11 @@ jobs:
               cat /tmp/uep-platform-server.log
               exit 1
             fi
-            sleep 2
+            sleep 1
           done
           if [ "$ready" != "true" ]; then
             tail -n 200 /tmp/uep-platform-server.log
-            echo "Packaged server did not become healthy in 120 seconds" >&2
+            echo "Packaged server did not become healthy within the 120-second readiness window" >&2
             exit 1
           fi
           python3 scripts/load-smoke.py http://localhost:8080/actuator/health 30 6 2500 4000
