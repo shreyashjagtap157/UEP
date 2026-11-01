@@ -27,6 +27,8 @@ Frontend build-time values:
 Backend runtime values (Vercel project environment, never committed):
 
 - `SPRING_PROFILES_ACTIVE=production` (already the Docker image default).
+- `SPRING_FLYWAY_ENABLED=false` so request-serving instances never run schema migrations during startup. Apply schema changes only through the explicit `UEP Database Migration` workflow and its dedicated migration credentials.
+- Use a least-privilege runtime database role for the Spring datasource; keep schema-owner/DDL privileges in the separate migration role.
 - `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD`; alternatively the existing `SUPABASE_DB_URL`, `SUPABASE_DB_USER`, and `SUPABASE_DB_PASS` aliases.
 - `OIDC_ISSUER_URI` and `OIDC_JWK_SET_URI` must match the deployed Keycloak realm exactly.
 - `PLATFORM_RECORDING_PLAYBACK_SECRET` and `PLATFORM_INTEGRATION_SECRET_KEY`, each at least 32 characters and not equal to published development defaults.
