@@ -66,4 +66,15 @@ class ProductionSecretGuardTest {
         ProductionSecretGuard.validateProductionSecrets(environment);
         assertThat(environment.getProperty("spring.datasource.password")).isNotBlank();
     }
+    @Test
+    void allowsMissingLiveKitCredentialsOnlyWhenIntegrationIsExplicitlyDisabled() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("spring.datasource.password", "S3cure-database-password-2026")
+                .withProperty("platform.recording.playback-secret", "playback-key-2026-0123456789abcdef")
+                .withProperty("platform.integrations.secret-key", "integration-key-2026-0123456789abcdef")
+                .withProperty("platform.live-learning.livekit.enabled", "false");
+
+        ProductionSecretGuard.validateProductionSecrets(environment);
+    }
+
 }
