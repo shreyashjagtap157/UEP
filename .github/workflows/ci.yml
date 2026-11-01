@@ -20,7 +20,7 @@ jobs:
       UEP_CI_DB_PASSWORD: ${{ format('uep-ci-{0}-{1}', github.run_id, github.run_attempt) }}
     services:
       postgres:
-        image: postgres:18.4
+        image: postgres:17.11
         env:
           POSTGRES_DB: education_platform
           POSTGRES_USER: education
