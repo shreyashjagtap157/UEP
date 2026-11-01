@@ -11,12 +11,15 @@ import org.springframework.stereotype.Service;
 @Service
 class LiveKitMediaProvider implements LiveMediaProvider {
     private final String apiKey;
+    private final boolean enabled;
     private final byte[] secret;
     private final String url;
 
-    LiveKitMediaProvider(@Value("${platform.live-learning.livekit.api-key:}") String apiKey,
+    LiveKitMediaProvider(@Value("${platform.live-learning.livekit.enabled:true}") boolean enabled,
+            @Value("${platform.live-learning.livekit.api-key:}") String apiKey,
             @Value("${platform.live-learning.livekit.api-secret:}") String secret,
             @Value("${platform.live-learning.livekit.url:ws://localhost:7880}") String url) {
+        this.enabled = enabled;
         this.apiKey = apiKey;
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
         this.url = url;
@@ -30,6 +33,7 @@ class LiveKitMediaProvider implements LiveMediaProvider {
     @Override
     public String issueToken(String identity, String name, String room, boolean publish, boolean subscribe,
             boolean publishData, boolean admin, long ttlSeconds) {
+        if (!enabled) throw new IllegalStateException("LiveKit integration is disabled for this deployment");
         if (apiKey.isBlank() || secret.length == 0)
             throw new IllegalStateException("LiveKit credentials are not configured");
         long now = Instant.now().getEpochSecond();
