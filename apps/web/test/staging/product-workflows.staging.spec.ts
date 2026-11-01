@@ -33,12 +33,41 @@ type Submission = Versioned & {
 const confirmation = 'UEP-STAGING-SEED-CONFIRMED'
 const expectedScore = 92
 const expectedFeedback = 'Staging acceptance: persisted cross-role grading verified.'
+const productE2eEnabled = process.env.UEP_STAGING_PRODUCT_E2E_ENABLED === 'true'
+const dryRun = process.env.UEP_STAGING_SEED_DRY_RUN === 'true'
 
-test.skip(
-  process.env.UEP_STAGING_PRODUCT_E2E_ENABLED !== 'true',
-  'Product seeding and cross-role acceptance require the explicit staging product-E2E opt-in.',
-)
+test.skip(!productE2eEnabled || !dryRun, 'The staging seeder dry-run is an explicit, read-only preflight.')
+test('staging seeder dry-run verifies target identity and reports planned synthetic records', async ({ browser }) => {
+  expect(process.env.UEP_STAGING_SEED_CONFIRMATION).toBe(confirmation)
+  const expectedTenantId = process.env.UEP_STAGING_SEED_TENANT_ID?.trim()
+  expect(expectedTenantId).toBeTruthy()
+  expect(new URL(baseUrl).hostname).toBe('uep-frontend-testing.pages.dev')
+  expect(new URL(backendUrl).hostname).toBe('uep-backend-testing.fly.dev')
+  const owner = await authenticate(browser, accounts.organization_owner as Account)
+  try {
+    expect(owner.identity.tenantId).toBe(expectedTenantId)
+    const databaseIdentity = await getJson<{ verified: boolean; databaseHost: string; databaseName: string }>(
+      owner.api, '/api/v1/platform/staging-database-identity',
+    )
+    expect(databaseIdentity.verified).toBe(true)
+    const suffix = owner.identity.tenantId.replaceAll('-', '').slice(0, 8).toUpperCase()
+    const [branches, periods] = await Promise.all([
+      getJson<PageResult<CodeRecord>>(owner.api, '/api/v1/organization/branches?page=0&size=100'),
+      getJson<PageResult<CodeRecord>>(owner.api, '/api/v1/academic-periods?page=0&size=100'),
+    ])
+    const plan = [
+      `branch UEPSTG${suffix}BR: ${branches.items.some(item => item.code === `UEPSTG${suffix}BR`) ? 'already present' : 'would create'}`,
+      `academic period UEPSTG${suffix}AP: ${periods.items.some(item => item.code === `UEPSTG${suffix}AP`) ? 'already present' : 'would create'}`,
+      'program, course, subject, batch, student enrollment, and teacher assignment: create-if-absent after resolving parent IDs',
+      'assignment publication, student submission, teacher grading, and fresh-login persistence assertion',
+    ]
+    console.info(`[UEP staging seed dry-run] database=${databaseIdentity.databaseHost}/${databaseIdentity.databaseName} tenant=${expectedTenantId}\\n${plan.map(item => `- ${item}`).join('\\n')}`)
+  } finally {
+    await owner.close()
+  }
+})
 
+test.skip(!productE2eEnabled || dryRun, 'Writes require product E2E opt-in and dry-run mode disabled.')
 test('idempotently seed staging academic data and verify assignment submission/grading across real identities', async ({
   browser,
 }) => {
@@ -274,8 +303,10 @@ test('idempotently seed staging academic data and verify assignment submission/g
       `/api/v1/assignments/${assignment.id}/submissions?page=0&size=100`,
     )
     submission = submissions.items.find(item => item.membershipId === student.identity.membershipId)
-    expect(submission, 'teacher must see the exact student's persisted submission').toBeTruthy()
-    if (submission?.awardedPoints == null) {
+    if (!submission) {
+      throw new Error('Teacher did not see the exact student membership submission after it was submitted.')
+    }
+    if (submission.awardedPoints == null) {
       submission = await putJson<Submission>(
         teacher.api,
         `/api/v1/assignment-submissions/${submission.id}/grade`,
