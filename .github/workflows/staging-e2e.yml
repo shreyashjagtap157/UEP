@@ -11,6 +11,14 @@ on:
           - "no"
           - "yes"
         default: "no"
+      authorize_synthetic_writes:
+        description: Explicitly authorize synthetic staging data writes for this run (requires the repository write gate to be false)
+        required: true
+        type: choice
+        options:
+          - "no"
+          - "yes"
+        default: "no"
 
 permissions:
   contents: read
@@ -35,7 +43,7 @@ jobs:
       UEP_STAGING_PRODUCT_E2E_ENABLED: ${{ vars.UEP_STAGING_PRODUCT_E2E_ENABLED }}
       UEP_STAGING_SEED_CONFIRMATION: ${{ secrets.UEP_STAGING_SEED_CONFIRMATION }}
       UEP_STAGING_SEED_TENANT_ID: ${{ vars.UEP_STAGING_SEED_TENANT_ID }}
-      UEP_STAGING_SEED_DRY_RUN: ${{ vars.UEP_STAGING_SEED_DRY_RUN }}
+      UEP_STAGING_SEED_DRY_RUN: ${{ inputs.authorize_synthetic_writes == 'yes' && vars.UEP_STAGING_SEED_DRY_RUN == 'false' && 'false' || 'true' }}
       UEP_STAGING_ALLOWED_FRONTEND_HOST: ${{ vars.UEP_STAGING_ALLOWED_FRONTEND_HOST }}
       UEP_STAGING_ALLOWED_BACKEND_HOST: ${{ vars.UEP_STAGING_ALLOWED_BACKEND_HOST }}
       VITE_LOCAL_MODE: "false"
