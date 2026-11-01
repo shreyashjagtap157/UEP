@@ -80,6 +80,94 @@ jobs:
             END IF;
           END $do$;
           SQL
+      - name: Verify least-privilege runtime database grants and function ACLs
+        env:
+          UEP_DATABASE_MIGRATION_JDBC_URL: jdbc:postgresql://localhost:5432/education_platform
+          UEP_DATABASE_MIGRATION_USERNAME: education
+          UEP_DATABASE_MIGRATION_PASSWORD: ${{ env.UEP_CI_DB_PASSWORD }}
+          UEP_DATABASE_RUNTIME_USERNAME: uep_runtime_ci
+          UEP_CI_RUNTIME_PASSWORD: ${{ format('uep-runtime-{0}-{1}', github.run_id, github.run_attempt) }}
+          PGPASSWORD: ${{ env.UEP_CI_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 -v runtime_password="$UEP_CI_RUNTIME_PASSWORD" <<'SQL'
+          CREATE ROLE uep_runtime_ci WITH LOGIN PASSWORD :'runtime_password'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+          CREATE TYPE public.uep_ci_existing_type AS ENUM ('FIRST', 'SECOND');
+          CREATE TABLE public.uep_ci_existing_probe (
+            id uuid PRIMARY KEY DEFAULT public.uuidv7(),
+            category public.uep_ci_existing_type NOT NULL,
+            details text NOT NULL
+          );
+          CREATE FUNCTION public.uep_ci_existing_trigger_fn() RETURNS trigger
+            LANGUAGE plpgsql AS $function$
+            BEGIN NEW.details := NEW.details || '-triggered'; RETURN NEW; END
+            $function$;
+          CREATE TRIGGER trg_uep_ci_existing_probe
+            BEFORE INSERT ON public.uep_ci_existing_probe
+            FOR EACH ROW EXECUTE FUNCTION public.uep_ci_existing_trigger_fn();
+          CREATE FUNCTION public.uep_ci_existing_private_fn() RETURNS integer
+            LANGUAGE sql AS $function$ SELECT 7 $function$;
+          SQL
+          mvn -B -f apps/platform-server/pom.xml org.codehaus.mojo:exec-maven-plugin:3.5.0:java
+            -Dexec.mainClass=com.universalplatform.DatabaseMigrationRunner
+            -Dexec.classpathScope=runtime
+          psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TYPE public.uep_ci_future_type AS ENUM ('FUTURE');
+          CREATE TABLE public.uep_ci_future_probe (
+            id uuid PRIMARY KEY DEFAULT public.uuidv7(),
+            category public.uep_ci_future_type NOT NULL,
+            details text NOT NULL
+          );
+          CREATE FUNCTION public.uep_ci_future_trigger_fn() RETURNS trigger
+            LANGUAGE plpgsql AS $function$
+            BEGIN NEW.details := NEW.details || '-triggered'; RETURN NEW; END
+            $function$;
+          CREATE TRIGGER trg_uep_ci_future_probe
+            BEFORE INSERT ON public.uep_ci_future_probe
+            FOR EACH ROW EXECUTE FUNCTION public.uep_ci_future_trigger_fn();
+          CREATE FUNCTION public.uep_ci_future_private_fn() RETURNS integer
+            LANGUAGE sql AS $function$ SELECT 8 $function$;
+          SQL
+          PGPASSWORD="$UEP_CI_RUNTIME_PASSWORD" psql "postgresql://uep_runtime_ci@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 <<'SQL'
+          DO $test$
+          DECLARE
+            existing_id uuid;
+            future_id uuid;
+            existing_count integer;
+            future_count integer;
+          BEGIN
+            INSERT INTO public.uep_ci_existing_probe(category, details)
+              VALUES ('FIRST', 'existing') RETURNING id INTO existing_id;
+            INSERT INTO public.uep_ci_future_probe(category, details)
+              VALUES ('FUTURE', 'future') RETURNING id INTO future_id;
+            SELECT count(*) INTO existing_count FROM public.uep_ci_existing_probe
+              WHERE id = existing_id AND details = 'existing-triggered';
+            SELECT count(*) INTO future_count FROM public.uep_ci_future_probe
+              WHERE id = future_id AND details = 'future-triggered';
+            IF existing_count <> 1 OR future_count <> 1 THEN
+              RAISE EXCEPTION 'Runtime DML or trigger-backed writes failed: %, %', existing_count, future_count;
+            END IF;
+            IF public.uuidv7() IS NULL THEN
+              RAISE EXCEPTION 'Runtime UUIDv7 function access failed';
+            END IF;
+          END $test$;
+          SQL
+          if PGPASSWORD="$UEP_CI_RUNTIME_PASSWORD" psql "postgresql://uep_runtime_ci@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 -c 'CREATE TABLE public.uep_runtime_forbidden (id integer)' >/dev/null 2>&1; then
+            echo "Runtime role unexpectedly has CREATE on the public schema." >&2
+            exit 1
+          fi
+          if PGPASSWORD="$UEP_CI_RUNTIME_PASSWORD" psql "postgresql://uep_runtime_ci@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 -c 'SELECT count(*) FROM public.flyway_schema_history' >/dev/null 2>&1; then
+            echo "Runtime role unexpectedly has access to Flyway schema history." >&2
+            exit 1
+          fi
+          for function in uep_ci_existing_private_fn uep_ci_future_private_fn; do
+            if PGPASSWORD="$UEP_CI_RUNTIME_PASSWORD" psql "postgresql://uep_runtime_ci@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 -c "SELECT public.$function()" >/dev/null 2>&1; then
+              echo "Runtime role unexpectedly has EXECUTE on public.$function." >&2
+              exit 1
+            fi
+          done
+
       - name: Build Vercel backend container image
         run: docker build --pull --tag uep-platform-api:ci apps/platform-server
       - name: Start packaged server on a fresh database and run health smoke
