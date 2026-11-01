@@ -14,6 +14,27 @@ This document describes the Vercel-first candidate separately from the existing 
 
 The repository's build guard rejects local/demo mode and missing or non-HTTPS OIDC configuration when Vercel sets `VERCEL=1`. CI separately exercises the same production-mode environment verifier.
 
+## Required runtime/build configuration
+
+Frontend build-time values:
+
+- `VITE_LOCAL_MODE=false`
+- `VITE_KEYCLOAK_URL=https://<verified-issuer-host>`
+- `VITE_KEYCLOAK_REALM=education`
+- `VITE_KEYCLOAK_CLIENT_ID=platform-web`
+- `VITE_BACKEND_URL` must be unset when the same-origin `/api/*` service rewrite is used.
+
+Backend runtime values (Vercel project environment, never committed):
+
+- `SPRING_PROFILES_ACTIVE=production` (already the Docker image default).
+- `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD`; alternatively the existing `SUPABASE_DB_URL`, `SUPABASE_DB_USER`, and `SUPABASE_DB_PASS` aliases.
+- `OIDC_ISSUER_URI` and `OIDC_JWK_SET_URI` must match the deployed Keycloak realm exactly.
+- `PLATFORM_RECORDING_PLAYBACK_SECRET` and `PLATFORM_INTEGRATION_SECRET_KEY`, each at least 32 characters and not equal to published development defaults.
+- `PLATFORM_DEV_MODE=false`.
+- Preserve database TLS verification; do not disable certificate verification to work around connectivity.
+
+The application binds to `PORT` (default 8080). Do not expose actuator metrics, Prometheus, Modulith, or other management endpoints through public rewrites; the current health rewrite is intentionally restricted to `/actuator/health`.
+
 ## Runtime feature gates
 
 A request-serving deployment must not pretend that local disk, LiveKit, or scheduled workers are durable platform services.
