@@ -1,0 +1,63 @@
+name: UEP Staging E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_staging_e2e:
+        description: Run the real deployed application identity/integration matrix
+        required: true
+        type: choice
+        options:
+          - "no"
+          - "yes"
+        default: "no"
+  workflow_run:
+    workflows: ["UEP CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uep-staging-e2e
+  cancel-in-progress: false
+
+jobs:
+  staging-e2e:
+    if: ${{ vars.UEP_STAGING_E2E_ENABLED == 'true' && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || (github.event_name == 'workflow_dispatch' && inputs.confirm_staging_e2e == 'yes')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: staging
+    env:
+      UEP_E2E_BASE_URL: ${{ vars.UEP_E2E_BASE_URL }}
+      UEP_E2E_BACKEND_URL: ${{ vars.UEP_E2E_BACKEND_URL }}
+      UEP_E2E_KEYCLOAK_ISSUER: ${{ vars.UEP_E2E_KEYCLOAK_ISSUER }}
+      UEP_E2E_TEST_ACCOUNTS_JSON: ${{ secrets.UEP_E2E_TEST_ACCOUNTS_JSON }}
+      VITE_LOCAL_MODE: "false"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.22.0'
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci --ignore-scripts
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        run: npx playwright install --with-deps
+      - name: Discover remote staging tests
+        working-directory: apps/web
+        run: npx playwright test --config=playwright.staging.config.ts --list
+      - name: Run real deployed product identity and integration matrix
+        working-directory: apps/web
+        run: npx playwright test --config=playwright.staging.config.ts
+      - name: Upload staging report and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uep-staging-e2e-report
+          path: apps/web/e2e-staging-results/
+          retention-days: 30

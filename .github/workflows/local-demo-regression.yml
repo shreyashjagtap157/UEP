@@ -1,0 +1,48 @@
+name: UEP Local Demo Regression (Non-Product)
+
+on:
+  workflow_dispatch:
+    inputs:
+      acknowledge_local_demo:
+        description: Confirm this is only a local presentation/demo regression run
+        required: true
+        type: choice
+        options:
+          - "no"
+          - "yes"
+        default: "no"
+
+permissions:
+  contents: read
+
+jobs:
+  local-demo-regression:
+    if: ${{ inputs.acknowledge_local_demo == 'yes' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.22.0'
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci --ignore-scripts
+      - name: Install Playwright
+        working-directory: apps/web
+        run: npx playwright install --with-deps
+      - name: Discover local-demo tests
+        working-directory: apps/web
+        run: 'npx playwright test --list --project="Layer A: Local Demo"'
+      - name: Run local-demo regression only
+        working-directory: apps/web
+        env:
+          VITE_LOCAL_MODE: "true"
+        run: 'npx playwright test --project="Layer A: Local Demo"'
+      - name: Upload local-demo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uep-local-demo-regression-report
+          path: apps/web/e2e-test-results/
+          retention-days: 14
