@@ -83,7 +83,6 @@ class LiveClassService implements LiveClassDirectory {
     @Transactional(readOnly = true)
     PageResult<LiveClassView> list(int page, int size) {
         auth.require(PermissionKey.LIVE_CLASS_VIEW);
-        requireLiveKitEnabled();
         UUID tid = tenant.requireTenantId();
         int pg = Math.max(0, page), sz = Math.min(100, Math.max(1, size));
         Pageable pageable = PageRequest.of(pg, sz, Sort.by(Sort.Direction.ASC, "createdAt", "id"));
