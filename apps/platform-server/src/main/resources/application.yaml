@@ -52,6 +52,7 @@ spring:
         RETURNS uuid
         LANGUAGE sql
         VOLATILE
+        SET search_path = pg_catalog
         AS $function$
         WITH entropy AS (
           SELECT
