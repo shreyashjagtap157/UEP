@@ -1,4 +1,5 @@
 import { accessToken } from '../auth/keycloak'
+import { joinBackendUrl, resolveBackendBaseUrl } from './api-url'
 import type { PermissionKey } from './api'
 export type { PermissionKey } from './api'
 export interface PlatformVersion { version: string; releaseStatus: string }
@@ -16,7 +17,13 @@ export class PlatformApiError extends Error{readonly status:number;readonly prob
 function extractServerMessage(body:unknown,fallback:string):string{if(body&&typeof body==='object'){const detail=(body as {detail?:unknown}).detail;const message=(body as {message?:unknown}).message;const title=(body as {title?:unknown}).title;if(typeof detail==='string'&&detail.trim())return detail;if(typeof message==='string'&&message.trim())return message;if(typeof title==='string'&&title.trim())return title}return fallback}
 export const localMode = import.meta.env.VITE_LOCAL_MODE === 'true'
 // Prefer explicitly‑set backend URL; fall back to per‑mode defaults only if omitted.
-export const backendUrl = () => import.meta.env.VITE_BACKEND_URL || (localMode ? (import.meta.env.VITE_LOCAL_BACKEND_URL || 'http://localhost:8080') : 'https://uep-backend-testing.fly.dev')
+// In a Vercel multi-service deployment, an empty base URL keeps requests
+// same-origin and lets Vercel route /api/* to the backend service.
+export const backendUrl = () => resolveBackendBaseUrl(
+  import.meta.env.VITE_BACKEND_URL,
+  localMode,
+  import.meta.env.VITE_LOCAL_BACKEND_URL,
+)
 export async function request<T>(path:string,init:RequestInit={}):Promise<T>{
   let token:string
   try{token=await accessToken()}catch(error){
@@ -27,7 +34,7 @@ export async function request<T>(path:string,init:RequestInit={}):Promise<T>{
   headers.set('Accept','application/json')
   headers.set('Authorization',`Bearer ${token}`)
   if(init.body&&!headers.has('Content-Type'))headers.set('Content-Type','application/json')
-  const fullPath = backendUrl() + path
+  const fullPath = joinBackendUrl(backendUrl(),path)
   let response:Response
   try{
     response=await fetch(fullPath,{...init,headers})
