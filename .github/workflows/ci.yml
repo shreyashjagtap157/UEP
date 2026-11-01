@@ -49,7 +49,7 @@ jobs:
           psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 \\
             -f apps/platform-server/src/main/resources/db/migration/beforeMigrate.sql
           psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $$
           DECLARE generated uuid := public.uuidv7();
           BEGIN
             IF substring(generated::text, 15, 1) <> '7' THEN
@@ -58,7 +58,7 @@ jobs:
             IF substring(generated::text, 20, 1) NOT IN ('8', '9', 'a', 'b') THEN
               RAISE EXCEPTION 'UUID RFC 4122 variant is incorrect: %', generated;
             END IF;
-          END $;
+          END $$;
           SQL
       - name: Verify backend
         env:
