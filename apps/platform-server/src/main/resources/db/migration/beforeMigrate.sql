@@ -12,7 +12,7 @@ VOLATILE
 AS $uuidv7$
   WITH source AS (
     SELECT
-      lpad(to_hex((extract(epoch FROM clock_timestamp()) * 1000)::bigint), 12, '0') AS timestamp_hex,
+      lpad(to_hex(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint), 12, '0') AS timestamp_hex,
       replace(gen_random_uuid()::text, '-', '') AS random_hex
   ),
   bits AS (
