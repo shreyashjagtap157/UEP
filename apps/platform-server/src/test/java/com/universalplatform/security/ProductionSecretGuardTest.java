@@ -128,4 +128,17 @@ class ProductionSecretGuardTest {
     }
 
 
+    @Test
+    void vercelProfileCannotRunWithoutProductionProfile() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("spring.datasource.password", "not-used-by-this-profile-check");
+        environment.setActiveProfiles("vercel");
+        ProductionSecretGuard guard = new ProductionSecretGuard(environment);
+
+        assertThatThrownBy(guard::rejectDevelopmentDefaults)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("vercel Spring profile requires the production profile");
+    }
+
+
 }
