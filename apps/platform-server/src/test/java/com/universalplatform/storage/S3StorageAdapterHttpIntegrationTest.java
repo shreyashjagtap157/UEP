@@ -163,7 +163,7 @@ class S3StorageAdapterHttpIntegrationTest {
                     throw new java.io.EOFException("Truncated aws-chunked data");
                 }
                 decoded.write(chunk);
-                if (input.read() != '\\r' || input.read() != '\\n') {
+                if (input.read() != '\r' || input.read() != '\n') {
                     throw new java.io.IOException("Invalid aws-chunked data terminator");
                 }
             }
@@ -177,8 +177,8 @@ class S3StorageAdapterHttpIntegrationTest {
             if (value < 0) {
                 throw new java.io.EOFException("Unexpected end of aws-chunked stream");
             }
-            if (value == '\\r') {
-                if (input.read() != '\\n') {
+            if (value == '\r') {
+                if (input.read() != '\n') {
                     throw new java.io.IOException("Invalid aws-chunked line terminator");
                 }
                 return line.toString(StandardCharsets.US_ASCII);
