@@ -17,7 +17,11 @@ assert frontend['framework'] == 'vite'
 assert frontend['installCommand'] == 'npm ci --ignore-scripts'
 assert frontend['buildCommand'] == 'npm run build'
 assert frontend['outputDirectory'] == 'dist'
-assert frontend['rewrites'] == [{'source': '/(.*)', 'destination': '/index.html'}]
+assert frontend['buildCommand'] == 'npm run build:vercel'
+assert frontend['routes'] == [{
+    'src': '/((?!assets/|.*\\.[^/]+$).*)',
+    'transforms': [{'type': 'request.path', 'op': 'set', 'args': '/index.html'}],
+}]
 assert backend['root'] == 'apps/platform-server'
 assert backend['runtime'] == 'container'
 assert backend['entrypoint'] == 'Dockerfile'
@@ -36,4 +40,18 @@ assert 'return \'\'' in api_url
 assert "'/api'" in vite_config
 assert 'rewrite:' not in vite_config, 'Local Vite proxy must preserve /api prefix'
 
-print('Vercel service routing and same-origin API contract passed.')
+
+app_config = (root / 'apps/platform-server/src/main/resources/application.yaml').read_text(encoding='utf-8')
+app_main = (root / 'apps/platform-server/src/main/java/com/universalplatform/PlatformServerApplication.java').read_text(encoding='utf-8')
+scheduler = (root / 'apps/platform-server/src/main/java/com/universalplatform/BackgroundWorkerConfiguration.java').read_text(encoding='utf-8')
+secret_guard = (root / 'apps/platform-server/src/main/java/com/universalplatform/security/ProductionSecretGuard.java').read_text(encoding='utf-8')
+assert 'PLATFORM_BACKGROUND_WORKERS_ENABLED' in app_config
+assert 'PLATFORM_LIVEKIT_ENABLED' in app_config
+assert '@ConditionalOnProperty' in scheduler and 'platform.background-workers' in scheduler
+assert '@EnableScheduling' not in app_main
+assert 'platform.live-learning.livekit.enabled' in secret_guard
+web_package = json.loads((root / 'apps/web/package.json').read_text(encoding='utf-8'))
+assert 'build:vercel' in web_package['scripts']
+assert 'verify-deployment-env.mjs' in web_package['scripts']['build:vercel']
+
+print('Vercel routing, production-mode, and runtime-safety contract passed.')
