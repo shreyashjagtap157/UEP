@@ -276,6 +276,8 @@ Set these GitHub repository variables:
 | `UEP_STAGING_PRODUCT_E2E_ENABLED` | `true` only after the database identity endpoint and test accounts are ready |
 | `UEP_STAGING_SEED_TENANT_ID` | Exact expected tenant UUID for the primary staging dataset |
 | `UEP_STAGING_SEED_DRY_RUN` | Set to `true` for the read-only preflight; set to `false` only after reviewing its output and approving synthetic writes |
+| `UEP_STAGING_ALLOWED_FRONTEND_HOST` | Exact hostname of the isolated staging Cloudflare Pages frontend; no scheme or path |
+| `UEP_STAGING_ALLOWED_BACKEND_HOST` | Exact hostname of the isolated staging Fly API; no scheme or path |
 
 The staging test workflow fails closed unless all endpoints are HTTPS and all
 14 role accounts are present. It verifies:
@@ -323,7 +325,7 @@ At minimum, prepare:
 Seed only through the guarded, idempotent staging seeder in
 `apps/web/test/staging/product-workflows.staging.spec.ts`. Before its first
 write, it requires all of the following: the exact staging frontend/backend
-hosts, the expected tenant UUID, the explicit confirmation secret, an
+hostnames from the GitHub Environment allowlist, the expected tenant UUID, the explicit confirmation secret, an
 authenticated organization-owner identity, and a successful call to
 `GET /api/v1/platform/staging-database-identity`. That backend endpoint is
 available only when `PLATFORM_STAGING_DATABASE_IDENTITY_ENABLED=true`, requires
