@@ -18,6 +18,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -44,6 +46,8 @@ class RecordingService {
     private final NotificationPublisher notifications;
     private final Path processingRoot;
     private final byte[] playbackSecret;
+    @Value("${platform.live-learning.livekit.enabled:true}")
+    private boolean liveKitEnabled = true;
     private final Clock clock = Clock.systemUTC();
 
     RecordingService(TenantContext tenants, ActorContext actors, AuthorizationService auth,
@@ -78,6 +82,7 @@ class RecordingService {
     @Transactional
     RecordingView request(UUID liveClassId, RecordingQualityPreset quality) {
         auth.require(PermissionKey.RECORDINGS_MANAGE);
+        requireLiveKitEnabled();
         UUID t = tenants.requireTenantId();
         var lc = liveClasses.require(liveClassId);
         if (lc.status() != com.universalplatform.liveclass.LiveClassStatus.LIVE)
@@ -119,6 +124,7 @@ class RecordingService {
     @Transactional
     void stop(UUID id) {
         auth.require(PermissionKey.RECORDINGS_MANAGE);
+        requireLiveKitEnabled();
         Recording r = require(id);
         if (r.egressId() != null && (r.status() == RecordingProcessingStatus.RECORDING || r.status() == RecordingProcessingStatus.STARTING)) {
             media.stop(r.egressId());
@@ -416,5 +422,13 @@ class RecordingService {
     record StreamHandle(StorageProviderType provider, String locator, String fileName, Long sizeBytes) {}
     record StoragePolicyView(int hotCacheDays, int cacheDays, Integer retentionDays, StorageProviderType hotProvider, StorageProviderType cacheProvider, StorageProviderType archiveProvider, int deletedObjectGraceDays, long version) {}
     record PageResult<T>(List<T> items, int page, int size, long totalElements, int totalPages) {}
+
+    private void requireLiveKitEnabled() {
+        if (!liveKitEnabled) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Recording operations are unavailable because LiveKit is disabled on this deployment");
+        }
+    }
+
     private record PlaybackToken(UUID recordingId, UUID membershipId, long expiresAt) {}
 }
