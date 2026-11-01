@@ -41,8 +41,7 @@ test('staging seeder dry-run verifies target identity and reports planned synthe
   expect(process.env.UEP_STAGING_SEED_CONFIRMATION).toBe(confirmation)
   const expectedTenantId = process.env.UEP_STAGING_SEED_TENANT_ID?.trim()
   expect(expectedTenantId).toBeTruthy()
-  expect(new URL(baseUrl).hostname).toBe('uep-frontend-testing.pages.dev')
-  expect(new URL(backendUrl).hostname).toBe('uep-backend-testing.fly.dev')
+  assertStagingTarget()
   const owner = await authenticate(browser, accounts.organization_owner as Account)
   try {
     expect(owner.identity.tenantId).toBe(expectedTenantId)
@@ -74,8 +73,7 @@ test('idempotently seed staging academic data and verify assignment submission/g
   expect(process.env.UEP_STAGING_SEED_CONFIRMATION).toBe(confirmation)
   const expectedTenantId = process.env.UEP_STAGING_SEED_TENANT_ID?.trim()
   expect(expectedTenantId, 'UEP_STAGING_SEED_TENANT_ID must identify the isolated staging tenant').toBeTruthy()
-  expect(new URL(baseUrl).hostname).toBe('uep-frontend-testing.pages.dev')
-  expect(new URL(backendUrl).hostname).toBe('uep-backend-testing.fly.dev')
+  assertStagingTarget()
 
   const owner = await authenticate(browser, accounts.organization_owner as Account)
   const teacher = await authenticate(browser, accounts.teacher as Account)
@@ -302,6 +300,15 @@ type AuthenticatedIdentity = {
   identity: Identity
   api: APIRequestContext
   close: () => Promise<void>
+}
+
+function assertStagingTarget(): void {
+  const allowedFrontendHost = process.env.UEP_STAGING_ALLOWED_FRONTEND_HOST?.trim()
+  const allowedBackendHost = process.env.UEP_STAGING_ALLOWED_BACKEND_HOST?.trim()
+  expect(allowedFrontendHost, 'UEP_STAGING_ALLOWED_FRONTEND_HOST must be explicitly configured').toBeTruthy()
+  expect(allowedBackendHost, 'UEP_STAGING_ALLOWED_BACKEND_HOST must be explicitly configured').toBeTruthy()
+  expect(new URL(baseUrl).hostname).toBe(allowedFrontendHost)
+  expect(new URL(backendUrl).hostname).toBe(allowedBackendHost)
 }
 
 async function authenticate(browser: Browser, account: Account): Promise<AuthenticatedIdentity> {
