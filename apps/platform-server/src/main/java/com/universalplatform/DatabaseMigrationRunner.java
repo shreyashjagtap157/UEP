@@ -34,6 +34,8 @@ public final class DatabaseMigrationRunner {
                     "Migration and runtime database roles must be different identities.");
         }
 
+        validateRuntimeRole(url, username, password, runtimeUsername);
+
         Flyway flyway = Flyway.configure()
                 .dataSource(url, username, password)
                 .locations("classpath:db/migration")
@@ -90,6 +92,14 @@ public final class DatabaseMigrationRunner {
                 statement.execute("ALTER DEFAULT PRIVILEGES FOR ROLE " + migrationRole
                         + " IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO " + runtimeRole);
             }
+        }
+    }
+
+    private static void validateRuntimeRole(
+            String url, String migrationUsername, String migrationPassword, String runtimeUsername)
+            throws SQLException {
+        try (Connection connection = DriverManager.getConnection(url, migrationUsername, migrationPassword)) {
+            validateRuntimeRole(connection, runtimeUsername);
         }
     }
 
