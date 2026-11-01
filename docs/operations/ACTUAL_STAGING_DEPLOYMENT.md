@@ -288,10 +288,18 @@ These are build-time Vite variables. Changing them in a runtime Cloudflare
 secret store does not rewrite an already built JavaScript bundle; rebuild and
 redeploy the frontend after changes.
 
-### Cloudflare Pages — frontend
+### Cloudflare Pages — authenticated product frontend
 
-The target project name is `uep-frontend-testing`, with production branch
-`main`, root/build directory `apps/web`, and build output `dist`.
+The real product staging project is `uep-frontend-testing`
+(`https://uep-frontend-testing.pages.dev`), with production branch `main`,
+root/build directory `apps/web`, and build output `dist`.
+
+Keep the local presentation build in a separate project named
+`uep-frontend-demo` with `VITE_LOCAL_MODE=true`. Do not deploy that local
+bundle to `uep-frontend-testing`: this authenticated product project must use
+`VITE_LOCAL_MODE=false` and the real API/Keycloak values below. The two
+project names and their deployment roles are documented in
+`docs/CLOUDFLARE_DEMO_DEPLOY.md`.
 
 Build and deploy only after the backend and Keycloak endpoints are configured:
 
