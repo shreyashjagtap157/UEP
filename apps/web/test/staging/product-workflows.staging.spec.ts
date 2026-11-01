@@ -326,6 +326,119 @@ test('idempotently seed staging academic data and verify assignment submission/g
       liveClass = await postJson<{ id: string; classSessionId: string; status: string }>(owner.api, `/api/v1/live-classes/${liveClass.id}/end`, {})
     }
 
+    const questionTitle = 'UEP Staging Question ' + tenantSuffix
+    type QuestionRecord = {
+      id: string
+      title: string
+      status: string
+      latestVersion: { id: string; type: string }
+    }
+    const questionCatalog = await getAllItems<QuestionRecord>(owner.api, '/api/v1/questions')
+    let question = questionCatalog.find(item => item.title === questionTitle)
+    if (!question) {
+      question = await postJson<QuestionRecord>(owner.api, '/api/v1/questions', {
+        title: questionTitle,
+        type: 'SINGLE_MCQ',
+        difficulty: 'easy',
+        language: 'en',
+        payloadJson: JSON.stringify({
+          question: 'Which option represents the persisted staging answer?',
+          options: [{ id: 'A', text: 'Persisted answer' }, { id: 'B', text: 'Transient answer' }],
+          correctAnswer: 'A',
+        }),
+        positiveMarks: 10,
+        negativeMarks: 0,
+      })
+    }
+    if (!question) throw new Error('Staging question creation did not return a record.')
+    expect(question.status).toBe('ACTIVE')
+    expect(question.latestVersion.type).toBe('SINGLE_MCQ')
+
+    const assessmentTitle = 'UEP Staging Assessment ' + tenantSuffix
+    type AssessmentRecord = { id: string; title: string; status: string; version: number }
+    const assessmentCatalog = await getAllItems<AssessmentRecord>(owner.api, '/api/v1/assessments')
+    let assessment = assessmentCatalog.find(item => item.title === assessmentTitle)
+    if (!assessment) assessment = await postJson<AssessmentRecord>(owner.api, '/api/v1/assessments', { title: assessmentTitle })
+    if (!assessment) throw new Error('Staging assessment creation did not return a record.')
+    expect(['DRAFT', 'PUBLISHED']).toContain(assessment.status)
+
+    type AssessmentVersionRecord = { id: string; assessmentId: string; versionNumber: number }
+    const versionPath = '/api/v1/assessments/' + assessment.id + '/versions'
+    const versions = await getJson<AssessmentVersionRecord[]>(owner.api, versionPath)
+    let assessmentVersion = versions[0]
+    if (!assessmentVersion) {
+      if (assessment.status !== 'DRAFT') throw new Error('Published assessment has no editable version.')
+      assessmentVersion = await postJson<AssessmentVersionRecord>(owner.api, versionPath, {
+        durationSeconds: 600,
+        maxAttempts: 1,
+        totalMarks: 10,
+        passMarks: 5,
+        shuffleQuestions: false,
+        allowBacktracking: true,
+        availableFrom: new Date(Date.now() - 3600000).toISOString(),
+        availableUntil: '2099-12-31T23:59:59Z',
+        settingsJson: '{}',
+      })
+    }
+    if (!assessmentVersion) throw new Error('Staging assessment version is missing.')
+
+    type AssessmentPacket = { questions: Array<{ id: string; questionVersionId: string; payloadJson: string }> }
+    const packetPath = '/api/v1/assessment-versions/' + assessmentVersion.id + '/packet'
+    let packet = await getJson<AssessmentPacket>(owner.api, packetPath)
+    if (!packet.questions.some(item => item.questionVersionId === question.latestVersion.id)) {
+      if (assessment.status !== 'DRAFT') throw new Error('Refusing to modify a published assessment version missing its seed question.')
+      await postJson(owner.api, '/api/v1/assessment-versions/' + assessmentVersion.id + '/questions', {
+        questionVersionId: question.latestVersion.id,
+        ordinal: 1,
+      })
+      packet = await getJson<AssessmentPacket>(owner.api, packetPath)
+    }
+    await postJson(owner.api, '/api/v1/assessment-versions/' + assessmentVersion.id + '/batches/' + batch.id, {})
+    if (assessment.status === 'DRAFT') {
+      assessment = await postJson<AssessmentRecord>(
+        owner.api,
+        '/api/v1/assessments/' + assessment.id + '/publish?expectedVersion=' + assessment.version,
+        {},
+      )
+    }
+    expect(assessment.status).toBe('PUBLISHED')
+
+    const learnerAssessments = await getAllItems<{ id: string; title: string }>(student.api, '/api/v1/assessments')
+    expect(learnerAssessments.some(item => item.id === assessment?.id)).toBe(true)
+    type AttemptRecord = { id: string; assessmentVersionId: string; status: string }
+    const learnerAttempts = await getAllItems<AttemptRecord>(student.api, '/api/v1/attempts/me')
+    let attempt = learnerAttempts.find(item => item.assessmentVersionId === assessmentVersion?.id)
+    if (!attempt) {
+      attempt = await postJson<AttemptRecord>(
+        student.api,
+        '/api/v1/assessment-versions/' + assessmentVersion.id + '/attempts',
+        {},
+      )
+    }
+    if (!attempt) throw new Error('Staging assessment attempt was not created.')
+    expect(['IN_PROGRESS', 'SUBMITTED']).toContain(attempt.status)
+    if (attempt.status === 'IN_PROGRESS') {
+      const learnerPacket = await getJson<AssessmentPacket>(student.api, packetPath)
+      const firstQuestion = learnerPacket.questions[0]
+      if (!firstQuestion) throw new Error('Published assessment packet has no question.')
+      const redacted = JSON.parse(firstQuestion.payloadJson) as Record<string, unknown>
+      expect(redacted).not.toHaveProperty('correctAnswer')
+      const answerPath = '/api/v1/attempts/' + attempt.id + '/answers/' + firstQuestion.id
+      const answerData = {
+        payloadJson: JSON.stringify({ answer: 'A' }),
+        idempotencyKey: 'uep-staging-' + tenantSuffix + '-assessment-answer',
+        clientSequence: 1,
+      }
+      const saved = await putJson<{ id: string; serverSequence: number }>(student.api, answerPath, answerData)
+      const replay = await putJson<{ id: string; serverSequence: number }>(student.api, answerPath, answerData)
+      expect(replay.id).toBe(saved.id)
+      expect(replay.serverSequence).toBe(saved.serverSequence)
+      attempt = await postJson<AttemptRecord>(student.api, '/api/v1/attempts/' + attempt.id + '/submit', {})
+    }
+    expect(attempt.status).toBe('SUBMITTED')
+    const persistedAttempt = await getJson<AttemptRecord>(student.api, '/api/v1/attempts/' + attempt.id)
+    expect(persistedAttempt.status).toBe('SUBMITTED')
+
     const assignmentTitle = `UEP Staging Acceptance ${tenantSuffix}`
     const assignmentPage = await getAllItems<Assignment>(teacher.api, '/api/v1/assignments')
     let assignment = assignmentPage.find(item => item.title === assignmentTitle)
