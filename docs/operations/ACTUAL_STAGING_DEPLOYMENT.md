@@ -78,9 +78,19 @@ every provider you intend to offer, but do not set a global
 `PLATFORM_STORAGE_TYPE` selector.
 
 For S3-compatible storage, set
-`PLATFORM_STORAGE_S3_ENABLED=true` and configure the platform's S3 endpoint,
-bucket, region, access key, secret, and path-style settings required by the
-adapter.
+`PLATFORM_STORAGE_S3_ENABLED=true` and configure the exact adapter properties
+through these Fly secrets/environment variables:
+
+- `PLATFORM_STORAGE_S3_ENDPOINT` — absolute HTTP(S) endpoint URI
+- `PLATFORM_STORAGE_S3_BUCKET` — bucket name
+- `PLATFORM_STORAGE_S3_REGION` — region (defaults to `us-east-1`)
+- `PLATFORM_STORAGE_S3_ACCESS_KEY` and `PLATFORM_STORAGE_S3_SECRET_KEY` —
+  both set together, or both omitted when the Fly machine's default AWS
+  credential chain is deliberately configured
+
+The adapter uses path-style addressing. Use TLS for non-local staging and
+production endpoints. Scope the credentials to the dedicated UEP bucket and
+minimum required object operations; do not reuse a broad account key.
 
 If storage is configured as Google Drive, set these Fly secrets:
 `PLATFORM_STORAGE_GOOGLE_DRIVE_ENABLED=true`,
