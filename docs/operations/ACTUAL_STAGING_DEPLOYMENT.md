@@ -398,6 +398,36 @@ correct commit and configuration.
   any resume, redeploy, region change or replacement. Never expose secret
   values.
 
+
+
+### Database role and RLS boundary
+
+A read-only role inventory found no UEP-specific login role in the connected
+project. The connected SQL session used `postgres`; that Supabase-managed
+login has `BYPASSRLS=true`. `supabase_admin` is a superuser, while
+`service_role` also has `BYPASSRLS=true` but is not a login role. This
+inventory does not reveal the Fly secret's value or establish which username
+Fly is configured to use. Do not infer the backend username from the SQL
+connector session.
+
+The application schema has not been created, so there are no application
+tables or application RLS policies to inspect yet. The automatic
+`ensure_rls` trigger enables RLS on new public tables; that alone is not proof
+of tenant isolation for backend queries. A repository search of the reviewed
+security and migration sources did not establish a per-tenant database
+session-variable/policy contract. Before creating application tables, decide
+and document the migration-owner/runtime-role arrangement, the expected
+grants, and whether tenant isolation is enforced at the database layer,
+application service layer, or both. Any runtime role with `BYPASSRLS` or
+table ownership can bypass ordinary RLS unless the table is forced through
+RLS. Validate the actual Fly database identity and verify tenant-boundary
+requests against the running backend; do not weaken RLS to resolve permissions.
+
+After the function ACL change, a transaction-scoped probe created a temporary
+public table, verified that `ensure_rls` enabled `relrowsecurity`, and
+dropped the table in the same SQL block. The probe passed. The Supabase
+security advisor returned zero lints after the ACL remediation.
+
 ### Current deployment gate
 
 Do not initialize application tables, deploy a new Fly release, enable Pages
