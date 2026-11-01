@@ -95,7 +95,14 @@ public final class DatabaseMigrationRunner {
         String query = """
                 SELECT r.rolcanlogin, r.rolsuper, r.rolcreatedb, r.rolcreaterole,
                        r.rolreplication, r.rolbypassrls,
-                       EXISTS (SELECT 1 FROM pg_auth_members m WHERE m.member = r.oid) AS has_role_memberships
+                       EXISTS (SELECT 1 FROM pg_auth_members m WHERE m.member = r.oid) AS has_role_memberships,
+                       (
+                         EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspname = 'public' AND n.nspowner = r.oid)
+                         OR EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                                    WHERE n.nspname = 'public' AND c.relowner = r.oid)
+                         OR EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                                    WHERE n.nspname = 'public' AND p.proowner = r.oid)
+                       ) AS owns_public_objects
                 FROM pg_roles r
                 WHERE r.rolname = ?
                 """;
@@ -112,10 +119,11 @@ public final class DatabaseMigrationRunner {
                         && !result.getBoolean("rolcreaterole")
                         && !result.getBoolean("rolreplication")
                         && !result.getBoolean("rolbypassrls")
-                        && !result.getBoolean("has_role_memberships");
+                        && !result.getBoolean("has_role_memberships")
+                        && !result.getBoolean("owns_public_objects");
                 if (!safe) {
                     throw new IllegalStateException(
-                            "Runtime database role must be a standalone login without administrative or RLS-bypass privileges.");
+                            "Runtime database role must be a standalone login without administrative privileges, RLS bypass, role memberships, or ownership of public objects.");
                 }
             }
         }
