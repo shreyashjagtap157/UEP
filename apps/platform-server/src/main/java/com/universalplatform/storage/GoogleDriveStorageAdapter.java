@@ -79,13 +79,17 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
             if (key == null || key.isBlank()) {
                 throw new IOException("Google Drive object key must not be blank");
             }
+            String requestedContentType = contentType == null || contentType.isBlank()
+                    ? "application/octet-stream" : contentType;
+            if (requestedContentType.chars().anyMatch(ch -> ch <= 0x1f || ch == 0x7f)) {
+                throw new IOException("Google Drive object content type is invalid");
+            }
             final String validatedContentType;
             try {
-                validatedContentType = MediaType.parseMediaType(
-                        contentType == null || contentType.isBlank() ? "application/octet-stream" : contentType)
-                        .toString();
+                validatedContentType = MediaType.parseMediaType(requestedContentType).toString();
             } catch (IllegalArgumentException invalidContentType) {
-                throw new IOException("Google Drive object content type is invalid", invalidContentType);
+                // Do not propagate parser details that may echo untrusted header input into logs.
+                throw new IOException("Google Drive object content type is invalid");
             }
             if (!sharedDriveId.isEmpty()) {
                 sharedDriveFolderValidator.validate(folderId, sharedDriveId, tokens.accessToken());
