@@ -34,7 +34,7 @@ export default defineConfig({
   // Top-level webServer configuration (NOT inside 'use')
   // Playwright manages the Vite server lifecycle reliably
   webServer: {
-    command: 'npm run dev',
+    command: 'npm run dev -- --host 127.0.0.1 --strictPort',
     url: 'http://127.0.0.1:5173',
     timeout: 120000,
     reuseExistingServer: !process.env.CI,

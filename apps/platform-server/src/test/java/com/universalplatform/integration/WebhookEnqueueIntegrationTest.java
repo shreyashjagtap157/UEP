@@ -11,7 +11,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@SpringBootTest(properties = "platform.integrations.webhooks.poll-ms=3600000")
+@SpringBootTest(properties = {
+        "platform.integrations.webhooks.poll-initial-delay-ms=3600000",
+        "platform.integrations.webhooks.poll-ms=3600000"
+})
 class WebhookEnqueueIntegrationTest {
     private final UUID tenantId = UUID.randomUUID();
     private final UUID subscriptionId = UUID.randomUUID();
