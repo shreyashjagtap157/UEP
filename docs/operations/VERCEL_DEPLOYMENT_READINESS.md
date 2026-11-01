@@ -4,6 +4,27 @@
 
 This document describes the Vercel-first candidate separately from the existing Fly.io + Supabase + Keycloak staging architecture in `ACTUAL_STAGING_DEPLOYMENT.md`. A committed `vercel.json` is not evidence of a successful deployment, an active Vercel project, a provisioned database, or a functioning production identity path.
 
+
+## Stop condition after the one-time deployment
+
+The first deployment, when Vercel access is available, must be manually triggered
+for the selected commit—not started as a continuing Git auto-deployment stream.
+The project configuration now sets `git.deploymentEnabled=false`, which disables
+automatic deployments from all Git branches. A later update must be manually
+approved and initiated; pushes to `main` must not create additional deployments.
+
+After the one-time deployment passes the health smoke test, pause the Vercel
+project so the production deployment is blocked while the user is not actively
+using it. Vercel documents that pausing a project blocks the active Production
+Deployment; visitors will not be able to use the application until the project
+is resumed. When the user is ready to use the service, resume it manually. Do
+not delete the project or database just to stop metered runtime usage.
+
+This stop condition is not executed now: no Vercel team or project is currently
+visible to the connected account tools, and no Vercel deployment was started.
+The stop actions are therefore a required post-deployment acceptance step, not
+a claim that a project has already been paused.
+
 ## Candidate topology
 
 - `frontend`: Vite application rooted at `apps/web`.

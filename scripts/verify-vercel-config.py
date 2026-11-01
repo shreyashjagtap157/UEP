@@ -8,6 +8,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 config = json.loads((root / 'vercel.json').read_text(encoding='utf-8'))
 services = config.get('services', {})
+assert config.get('git', {}).get('deploymentEnabled') is False, 'Automatic Vercel Git deployments must remain disabled.'
 assert set(services) == {'frontend', 'backend'}, services
 
 frontend = services['frontend']
