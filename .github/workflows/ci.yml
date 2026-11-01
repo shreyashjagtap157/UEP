@@ -33,20 +33,21 @@ jobs:
           cache: maven
       - name: Verify backend
         env:
-          DATABASE_URL: jdbc:postgresql://localhost:5432/education_platform
-          DATABASE_USERNAME: education
-          DATABASE_PASSWORD: education
+          SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform
+          SUPABASE_DB_USER: education
+          SUPABASE_DB_PASS: education
           OIDC_ISSUER_URI: http://localhost:18081/realms/education
           OIDC_JWK_SET_URI: http://localhost:18081/realms/education/protocol/openid-connect/certs
+          PLATFORM_DEV_MODE: "false"
         run: mvn -B -f apps/platform-server/pom.xml verify
       - name: Start packaged server on a fresh database and run health smoke
         env:
-          DATABASE_URL: jdbc:postgresql://localhost:5432/education_platform_smoke
-          DATABASE_USERNAME: education
-          DATABASE_PASSWORD: education
+          SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform_smoke
+          SUPABASE_DB_USER: education
+          SUPABASE_DB_PASS: education
           OIDC_ISSUER_URI: http://localhost:18081/realms/education
           OIDC_JWK_SET_URI: http://localhost:18081/realms/education/protocol/openid-connect/certs
-          PLATFORM_DEV_MODE: "true"
+          PLATFORM_DEV_MODE: "false"
         run: |
           set -euo pipefail
           psql "postgresql://education:education@localhost:5432/postgres" -X -v ON_ERROR_STOP=1 \
@@ -109,9 +110,9 @@ jobs:
         run: npm --prefix apps/web exec playwright install --with-deps
       - name: Start Vite dev server (local demo mode)
         run: |
-          set VITE_LOCAL_MODE=true
+          export VITE_LOCAL_MODE=true
           cd apps/web
-          npx vite --mode local &
+          npx vite --mode development &
           VITE_PID=$!
           # Wait for server to be ready
           for attempt in $(seq 1 30); do
@@ -128,6 +129,9 @@ jobs:
       - name: Run Playwright E2E tests
         env:
           VITE_LOCAL_MODE: "true"
+          SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform
+          SUPABASE_DB_USER: education
+          SUPABASE_DB_PASS: education
         run: npm --prefix apps/web exec playwright test
       - name: Upload Playwright report
         if: always()
