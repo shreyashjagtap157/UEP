@@ -80,6 +80,12 @@ public final class DatabaseMigrationRunner {
                 statement.execute("GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO "
                         + runtimeRole);
                 grantUsageOnPublicTypes(connection, runtimeRole);
+                // PostgreSQL grants EXECUTE on newly-created functions to PUBLIC
+                // by default. Remove that broad grant from current public-schema
+                // routines, and clean any old direct grants held by this runtime role.
+                statement.execute("REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC");
+                statement.execute("REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM "
+                        + runtimeRole);
                 // The only direct application call into a public-schema helper is
                 // the UUIDv7 default function used by PostgreSQL 17 compatibility.
                 // Trigger functions execute through their attached triggers and do
@@ -94,6 +100,10 @@ public final class DatabaseMigrationRunner {
                         + " IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO " + runtimeRole);
                 statement.execute("ALTER DEFAULT PRIVILEGES FOR ROLE " + migrationRole
                         + " IN SCHEMA public GRANT USAGE ON TYPES TO " + runtimeRole);
+                // PostgreSQL's default PUBLIC EXECUTE on functions is global;
+                // revoke it globally for new routines created by the migration role.
+                statement.execute("ALTER DEFAULT PRIVILEGES FOR ROLE " + migrationRole
+                        + " REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC");
             }
         }
     }
