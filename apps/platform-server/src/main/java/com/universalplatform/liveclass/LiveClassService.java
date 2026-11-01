@@ -8,6 +8,9 @@ import com.universalplatform.security.*;
 import java.time.*;
 import java.util.*;
 import org.springframework.data.domain.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +30,8 @@ class LiveClassService implements LiveClassDirectory {
     private final LiveMediaProvider mediaProvider;
     private final AuditService audit;
     private final Clock clock = Clock.systemUTC();
+    @Value("${platform.live-learning.livekit.enabled:true}")
+    private boolean liveKitEnabled = true;
 
     LiveClassService(TenantContext tenant, ActorContext actor, AuthorizationService auth,
             MembershipDirectory memberships, EnrollmentDirectory enrollment, ScheduleDirectory schedules,
@@ -78,6 +83,7 @@ class LiveClassService implements LiveClassDirectory {
     @Transactional(readOnly = true)
     PageResult<LiveClassView> list(int page, int size) {
         auth.require(PermissionKey.LIVE_CLASS_VIEW);
+        requireLiveKitEnabled();
         UUID tid = tenant.requireTenantId();
         int pg = Math.max(0, page), sz = Math.min(100, Math.max(1, size));
         Pageable pageable = PageRequest.of(pg, sz, Sort.by(Sort.Direction.ASC, "createdAt", "id"));
@@ -96,6 +102,7 @@ class LiveClassService implements LiveClassDirectory {
     @Transactional
     LiveClassView start(UUID id) {
         auth.require(PermissionKey.LIVE_CLASS_MANAGE);
+        requireLiveKitEnabled();
         LiveClass lc = require0(id);
         lc.start(clock.instant());
         audit.record(tenant.requireTenantId(), actor.requireSubject(), "LIVE_CLASS_STARTED", "live_class",
@@ -273,6 +280,14 @@ class LiveClassService implements LiveClassDirectory {
         return new LiveClassReference(x.id(), x.classSessionId(), x.batchId(), x.roomName(), x.status(),
                 x.attendancePolicy(), x.minimumAttendanceSeconds(), x.attendanceThresholdBasisPoints(),
                 x.lowBandwidth(), x.chatEnabled(), x.startedAt(), x.endedAt());
+    }
+
+
+    private void requireLiveKitEnabled() {
+        if (!liveKitEnabled) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Live classes are unavailable because the media provider is disabled on this deployment");
+        }
     }
 
     private LiveClassView view(LiveClass x) {
