@@ -86,7 +86,7 @@ cd apps/platform-server
 flyctl deploy --remote-only --config fly.toml --dockerfile Dockerfile
 ```
 
-Flyway applies the repository migrations on startup. Migrations V001–V045
+Flyway applies the repository migrations on startup. Migrations V001–V046
 must be applied against a fresh isolated staging database in CI before this
 deployment is accepted. Do not manually baseline or edit Flyway history to
 silence migration errors.
@@ -283,3 +283,143 @@ A deployment is accepted as a real UEP staging product only when all are true:
 A successful local build, local Playwright run, demo login, HTTP 200 from the
 static Pages root, or an isolated backend health endpoint alone does not meet
 this acceptance bar.
+
+
+## Live staging investigation checkpoint — 2026-11-01
+
+This checkpoint records provider-side evidence gathered against the connected
+GitHub, Cloudflare and Supabase accounts. It does not represent an accepted
+staging deployment.
+
+### Repository and CI
+
+- Audited repository head: `94eab5c90d8be6c08e1695d6b58a849668e0834b`.
+- GitHub Actions run `41328384790` (UEP CI) completed successfully on this
+  commit. Backend verification and packaged-server health smoke, web lint/test/
+  build, repository policy, and vulnerability scan all passed.
+- The two staging E2E workflow runs for this commit completed as `skipped`.
+  No live staging identity or product workflow was qualified.
+- The migration directory contains V001–V046. V046 adds
+  `upload_session.object_prefix`; this runbook's migration ceiling is therefore
+  V046, not V045.
+
+### Database compatibility blocker
+
+The connected Supabase project is:
+
+- Project: `UEP`
+- Project reference: `rykmwcslbzmkzmnnzvxm`
+- Region: `ap-southeast-1`
+- Database: `postgres`
+- Server version: PostgreSQL `17.11`
+
+The repository's CI service container is PostgreSQL `18.4`. V001 uses
+`uuidv7()` in column defaults; the same built-in is referenced in later
+migrations (including V005, V009, V017, V019, V021, V022, V028, V029 and
+V042–V043). The connected PostgreSQL 17.11 server has no
+`pg_catalog.uuidv7()`, `public.uuidv7()`, or `extensions.uuidv7()`
+function, and no UUIDv7 extension is available in the project's installed
+extension catalog. PostgreSQL documents `uuidv7()` as a PostgreSQL 18
+addition: https://www.postgresql.org/docs/18/release-18.html
+
+Consequently, the present V001–V046 chain is not qualified for this PostgreSQL
+17.11 target and will fail before the application schema is established.
+Do not start Flyway or create an ad hoc UUID shim to bypass this mismatch.
+Resolve it by verifying whether this Supabase project can be upgraded to a
+compatible PostgreSQL 18 service, or by making and testing a deliberate
+PostgreSQL 17 compatibility change in the repository. Supabase documents its
+project-upgrade process and downtime considerations here:
+https://supabase.com/docs/guides/platform/upgrading
+Do not assume a PostgreSQL 18 upgrade option is available until the target
+version and project eligibility are confirmed in the dashboard.
+
+At audit time the project had zero public application tables, no application
+Flyway history table, zero Auth users, zero Storage buckets and zero Storage
+objects. Supabase-managed schemas (`auth`, `storage`, `realtime`,
+`vault`) are present; this is not an empty physical database. The project is
+the only UEP project visible to the connected Supabase account, but its
+project name alone is not independent proof of an environment designation.
+Keep it uninitialized until staging isolation and the PostgreSQL version
+decision are confirmed.
+
+### Supabase security-advisor remediation
+
+The Supabase security advisor initially reported that
+`public.rls_auto_enable()` was executable by `PUBLIC`, `anon` and
+`authenticated` despite being a `SECURITY DEFINER` event-trigger function.
+A Supabase migration named
+`restrict_rls_auto_enable_function_execute` (version
+`20261101175327`) revoked execution from `PUBLIC`, `anon`,
+`authenticated` and `service_role`. A follow-up catalog query confirmed that
+the `ensure_rls` event trigger remains enabled, the function remains owned by
+`postgres`, and only `postgres` retains direct EXECUTE privilege. The
+security advisor subsequently returned zero lints. This Supabase-side ACL
+migration is separate from UEP's application Flyway history. Recheck the
+advisor and trigger behavior after any database major-version upgrade.
+
+### Cloudflare Pages
+
+The `uep-frontend-testing` Pages project is linked to
+`shreyashjagtap157/UEP`, production branch `main`, root `apps/web`,
+build command `npm ci --ignore-scripts && npm run build`, and output
+`dist`. Automatic production and preview deployments are disabled.
+Both environments have `VITE_LOCAL_MODE=false`, the backend URL, realm and
+client ID configured, but `VITE_KEYCLOAK_URL` is missing.
+
+The newest recorded Pages production deployment at audit time was created
+2026-11-01 06:11 UTC from commit
+`c9352ea789cf5a3e9e6938e46d9803881a990a5b`, with deployment metadata
+`commit_dirty=true`; the audited GitHub `main` was 19 commits ahead.
+An unauthenticated request to the Pages hostname returned the local
+presentation-mode screen. The hosted response therefore does not prove that
+the currently configured production variables were used to build its assets.
+Do not enable automatic deployments or publish a replacement until the
+backend and Keycloak issuer are verified and the build is known to use the
+correct commit and configuration.
+
+### Backend, Keycloak, storage and Fly.io
+
+- An unauthenticated request to
+  `https://uep-backend-testing.fly.dev/actuator/health` timed out. No live
+  backend health response or active Fly release was established in this
+  checkpoint.
+- The repository Keycloak realm file and `infra/compose.yaml` describe the
+  local development Keycloak service only. No deployed staging Keycloak host,
+  issuer, discovery document or JWKS endpoint was established. The Pages
+  build cannot be completed for real authentication without this information.
+- The application configuration defaults storage to local disk and LiveKit
+  to localhost. No durable external object-storage or hosted LiveKit/Egress
+  configuration was verified. The Fly app has no durable application volume
+  in the documented architecture; do not rely on its container filesystem.
+- The previous browser investigation observed `uep-backend-testing` in
+  `sjc`, while repository `fly.toml` specifies `syd`. The current Fly
+  dashboard and machine state remain unverified; inspect the existing app,
+  machine, release, secrets by name/presence, networking and volumes before
+  any resume, redeploy, region change or replacement. Never expose secret
+  values.
+
+### Current deployment gate
+
+Do not initialize application tables, deploy a new Fly release, enable Pages
+production deployment automation, enable staging E2E, or create persona
+credentials until all of the following are true:
+
+1. The Supabase target is conclusively identified as isolated staging and its
+   PostgreSQL version is compatible with the full V001–V046 chain.
+2. The database access roles and ownership model are established so the
+   application does not accidentally run as a broad `BYPASSRLS` role.
+3. The existing Fly resource and its region discrepancy are resolved without
+   destroying an unknown resource.
+4. A real staging Keycloak issuer, discovery/JWKS endpoints and client
+   redirect/origin configuration are verified.
+5. Strong production secrets, durable external object storage and any
+   required LiveKit services are configured.
+6. Cloudflare is rebuilt from the audited `main` SHA with
+   `VITE_LOCAL_MODE=false` and all five verified Vite variables.
+7. Synthetic test identities and tenant fixtures are prepared through the
+   application's supported provisioning path.
+
+After these prerequisites, execute Flyway, deploy backend then frontend, and
+run the identity matrix and cross-role product workflows. Re-run CI against
+any repository changes and record provider release IDs and persisted E2E
+evidence before claiming staging acceptance.
