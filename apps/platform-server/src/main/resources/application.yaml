@@ -79,7 +79,6 @@ platform:
   # Explicit opt-out of the production-secret guard (ProductionSecretGuard) for local dev and CI.
   development-mode: ${PLATFORM_DEV_MODE:false}
   storage:
-    type: ${PLATFORM_STORAGE_TYPE:local} # local | s3 | google-drive
     upload-cleanup-poll-ms: ${PLATFORM_UPLOAD_CLEANUP_POLL_MS:3600000}
     retention-poll-ms: ${PLATFORM_CONTENT_RETENTION_POLL_MS:3600000}
     max-upload-bytes: ${PLATFORM_MAX_UPLOAD_BYTES:5368709120}
