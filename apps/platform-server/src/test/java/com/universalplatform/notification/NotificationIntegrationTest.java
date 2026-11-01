@@ -18,7 +18,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest
+@SpringBootTest(properties = "platform.notifications.outbox-poll-ms=3600000")
 @AutoConfigureMockMvc
 class NotificationIntegrationTest {
     private static final UUID TENANT = UUID.fromString("01901234-8100-7000-8000-000000000001");
