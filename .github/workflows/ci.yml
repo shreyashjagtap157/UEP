@@ -18,12 +18,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        postgres-version: ['17.11', '18.4']
+        postgres_version: ['17.11', '18.4']
     env:
       UEP_CI_DB_PASSWORD: ${{ format('uep-ci-{0}-{1}', github.run_id, github.run_attempt) }}
     services:
       postgres:
-        image: postgres:${{ matrix.postgres-version }}
+        image: postgres:${{ matrix.postgres_version }}
         env:
           POSTGRES_DB: education_platform
           POSTGRES_USER: education
@@ -41,7 +41,7 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
-      - name: Verify UUIDv7 migration callback on PostgreSQL ${{ matrix.postgres-version }}
+      - name: Verify UUIDv7 migration callback on PostgreSQL ${{ matrix.postgres_version }}
         env:
           PGPASSWORD: ${{ env.UEP_CI_DB_PASSWORD }}
         run: |
