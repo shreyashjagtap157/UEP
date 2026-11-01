@@ -80,6 +80,7 @@ test('idempotently seed staging academic data and verify cross-role assignments,
   const teacher = await authenticate(browser, accounts.teacher as Account)
   const student = await authenticate(browser, accounts.student as Account)
   const finance = await authenticate(browser, accounts.finance_administrator as Account)
+  const guardian = await authenticate(browser, accounts.guardian as Account)
   let freshStudent: AuthenticatedIdentity | undefined
 
   try {
@@ -88,6 +89,7 @@ test('idempotently seed staging academic data and verify cross-role assignments,
       ['teacher', teacher.identity],
       ['student', student.identity],
       ['finance administrator', finance.identity],
+      ['guardian', guardian.identity],
     ] as const) {
       expect(identity.tenantId, `${label} must resolve to the explicitly configured staging tenant`)
         .toBe(expectedTenantId)
@@ -213,6 +215,14 @@ test('idempotently seed staging academic data and verify cross-role assignments,
         startsOn: new Date().toISOString().slice(0, 10),
       })
     }
+
+    const guardianGradebookResponse = await guardian.api.get(
+      `/api/v1/gradebook/${batch.id}/learners/${student.identity.membershipId}`,
+    )
+    expect(
+      guardianGradebookResponse.status(),
+      'guardian cross-learner gradebook access must fail closed until a verified relationship model exists',
+    ).toBe(403)
 
     const scheduleTitle = `UEP Staging Attendance ${tenantSuffix}`
     const scheduleSeries = await getAllItems<{
@@ -661,6 +671,7 @@ test('idempotently seed staging academic data and verify cross-role assignments,
     await teacher.close()
     await student.close()
     await finance.close()
+    await guardian.close()
     await freshStudent?.close()
   }
 })
