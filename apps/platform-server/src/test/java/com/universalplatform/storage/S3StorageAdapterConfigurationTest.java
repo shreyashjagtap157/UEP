@@ -31,6 +31,18 @@ class S3StorageAdapterConfigurationTest {
     }
 
     @Test
+    void rejectsPlainHttpEndpointOutsideDevelopmentMode() {
+        assertThatThrownBy(() -> new S3StorageAdapter(
+                URI.create("http://s3.example.test"),
+                "us-east-1",
+                "access-key",
+                "secret-key",
+                "education-assets"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must use HTTPS outside development mode");
+    }
+
+    @Test
     void rejectsBlankBucketBeforeCreatingTheClient() {
         assertThatThrownBy(() -> new S3StorageAdapter(
                 URI.create("https://s3.example.test"),
