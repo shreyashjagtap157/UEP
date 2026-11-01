@@ -71,7 +71,6 @@ class S3StorageAdapter implements StorageAdapter {
                 : StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)));
         this.client = builder.build();
     }
-    }
 
     // Preserve a concise production-mode constructor for focused adapter tests.
     S3StorageAdapter(URI endpoint, String region, String accessKey, String secretKey, String bucket) {
