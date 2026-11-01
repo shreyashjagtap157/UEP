@@ -162,31 +162,92 @@ the application. Never publish the connection URL or password in CI logs.
 
 ### Keycloak — real identity provider
 
-The realm import source is `infra/keycloak/education-realm.json`:
+The local-development realm remains `infra/keycloak/education-realm.json`.
+The staging deployment has a separate, restricted import file:
+`infra/keycloak/education-realm-staging.json`. It configures:
 
 - Realm: `education`
 - Public web client: `platform-web`
-- Authorization Code flow enabled
-- PKCE S256 required
-- Implicit flow disabled
-- Direct access grants disabled
-- The `tenant_id` user attribute is mapped into the access token.
+- Authorization Code flow with PKCE S256
+- Implicit flow and direct access grants disabled
+- `tenant_id` user attribute mapped into ID/access/userinfo tokens
+- Redirect URI only: `https://uep-frontend-testing.pages.dev/*`
+- Web origin only: `https://uep-frontend-testing.pages.dev`
 
-Configure the deployed client with the exact frontend origin:
+The optimized Keycloak 26.7 container and provisional Fly application
+configuration are now in `infra/keycloak/Dockerfile` and
+`infra/keycloak/fly.toml`. The configuration expects the app name
+`uep-keycloak-testing`, region `syd`, public port 8080 and private
+management/health port 9000. The region and app-name availability are
+provisional; inspect the authenticated Fly account, existing apps, capacity,
+and price before creating the app or machine. Do not deploy the development
+`start-dev` command from `infra/compose.yaml`.
 
-- Redirect URI: `https://uep-frontend-testing.pages.dev/*`
-- Web origin: `https://uep-frontend-testing.pages.dev`
+#### Separate Keycloak database ownership
 
-Keep the redirect allowlist exact. Add a custom domain only after its DNS and
-TLS configuration are live. The current JSON source contains localhost
-redirects for local compose development; that alone is not a production
-Keycloak configuration.
+After the PostgreSQL compatibility/upgrade decision and before starting
+Keycloak, create a dedicated `uep_keycloak` login role with a strong generated
+password, no superuser/createdb/createrole/BYPASSRLS privileges, and a separate
+`keycloak` schema owned by that role. Grant only database CONNECT and the
+schema/table/sequence privileges required for Keycloak's own migrations.
+Configure Keycloak with `KC_DB=postgres`, `KC_DB_SCHEMA=keycloak`,
+`KC_DB_USERNAME=uep_keycloak`, `KC_DB_PASSWORD` as a Fly secret, and a JDBC
+URL for the staging database. Do not use `postgres`, `supabase_admin`, or
+the UEP application schema as Keycloak's database owner. Store no password in
+the repository.
+
+#### Keycloak Fly runtime configuration
+
+The container enables health and metrics support during image build. Set
+these runtime values through Fly configuration/secrets:
+
+| Variable | Value |
+|---|---|
+| `KC_DB` | `postgres` |
+| `KC_DB_SCHEMA` | `keycloak` |
+| `KC_DB_URL` | Staging Supabase JDBC URL with TLS required |
+| `KC_DB_USERNAME` | `uep_keycloak` |
+| `KC_DB_PASSWORD` | Dedicated role password; Fly secret |
+| `KC_DB_POOL_MIN_SIZE` | `2` |
+| `KC_DB_POOL_MAX_SIZE` | `10` |
+| `KC_HOSTNAME` | `https://uep-keycloak-testing.fly.dev` |
+| `KC_HOSTNAME_STRICT` | `true` |
+| `KC_HOSTNAME_STRICT_HTTPS` | `true` |
+| `KC_HTTP_ENABLED` | `true` behind Fly's HTTPS proxy |
+| `KC_HTTP_PORT` | `8080` |
+| `KC_HTTP_MANAGEMENT_PORT` | `9000` |
+| `KC_PROXY_HEADERS` | `xforwarded` |
+| `KC_BOOTSTRAP_ADMIN_USERNAME` | Unique bootstrap administrator name |
+| `KC_BOOTSTRAP_ADMIN_PASSWORD` | Strong one-time bootstrap password; Fly secret |
+
+The bootstrap admin password and database password must never be committed or
+placed in GitHub variables. Secure the Keycloak administrator account with
+MFA, then remove or rotate bootstrap access according to Keycloak's admin
+recovery guidance. Database TLS must be enabled; use full server verification
+when the Supabase CA chain is available to the deployment.
+
+Deploy from `infra/keycloak` only after the Fly account/app/region and
+database schema are verified:
+
+```bash
+cd infra/keycloak
+flyctl deploy --remote-only --config fly.toml --dockerfile Dockerfile
+```
+
+The intended issuer is
+`https://uep-keycloak-testing.fly.dev/realms/education`; its discovery
+document is
+`https://uep-keycloak-testing.fly.dev/realms/education/.well-known/openid-configuration`,
+and JWKS is
+`https://uep-keycloak-testing.fly.dev/realms/education/protocol/openid-connect/certs`.
+Do not configure Cloudflare or the backend with these values until the app is
+deployed and the issuer/discovery/JWKS endpoints are verified.
 
 The deployed frontend build needs:
 
 - `VITE_LOCAL_MODE=false`
 - `VITE_BACKEND_URL=https://uep-backend-testing.fly.dev`
-- `VITE_KEYCLOAK_URL=<deployed Keycloak base URL>`
+- `VITE_KEYCLOAK_URL=https://uep-keycloak-testing.fly.dev`
 - `VITE_KEYCLOAK_REALM=education`
 - `VITE_KEYCLOAK_CLIENT_ID=platform-web`
 
