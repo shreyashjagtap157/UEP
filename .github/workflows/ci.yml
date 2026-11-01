@@ -57,7 +57,7 @@ jobs:
           set -euo pipefail
           psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 -f apps/platform-server/src/main/resources/db/migration/beforeMigrate.sql
           psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 <<'SQL'
-          DO $
+          DO $do$
           DECLARE
             generated uuid;
             unique_count integer;
@@ -78,7 +78,7 @@ jobs:
             IF unique_count <> 1000 THEN
               RAISE EXCEPTION 'UUIDv7 uniqueness probe failed: % unique values out of 1000', unique_count;
             END IF;
-          END $;
+          END $do$;
           SQL
       - name: Build Vercel backend container image
         run: docker build --pull --tag uep-platform-api:ci apps/platform-server
