@@ -76,6 +76,8 @@ management:
 
 platform:
   version: 0.15.0.0-SNAPSHOT
+  background-workers:
+    enabled: ${PLATFORM_BACKGROUND_WORKERS_ENABLED:true}
   # Explicit opt-out of the production-secret guard (ProductionSecretGuard) for local dev and CI.
   development-mode: ${PLATFORM_DEV_MODE:false}
   storage:
@@ -92,6 +94,7 @@ platform:
     expiry-poll-ms: ${ANNOUNCEMENT_EXPIRY_POLL_MS:60000}
   live-learning:
     livekit:
+      enabled: ${PLATFORM_LIVEKIT_ENABLED:true}
       url: ${LIVEKIT_URL:ws://localhost:7880}
       api-url: ${LIVEKIT_API_URL:http://localhost:7880}
       api-key: ${LIVEKIT_API_KEY:devkey}
