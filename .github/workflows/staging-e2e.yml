@@ -11,10 +11,6 @@ on:
           - "no"
           - "yes"
         default: "no"
-  workflow_run:
-    workflows: ["UEP CI"]
-    types: [completed]
-    branches: [main]
 
 permissions:
   contents: read
@@ -25,7 +21,7 @@ concurrency:
 
 jobs:
   staging-e2e:
-    if: ${{ vars.UEP_STAGING_E2E_ENABLED == 'true' && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || (github.event_name == 'workflow_dispatch' && inputs.confirm_staging_e2e == 'yes')) }}
+    if: ${{ vars.UEP_STAGING_E2E_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && inputs.confirm_staging_e2e == 'yes' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: staging
@@ -46,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: '22.22.0'
