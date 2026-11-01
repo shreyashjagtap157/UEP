@@ -36,7 +36,7 @@ class S3StorageAdapterHttpIntegrationTest {
                     "tenant-a/content/unsafe.txt",
                     new java.io.ByteArrayInputStream(new byte[] {1}),
                     1,
-                    "text/plain\\r\\nX-Injected: true"))
+                    "text/plain\r\nX-Injected: true"))
                     .isInstanceOf(java.io.IOException.class)
                     .hasMessageContaining("content type is invalid");
             assertThat(requests).isEmpty();
@@ -58,7 +58,7 @@ class S3StorageAdapterHttpIntegrationTest {
             try {
                 switch (method) {
                     case "PUT" -> {
-                        object.set(exchange.getRequestBody().readAllBytes());
+                        object.set(readS3Body(exchange));
                         exchange.getResponseHeaders().add("ETag", "\"uep-test-etag\"");
                         exchange.sendResponseHeaders(200, -1);
                     }
@@ -121,4 +121,70 @@ class S3StorageAdapterHttpIntegrationTest {
             server.stop(0);
         }
     }
+
+    /**
+     * AWS SDK v2 can use the aws-chunked content encoding for streaming S3 uploads.
+     * HttpServer removes HTTP transfer framing, but not this S3 signing layer.
+     * Decode it here so the fake endpoint asserts the actual object bytes.
+     */
+    private static byte[] readS3Body(com.sun.net.httpserver.HttpExchange exchange) throws java.io.IOException {
+        byte[] encoded = exchange.getRequestBody().readAllBytes();
+        String contentEncoding = exchange.getRequestHeaders().getFirst("Content-Encoding");
+        if (contentEncoding == null || !java.util.Arrays.stream(contentEncoding.split(","))
+                .anyMatch(value -> value.trim().equalsIgnoreCase("aws-chunked"))) {
+            return encoded;
+        }
+
+        try (var input = new java.io.ByteArrayInputStream(encoded);
+                var decoded = new java.io.ByteArrayOutputStream()) {
+            while (true) {
+                String chunkHeader = readAsciiLine(input);
+                String sizeText = chunkHeader.split(";", 2)[0].trim();
+                final int chunkSize;
+                try {
+                    chunkSize = Integer.parseUnsignedInt(sizeText, 16);
+                } catch (NumberFormatException invalidSize) {
+                    throw new java.io.IOException("Invalid aws-chunked size", invalidSize);
+                }
+
+                if (chunkSize == 0) {
+                    String trailer;
+                    do {
+                        trailer = readAsciiLine(input);
+                    } while (!trailer.isEmpty());
+                    if (input.available() != 0) {
+                        throw new java.io.IOException("Unexpected bytes after aws-chunked trailers");
+                    }
+                    return decoded.toByteArray();
+                }
+
+                byte[] chunk = input.readNBytes(chunkSize);
+                if (chunk.length != chunkSize) {
+                    throw new java.io.EOFException("Truncated aws-chunked data");
+                }
+                decoded.write(chunk);
+                if (input.read() != '\\r' || input.read() != '\\n') {
+                    throw new java.io.IOException("Invalid aws-chunked data terminator");
+                }
+            }
+        }
+    }
+
+    private static String readAsciiLine(java.io.InputStream input) throws java.io.IOException {
+        var line = new java.io.ByteArrayOutputStream();
+        while (true) {
+            int value = input.read();
+            if (value < 0) {
+                throw new java.io.EOFException("Unexpected end of aws-chunked stream");
+            }
+            if (value == '\\r') {
+                if (input.read() != '\\n') {
+                    throw new java.io.IOException("Invalid aws-chunked line terminator");
+                }
+                return line.toString(StandardCharsets.US_ASCII);
+            }
+            line.write(value);
+        }
+    }
+
 }
