@@ -8,8 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint .",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test test/LocalDemoStore.test.mjs test/backendUrl.test.mjs",
-    "test:e2e": "playwright test"
+    "test": "node --experimental-strip-types --test test/LocalDemoStore.test.mjs test/backendUrl.test.mjs test/deployment-env.test.mjs",
+    "test:e2e": "playwright test",
+    "build:vercel": "node scripts/verify-deployment-env.mjs && npm run build"
   },
   "dependencies": {
     "@tanstack/react-query": "5.104.5",
