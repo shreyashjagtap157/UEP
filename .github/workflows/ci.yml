@@ -116,12 +116,12 @@ jobs:
         run: npx playwright install --with-deps
       - name: List local-demo browser tests (verify discovery)
         working-directory: apps/web
-        run: npx playwright test --list --project="Layer A: Local Demo"
+        run: 'npx playwright test --list --project="Layer A: Local Demo"'
       - name: Run local-demo browser regression (not production acceptance)
         working-directory: apps/web
         env:
           VITE_LOCAL_MODE: "true"
-        run: npx playwright test --project="Layer A: Local Demo"
+        run: 'npx playwright test --project="Layer A: Local Demo"'
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
