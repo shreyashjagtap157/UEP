@@ -280,6 +280,51 @@ test('idempotently seed staging academic data and verify assignment submission/g
       expect(submission.graderFeedback).toBe(expectedFeedback)
     }
 
+    const announcementTitle = `UEP Staging Announcement ${tenantSuffix}`
+    const announcementPage = await getAllItems<{
+      id: string
+      title: string
+      body: string
+      status: string
+      acknowledgementRequired: boolean
+      version: number
+    }>(owner.api, '/api/v1/announcements')
+    let announcement = announcementPage.find(item => item.title === announcementTitle)
+    if (!announcement) {
+      announcement = await postJson(owner.api, '/api/v1/announcements', {
+        title: announcementTitle,
+        body: `Synthetic staging announcement for batch ${batch.code}; acknowledge to complete the recipient workflow.`,
+        priority: 'NORMAL',
+        publishAt: null,
+        expiresAt: '2099-12-31T23:59:59Z',
+        acknowledgementRequired: true,
+        publishNow: true,
+        targets: [{ kind: 'BATCH', id: batch.id }],
+      })
+    }
+    expect(announcement.status).toBe('PUBLISHED')
+    expect(announcement.acknowledgementRequired).toBe(true)
+
+    const studentAnnouncements = await getAllItems<{
+      id: string
+      title: string
+      status: string
+      acknowledgedAt: string | null
+    }>(student.api, '/api/v1/announcements/me')
+    const visibleAnnouncement = studentAnnouncements.find(item => item.id === announcement?.id)
+    expect(visibleAnnouncement, 'batch-targeted announcement must be visible to the enrolled student').toBeTruthy()
+    if (!visibleAnnouncement) {
+      throw new Error('Student did not receive the batch-targeted staging announcement.')
+    }
+    if (!visibleAnnouncement.acknowledgedAt) {
+      await postJson(student.api, `/api/v1/announcements/${announcement.id}/acknowledge`, {})
+    }
+    const acknowledgedAnnouncements = await getAllItems<{
+      id: string
+      acknowledgedAt: string | null
+    }>(student.api, '/api/v1/announcements/me')
+    expect(acknowledgedAnnouncements.find(item => item.id === announcement?.id)?.acknowledgedAt).toBeTruthy()
+
     // A new browser context and a new OIDC sign-in prove the grade is not merely
     // held in the original browser's client-side state.
     freshStudent = await authenticate(browser, accounts.student as Account)
@@ -289,6 +334,11 @@ test('idempotently seed staging academic data and verify assignment submission/g
     expect(persisted).toBeTruthy()
     expect(persisted?.awardedPoints).toBe(expectedScore)
     expect(persisted?.graderFeedback).toBe(expectedFeedback)
+    const persistedAnnouncement = await getAllItems<{
+      id: string
+      acknowledgedAt: string | null
+    }>(freshStudent.api, '/api/v1/announcements/me')
+    expect(persistedAnnouncement.find(item => item.id === announcement?.id)?.acknowledgedAt).toBeTruthy()
   } finally {
     await owner.close()
     await teacher.close()
