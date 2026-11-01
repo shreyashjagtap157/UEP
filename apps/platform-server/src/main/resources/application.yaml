@@ -1,7 +1,7 @@
 server:
   shutdown: graceful
   address: 0.0.0.0
-  port: 8080
+  port: ${PORT:8080}
   error:
     include-message: never
 
@@ -41,50 +41,6 @@ spring:
     baseline-version: 0
     locations: classpath:db/migration
     schemas: public
-    # PostgreSQL 17 (the current managed Supabase major version) does not ship
-    # uuidv7(). Install an RFC 9562 fallback before versioned migrations run.
-    # PostgreSQL 18's pg_catalog.uuidv7() remains the function resolved first.
-    # This is connection initialization, not a schema migration: V001-V046 and
-    # their recorded checksums remain unchanged.
-    init-sqls:
-      - |
-        CREATE OR REPLACE FUNCTION public.uuidv7()
-        RETURNS uuid
-        LANGUAGE sql
-        VOLATILE
-        SET search_path = pg_catalog
-        AS $function$
-        WITH entropy AS (
-          SELECT
-            decode(
-              lpad(to_hex(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint), 12, '0'),
-              'hex'
-            ) AS time_bytes,
-            substring(uuid_send(gen_random_uuid()) FROM 7 FOR 10) AS random_bytes
-        ),
-        versioned AS (
-          SELECT
-            time_bytes,
-            set_byte(
-              random_bytes,
-              0,
-              (get_byte(random_bytes, 0) & 15) | 112
-            ) AS random_bytes
-          FROM entropy
-        ),
-        variant AS (
-          SELECT
-            time_bytes,
-            set_byte(
-              random_bytes,
-              2,
-              (get_byte(random_bytes, 2) & 63) | 128
-            ) AS random_bytes
-          FROM versioned
-        )
-        SELECT encode(time_bytes || random_bytes, 'hex')::uuid
-        FROM variant
-        $function$;
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
