@@ -68,7 +68,7 @@ jobs:
               IF substring(generated::text, 15, 1) <> '7' THEN
                 RAISE EXCEPTION 'UUIDv7 version nibble is incorrect: %', generated;
               END IF;
-              IF substring(generated::text, 20, 1) NOT IN ('8', '9', 'a', 'b') THEN
+              IF substring(generated::text, 17, 1) NOT IN ('8', '9', 'a', 'b') THEN
                 RAISE EXCEPTION 'UUID RFC 9562 variant is incorrect: %', generated;
               END IF;
             END LOOP;

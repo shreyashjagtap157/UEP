@@ -1,7 +1,10 @@
 -- Flyway SQL callback, executed before versioned migrations.
 -- PostgreSQL 18 resolves pg_catalog.uuidv7() first; this public fallback
 -- supplies RFC 9562 UUIDv7 on PostgreSQL 17.
--- The compatibility function uses 48-bit Unix-millisecond time and 74 random bits.
+-- The compatibility function uses 48-bit Unix-millisecond time, 12 rand_a bits,
+-- and 62 rand_b bits. From the source UUIDv4, positions 1-3 supply rand_a;
+-- position 17 contributes its two random low bits plus variant 10; positions
+-- 18-32 supply the remaining 60 rand_b bits.
 CREATE OR REPLACE FUNCTION public.uuidv7()
 RETURNS uuid
 LANGUAGE sql
@@ -16,15 +19,13 @@ AS $uuidv7$
     SELECT
       timestamp_hex,
       substring(random_hex, 1, 3) AS rand_a_hex,
-      CASE substring(random_hex, 4, 1)
+      CASE substring(random_hex, 17, 1)
         WHEN '0' THEN '8' WHEN '4' THEN '8' WHEN '8' THEN '8' WHEN 'c' THEN '8'
         WHEN '1' THEN '9' WHEN '5' THEN '9' WHEN '9' THEN '9' WHEN 'd' THEN '9'
         WHEN '2' THEN 'a' WHEN '6' THEN 'a' WHEN 'a' THEN 'a' WHEN 'e' THEN 'a'
         WHEN '3' THEN 'b' WHEN '7' THEN 'b' WHEN 'b' THEN 'b' WHEN 'f' THEN 'b'
       END AS variant_nibble,
-      substring(random_hex, 5, 8) ||
-      substring(random_hex, 14, 3) ||
-      substring(random_hex, 18, 4) AS rand_b_hex
+      substring(random_hex, 18, 15) AS rand_b_hex
     FROM source
   )
   SELECT (
