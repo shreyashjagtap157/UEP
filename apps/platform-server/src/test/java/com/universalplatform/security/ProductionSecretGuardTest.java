@@ -9,7 +9,7 @@ import org.springframework.mock.env.MockEnvironment;
 class ProductionSecretGuardTest {
     @Test
     void rejectsMissingAndBlankProductionSecrets() {
-        MockEnvironment environment = new MockEnvironment()
+        MockEnvironment environment = validProductionEnvironment()
                 .withProperty("spring.datasource.password", " ")
                 .withProperty("platform.recording.playback-secret", "")
                 .withProperty("platform.integrations.secret-key", "integration-secret-that-is-long-enough")
@@ -27,7 +27,7 @@ class ProductionSecretGuardTest {
 
     @Test
     void rejectsDevelopmentDefaultsAndTooShortSecrets() {
-        MockEnvironment environment = new MockEnvironment()
+        MockEnvironment environment = validProductionEnvironment()
                 .withProperty("spring.datasource.password", "education")
                 .withProperty("platform.recording.playback-secret", "short")
                 .withProperty("platform.integrations.secret-key", "change-me-in-production")
@@ -43,6 +43,24 @@ class ProductionSecretGuardTest {
     }
 
     @Test
+    void productionProfileRejectsMissingOrInsecureDatabaseAndOidcConfiguration() {
+        MockEnvironment environment = validProductionEnvironment()
+                .withProperty("spring.datasource.url", "jdbc:postgresql://db.example.supabase.co:5432/postgres")
+                .withProperty("spring.security.oauth2.resourceserver.jwt.issuer-uri",
+                        "http://identity.example.test/realms/education")
+                .withProperty("spring.security.oauth2.resourceserver.jwt.jwk-set-uri",
+                        "https://user:password@identity.example.test/realms/education/certs");
+
+        assertThatThrownBy(() -> ProductionSecretGuard.validateProductionSecrets(environment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SUPABASE_DB_URL")
+                .hasMessageContaining("OIDC_ISSUER_URI")
+                .hasMessageContaining("OIDC_JWK_SET_URI")
+                .satisfies(exception -> assertThat(exception.getMessage())
+                        .doesNotContain("user:password"));
+    }
+
+    @Test
     void developmentModeCannotBypassChecksUnderProductionProfile() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty(ProductionSecretGuard.DEV_MODE_PROPERTY, "true");
@@ -55,15 +73,29 @@ class ProductionSecretGuardTest {
     }
 
     @Test
-    void acceptsStrongNonDefaultProductionSecrets() {
-        MockEnvironment environment = new MockEnvironment()
-                .withProperty("spring.datasource.password", "S3cure-database-password-2026")
-                .withProperty("platform.recording.playback-secret", "playback-key-2026-0123456789abcdef")
-                .withProperty("platform.integrations.secret-key", "integration-key-2026-0123456789abcdef")
-                .withProperty("platform.live-learning.livekit.api-key", "livekit-production-key-2026")
-                .withProperty("platform.live-learning.livekit.api-secret", "livekit-secret-2026-0123456789abcdef");
+    void acceptsStrongSecretsAndSecureProductionConnectionSettings() {
+        MockEnvironment environment = validProductionEnvironment();
 
         ProductionSecretGuard.validateProductionSecrets(environment);
         assertThat(environment.getProperty("spring.datasource.password")).isNotBlank();
+    }
+
+    private static MockEnvironment validProductionEnvironment() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("spring.datasource.url",
+                        "jdbc:postgresql://db.example.supabase.co:5432/postgres?sslmode=require")
+                .withProperty("spring.datasource.username", "postgres")
+                .withProperty("spring.datasource.password", "S3cure-database-password-2026")
+                .withProperty("spring.security.oauth2.resourceserver.jwt.issuer-uri",
+                        "https://identity.example.test/realms/education")
+                .withProperty("spring.security.oauth2.resourceserver.jwt.jwk-set-uri",
+                        "https://identity.example.test/realms/education/protocol/openid-connect/certs")
+                .withProperty("platform.recording.playback-secret", "playback-key-2026-0123456789abcdef")
+                .withProperty("platform.integrations.secret-key", "integration-key-2026-0123456789abcdef")
+                .withProperty("platform.live-learning.livekit.api-key", "livekit-production-key-2026")
+                .withProperty("platform.live-learning.livekit.api-secret",
+                        "livekit-secret-2026-0123456789abcdef");
+        environment.setActiveProfiles("production");
+        return environment;
     }
 }
