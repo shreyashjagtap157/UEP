@@ -69,8 +69,18 @@ Set these Fly secrets in the Fly app (never commit their values):
 | `LIVEKIT_API_SECRET` | Staging LiveKit API secret, at least 32 characters |
 | `PLATFORM_DEV_MODE` | Must be `false` |
 
-If storage is configured as S3, also set the platform's S3 endpoint, bucket,
-region, access key, secret, and path-style settings required by the adapter.
+Tenant provider selection is **per tenant**, not a single global provider
+setting. An authorized tenant administrator selects one configured provider
+and its object prefix through the external-storage binding. The upload service
+resolves that tenant binding server-side and snapshots the provider/prefix in
+the upload session; clients cannot choose a provider. Enable and configure
+every provider you intend to offer, but do not set a global
+`PLATFORM_STORAGE_TYPE` selector.
+
+For S3-compatible storage, set
+`PLATFORM_STORAGE_S3_ENABLED=true` and configure the platform's S3 endpoint,
+bucket, region, access key, secret, and path-style settings required by the
+adapter.
 
 If storage is configured as Google Drive, set these Fly secrets:
 `PLATFORM_STORAGE_GOOGLE_DRIVE_ENABLED=true`,
