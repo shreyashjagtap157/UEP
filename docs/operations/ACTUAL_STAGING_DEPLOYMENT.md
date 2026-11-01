@@ -343,8 +343,11 @@ closed unless its host and database name match the independently configured
 `PLATFORM_STAGING_EXPECTED_DB_NAME`. The seeder uses authenticated domain APIs,
 stable tenant-derived codes, create-if-absent behavior, and never deletes
 records. It seeds the minimum coherent branch/academic/curriculum/batch/
-enrollment/teacher-assignment/assignment data needed for the assignment
-submission-and-grading workflow. Do not run blind SQL inserts to bypass domain
+enrollment/teacher-assignment data, then exercises assignment submission and
+grading, scheduled-class manual attendance, batch-targeted announcement delivery
+and acknowledgement, question-bank redaction plus assessment attempt/autosave/
+submission, and finance-administrator invoice creation/issuance. The finance
+fixture creates no payment and never invokes settlement or capture APIs. Do not run blind SQL inserts to bypass domain
 invariants.
 
 ### Cross-role product acceptance
