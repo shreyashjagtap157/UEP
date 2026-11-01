@@ -36,8 +36,8 @@ const expectedFeedback = 'Staging acceptance: persisted cross-role grading verif
 const productE2eEnabled = process.env.UEP_STAGING_PRODUCT_E2E_ENABLED === 'true'
 const dryRun = process.env.UEP_STAGING_SEED_DRY_RUN === 'true'
 
-test.skip(!productE2eEnabled || !dryRun, 'The staging seeder dry-run is an explicit, read-only preflight.')
 test('staging seeder dry-run verifies target identity and reports planned synthetic records', async ({ browser }) => {
+  test.skip(!productE2eEnabled || !dryRun, 'The staging seeder dry-run is an explicit, read-only preflight.')
   expect(process.env.UEP_STAGING_SEED_CONFIRMATION).toBe(confirmation)
   const expectedTenantId = process.env.UEP_STAGING_SEED_TENANT_ID?.trim()
   expect(expectedTenantId).toBeTruthy()
@@ -67,10 +67,10 @@ test('staging seeder dry-run verifies target identity and reports planned synthe
   }
 })
 
-test.skip(!productE2eEnabled || dryRun, 'Writes require product E2E opt-in and dry-run mode disabled.')
 test('idempotently seed staging academic data and verify assignment submission/grading across real identities', async ({
   browser,
 }) => {
+  test.skip(!productE2eEnabled || dryRun, 'Writes require product E2E opt-in and dry-run mode disabled.')
   expect(process.env.UEP_STAGING_SEED_CONFIRMATION).toBe(confirmation)
   const expectedTenantId = process.env.UEP_STAGING_SEED_TENANT_ID?.trim()
   expect(expectedTenantId, 'UEP_STAGING_SEED_TENANT_ID must identify the isolated staging tenant').toBeTruthy()
