@@ -63,6 +63,7 @@ assert 'platform.live-learning.livekit.enabled' in live_service
 assert 'platform.live-learning.livekit.enabled' in recording_service
 migration_runner = (root / 'apps/platform-server/src/main/java/com/universalplatform/DatabaseMigrationRunner.java').read_text(encoding='utf-8')
 migration_workflow = (root / '.github/workflows/database-migration.yml').read_text(encoding='utf-8')
+ci_workflow = (root / '.github/workflows/ci.yml').read_text(encoding='utf-8')
 assert 'UEP_DATABASE_RUNTIME_USERNAME' in migration_runner and 'UEP_DATABASE_RUNTIME_USERNAME' in migration_workflow
 assert 'NOINHERIT' not in migration_runner  # role creation belongs to the operator; runner validates the role
 assert 'rolbypassrls' in migration_runner and 'rolsuper' in migration_runner
@@ -78,6 +79,9 @@ assert 'grantUsageOnPublicTypes' in migration_runner
 assert 'GRANT EXECUTE ON ALL FUNCTIONS' not in migration_runner
 assert 'ALTER DEFAULT PRIVILEGES FOR ROLE' in migration_runner
 assert 'confirm_database_migration' in migration_workflow and 'default: "no"' in migration_workflow
+assert 'Verify least-privilege runtime database grants and function ACLs' in ci_workflow
+assert 'uep_runtime_ci' in ci_workflow and 'flyway_schema_history' in ci_workflow
+assert 'uep_ci_future_type' in ci_workflow and 'uep_ci_future_private_fn' in ci_workflow
 assert 'UEP_DATABASE_MIGRATION_JDBC_URL' in migration_workflow
 web_package = json.loads((root / 'apps/web/package.json').read_text(encoding='utf-8'))
 assert 'guard-vercel-build.mjs' in web_package['scripts']['build']
