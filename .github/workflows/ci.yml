@@ -61,6 +61,7 @@ jobs:
           DECLARE
             generated uuid;
             unique_count integer;
+            iteration integer;
           BEGIN
             FOR iteration IN 1..100 LOOP
               generated := public.uuidv7();
