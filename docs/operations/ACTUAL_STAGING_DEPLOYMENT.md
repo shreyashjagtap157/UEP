@@ -81,15 +81,20 @@ If storage is configured as Google Drive, set these Fly secrets:
 destination isolation). The backend refreshes access tokens from the OAuth
 refresh token and caches them only until shortly before expiry. The static
 `PLATFORM_STORAGE_GOOGLE_DRIVE_ACCESS_TOKEN` setting is development-only;
-production requires the complete refresh credential set.
+production requires the complete refresh credential set. The OAuth grant
+must include Drive metadata-read access for Shared Drive folder verification
+and file access sufficient for upload, download, and delete operations.
 
 For `GOOGLE_SHARED_DRIVE`, also set
 `PLATFORM_STORAGE_GOOGLE_DRIVE_SHARED_DRIVE_ID` and configure the folder ID
 to a folder inside that shared drive. The adapter refuses to start in Shared
-Drive mode when no destination folder is set; without a `parents` folder ID,
-Drive API places created files in the user's My Drive root rather than the
-intended shared drive. Confirm that the configured folder actually belongs to
-the configured shared drive before enabling the tenant binding.
+Drive mode when no destination folder is set. Before every upload, it now
+queries Drive for the configured folder's ID, folder MIME type, and
+`driveId`, and fails closed unless the folder belongs to the configured
+Shared Drive. This prevents a My Drive folder or a folder from another Shared
+Drive from silently receiving tenant content. Verify the configured folder
+and permissions with a staging upload/download/delete test before enabling
+tenant bindings.
 
 Do not use the ephemeral Fly container filesystem as durable student content
 or recording storage.
