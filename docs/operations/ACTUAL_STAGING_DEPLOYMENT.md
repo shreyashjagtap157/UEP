@@ -259,7 +259,9 @@ keys:
 
 Each value must contain `username`, `password`, `roleName`,
 `displayName`, and `tenantId`. Store real test credentials only in the
-GitHub `staging` Environment secret. Also configure the
+GitHub `staging` Environment secret. First run with
+`UEP_STAGING_SEED_DRY_RUN=true`; review the database/tenant identity and
+planned record list before switching it to `false`. Also configure the
 `UEP_STAGING_SEED_CONFIRMATION` Environment secret to the exact value
 `UEP-STAGING-SEED-CONFIRMED`; this is an explicit opt-in to synthetic writes. Use non-customer accounts and test data.
 
@@ -273,6 +275,7 @@ Set these GitHub repository variables:
 | `UEP_E2E_KEYCLOAK_ISSUER` | Exact `https://.../realms/education` issuer |
 | `UEP_STAGING_PRODUCT_E2E_ENABLED` | `true` only after the database identity endpoint and test accounts are ready |
 | `UEP_STAGING_SEED_TENANT_ID` | Exact expected tenant UUID for the primary staging dataset |
+| `UEP_STAGING_SEED_DRY_RUN` | Set to `true` for the read-only preflight; set to `false` only after reviewing its output and approving synthetic writes |
 
 The staging test workflow fails closed unless all endpoints are HTTPS and all
 14 role accounts are present. It verifies:
