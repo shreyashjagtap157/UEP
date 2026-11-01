@@ -88,7 +88,7 @@ class UploadStorageBindingTest {
 
     private UploadService service(boolean developmentMode) {
         when(tenants.requireTenantId()).thenReturn(TENANT);
-        when(actors.requireSubject()).thenReturn("staging-owner");
+        lenient().when(actors.requireSubject()).thenReturn("staging-owner");
         return new UploadService(tenants, actors, auth, uploads, objects, adapters, bindings, audit,
                 scanner, cleanup, stagingCleanup, staging.toString(), 1024, developmentMode);
     }
