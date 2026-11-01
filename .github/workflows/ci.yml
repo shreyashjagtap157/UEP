@@ -41,6 +41,15 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+      - name: Verify backend
+        env:
+          SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform
+          SUPABASE_DB_USER: education
+          SUPABASE_DB_PASS: ${{ env.UEP_CI_DB_PASSWORD }}
+          OIDC_ISSUER_URI: http://localhost:18081/realms/education
+          OIDC_JWK_SET_URI: http://localhost:18081/realms/education/protocol/openid-connect/certs
+          PLATFORM_DEV_MODE: "false"
+        run: mvn -B -f apps/platform-server/pom.xml verify
       - name: Verify UUIDv7 migration callback on PostgreSQL ${{ matrix.postgres_version }}
         env:
           PGPASSWORD: ${{ env.UEP_CI_DB_PASSWORD }}
@@ -59,15 +68,6 @@ jobs:
             END IF;
           END $$;
           SQL
-      - name: Verify backend
-        env:
-          SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform
-          SUPABASE_DB_USER: education
-          SUPABASE_DB_PASS: ${{ env.UEP_CI_DB_PASSWORD }}
-          OIDC_ISSUER_URI: http://localhost:18081/realms/education
-          OIDC_JWK_SET_URI: http://localhost:18081/realms/education/protocol/openid-connect/certs
-          PLATFORM_DEV_MODE: "false"
-        run: mvn -B -f apps/platform-server/pom.xml verify
       - name: Build Vercel backend container image
         run: docker build --pull --tag uep-platform-api:ci apps/platform-server
       - name: Start packaged server on a fresh database and run health smoke
