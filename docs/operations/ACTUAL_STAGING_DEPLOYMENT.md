@@ -540,6 +540,100 @@ public table, verified that `ensure_rls` enabled `relrowsecurity`, and
 dropped the table in the same SQL block. The probe passed. The Supabase
 security advisor returned zero lints after the ACL remediation.
 
+
+## Vercel-first deployment profile
+
+The repository now includes a Vercel multi-service deployment description in
+`vercel.json`:
+
+- `frontend`: Vite static build from `apps/web`.
+- `backend`: existing Spring Boot JAR packaged through
+  `apps/platform-server/Dockerfile` as a container service.
+- `/api/*` is routed to the backend without stripping the API prefix.
+- Other paths route to the Vite frontend; a service-local request-path
+  transformation provides SPA fallback while preserving static asset paths.
+
+The frontend's Vercel build command is `npm run build:vercel`. It fails closed
+unless all of the following are configured as Vercel **build-time** environment
+variables:
+
+| Variable | Requirement |
+|---|---|
+| `VITE_LOCAL_MODE` | Exactly `false`; demo/local mode is rejected |
+| `VITE_KEYCLOAK_URL` | Verified HTTPS production/staging identity base URL; no localhost |
+| `VITE_KEYCLOAK_REALM` | `education` |
+| `VITE_KEYCLOAK_CLIENT_ID` | `platform-web` |
+| `VITE_BACKEND_URL` | Unset; same-origin `/api/*` routing is used |
+
+This build gate intentionally prevents a deployment from falling back to
+LocalDemoStore or the historic Fly hostname when the real identity/backend
+endpoints are missing. The build-time variables are public browser
+configuration, not secrets. Backend secrets belong only in the Vercel backend
+service's encrypted runtime environment.
+
+### Serverless API runtime switches
+
+The Spring Boot server now has explicit switches:
+
+- `PLATFORM_BACKGROUND_WORKERS_ENABLED=false` disables the scheduled polling
+  subsystem on API instances. The default remains `true` for conventional
+  always-on deployments.
+- `PLATFORM_LIVEKIT_ENABLED=false` disables room-token signing and Egress
+  HTTP operations and allows the API to start without LiveKit credentials.
+  Live-class/media join and recording processing are unavailable while this
+  flag is false; the API returns explicit disabled-provider errors rather
+  than pointing to localhost.
+
+Use these settings only for an API-only Vercel deployment. A separate,
+durable worker runtime must be qualified before enabling notification
+materializers, scheduled announcements, webhook fan-out/delivery, retention,
+recording processing, cleanup and other polling workflows. Vercel Daemons
+have plan-specific CPU/memory usage limits; do not enable an always-on daemon
+until the actual Hobby entitlement and monthly headroom are confirmed.
+
+### Vercel backend environment checklist
+
+The backend container listens on `PORT` (fallback 8080) and expects:
+
+- `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`,
+  `SPRING_DATASOURCE_PASSWORD` from the provisioned PostgreSQL resource.
+  Use the provider's pooled connection endpoint for runtime; keep a separate
+  unpooled/admin migration connection for schema changes.
+- `SPRING_FLYWAY_ENABLED=false` at runtime after migrations have been applied
+  by a controlled one-off migration job.
+- `PLATFORM_DEV_MODE=false`.
+- `PLATFORM_BACKGROUND_WORKERS_ENABLED=false` until a separate worker service
+  is available.
+- `PLATFORM_LIVEKIT_ENABLED=false` until LiveKit and Egress are deployed.
+- Strong unique `PLATFORM_RECORDING_PLAYBACK_SECRET` and
+  `PLATFORM_INTEGRATION_SECRET_KEY` values (at least 32 characters each).
+- `PLATFORM_STORAGE_TYPE=s3` only after a durable S3-compatible provider and
+  tenant storage bindings have passed upload/retrieval tests. Never use the
+  container's local filesystem as durable uploads or recording storage.
+
+The existing API has a chunked upload staging directory and multiple
+database-backed polling workers. A Vercel container's writable filesystem is
+ephemeral and requests may not be pinned to one instance. Therefore the
+existing resumable-upload and recording pipelines are not accepted on Vercel
+until staging is moved to shared durable object storage (or a provider-direct
+upload design is implemented) and verified across requests/restarts.
+
+### Deployment acceptance / stop condition
+
+Do not create or deploy the Vercel project until the Vercel team connection
+has access to the intended team and the plan, Services/container eligibility,
+Marketplace database free plan, and current usage limits are verified. Do not
+provision a paid add-on or enable billing without explicit cost review.
+
+The requested Vercel rollout is a one-time qualification deployment. After
+its first successful production build and endpoint smoke test, disable further
+automatic deployments; do not keep pushing new commits to production while
+the backend/database and worker workflows are still under qualification.
+The project must remain paused or deployment automation disabled according to
+the user's final choice about public availability, with the last successful
+deployment and its exact SHA recorded.
+
+
 ### Current deployment gate
 
 Do not initialize application tables, deploy a new Fly release, enable Pages
