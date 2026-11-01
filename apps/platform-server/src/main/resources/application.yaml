@@ -20,9 +20,9 @@ spring:
       # Preserve existing API behavior: omitted primitive request fields use Java defaults.
       fail-on-null-for-primitives: false
   datasource:
-    url: jdbc:postgresql://db.xxx.supabase.co:5432/postgres
-    username: ${SUPABASE_DB_USER:postgres}
-    password: ${SUPABASE_DB_PASS:}
+    url: ${SUPABASE_DB_URL:}
+    username: ${SUPABASE_DB_USER}
+    password: ${SUPABASE_DB_PASS}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: ${DATABASE_POOL_SIZE:20}
@@ -34,13 +34,20 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: create
+      ddl-auto: validate
     properties:
       hibernate:
         jdbc:
           time_zone: UTC
+          default_schema: public
+          eclipse:
+            namespace: true
   flyway:
-    enabled: false
+    enabled: true
+    baseline-on-migrate: false
+    baseline-version: 0
+    locations: classpath:db/migration
+    schemas: public
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}

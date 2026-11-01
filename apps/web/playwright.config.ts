@@ -31,7 +31,7 @@ export default defineConfig({
     ['junit', { outputFolder: 'test-results/junit' }],
   ],
   use: {
-    baseURL: 'http://localhost://3000', // Will be overridden by test runner
+    baseURL: 'http://127.0.0.1:5173', // Will be overridden by test runner
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     viewport: { width: 1280, height: 720 },

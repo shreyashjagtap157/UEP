@@ -9,6 +9,7 @@ import {
   onOidcStatus,
   openAccountManagement,
   signIn,
+  localMode,
 } from '../auth/keycloak'
 import { AcademicOverview } from '../academic/AcademicOverview'
 import { AcademicWorkspace } from '../academic/AcademicWorkspace'
@@ -27,6 +28,7 @@ import { AnalyticsWorkspace } from '../analytics/AnalyticsWorkspace'
 import { AdvancedAcademicWorkspace } from '../advanced/AdvancedAcademicWorkspace'
 
 import { IntegrationWorkspace } from '../integration/IntegrationWorkspace'
+import { fetchAllClients, createNewClient, updateExistingClient, deleteClientById } from '../platform/api'
 import {
   createBranch,
   createRole,
@@ -43,7 +45,7 @@ import {
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
 
-type Section = 'overview' | 'advanced' | 'integrations' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
+type Section = 'overview' | 'advanced' | 'integrations' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security' | 'clients'
 
 const permissionOptions: PermissionKey[] = [
   'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
@@ -62,6 +64,7 @@ export function App() {
   const [oidcAuthenticated, setOidcAuthenticated] = useState<boolean>(() => isOidcAuthenticated())
   const [signInPending, setSignInPending] = useState(false)
   const [signInError, setSignInError] = useState<string | null>(null)
+  const [createClientError, setCreateClientError] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: oidcAuthenticated && !localMode })
   const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated && !localMode })
@@ -411,6 +414,38 @@ function Clients({ me }: { me: CurrentIdentity }) {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['clients'] }),
     onError: (error) => console.error('Create client error:', error),
   })
+  
+  function handleCreateClient(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = event.currentTarget
+    const name = form.elements.namedItem('name') as HTMLInputElement
+    const businessName = form.elements.namedItem('businessName') as HTMLInputElement
+    const businessType = form.elements.namedItem('businessType') as HTMLSelectElement
+    const licensingPeriodStart = form.elements.namedItem('licensingPeriodStart') as HTMLInputElement
+    const licensingPeriodEnd = form.elements.namedItem('licensingPeriodEnd') as HTMLInputElement
+    const deploymentType = form.elements.namedItem('deploymentType') as HTMLSelectElement
+    const logoUrl = form.elements.namedItem('logoUrl') as HTMLInputElement
+    
+    if (!name.value) {
+      setCreateClientError('Name is required')
+      return
+    }
+    
+    createMutation.mutate({
+      name: name.value,
+      businessName: businessName.value || undefined,
+      businessType: businessType.value,
+      licensingPeriodStart: licensingPeriodStart.value,
+      licensingPeriodEnd: licensingPeriodEnd.value,
+      deploymentType: deploymentType.value,
+      logoUrl: logoUrl.value || undefined,
+    }, { onSuccess: () => {
+      setCreateClientError(null)
+      setSection('clients')
+    }, onError: (error) => {
+      setCreateClientError(error instanceof Error ? error.message : 'Failed to create client')
+    } })
+  }
   const updateMutation = useMutation({
     mutationFn: updateExistingClient,
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['clients'] }),
@@ -453,8 +488,8 @@ function Clients({ me }: { me: CurrentIdentity }) {
                   </td>
                   <td>{client.deploymentType || '—'}</td>
                   <td>
-                    <button title="Edit client">Edit</button>
-                    <button title="Delete client" className="danger">Delete</button>
+                    <button title="Edit client" onClick={() => setSection('clients')}>Edit</button>
+                    <button title="Delete client" className="danger" onClick={() => deleteClientById(client.id)}>Delete</button>
                   </td>
                 </tr>
               ))}

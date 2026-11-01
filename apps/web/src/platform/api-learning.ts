@@ -1,4 +1,4 @@
-import { request, type PageResult } from './api-core'
+import { request, type UploadView } from './api-core'
 export type ResourceVisibility='PRIVATE'|'STAFF'|'ENROLLED_LEARNERS'|'TENANT'
 export type DownloadPolicy='DOWNLOAD_ALLOWED'|'STREAM_ONLY'|'NO_DOWNLOAD'
 export type ResourceKind='TEXT_NOTE'|'DOCUMENT'|'PRESENTATION'|'IMAGE'|'AUDIO'|'VIDEO'|'ARCHIVE'|'OTHER'
@@ -8,7 +8,7 @@ export interface StorageView{id:string;provider:string;contentType:string;sizeBy
 export const fetchResources=()=>request<PageResult<LearningResourceView>>('/api/v1/resources?size=100')
 export const createTextResource=(input:{title:string;description?:string;text:string;changeNote?:string;courseId?:string;language?:string;visibility:ResourceVisibility;downloadPolicy:DownloadPolicy})=>request<LearningResourceView>('/api/v1/resources/text',{method:'POST',body:JSON.stringify(input)})
 export const initiateUpload=(input:{fileName:string;contentType:string;expectedBytes:number;sha256?:string;provider:UploadView['provider']})=>request<UploadView>('/api/v1/uploads',{method:'POST',body:JSON.stringify(input)})
-export async function uploadChunk(id:string,offset:number,bytes:Blob):Promise<UploadView>{const {accessToken}=await import('../auth/keycloak');const token=await accessToken();const response=await fetch(`/api/v1/uploads/${id}/content`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/octet-stream','Upload-Offset':String(offset)},body:bytes});if(!response.ok)throw new Error(`Upload failed (${response.status} ${response.statusText})`);return response.json() as Promise<UploadView>}
+export async function uploadChunk(id:string,offset:number,bytes:Blob):Promise<UploadView>{const token=await accessToken();return request<UploadView>(`/api/v1/uploads/${id}/content`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/octet-stream','Upload-Offset':String(offset)},body:bytes})}
 export const completeUpload=(id:string)=>request<StorageView>(`/api/v1/uploads/${id}/complete`,{method:'POST'})
 export const createFileResource=(input:{title:string;description?:string;kind:ResourceKind;storageObjectId:string;changeNote?:string;courseId?:string;language?:string;visibility:ResourceVisibility;downloadPolicy:DownloadPolicy})=>request<LearningResourceView>('/api/v1/resources/file',{method:'POST',body:JSON.stringify(input)})
 export type QuestionType='SINGLE_MCQ'|'MULTIPLE_SELECTION'|'TRUE_FALSE'|'NUMERIC'|'FILL_BLANK'|'SHORT_ANSWER'|'LONG_ANSWER'|'ESSAY'|'MATCHING'|'ORDERING'|'FILE_SUBMISSION'
