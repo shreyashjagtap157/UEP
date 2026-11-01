@@ -4,6 +4,7 @@ import jakarta.annotation.PreDestroy;
 import java.io.InputStream;
 import java.net.URI;
 import java.time.Duration;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -27,14 +28,34 @@ class S3StorageAdapter implements StorageAdapter {
     private final S3Client client;
     private final String bucket;
 
+    @Autowired
     S3StorageAdapter(@Value("${platform.storage.s3.endpoint}") URI endpoint,
                      @Value("${platform.storage.s3.region:us-east-1}") String region,
                      @Value("${platform.storage.s3.access-key}") String accessKey,
                      @Value("${platform.storage.s3.secret-key}") String secretKey,
-                     @Value("${platform.storage.s3.bucket}") String bucket) {
+                     @Value("${platform.storage.s3.bucket}") String bucket,
+                     @Value("${platform.development-mode:false}") boolean developmentMode) {
+        this(endpoint, region, accessKey, secretKey, bucket, developmentMode, true);
+    }
+
+    // Preserve a concise production-mode constructor for focused adapter tests.
+    S3StorageAdapter(URI endpoint, String region, String accessKey, String secretKey, String bucket) {
+        this(endpoint, region, accessKey, secretKey, bucket, false, true);
+    }
+
+    S3StorageAdapter(URI endpoint, String region, String accessKey, String secretKey, String bucket,
+                     boolean developmentMode) {
+        this(endpoint, region, accessKey, secretKey, bucket, developmentMode, true);
+    }
+
+    private S3StorageAdapter(URI endpoint, String region, String accessKey, String secretKey, String bucket,
+                             boolean developmentMode, boolean ignored) {
         if (endpoint == null || endpoint.getHost() == null
                 || !("http".equalsIgnoreCase(endpoint.getScheme()) || "https".equalsIgnoreCase(endpoint.getScheme()))) {
             throw new IllegalArgumentException("S3 endpoint must be an absolute HTTP(S) URI");
+        }
+        if (!developmentMode && !"https".equalsIgnoreCase(endpoint.getScheme())) {
+            throw new IllegalArgumentException("S3 endpoint must use HTTPS outside development mode");
         }
         if (bucket == null || bucket.isBlank()) {
             throw new IllegalArgumentException("S3 bucket must be configured");
