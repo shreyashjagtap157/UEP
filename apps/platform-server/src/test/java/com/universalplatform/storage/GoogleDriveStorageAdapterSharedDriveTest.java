@@ -11,6 +11,11 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Flow;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -76,6 +81,58 @@ class GoogleDriveStorageAdapterSharedDriveTest {
         assertThat(requests.getAllValues()).extracting(HttpRequest::method).containsExactly("GET", "POST");
         assertThat(requests.getAllValues().get(1).uri().toString())
                 .contains("supportsAllDrives=true");
+    }
+
+    @Test
+    void serializesObjectNamesAsJsonInsteadOfInterpolatingUntrustedText() throws Exception {
+        HttpResponse<String> folderResponse = response(200,
+                "{\\"id\\":\\"folder-123\\",\\"mimeType\\":\\"application/vnd.google-apps.folder\\",\\"driveId\\":\\"drive-456\\"}");
+        HttpResponse<String> uploadResponse = response(200, "{\\"id\\":\\"uploaded-file-789\\"}");
+        when(http.send(any(HttpRequest.class),
+                org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any()))
+                .thenReturn(folderResponse, uploadResponse);
+        var adapter = adapter();
+        String objectName = "tenant-object\\n\\\"quoted\\\"";
+
+        adapter.put(objectName,
+                new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8)),
+                7, "application/octet-stream");
+
+        ArgumentCaptor<HttpRequest> requests = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(2)).send(requests.capture(),
+                org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
+        String multipart = readBody(requests.getAllValues().get(1));
+        assertThat(multipart).contains("\\"name\\":\\"tenant-object\\\\n\\\\\\\"quoted\\\\\\\"\\"");
+        assertThat(multipart).doesNotContain("tenant-object\\n");
+    }
+
+    private static String readBody(HttpRequest request) throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        CompletableFuture<String> completed = new CompletableFuture<>();
+        request.bodyPublisher().orElseThrow().subscribe(new Flow.Subscriber<>() {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                subscription.request(Long.MAX_VALUE);
+            }
+
+            @Override
+            public void onNext(ByteBuffer item) {
+                byte[] bytes = new byte[item.remaining()];
+                item.get(bytes);
+                output.writeBytes(bytes);
+            }
+
+            @Override
+            public void onError(Throwable failure) {
+                completed.completeExceptionally(failure);
+            }
+
+            @Override
+            public void onComplete() {
+                completed.complete(output.toString(StandardCharsets.UTF_8));
+            }
+        });
+        return completed.get(5, TimeUnit.SECONDS);
     }
 
     private GoogleDriveStorageAdapter adapter() {
