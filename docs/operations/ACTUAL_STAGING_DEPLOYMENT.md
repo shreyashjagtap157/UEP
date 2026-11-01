@@ -258,7 +258,14 @@ keys:
 `support_operator`, and `auditor`.
 
 Each value must contain `username`, `password`, `roleName`,
-`displayName`, and `tenantId`. Store real test credentials only in the
+`displayName`, and `tenantId`.
+An optional `UEP_E2E_SECOND_TENANT_TEACHER_ACCOUNT_JSON` secret contains one
+additional account object with the same fields; its `tenantId` must equal
+`UEP_STAGING_SECOND_TENANT_ID` and differ from the primary tenant. When
+configured, the product test verifies that this second-tenant teacher receives
+HTTP 404 when requesting submissions for an existing primary-tenant assignment.
+Without it, the cross-tenant live assertion is explicitly skipped and remains a
+release-qualification gap. Store real test credentials only in the
 GitHub `staging` Environment secret. First run with
 `UEP_STAGING_SEED_DRY_RUN=true`; review the database/tenant identity and
 planned record list before switching it to `false`. Also configure the
