@@ -86,7 +86,7 @@ cd apps/platform-server
 flyctl deploy --remote-only --config fly.toml --dockerfile Dockerfile
 ```
 
-Flyway applies the repository migrations on startup. Migrations V001–V045
+Flyway applies the repository migrations on startup. Migrations V001–V046
 must be applied against a fresh isolated staging database in CI before this
 deployment is accepted. Do not manually baseline or edit Flyway history to
 silence migration errors.
