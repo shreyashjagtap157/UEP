@@ -105,6 +105,17 @@ jobs:
         run: npm --prefix apps/web test
       - name: Build
         run: npm --prefix apps/web run build
+      - name: Type-check and discover remote staging Playwright tests
+        working-directory: apps/web
+        env:
+          UEP_E2E_BASE_URL: https://uep-frontend-testing.pages.dev
+          UEP_E2E_BACKEND_URL: https://uep-backend-testing.fly.dev
+          UEP_E2E_KEYCLOAK_ISSUER: https://identity.example.invalid/realms/education
+          UEP_E2E_TEST_ACCOUNTS_JSON: >-
+            {"organization_owner":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Organization Owner","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"organization_administrator":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Organization Administrator","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"branch_administrator":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Branch Administrator","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"academic_administrator":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Academic Administrator","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"exam_controller":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Exam Controller","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"finance_administrator":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Finance Administrator","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"teacher":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Teacher","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"evaluator":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Evaluator","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"teaching_assistant":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Teaching Assistant","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"mentor":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Mentor","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"student":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Student","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"guardian":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Guardian","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"support_operator":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Support Operator","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"},"auditor":{"username":"ci-placeholder","password":"ci-placeholder","roleName":"Auditor","displayName":"CI Placeholder","tenantId":"00000000-0000-0000-0000-000000000000"}}
+        run: |
+          npx tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck --types node playwright.staging.config.ts test/staging/*.ts
+          npx playwright test --config=playwright.staging.config.ts --list
 
   repository-policy:
     runs-on: ubuntu-latest
