@@ -27,13 +27,13 @@ class GoogleDriveAccessTokenProviderTest {
         HttpResponse<String> response = Mockito.mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(200);
         when(response.body()).thenReturn("{\"access_token\":\"renewed-token\",\"expires_in\":3600}");
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+        when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any())).thenReturn(response);
 
         var provider = provider(http, "", "client-id", "client-secret", "refresh-token", false);
 
         assertThat(provider.accessToken()).isEqualTo("renewed-token");
         assertThat(provider.accessToken()).isEqualTo("renewed-token");
-        verify(http, times(1)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        verify(http, times(1)).send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any());
     }
 
     @Test
@@ -43,7 +43,7 @@ class GoogleDriveAccessTokenProviderTest {
         HttpResponse<String> response = Mockito.mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(400);
         when(response.body()).thenReturn("invalid_grant refresh-token-secret");
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+        when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any())).thenReturn(response);
 
         var provider = provider(http, "", "client-id", "client-secret", "refresh-token-secret", false);
 
@@ -83,7 +83,7 @@ class GoogleDriveAccessTokenProviderTest {
         HttpResponse<String> response = Mockito.mock(HttpResponse.class);
         when(response.statusCode()).thenReturn(200);
         when(response.body()).thenReturn("{\"access_token\":\"renewed-token\",\"expires_in\":0}");
-        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(response);
+        when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<String>>any())).thenReturn(response);
 
         var provider = provider(http, "", "client-id", "client-secret", "refresh-token", false);
 
