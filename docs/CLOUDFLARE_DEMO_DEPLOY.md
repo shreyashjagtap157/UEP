@@ -1,9 +1,10 @@
 # Cloudflare demo deployment
 
-The local client-demo build is a static React/Vite application and can be deployed to Cloudflare Pages on the Free plan. This is a presentation/demo deployment, not the authenticated multi-tenant UEP product.
+The local client-demo build is a static React/Vite application and can be deployed to a separate Cloudflare Pages project on the Free plan. This is a presentation/demo deployment, not the authenticated multi-tenant UEP product. Keep it separate from the real staging project so a local-mode build cannot overwrite the authenticated product frontend.
 
 ## Pages settings
 
+- Cloudflare Pages project: `uep-frontend-demo` (`https://uep-frontend-demo.pages.dev`)
 - Repository: `shreyashjagtap157/UEP`
 - Production branch: `main`
 - Root directory: `apps/web`
@@ -18,7 +19,7 @@ The build is intentionally local/demo mode for the client presentation. It does 
 
 ## Cloudflare account step
 
-The repository connection alone cannot authorize deployment into a Cloudflare account. In Cloudflare Dashboard, use Workers & Pages → Create application → Pages → Connect to Git, select this repository, and enter the settings above. Cloudflare's Git integration then builds and deploys pushes to `main` and provides preview deployments for eligible branches.
+The repository connection alone cannot authorize deployment into a Cloudflare account. In Cloudflare Dashboard, use Workers & Pages → Create application → Pages → Connect to Git, select this repository, create the distinct project `uep-frontend-demo`, and enter the settings above. Cloudflare's Git integration then builds and deploys pushes to `main` and provides preview deployments for eligible branches. Do not point this local-mode project at the `uep-frontend-testing` project used by the real product staging runbook.
 
 The build command uses `npm ci --ignore-scripts` so the deployed bundle is built from the committed lockfile without executing dependency lifecycle scripts. The repository CI web job uses the same install mode. Cloudflare Pages supports pinning the build Node.js version through a `.node-version` file; this repository commits that version alongside the web package.
 
