@@ -68,6 +68,9 @@ Set these Fly secrets in the Fly app (never commit their values):
 | `LIVEKIT_API_KEY` | Staging LiveKit API key, at least 16 characters |
 | `LIVEKIT_API_SECRET` | Staging LiveKit API secret, at least 32 characters |
 | `PLATFORM_DEV_MODE` | Must be `false` |
+| `PLATFORM_STAGING_DATABASE_IDENTITY_ENABLED` | Set to `true` only on the isolated staging Fly app to expose the permission-gated seed safety check |
+| `PLATFORM_STAGING_EXPECTED_DB_HOST` | Exact PostgreSQL hostname of the isolated staging Supabase project; must match the live JDBC connection metadata |
+| `PLATFORM_STAGING_EXPECTED_DB_NAME` | Exact staging database name (normally `postgres`); must match the live JDBC connection metadata |
 
 Tenant provider selection is **per tenant**, not a single global provider
 setting. An authorized tenant administrator selects one configured provider
@@ -244,7 +247,8 @@ Pages origin.
 ## Staging identity and data qualification
 
 The staging account matrix is supplied to GitHub Actions as an environment
-secret named `UEP_E2E_TEST_ACCOUNTS_JSON`. It must be a JSON object with these
+secret named `UEP_E2E_TEST_ACCOUNTS_JSON`. The product workflow remains disabled
+until the identity and database safety gates have been configured. It must be a JSON object with these
 keys:
 
 `organization_owner`, `organization_administrator`,
@@ -255,7 +259,9 @@ keys:
 
 Each value must contain `username`, `password`, `roleName`,
 `displayName`, and `tenantId`. Store real test credentials only in the
-GitHub `staging` Environment secret. Use non-customer accounts and test data.
+GitHub `staging` Environment secret. Also configure the
+`UEP_STAGING_SEED_CONFIRMATION` Environment secret to the exact value
+`UEP-STAGING-SEED-CONFIRMED`; this is an explicit opt-in to synthetic writes. Use non-customer accounts and test data.
 
 Set these GitHub repository variables:
 
@@ -265,6 +271,8 @@ Set these GitHub repository variables:
 | `UEP_E2E_BASE_URL` | `https://uep-frontend-testing.pages.dev` |
 | `UEP_E2E_BACKEND_URL` | `https://uep-backend-testing.fly.dev` |
 | `UEP_E2E_KEYCLOAK_ISSUER` | Exact `https://.../realms/education` issuer |
+| `UEP_STAGING_PRODUCT_E2E_ENABLED` | `true` only after the database identity endpoint and test accounts are ready |
+| `UEP_STAGING_SEED_TENANT_ID` | Exact expected tenant UUID for the primary staging dataset |
 
 The staging test workflow fails closed unless all endpoints are HTTPS and all
 14 role accounts are present. It verifies:
@@ -309,10 +317,22 @@ At minimum, prepare:
   unassigned teachers, disabled/suspended users, missing permissions and
   expired entitlements.
 
-Seed only through an idempotent staging seeder that uses the application's
-domain services or authenticated APIs. It must verify the database's staging
-identity before writing, have a dry-run, use stable IDs, and never delete
-unrelated records. Do not run blind SQL inserts to bypass domain invariants.
+Seed only through the guarded, idempotent staging seeder in
+`apps/web/test/staging/product-workflows.staging.spec.ts`. Before its first
+write, it requires all of the following: the exact staging frontend/backend
+hosts, the expected tenant UUID, the explicit confirmation secret, an
+authenticated organization-owner identity, and a successful call to
+`GET /api/v1/platform/staging-database-identity`. That backend endpoint is
+available only when `PLATFORM_STAGING_DATABASE_IDENTITY_ENABLED=true`, requires
+`OPERATIONS_MANAGE`, reads the actual JDBC connection metadata, and fails
+closed unless its host and database name match the independently configured
+`PLATFORM_STAGING_EXPECTED_DB_HOST` and
+`PLATFORM_STAGING_EXPECTED_DB_NAME`. The seeder uses authenticated domain APIs,
+stable tenant-derived codes, create-if-absent behavior, and never deletes
+records. It seeds the minimum coherent branch/academic/curriculum/batch/
+enrollment/teacher-assignment/assignment data needed for the assignment
+submission-and-grading workflow. Do not run blind SQL inserts to bypass domain
+invariants.
 
 ### Cross-role product acceptance
 
