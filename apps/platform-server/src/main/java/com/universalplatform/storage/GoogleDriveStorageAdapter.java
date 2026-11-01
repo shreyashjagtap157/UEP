@@ -100,7 +100,7 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
                 metadataNode.putArray("parents").add(folderId);
             }
             byte[] metadata = json.writeValueAsBytes(metadataNode);
-            String boundary = "uep-boundary";
+            String boundary = "uep-" + java.util.UUID.randomUUID();
             byte[] head = ("--" + boundary
                     + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n")
                     .getBytes(StandardCharsets.UTF_8);
