@@ -78,6 +78,8 @@ public final class DatabaseMigrationRunner {
                 statement.execute("GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO "
                         + runtimeRole);
                 statement.execute("GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO " + runtimeRole);
+                statement.execute("REVOKE ALL PRIVILEGES ON TABLE public.flyway_schema_history FROM "
+                        + runtimeRole);
 
                 statement.execute("ALTER DEFAULT PRIVILEGES FOR ROLE " + migrationRole
                         + " IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + runtimeRole);
