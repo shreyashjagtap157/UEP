@@ -61,7 +61,9 @@ test('staging seeder dry-run verifies target identity and reports planned synthe
       'program, course, subject, batch, student enrollment, and teacher assignment: create-if-absent after resolving parent IDs',
       'assignment publication, student submission, teacher grading, and fresh-login persistence assertion',
     ]
-    console.info('[UEP staging seed dry-run] database=' + databaseIdentity.databaseHost + '/' + databaseIdentity.databaseName + ' tenant=' + expectedTenantId + '\\n' + plan.map(item => '- ' + item).join('\\n'))
+    // Do not put database hostnames, tenant identifiers, or planned record details
+    // into the retained HTML/JUnit report artifacts.
+    console.info('[UEP staging seed dry-run] database identity verified; planned record groups=' + plan.length)
   } finally {
     await owner.close()
   }
@@ -731,7 +733,7 @@ async function authenticate(browser: Browser, account: Account): Promise<Authent
 async function getJson<T>(api: APIRequestContext, path: string): Promise<T> {
   const response = await api.get(path)
   if (!response.ok()) {
-    throw new Error(`GET ${path} failed with HTTP ${response.status()}: ${(await response.text()).slice(0, 1200)}`)
+    throw new Error(`GET ${path} failed with HTTP ${response.status()}. Response body omitted from staging artifacts.`)
   }
   return await response.json() as T
 }
@@ -758,7 +760,7 @@ async function getAllItems<T>(api: APIRequestContext, path: string): Promise<T[]
 async function postJson<T>(api: APIRequestContext, path: string, data: unknown): Promise<T> {
   const response = await api.post(path, { data })
   if (!response.ok()) {
-    throw new Error(`POST ${path} failed with HTTP ${response.status()}: ${(await response.text()).slice(0, 1200)}`)
+    throw new Error(`POST ${path} failed with HTTP ${response.status()}. Response body omitted from staging artifacts.`)
   }
   return await response.json() as T
 }
@@ -766,14 +768,14 @@ async function postJson<T>(api: APIRequestContext, path: string, data: unknown):
 async function postNoContent(api: APIRequestContext, path: string, data: unknown): Promise<void> {
   const response = await api.post(path, { data })
   if (!response.ok()) {
-    throw new Error(`POST ${path} failed with HTTP ${response.status()}: ${(await response.text()).slice(0, 1200)}`)
+    throw new Error(`POST ${path} failed with HTTP ${response.status()}. Response body omitted from staging artifacts.`)
   }
 }
 
 async function putJson<T>(api: APIRequestContext, path: string, data: unknown): Promise<T> {
   const response = await api.put(path, { data })
   if (!response.ok()) {
-    throw new Error(`PUT ${path} failed with HTTP ${response.status()}: ${(await response.text()).slice(0, 1200)}`)
+    throw new Error(`PUT ${path} failed with HTTP ${response.status()}. Response body omitted from staging artifacts.`)
   }
   return await response.json() as T
 }
