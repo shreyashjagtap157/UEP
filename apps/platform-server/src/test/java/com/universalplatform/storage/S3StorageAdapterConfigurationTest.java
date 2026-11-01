@@ -43,6 +43,32 @@ class S3StorageAdapterConfigurationTest {
     }
 
     @Test
+    void acceptsHttpsEndpointOutsideDevelopmentMode() {
+        var adapter = new S3StorageAdapter(
+                URI.create("https://s3.example.test"),
+                "us-east-1",
+                "access-key",
+                "secret-key",
+                "education-assets",
+                false);
+        assertThat(adapter.type()).isEqualTo(StorageProviderType.S3_COMPATIBLE);
+        adapter.close();
+    }
+
+    @Test
+    void allowsPlainHttpEndpointOnlyInDevelopmentMode() {
+        var adapter = new S3StorageAdapter(
+                URI.create("http://localhost:9000"),
+                "us-east-1",
+                "access-key",
+                "secret-key",
+                "education-assets",
+                true);
+        assertThat(adapter.type()).isEqualTo(StorageProviderType.S3_COMPATIBLE);
+        adapter.close();
+    }
+
+    @Test
     void rejectsBlankBucketBeforeCreatingTheClient() {
         assertThatThrownBy(() -> new S3StorageAdapter(
                 URI.create("https://s3.example.test"),
