@@ -15,13 +15,15 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      UEP_CI_DB_PASSWORD: ${{ format('uep-ci-{0}-{1}', github.run_id, github.run_attempt) }}
     services:
       postgres:
         image: postgres:18.4
         env:
           POSTGRES_DB: education_platform
           POSTGRES_USER: education
-          POSTGRES_PASSWORD: uep-ci-postgres-password-2026
+          POSTGRES_PASSWORD: ${{ format('uep-ci-{0}-{1}', github.run_id, github.run_attempt) }}
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U education -d education_platform"
@@ -39,7 +41,7 @@ jobs:
         env:
           SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform
           SUPABASE_DB_USER: education
-          SUPABASE_DB_PASS: uep-ci-postgres-password-2026
+          SUPABASE_DB_PASS: ${{ env.UEP_CI_DB_PASSWORD }}
           OIDC_ISSUER_URI: http://localhost:18081/realms/education
           OIDC_JWK_SET_URI: http://localhost:18081/realms/education/protocol/openid-connect/certs
           PLATFORM_DEV_MODE: "false"
@@ -48,7 +50,7 @@ jobs:
         env:
           SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform_smoke
           SUPABASE_DB_USER: education
-          SUPABASE_DB_PASS: uep-ci-postgres-password-2026
+          SUPABASE_DB_PASS: ${{ env.UEP_CI_DB_PASSWORD }}
           OIDC_ISSUER_URI: http://localhost:18081/realms/education
           OIDC_JWK_SET_URI: http://localhost:18081/realms/education/protocol/openid-connect/certs
           PLATFORM_RECORDING_PLAYBACK_SECRET: "uep-ci-recording-playback-secret-2026-11-01"
@@ -58,7 +60,7 @@ jobs:
           PLATFORM_DEV_MODE: "false"
         run: |
           set -euo pipefail
-          psql "postgresql://education:uep-ci-postgres-password-2026@localhost:5432/postgres" -X -v ON_ERROR_STOP=1 \
+          PGPASSWORD="$UEP_CI_DB_PASSWORD" psql "postgresql://education@localhost:5432/postgres" -X -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE education_platform_smoke OWNER education;"
           jar="apps/platform-server/target/platform-server-0.15.0.0-SNAPSHOT.jar"
           test -f "$jar"
