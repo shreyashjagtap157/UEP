@@ -26,6 +26,7 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
             .build();
     private final ObjectMapper json = new ObjectMapper();
     private final GoogleDriveAccessTokenProvider tokens;
+    private final GoogleDriveSharedDriveFolderValidator sharedDriveFolderValidator;
     private final String folderId;
     private final String sharedDriveId;
 
@@ -45,6 +46,7 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
         }
         this.tokens = new GoogleDriveAccessTokenProvider(http, json, TOKEN_ENDPOINT, Clock.systemUTC(),
                 accessToken, clientId, clientSecret, refreshToken, developmentMode);
+        this.sharedDriveFolderValidator = new GoogleDriveSharedDriveFolderValidator(http, json);
     }
 
     @Override
@@ -57,6 +59,9 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
     @Override
     public String put(String key, InputStream source, long length, String contentType) throws IOException {
         try {
+            if (!sharedDriveId.isEmpty()) {
+                sharedDriveFolderValidator.validate(folderId, sharedDriveId, tokens.accessToken());
+            }
             String metadata = "{\"name\":\"" + escape(key) + "\""
                     + (folderId.isEmpty() ? "" : ",\"parents\":[\"" + escape(folderId) + "\"]") + "}";
             String boundary = "uep-boundary";
