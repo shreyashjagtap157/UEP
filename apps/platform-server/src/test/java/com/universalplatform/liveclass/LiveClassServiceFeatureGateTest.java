@@ -15,7 +15,7 @@ import com.universalplatform.scheduling.ScheduleDirectory;
 import com.universalplatform.security.ActorContext;
 import com.universalplatform.identity.AuthorizationService;
 import com.universalplatform.security.TenantContext;
-import com.universalplatform.security.PermissionKey;
+import com.universalplatform.identity.PermissionKey;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
