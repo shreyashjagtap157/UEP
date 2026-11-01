@@ -11,7 +11,8 @@ class BackgroundWorkerConfigurationTest {
 
     @Test
     void scheduledWorkerConfigurationIsEnabledByDefault() {
-        runner.run(context -> assertThat(context).hasSingleBean(BackgroundWorkerConfiguration.class));
+        runner.withPropertyValues("platform.background-workers.enabled=true")
+                .run(context -> assertThat(context).hasSingleBean(BackgroundWorkerConfiguration.class));
     }
 
     @Test
