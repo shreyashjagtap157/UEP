@@ -11,6 +11,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -20,16 +21,14 @@ import org.springframework.stereotype.Component;
 class GoogleDriveStorageAdapter implements StorageAdapter {
     private static final URI TOKEN_ENDPOINT = URI.create("https://oauth2.googleapis.com/token");
 
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .followRedirects(HttpClient.Redirect.NEVER)
-            .build();
-    private final ObjectMapper json = new ObjectMapper();
+    private final HttpClient http;
+    private final ObjectMapper json;
     private final GoogleDriveAccessTokenProvider tokens;
     private final GoogleDriveSharedDriveFolderValidator sharedDriveFolderValidator;
     private final String folderId;
     private final String sharedDriveId;
 
+    @Autowired
     GoogleDriveStorageAdapter(
             @Value("${platform.storage.google-drive.access-token:}") String accessToken,
             @Value("${platform.storage.google-drive.client-id:}") String clientId,
@@ -38,6 +37,16 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
             @Value("${platform.storage.google-drive.folder-id:}") String folderId,
             @Value("${platform.storage.google-drive.shared-drive-id:}") String sharedDriveId,
             @Value("${platform.development-mode:false}") boolean developmentMode) {
+        this(newHttpClient(), new ObjectMapper(), accessToken, clientId, clientSecret, refreshToken,
+                folderId, sharedDriveId, developmentMode);
+    }
+
+    GoogleDriveStorageAdapter(
+            HttpClient http, ObjectMapper json,
+            String accessToken, String clientId, String clientSecret, String refreshToken,
+            String folderId, String sharedDriveId, boolean developmentMode) {
+        this.http = http;
+        this.json = json;
         this.folderId = normalize(folderId);
         this.sharedDriveId = normalize(sharedDriveId);
         if (!this.sharedDriveId.isEmpty() && this.folderId.isEmpty()) {
@@ -47,6 +56,13 @@ class GoogleDriveStorageAdapter implements StorageAdapter {
         this.tokens = new GoogleDriveAccessTokenProvider(http, json, TOKEN_ENDPOINT, Clock.systemUTC(),
                 accessToken, clientId, clientSecret, refreshToken, developmentMode);
         this.sharedDriveFolderValidator = new GoogleDriveSharedDriveFolderValidator(http, json);
+    }
+
+    private static HttpClient newHttpClient() {
+        return HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
     }
 
     @Override
