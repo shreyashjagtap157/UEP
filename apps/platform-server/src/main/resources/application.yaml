@@ -76,6 +76,11 @@ management:
 
 platform:
   version: 0.15.0.0-SNAPSHOT
+  staging:
+    database-identity:
+      enabled: ${PLATFORM_STAGING_DATABASE_IDENTITY_ENABLED:false}
+      expected-host: ${PLATFORM_STAGING_EXPECTED_DB_HOST:}
+      expected-database: ${PLATFORM_STAGING_EXPECTED_DB_NAME:}
   # Explicit opt-out of the production-secret guard (ProductionSecretGuard) for local dev and CI.
   development-mode: ${PLATFORM_DEV_MODE:false}
   storage:
