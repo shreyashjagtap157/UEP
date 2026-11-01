@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.sql.Connection;
@@ -47,6 +48,33 @@ class StagingDatabaseIdentityControllerTest {
         assertThatThrownBy(controller::verifyDatabaseIdentity)
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Connected database does not match");
+    }
+
+    @Test
+    void rejectsAnUnexpectedDatabaseNameEvenWhenTheHostMatches() throws Exception {
+        when(dataSource.getConnection()).thenReturn(connection);
+        when(connection.getMetaData()).thenReturn(metadata);
+        when(metadata.getURL()).thenReturn(
+                "jdbc:postgresql://uep-staging-ref.supabase.co:5432/production?sslmode=require");
+        var controller = new StagingDatabaseIdentityController(
+                dataSource, authorization, "uep-staging-ref.supabase.co", "postgres");
+
+        assertThatThrownBy(controller::verifyDatabaseIdentity)
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Connected database does not match");
+    }
+
+    @Test
+    void checksAuthorizationBeforeOpeningTheDatabaseConnection() throws Exception {
+        when(authorization.require(PermissionKey.OPERATIONS_MANAGE))
+                .thenThrow(new SecurityException("forbidden"));
+        var controller = new StagingDatabaseIdentityController(
+                dataSource, authorization, "uep-staging-ref.supabase.co", "postgres");
+
+        assertThatThrownBy(controller::verifyDatabaseIdentity)
+                .isInstanceOf(SecurityException.class)
+                .hasMessageContaining("forbidden");
+        verifyNoInteractions(dataSource);
     }
 
     @Test
