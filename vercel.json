@@ -4,9 +4,6 @@
     "frontend": {
       "root": "apps/web",
       "framework": "vite",
-      "installCommand": "npm ci --ignore-scripts",
-      "buildCommand": "npm run build:vercel",
-      "outputDirectory": "dist",
       "routes": [
         {
           "src": "/((?!assets/|.*\\.[^/]+$).*)",
@@ -23,10 +20,28 @@
     "backend": {
       "root": "apps/platform-server",
       "runtime": "container",
-      "entrypoint": "Dockerfile"
+      "entrypoint": "Dockerfile",
+      "routes": [
+        {
+          "src": "/api/_health",
+          "transforms": [
+            {
+              "type": "request.path",
+              "op": "set",
+              "args": "/actuator/health"
+            }
+          ]
+        }
+      ]
     }
   },
   "rewrites": [
+    {
+      "source": "/api/_health",
+      "destination": {
+        "service": "backend"
+      }
+    },
     {
       "source": "/api/(.*)",
       "destination": {

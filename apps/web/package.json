@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/guard-vercel-build.mjs && tsc -b && vite build",
     "lint": "oxlint .",
     "preview": "vite preview",
     "test": "node --experimental-strip-types --test test/LocalDemoStore.test.mjs test/backendUrl.test.mjs test/deployment-env.test.mjs",
