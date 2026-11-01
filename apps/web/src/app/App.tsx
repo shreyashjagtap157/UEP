@@ -499,10 +499,10 @@ function Clients({ me }: { me: CurrentIdentity }) {
                   <td colSpan={6}>
                     <form onSubmit={handleCreateClient} className="create-form">
                       <input type="hidden" defaultValue={createMutation.isPending ? 'Creating...' : ''} />
-                      <label>Name<input name="name" required maxLength={200} placeholder="Client name" />
-                      <label>Business Name<input name="businessName" placeholder="Business name" />
+                      <label>Name<input name="name" required maxLength={200} placeholder="Client name" /></label>
+                      <label>Business Name<input name="businessName" placeholder="Business name" /></label>
                       <label>Business Type<select name="businessType"><option value="educational">Educational</option><option value="corporate">Corporate</option><option value="non-profit">Non-profit</option></select></label>
-                      <label>Licensing Period Start<input type="date" name="licensingPeriodStart" required />
+                      <label>Licensing Period Start<input type="date" name="licensingPeriodStart" required /></label>
                       <label>Licensing Period End<input type="date" name="licensingPeriodEnd" required /></label>
                       <label>Deployment Type<select name="deploymentType"><option value="fly">Fly.io</option><option value="cloudflare">Cloudflare Pages</option></select></label>
                       <label>Logo URL<input name="logoUrl" placeholder="https://example.com/logo.png" /></label>

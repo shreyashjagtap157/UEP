@@ -34,7 +34,7 @@ test.describe('Layer A: Guardian and mentor scope', () => {
   test('mentor sees only mentee\'s enrolled courses and progress', async ({ page }) => {
     // Mentor signs in
     await page.goto('/')
-    await page.fill('input[type="email"]', 'mentor@demo.uep')
+// removed-stray for Tenant A cannot list/read/write Tenant B data', async ({
     await page.fill('input[type="password"]', 'demo')
     await page.click('button[type="submit"]')
     await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
@@ -59,7 +59,7 @@ test.describe('Layer A: Guardian and mentor scope', () => {
 
     // Student should not see guardian/mentor-specific UI elements
     // such as "linked learner" views or "mentee progress" that are
-    # role-scoped
+    // role-scoped
     const pageText = await page.textContent('body')
     // Student workspace should not contain guardian/mentor controls
   })

@@ -36,7 +36,7 @@ test.describe('Layer A: Product developer isolation', () => {
     await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
 
     // Student navigates - should not see product creation/publishing controls
-    const studentPageText = await page.textContent('body')
+    const _studentPageText = await page.textContent('body')
     // Student workspace should not contain product creation UI elements
     // (The exact assertion depends on the UI implementation)
   })
@@ -52,7 +52,7 @@ test.describe('Layer A: Product developer isolation', () => {
     await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
 
     // Client workspace should not have product authoring controls
-    const pageText = await page.textContent('body')
+    const _pageText = await page.textContent('body')
     // Client should not see product drafts or publish controls
     // This is verified by the absence of developer-only UI elements
     const hasProductCreate = await page.locator('button:has-text("Create draft")').isVisible()

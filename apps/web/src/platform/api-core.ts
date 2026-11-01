@@ -77,5 +77,6 @@ export function revokeOwnSession(sessionId:string):Promise<void>{
 }
 export const fetchAllClients=()=>request<ClientView[]>('/api/v1/clients')
 export const createNewClient=(input:CreateClientInput)=>request<ClientView>('/api/v1/clients',{method:'POST',body:JSON.stringify(input)})
-export const updateExistingClient=(id: number,input:UpdateClientInput)=>request<ClientView>(`/api/v1/clients/${id}`,{method:'PUT',body:JSON.stringify(input)})
+export const updateExistingClient = ({id, ...input}: { id: number } & UpdateClientInput) =>
+  request<ClientView>(`/api/v1/clients/${id}`, { method: 'PUT', body: JSON.stringify(input) });
 export const deleteClientById=(id: number)=>request<void>(`/api/v1/clients/${id}`,{method:'DELETE'})

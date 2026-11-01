@@ -47,7 +47,7 @@ test.describe('Layer A: Persona workspace identification', () => {
   test('each persona workspace shows role-appropriate navigation', async ({
     page,
   }) => {
-    const roleNavs: Record<string, string[]> = {
+    const _roleNavs: Record<string, string[]> = {
       student: ['Today', 'My learning', 'Assignments', 'Results & feedback', 'Calendar & classes', 'Attendance', 'Inbox'],
       teacher: ['Teaching overview', 'My classes', 'Learner roster', 'Submission queue', 'Attendance register', 'Course catalog', 'Class analytics', 'Inbox'],
       client: ['Organization overview', 'Programs & actions', 'People', 'Outcomes & reports', 'Delivery schedule', 'Operations', 'Inbox'],

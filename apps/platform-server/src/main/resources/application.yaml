@@ -11,11 +11,10 @@ spring:
   autoconfigure:
     # Modulith's runtime auto-configuration eagerly builds the module model with
     # ArchUnit, which takes minutes on a shared vCPU. Module boundaries are still
-    # enforced by ModularityTest in CI; skipping the boot-time scan lets Tomcat
-    # bind before Fly's idle-stop window.
+    # enforced by ModularityTest in CI; the runtime auto-configuration is required
+    # for ModuleObservabilityAutoConfiguration and observability features.
     exclude:
-      - org.springframework.modulith.runtime.autoconfigure.SpringModulithRuntimeAutoConfiguration
-  jackson:
+      - jackson.deserialization.fail-on-null-for-primitives
     deserialization:
       # Preserve existing API behavior: omitted primitive request fields use Java defaults.
       fail-on-null-for-primitives: false

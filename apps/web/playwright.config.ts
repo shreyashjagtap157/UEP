@@ -14,7 +14,7 @@
  * See: docs/DEMO_INTERACTION_MATRIX.md for test-to-role mapping
  */
 
-import { defineConfig, devices } from '@playwright/test'
+import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './test/e2e',
@@ -27,8 +27,8 @@ export default defineConfig({
   workers: 4,
   reporter: [
     ['list'],
-    ['html', { outputFolder: 'test-results/html' }],
-    ['junit', { outputFolder: 'test-results/junit' }],
+    ['html', { outputFolder: 'e2e-test-results/html' }],
+    ['junit', { outputFolder: 'e2e-test-results/junit' }],
   ],
   // Top-level webServer configuration (NOT inside 'use')
   // Playwright manages the Vite server lifecycle reliably
@@ -53,8 +53,24 @@ export default defineConfig({
     {
       name: 'Layer A: Local Demo',
       testMatch: '**/*.e2e.ts',
-      // Match tests by their title tags - use actual test titles, not comments
-      grep: /local demo|demo account|layer a/i,
+    },
+    // Layer B: Remote Staging acceptance suite
+    {
+      name: 'Layer B: Remote Staging',
+      testMatch: '**/*.e2e.ts',
+      use: {
+        baseURL: process.env.UEP_E2E_BASE_URL,
+        trace: 'on-first-retry',
+        screenshot: 'only-on-failure',
+        viewport: { width: 1280, height: 700 },
+        actionTimeout: 30000,
+        navigationTimeout: 60000,
+        // Fail closed if local mode is enabled or base URL is localhost
+        ignoreHTTPSErrors: true,
+        // Environment validation — these are checked at test runtime
+        // VITE_LOCAL_MODE must be 'false' for remote execution
+      },
+      grep: /production|staging/i,
     },
   ],
 })

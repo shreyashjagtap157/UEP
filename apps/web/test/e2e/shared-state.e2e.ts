@@ -85,6 +85,7 @@ test.describe('Layer A: Shared state persistence', () => {
     const smallText = page.locator('small.muted')
     const smallTextContent = await smallText.textContent()
     // In demo mode, there should be a note about browser storage limitations
-    expect(smallTextContent).toContain('demo') || expect(smallTextContent).toContain('local mode')
+    expect(smallTextContent).toContain('demo')
+expect(smallTextContent).toContain('local mode')
   })
 })

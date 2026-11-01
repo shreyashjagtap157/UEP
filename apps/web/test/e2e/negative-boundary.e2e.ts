@@ -31,7 +31,7 @@ test.describe('Layer A: Negative navigation and boundary checks', () => {
 
     // Student should have their own submission UI
     await page.click('nav.nav-list button:has-text("Assignments")')
-    const submitAvailable = page.locator('button:has-text("Submit assignment")').isVisible()
+    const _submitAvailable = page.locator('button:has-text("Submit assignment")').isVisible()
     // Student should see submit button; teacher should not in the same view
   })
 
@@ -49,13 +49,13 @@ test.describe('Layer A: Negative navigation and boundary checks', () => {
       await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
 
       // Record initial state
-      const initialActivity = page.locator('.activity-entry').count()
+      const _initialActivity = page.locator('.activity-entry').count()
 
       // Attempt an action that would mutate out-of-scope data
       // (The UI should prevent this or the demo store should reject it)
 
       // Check that activity count didn't change with out-of-scope data
-      const afterActivity = page.locator('.activity-entry').count()
+      const _afterActivity = page.locator('.activity-entry').count()
       // In demo mode, role-scoped actions should not affect out-of-scope records
     }
   })

@@ -27,16 +27,16 @@ test.describe('Layer A: Finance, support, and auditor read-only', () => {
 
     // Try to submit an assignment (should be disabled or have no effect)
     const submitButton = page.locator('button:has-text("Submit assignment")')
-    const isDisabled = await submitButton.getAttribute('disabled')
+const _isDisabled = await submitButton.getAttribute('disabled')
     // Auditor's submit should be disabled/grayed out
 
     // Try to grade a submission (should be disabled or have no effect)
     const gradeButton = page.locator('button:has-text("Grade")')
-    const gradeDisabled = await gradeButton.getAttribute('disabled')
+    const _gradeDisabled = await gradeButton.getAttribute('disabled')
     // Auditor's grade should be disabled
 
     // The audit log count should not increase from unauthorized actions
-    const pageAfter = page.locator('.audit-log-entry').nth(pageBefore)
+    const _pageAfter = page.locator('.audit-log-entry').nth(pageBefore)
     // No new audit events should be created from denied actions
   })
 
@@ -79,7 +79,7 @@ test.describe('Layer A: Finance, support, and auditor read-only', () => {
 
     // Try to create new case - should be outside support scope or disabled
     const createButton = page.locator('button:has-text("Create case")')
-    const isVisible = await createButton.isVisible()
+    const _isVisible = await createButton.isVisible()
     // In demo mode, support can view but creation may have limitations
   })
 })
