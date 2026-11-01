@@ -39,9 +39,12 @@ active tenant membership and roles in that database.
 - The real deployed-product E2E workflow is `.github/workflows/staging-e2e.yml`.
   It is **manual-dispatch-only**: routine CI completion or merges to `main` do
   not start staging tests or synthetic writes. An operator must dispatch the
-  workflow with `confirm_staging_e2e=yes` (the default is `no`); the job also
-  requires `UEP_STAGING_E2E_ENABLED=true` and the configured GitHub `staging`
-  Environment. Product-data writes require a second per-run input,
+  workflow from the trusted `main` branch with `confirm_staging_e2e=yes`
+  (the default is `no`); dispatches from feature/PR branches are rejected so
+  unreviewed workflow revisions cannot receive staging Environment secrets.
+  Configure the GitHub `staging` Environment with required reviewers and
+  restrict its deployment branches to `main`. The job also requires
+  `UEP_STAGING_E2E_ENABLED=true`. Product-data writes require a second per-run input,
   `authorize_synthetic_writes=yes` (default `no`), **and** the repository
   variable `UEP_STAGING_SEED_DRY_RUN=false`, **and** the exact confirmation
   secret. If any condition is absent, the workflow forces dry-run mode. This
