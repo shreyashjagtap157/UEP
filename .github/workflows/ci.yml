@@ -109,8 +109,8 @@ jobs:
           CREATE FUNCTION public.uep_ci_existing_private_fn() RETURNS integer
             LANGUAGE sql AS $function$ SELECT 7 $function$;
           SQL
-          mvn -B -f apps/platform-server/pom.xml org.codehaus.mojo:exec-maven-plugin:3.5.0:java
-            -Dexec.mainClass=com.universalplatform.DatabaseMigrationRunner
+          mvn -B -f apps/platform-server/pom.xml org.codehaus.mojo:exec-maven-plugin:3.5.0:java \
+            -Dexec.mainClass=com.universalplatform.DatabaseMigrationRunner \
             -Dexec.classpathScope=runtime
           psql "postgresql://education@localhost:5432/education_platform" -X -v ON_ERROR_STOP=1 <<'SQL'
           CREATE TYPE public.uep_ci_future_type AS ENUM ('FUTURE');
