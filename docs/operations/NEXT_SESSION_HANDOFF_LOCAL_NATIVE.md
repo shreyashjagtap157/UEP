@@ -83,7 +83,7 @@ Browser at localhost:5173
 Authentication is separate:
 
 React/Vite
-→ Keycloak 26.7.0 at localhost:8081
+→ Keycloak 26.7.5 at localhost:8081
 → realm education, browser client platform-web
 → Authorization Code + PKCE S256
 → signed JWT with tenant_id
@@ -233,3 +233,22 @@ The native Playwright smoke now covers owner OIDC, same-origin authenticated ana
 ### Clean-checkout migration runner requirement
 
 The native launcher's one-shot migration command now executes Maven `compile` before `org.codehaus.mojo:exec-maven-plugin:3.5.0:java`. The CI least-privilege migration probe uses `clean compile` before invoking the same runner, so a previously populated `target/classes` directory cannot mask a missing compile step. Preserve this ordering if the launcher or migration command is refactored.
+
+### Continuation update — 2 November 2026, CI and authorization follow-up
+
+The live repository was rechecked after the previous continuation. The main-line changes since the preceding handoff include:
+
+- `apps/web/test/native/real-analytics-export.native.spec.ts` now exercises the real local owner Authorization Code + PKCE S256 login, checks the active tenant and owner permissions, loads analytics, downloads the authenticated attendance CSV, creates a uniquely named branch through the Organization UI, reloads and reads the branch back through the API, and verifies the exact PostgreSQL row using only the protected `uep_local_runtime` credentials. It checks the runtime role's restricted attributes, no public/database CREATE and no Flyway history access. The branch is retained and its ID/code is recorded in a Playwright annotation because no branch-delete API exists.
+- `apps/web/test/api-client-contract.test.mjs` now guards the actual Playwright method expressions (`response.request().method()`) and the computed `PGPASSWORD` environment key. Do not weaken the repository secret scanner to accommodate test source.
+- The export integration test's correct authorization contract is both `REPORTS_EXPORT` and `ANALYTICS_VIEW`: the service checks export permission, and the attendance report it invokes independently checks analytics view. The test now covers denial without export permission, denial with export permission but without analytics view, and success when both are present.
+- `docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md` was corrected so its native-smoke description consistently matches the committed branch/API/PostgreSQL checks and states the remaining gaps accurately.
+
+### CI evidence at this checkpoint
+
+- The latest observed main SHA before this handoff update was `e3bed7fa33b51606f15def7770d348b76f58e794`.
+- CI run #1033 for `8e703a8dd3acf82611861c5d80b32de191113837` completed the web and repository-policy jobs successfully, but both PostgreSQL backend matrix jobs failed because the test did not seed `ANALYTICS_VIEW` for the nested attendance read. This was a real test-fixture omission, not a production code failure; commit `d08a1880b623494eda8f7cdb09e98a8921b872da` restored that baseline permission.
+- CI run #1034 for `d08a1880b623494eda8f7cdb09e98a8921b872da` had web and repository-policy jobs pass; backend matrix and other jobs were still running at last inspection.
+- CI run #1035 for `9d6a4b1fd722da37f659bc7dca018c83a05b5478` had web and repository-policy pass; backend matrix and Keycloak CI qualification were still running at last inspection.
+- CI run #1036 was queued for `e3bed7fa33b51606f15def7770d348b76f58e794` after strengthening the dual-permission integration test. These are not final green results. Fetch the live main SHA and latest workflow status before claiming validation.
+
+Windows-native runtime remains unexecuted in this ChatGPT environment. The launcher, local Keycloak, Spring Boot, Vite, browser-to-API path, database writes/readbacks and restart behavior must still be qualified on the user's actual Windows machine. Never infer these passes from CI or source inspection.
