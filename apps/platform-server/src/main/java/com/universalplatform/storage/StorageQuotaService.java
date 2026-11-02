@@ -126,24 +126,27 @@ public class StorageQuotaService {
             throw StorageQuotaException.capacityExceeded("reserved upload size");
         }
 
-        jdbc.update("""
+        requireOne(jdbc.update("""
                 UPDATE storage_tenant_usage
                 SET reserved_bytes = reserved_bytes - ?, committed_bytes = committed_bytes + ?,
                     row_version = row_version + 1
                 WHERE tenant_id = ? AND reserved_bytes >= ?
-                """, reservation.reservedBytes(), actualBytes, tenantId, reservation.reservedBytes());
-        jdbc.update("""
+                """, reservation.reservedBytes(), actualBytes, tenantId, reservation.reservedBytes()),
+                "tenant reservation commit");
+        requireOne(jdbc.update("""
                 UPDATE storage_provider_quota
                 SET reserved_bytes = reserved_bytes - ?, committed_bytes = committed_bytes + ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE provider = ? AND reserved_bytes >= ?
-                """, reservation.reservedBytes(), actualBytes, reservation.provider(), reservation.reservedBytes());
-        jdbc.update("""
+                """, reservation.reservedBytes(), actualBytes, reservation.provider(), reservation.reservedBytes()),
+                "provider reservation commit");
+        requireOne(jdbc.update("""
                 UPDATE storage_quota_reservation
                 SET state = 'COMMITTED', reserved_bytes = 0, committed_bytes = ?,
                     object_locator = ?, object_key = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ? AND tenant_id = ? AND state = 'RESERVED'
-                """, actualBytes, objectLocator, objectKey, reservationId, tenantId);
+                """, actualBytes, objectLocator, objectKey, reservationId, tenantId),
+                "reservation commit");
     }
 
     /**
@@ -158,24 +161,27 @@ public class StorageQuotaService {
 
         long reserved = "RESERVED".equals(reservation.state()) ? reservation.reservedBytes() : 0;
         long committed = "COMMITTED".equals(reservation.state()) ? reservation.committedBytes() : 0;
-        jdbc.update("""
+        requireOne(jdbc.update("""
                 UPDATE storage_tenant_usage
                 SET reserved_bytes = reserved_bytes - ?, committed_bytes = committed_bytes - ?,
                     row_version = row_version + 1
                 WHERE tenant_id = ? AND reserved_bytes >= ? AND committed_bytes >= ?
-                """, reserved, committed, tenantId, reserved, committed);
-        jdbc.update("""
+                """, reserved, committed, tenantId, reserved, committed),
+                "tenant reservation release");
+        requireOne(jdbc.update("""
                 UPDATE storage_provider_quota
                 SET reserved_bytes = reserved_bytes - ?, committed_bytes = committed_bytes - ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE provider = ? AND reserved_bytes >= ? AND committed_bytes >= ?
-                """, reserved, committed, reservation.provider(), reserved, committed);
-        jdbc.update("""
+                """, reserved, committed, reservation.provider(), reserved, committed),
+                "provider reservation release");
+        requireOne(jdbc.update("""
                 UPDATE storage_quota_reservation
                 SET state = 'RELEASED', reserved_bytes = 0, committed_bytes = 0,
                     released_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ? AND tenant_id = ? AND state <> 'RELEASED'
-                """, reservationId, tenantId);
+                """, reservationId, tenantId),
+                "reservation release");
     }
 
     @Transactional(readOnly = true)
@@ -245,6 +251,17 @@ public class StorageQuotaService {
     }
 
     private Reservation lockReservation(UUID tenantId, UUID reservationId) {
+        List<String> providers = jdbc.query("""
+                SELECT provider
+                FROM storage_quota_reservation
+                WHERE tenant_id = ? AND id = ?
+                """, (rs, row) -> rs.getString(1), tenantId, reservationId);
+        if (providers.isEmpty()) throw StorageQuotaException.invalidReservation("reservation does not exist");
+
+        // Every mutating operation uses the same lock order: provider account, tenant aggregate,
+        // then reservation. This prevents reserve-vs-release deadlocks across concurrent requests.
+        lockProvider(StorageProviderType.valueOf(providers.getFirst()));
+        lockTenant(tenantId);
         List<Reservation> rows = jdbc.query("""
                 SELECT id, provider, state, reserved_bytes, committed_bytes, object_locator
                 FROM storage_quota_reservation
@@ -255,11 +272,11 @@ public class StorageQuotaService {
                 rs.getLong("reserved_bytes"), rs.getLong("committed_bytes"), rs.getString("object_locator")),
                 tenantId, reservationId);
         if (rows.isEmpty()) throw StorageQuotaException.invalidReservation("reservation does not exist");
-        Reservation reservation = rows.getFirst();
-        // Account row is locked before the tenant and reservation rows in reserve(). For commit and
-        // release, acquire it now only after resolving the immutable provider name.
-        lockProvider(StorageProviderType.valueOf(reservation.provider()));
-        return reservation;
+        return rows.getFirst();
+    }
+
+    private static void requireOne(int rows, String operation) {
+        if (rows != 1) throw new IllegalStateException("Storage quota ledger invariant failed during " + operation);
     }
 
     private static long add(long reserved, long committed, long incoming) {

@@ -117,9 +117,9 @@ class StorageQuotaServiceIntegrationTest {
     }
 
     private long reservedBytes() {
-        return jdbc.queryForObject("SELECT reserved_bytes FROM storage_tenant_usage WHERE tenant_id = ?",
-                Long.class, tenantId) == null ? 0 : jdbc.queryForObject(
-                "SELECT reserved_bytes FROM storage_tenant_usage WHERE tenant_id = ?", Long.class, tenantId);
+        return jdbc.queryForObject("""
+                SELECT COALESCE((SELECT reserved_bytes FROM storage_tenant_usage WHERE tenant_id = ?), 0)
+                """, Long.class, tenantId);
     }
 
     private long committedBytes() {
