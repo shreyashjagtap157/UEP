@@ -139,6 +139,33 @@ class StorageQuotaServiceIntegrationTest {
     }
 
     @Test
+    void providerOperationChargeRechecksReadAndWriteAvailability() {
+        setS3OperationLimits(100, 1000, 100, 1000, 100, 1000);
+
+        jdbc.update("""
+                UPDATE storage_provider_quota
+                SET reads_enabled = false, writes_enabled = true
+                WHERE provider = 'S3_COMPATIBLE'
+                """);
+        assertThatThrownBy(() -> quota.consumeProviderOperations(tenantId, StorageProviderType.S3_COMPATIBLE,
+                StorageQuotaService.OperationClass.CLASS_B, 3))
+                .isInstanceOf(StorageQuotaException.class)
+                .hasMessageContaining("disabled by the deployment storage policy");
+        assertThat(providerOperations("CLASS_B", "DAILY")).isZero();
+
+        jdbc.update("""
+                UPDATE storage_provider_quota
+                SET reads_enabled = true, writes_enabled = false
+                WHERE provider = 'S3_COMPATIBLE'
+                """);
+        assertThatThrownBy(() -> quota.consumeProviderOperations(tenantId, StorageProviderType.S3_COMPATIBLE,
+                StorageQuotaService.OperationClass.CLASS_A, 3))
+                .isInstanceOf(StorageQuotaException.class)
+                .hasMessageContaining("disabled by the deployment storage policy");
+        assertThat(providerOperations("CLASS_A", "DAILY")).isZero();
+    }
+
+    @Test
     void providerDailyOperationBudgetIsEnforcedAtomically() {
         setS3OperationLimits(6, 90, 100, 1000, 90, 900);
 
@@ -225,7 +252,8 @@ class StorageQuotaServiceIntegrationTest {
                                       long tenantClassADaily, long tenantClassBDaily) {
         jdbc.update("""
                 UPDATE storage_provider_quota
-                SET class_a_daily_limit = ?, class_a_monthly_limit = ?,
+                SET reads_enabled = true, writes_enabled = true,
+                    class_a_daily_limit = ?, class_a_monthly_limit = ?,
                     class_b_daily_limit = ?, class_b_monthly_limit = ?,
                     tenant_class_a_daily_limit = ?, tenant_class_b_daily_limit = ?
                 WHERE provider = 'S3_COMPATIBLE'
