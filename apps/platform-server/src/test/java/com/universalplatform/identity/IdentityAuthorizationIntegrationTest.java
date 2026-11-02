@@ -93,6 +93,21 @@ class IdentityAuthorizationIntegrationTest {
     }
 
     @Test
+    void ownerCanUpdateMembershipStatusAndTenantLocalMetadata() throws Exception {
+        mvc.perform(patch("/api/v1/identity/memberships/{membershipId}", DUAL_MEMBERSHIP)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"SUSPENDED","primaryBranchId":null,"externalReference":"NATIVE-PATCH-QUALIFICATION","expectedVersion":0}
+                                """)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.membershipStatus").value("SUSPENDED"))
+                .andExpect(jsonPath("$.primaryBranchId").doesNotExist())
+                .andExpect(jsonPath("$.externalReference").value("NATIVE-PATCH-QUALIFICATION"))
+                .andExpect(jsonPath("$.version").value(1));
+    }
+
+    @Test
     void finalActiveOrganizationOwnerCannotBeSuspended() throws Exception {
         mvc.perform(patch("/api/v1/identity/memberships/{membershipId}", OWNER_MEMBERSHIP)
                         .contentType(MediaType.APPLICATION_JSON)
