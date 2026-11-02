@@ -158,16 +158,33 @@ public class StorageQuotaService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void consumeProviderOperations(UUID tenantId, StorageProviderType provider,
                                           OperationClass operationClass, long requestAttempts) {
+        consumeProviderOperationsInternal(tenantId, provider, operationClass, requestAttempts, true);
+    }
+
+    /**
+     * Object deletion remains available after a provider is read/write-disabled so cleanup can
+     * reduce stored bytes and costs. It is still charged against the Class A operation budget.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void consumeProviderDeleteOperations(UUID tenantId, StorageProviderType provider, long requestAttempts) {
+        consumeProviderOperationsInternal(tenantId, provider, OperationClass.CLASS_A, requestAttempts, false);
+    }
+
+    private void consumeProviderOperationsInternal(UUID tenantId, StorageProviderType provider,
+                                                   OperationClass operationClass, long requestAttempts,
+                                                   boolean requireEnabledDirection) {
         Objects.requireNonNull(tenantId, "tenantId");
         Objects.requireNonNull(provider, "provider");
         Objects.requireNonNull(operationClass, "operationClass");
         if (requestAttempts < 1) throw new IllegalArgumentException("Provider operation attempts must be positive");
 
         ProviderQuota account = lockProvider(provider);
-        boolean providerOperationEnabled = operationClass == OperationClass.CLASS_A
-                ? account.writesEnabled() : account.readsEnabled();
-        if (!providerOperationEnabled) {
-            throw StorageQuotaException.providerUnavailable(provider.name());
+        if (requireEnabledDirection) {
+            boolean providerOperationEnabled = operationClass == OperationClass.CLASS_A
+                    ? account.writesEnabled() : account.readsEnabled();
+            if (!providerOperationEnabled) {
+                throw StorageQuotaException.providerUnavailable(provider.name());
+            }
         }
         Long dailyLimit = operationClass == OperationClass.CLASS_A
                 ? account.classADailyLimit() : account.classBDailyLimit();
