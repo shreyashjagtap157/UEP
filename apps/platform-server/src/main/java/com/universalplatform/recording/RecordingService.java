@@ -407,7 +407,7 @@ class RecordingService {
     private record StorageObjectWrite(String locator, UUID reservationId) {}
 
     @FunctionalInterface
-    private interface RecordingInputStream {
+    interface RecordingInputStream {
         InputStream open() throws java.io.IOException;
     }
 
