@@ -16,17 +16,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: uep-database-migration
+  group: uep-supabase-database-migration
   cancel-in-progress: false
 
 jobs:
   migrate:
-    # Defense in depth only. The vercel-database-migrations Environment must
+    # Defense in depth only. The supabase-database-migrations Environment must
     # independently restrict deployments to main and require an authorized reviewer.
     if: ${{ github.ref == 'refs/heads/main' && inputs.confirm_database_migration == 'yes' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: vercel-database-migrations
+    environment: supabase-database-migrations
     steps:
       - uses: actions/checkout@v7
         with:

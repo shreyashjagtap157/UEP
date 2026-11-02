@@ -8,7 +8,7 @@ workflow = (root / ".github/workflows/staging-e2e.yml").read_text(encoding="utf-
 migration = (root / ".github/workflows/database-migration.yml").read_text(encoding="utf-8")
 playwright = (root / "apps/web/playwright.staging.config.ts").read_text(encoding="utf-8")
 identity_test = (root / "apps/web/test/staging/identity.staging.spec.ts").read_text(encoding="utf-8")
-runbook = (root / "docs/operations/OCI_CLOUDFLARE_STAGING.md").read_text(encoding="utf-8")
+runbook = (root / "docs/operations/FLY_SUPABASE_STAGING.md").read_text(encoding="utf-8")
 
 checks = {
     "database migration is manual-dispatch-only": "workflow_dispatch:" in migration and "workflow_run:" not in migration,
@@ -16,7 +16,7 @@ checks = {
     "database migration checkout is pinned to main": "ref: main" in migration,
     "database migration requires explicit confirmation": "inputs.confirm_database_migration == 'yes'" in migration,
     "database migration secrets are not job-global": "secrets." not in migration.split("    steps:", 1)[0],
-    "database migration Environment is protected": "environment: vercel-database-migrations" in migration,
+    "Supabase database migration Environment is protected": "environment: supabase-database-migrations" in migration,
     "manual dispatch remains available": "workflow_dispatch:" in workflow,
     "automatic workflow_run trigger is absent": "workflow_run:" not in workflow,
     "pull-request-target trigger is absent": "pull_request_target:" not in workflow,
