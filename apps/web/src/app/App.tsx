@@ -393,6 +393,7 @@ function MembershipRoleAssignments({
   branches: BranchView[]
 }) {
   const queryClient = useQueryClient()
+  const [scopeError, setScopeError] = useState('')
   const canViewAssignments = has(me, 'ROLES_VIEW')
   const canAssign = has(me, 'ROLES_ASSIGN') && canViewAssignments
   const assignments = useQuery({
@@ -421,9 +422,10 @@ function MembershipRoleAssignments({
     const scopeKind = String(data.get('scopeKind')) === 'BRANCH' ? 'BRANCH' : 'TENANT'
     const scopeId = String(data.get('scopeId') ?? '')
     if (scopeKind === 'BRANCH' && !scopeId) {
-      assignMutation.reset()
+      setScopeError('Select a branch before assigning a branch-scoped role.')
       return
     }
+    setScopeError('')
     assignMutation.mutate({
       membershipId: member.membershipId,
       roleId: String(data.get('roleId') ?? ''),
@@ -474,6 +476,7 @@ function MembershipRoleAssignments({
             </select></label>
           )}
           <button className="primary-button" disabled={assignMutation.isPending}>Assign role</button>
+          {scopeError && <p className="error-text" role="alert">{scopeError}</p>}
           {assignMutation.isError && <p className="error-text" role="alert">{assignMutation.error.message}</p>}
         </form>
       )}
