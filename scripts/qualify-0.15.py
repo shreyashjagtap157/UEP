@@ -469,6 +469,8 @@ for required in [
     'account.readsEnabled()',
     'SELECT reads_enabled, writes_enabled',
     'rs.getBoolean("reads_enabled")',
+    'providerOperationEnabled',
+    'StorageQuotaException.providerUnavailable(provider.name())',
 ]:
 
     if required not in storage_quota_service:
