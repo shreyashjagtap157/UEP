@@ -1,0 +1,208 @@
+# Next-session handoff — UEP native Windows full-stack qualification
+
+Use this prompt as the first message in a new ChatGPT conversation.
+
+---
+
+## Mission
+
+Continue engineering and qualify the Universal Education Platform repository:
+
+https://github.com/shreyashjagtap157/UEP
+
+Act as the principal engineer, Windows PowerShell engineer, Spring Boot/API engineer, PostgreSQL engineer, OIDC/Keycloak engineer, frontend integration engineer, security tester and release verifier.
+
+The immediate goal is to get the **actual Real UEP application** running locally on Windows without Docker/Podman or any hosted backend/database service, then prove the real browser → API → PostgreSQL request/data path.
+
+Do not spend the session repeating the work already committed. Inspect the live repository at the exact current main SHA first, inspect current CI, and continue from the implementation below.
+
+## Hard operating constraints
+
+1. Use only tools/resources that are genuinely free and will not incur charges.
+2. Do not use TinyFish, paid agents, paid runners, paid databases, cloud compute, paid upgrades or metered infrastructure.
+3. Do not create/restart/resize/deploy Fly machines, do not restore the paused Supabase project, do not create a new Supabase project, and do not provision OCI, Vercel or other hosted backend/database infrastructure.
+4. Do not use Docker, Podman or containers on the user's Windows machine. The intended local runtime is native PowerShell + Java + Maven + PostgreSQL + Keycloak + Node/Vite.
+5. Do not expose or request the contents of state.json, accounts.txt, .env files, database passwords, OIDC tokens, service credentials or private keys. Only request redacted logs.
+6. Do not use force-push, reset/rewrite shared history, or work on side branches. Preserve the repository's direct-main workflow.
+7. Read the current repository and CI output. Separate verified facts, code changes, actual validation, blockers and outstanding work.
+8. Never claim Windows runtime success unless the script has actually been executed on the user's Windows machine and the required API, database and OIDC tests have passed.
+
+## Already implemented on main
+
+Inspect these exact paths before making changes:
+
+- scripts/Start-UEP.ps1 — native Windows launcher with Demo, Real and Both modes.
+- startuep.ps1 — compatibility wrapper to the new launcher; no old machine-specific path.
+- scripts/verify-local-native-launcher.py — static launcher contract checks.
+- scripts/verify-local-deployment-boundary.py — verifies hosted backend/database deployment entry points remain retired.
+- docs/operations/LOCAL_NATIVE_WINDOWS.md — local setup and operations guide.
+- docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md — full browser/API/PostgreSQL acceptance plan.
+- docs/operations/FLY_SUPABASE_STAGING.md — retired hosted deployment and honest decommission record.
+- docs/operations/ACTUAL_STAGING_DEPLOYMENT.md — historical/retired notice.
+- docs/operations/OCI_CLOUDFLARE_STAGING.md — historical/retired notice.
+- docs/operations/VERCEL_DEPLOYMENT_READINESS.md — historical/retired notice.
+- docs/CLOUDFLARE_DEMO_DEPLOY.md — frontend-only offline demo description.
+- README.md — current local-first status and commands.
+- apps/web/vite.config.ts — /api proxy points to http://127.0.0.1:8080.
+- apps/web/src/platform/api-core.ts — authenticated fetch helper, with same-origin API path in Real mode.
+- apps/platform-server/src/main/java/com/universalplatform/DatabaseMigrationRunner.java — explicit one-shot Flyway migration runner.
+- infra/keycloak/education-realm.json — local education realm and platform-web client.
+
+The launcher performs an initial prerequisite inventory before installation or startup. It checks repository files, Node/npm, JDK, Maven, PostgreSQL tools/service, Keycloak distribution and local state; then installs/offers missing free prerequisites through WinGet or official downloads, verifies Maven SHA-512 and Keycloak SHA-256, initializes a dedicated local PostgreSQL database/roles, runs the migration runner, starts Keycloak/API/Vite, prints URLs and live statuses, and stops only the processes/services it started. It preserves local database contents.
+
+## Launcher modes and endpoints
+
+From the repository root:
+
+- Both: .\scripts\Start-UEP.ps1 -Mode Both
+- Real: .\scripts\Start-UEP.ps1 -Mode Real
+- Demo: .\scripts\Start-UEP.ps1 -Mode Demo
+- No automatic browser opening: add -NoBrowser
+- Skip additional test-persona creation: add -SkipAccountSeeding
+
+Real mode:
+
+- Frontend: http://localhost:5173
+- Backend: http://localhost:8080
+- Keycloak: http://localhost:8081
+- PostgreSQL: 127.0.0.1:5432, database uep_local_native
+
+Both mode additionally starts the offline Demo frontend at http://localhost:5174.
+
+Demo mode is deliberately offline and fixture-backed. It does not start or use the API, Keycloak or PostgreSQL. It is not evidence of a real-data workflow.
+
+## Intended Real-mode data path
+
+Browser at localhost:5173
+→ React/Vite
+→ same-origin fetch calls to /api/...
+→ Vite proxy to 127.0.0.1:8080
+→ Spring Boot authentication/tenant/authorization/domain services
+→ PostgreSQL uep_local_native as uep_local_runtime.
+
+Authentication is separate:
+
+React/Vite
+→ Keycloak 26.7.0 at localhost:8081
+→ realm education, browser client platform-web
+→ Authorization Code + PKCE S256
+→ signed JWT with tenant_id
+→ Spring Boot verifies issuer/JWKS and tenant context.
+
+Database roles:
+- uep_local_migrator — one-shot migrations/schema owner only.
+- uep_local_runtime — restricted Spring API login; no DDL, superuser, RLS bypass, role membership or object ownership.
+- uep_local_keycloak — Keycloak login, own keycloak schema only.
+
+Spring runtime must use SPRING_FLYWAY_ENABLED=false after the one-shot DatabaseMigrationRunner has applied and validated migrations. Do not run the API as postgres or the migration role.
+
+Local generated credentials are stored outside Git under %LOCALAPPDATA%\UEP\local-native\. Generated command files/logs/tools are under the ignored .uep-local directory. Do not ask the user to paste credential files.
+
+## Current hosted-resource decommission boundary
+
+Verified state from the previous session:
+
+- Fly app uep-backend-testing has a user-reported Sydney machine d89565db307d58, stopped after 10 failed starts, with no backend volume. It has **not** been permanently deleted from the Fly account.
+- Fly Keycloak app uep-keycloak-testing does not exist.
+- Supabase UEP project ref rykmwcslbzmkzmnnzvxm was paused successfully and a subsequent check reported INACTIVE. It is paused, not permanently deleted.
+- No UEP database migrations were applied to that hosted database.
+- Cloudflare Pages projects remain separate frontend-only projects. The last observed testing bundle was stale/unqualified; the demo project is offline fixture-based.
+- Fly API/Keycloak manifests, hosted Supabase database-migration workflow, remote staging E2E workflow, Vercel multi-service configuration, Vercel backend profile and Vercel-specific build scripts have been removed from main. Dockerfiles remain only for CI container-build/smoke qualification; the local launcher does not use them.
+
+Do not tell the user these provider resources were deleted. The stopped Fly machine/app and paused Supabase project still need owner-side dashboard deletion if permanent deletion is desired. Do not perform those actions without account access and do not start any resource.
+
+## Immediate next-session work — execute in order
+
+### 1. Sync and establish evidence
+- Fetch origin/main and inspect the exact current head SHA.
+- Confirm the working tree and local branch state without destroying user changes.
+- Read the current CI run for that exact SHA. The prior session had multiple commits queued in GitHub Actions due direct-main commits; do not mistake an older successful run for the final main head.
+- Inspect all failed steps/logs, especially repository-policy, local deployment boundary, local native launcher contract, PowerShell parser and production OIDC frontend build.
+- Fix only real root causes; do not weaken assertions or skip jobs to obtain green CI.
+
+### 2. Static launcher validation
+- Run the current repository checks and Python verifiers.
+- Confirm PowerShell 5.1/7 syntax is parsed by the GitHub-hosted PowerShell CI step.
+- Verify the actual launcher and the root wrapper.
+- Validate that no hosted deployment manifests/workflows have reappeared.
+- Inspect all generated command-file arguments and ACL boundaries carefully. The user must never be asked to publish service credentials.
+
+### 3. Windows machine runtime acceptance
+The local Windows runtime has **not yet been proven** by the previous conversation. Do not claim it is working until the owner executes the script.
+
+Ask the owner to sync main and run:
+    .\scripts\Start-UEP.ps1 -Mode Both
+
+PowerShell may need to run as Administrator if the PostgreSQL Windows service is stopped and Windows denies Start-Service. The first-run database bootstrap asks for the local postgres superuser password; this is entered interactively and must not be pasted into the chat. Missing free prerequisites may be installed through WinGet or official Apache/Keycloak/PostgreSQL distributions.
+
+When the user shares logs:
+- Request only redacted log excerpts and status output, never state.json/accounts.txt.
+- Diagnose root causes from .uep-local\logs and actual service output.
+- Confirm PostgreSQL accepts connections on 5432.
+- Confirm Keycloak education discovery is HTTP 200.
+- Confirm Spring Boot actuator health is HTTP 200 and status UP.
+- Confirm Real Vite app on 5173 and Demo on 5174.
+- Confirm the script stops app processes on Ctrl+C and preserves the local database.
+- If any service fails, patch and retest the local launcher/CI rather than presenting a partial startup as success.
+
+### 4. Prove browser → API → PostgreSQL for Real mode
+Use docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md as the authoritative acceptance checklist.
+
+At minimum:
+- Sign in through the real Keycloak OIDC flow.
+- Confirm platform-web uses Authorization Code with PKCE S256.
+- Confirm GET /api/v1/me resolves the local owner, tenant, membership and roles.
+- Use browser Network tooling to prove a real UI data load calls /api/... through Vite and Spring Boot.
+- Create or update a uniquely named test record through the UI/API, verify the HTTP method/status, verify the corresponding PostgreSQL row, reload/new browser context and prove the data persists.
+- Cover GET, POST, PUT, PATCH and DELETE only on actual existing documented operations.
+- Verify backend request datasource user is uep_local_runtime, never postgres/uep_local_migrator.
+- Verify Keycloak tables live in keycloak schema and UEP application tables live in public.
+- Verify no browser connection or credential exposure to PostgreSQL.
+
+### 5. Complete role and business workflow coverage
+Inspect OpenAPI, controllers, DTOs, security rules and existing tests before inventing any test input. Exercise workflows that the current product actually implements:
+- Organization/branch creation and branch-scoped role assignment.
+- Membership and role permissions.
+- Academic period/program/course/batch, enrollment and teacher assignments.
+- Teacher assignment/assessment creation and publication.
+- Student submission and teacher grading/result publication.
+- Attendance.
+- Announcements, notifications and messaging where functional.
+- Guardian access only to linked learners.
+- Tenant and branch negative access tests.
+- Support/auditor read-only restrictions.
+- Revoked/ended membership and session behavior.
+
+Use the local test personas provisioned by the launcher. The Branch Administrator must remain branch-scoped, never tenant-wide. Verify this from API results and database rows.
+
+### 6. Add durable tests and fix product wiring
+- Add real-mode Playwright tests that exercise the local API and persistence.
+- Add API integration tests where useful.
+- Add database assertions that verify persisted writes and readbacks.
+- Ensure frontend errors do not turn failed requests into false success.
+- Keep the Demo fixture tests separate and clearly labeled as not Real mode.
+- Verify all frontend actions that require server data use the shared authenticated API client; do not add direct database access to the browser.
+- Verify every data mutation is persisted through Spring service/repository/transaction paths, not frontend localStorage.
+- Add integration proof to CI only where it remains zero-charge and does not require remote infrastructure. Do not add paid resources.
+
+### 7. Documentation and handoff
+- Update LOCAL_NATIVE_WINDOWS.md and LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md after actual Windows runtime discoveries.
+- Keep the hosted retirement record accurate; never claim provider deletion without checking the provider dashboard.
+- Report exact tested commands, output, test counts, CI run URLs and commit SHAs.
+- Separate PASS, FAIL, BLOCKED and NOT TESTED.
+- Finish with a concrete next milestone, not an open-ended request to "continue".
+
+## Current expected final acceptance state
+
+Do not call UEP locally qualified until all of these are evidenced:
+- Demo mode starts offline and stays isolated.
+- Real mode starts native PostgreSQL, Keycloak, Spring API and Vite.
+- Real browser OIDC sign-in succeeds.
+- Browser-to-API proxy request succeeds.
+- Backend reads/writes the intended PostgreSQL database with the least-privilege runtime role.
+- At least one UI-originated write is verified in PostgreSQL and persists after reload/restart.
+- GET/POST/PUT/PATCH/DELETE are exercised against real supported API routes.
+- Tenant/branch/role isolation tests pass.
+- Frontend lint/tests/build, backend Maven verify, PowerShell parsing, launcher static checks and repository policy all pass on the exact current main SHA.
+
+Start by syncing and checking the live repository/CI. Do not ask the user to repeat anything already present in this handoff or in the repository.
