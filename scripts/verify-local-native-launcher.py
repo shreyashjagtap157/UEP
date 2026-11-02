@@ -80,6 +80,25 @@ checks = {
         "tenant_id" in launcher and "/api/v1/identity/bootstrap-owner" in launcher
         and "/api/v1/identity/memberships" in launcher
     ),
+    "requirement inventory runs before installers and service startup": (
+        "function Show-RequirementInventory" in launcher
+        and "Show-RequirementInventory" in launcher
+        and launcher.index("Show-RequirementInventory") < launcher.index("Ensure-Node")
+        and "Frontend lockfile" in launcher
+        and "Database migration runner" in launcher
+        and "PostgreSQL service" in launcher
+    ),
+    "branch administrator test identity is attached only at branch scope": (
+        "scopeKind = 'BRANCH'" in launcher
+        and "scopeId = $testBranch.id" in launcher
+        and "tenantScoped" in launcher
+    ),
+    "local tenant is marked local rather than as a hosted deployment": (
+        "platform=local&status=active" in launcher
+    ),
+    "SQL bootstrap script is written without a UTF-8 BOM": (
+        "$roleSql | Set-Content -LiteralPath $rolesFile -Encoding ASCII" in launcher
+    ),
     "launcher displays backend, database, Keycloak and frontend health": (
         "Live service status" in launcher and all(token in launcher for token in (
             "Write-Status 'Database'", "Write-Status 'Backend'", "Write-Status 'Keycloak'", "Write-Status 'Frontend'"
