@@ -23,8 +23,7 @@ interface UploadSessionRepository extends JpaRepository<UploadSession, UUID> {
               and u.stagingCleanedAt is null
               and (u.expiresAt < :before or u.status = :abortedStatus)
               and (
-                    :afterExpiresAt is null
-                    or u.expiresAt > :afterExpiresAt
+                    u.expiresAt > :afterExpiresAt
                     or (u.expiresAt = :afterExpiresAt and u.id > :afterId)
               )
             order by u.expiresAt asc, u.id asc
@@ -43,8 +42,7 @@ interface UploadSessionRepository extends JpaRepository<UploadSession, UUID> {
               and u.stagingCleanedAt is null
               and u.completedAt < :before
               and (
-                    :afterCompletedAt is null
-                    or u.completedAt > :afterCompletedAt
+                    u.completedAt > :afterCompletedAt
                     or (u.completedAt = :afterCompletedAt and u.id > :afterId)
               )
             order by u.completedAt asc, u.id asc
