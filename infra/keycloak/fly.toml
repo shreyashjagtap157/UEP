@@ -1,3 +1,6 @@
+# SUPERSEDED — DO NOT DEPLOY.
+# The active staging target is OCI + Cloudflare Pages, not Fly.io.
+# Retained only as an audit record. See docs/operations/OCI_CLOUDFLARE_STAGING.md.
 # Staging Keycloak identity provider.
 # Provisional region follows the repository's intended backend region. Verify the existing
 # Fly application region and account capacity before creating this second app.
