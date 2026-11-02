@@ -92,7 +92,7 @@ class UploadService {
         this.maxUploadBytes = maxUploadBytes;
     }
 
-    @Transactional
+    @Transactional(rollbackFor = IOException.class)
     UploadView initiate(String fileName, String contentType, long bytes, String sha256) throws IOException {
         auth.require(PermissionKey.CONTENT_MANAGE);
         requireUploadStagingEnabled();
@@ -121,13 +121,24 @@ class UploadService {
         Path dir = staging.resolve(tenant.toString()).normalize();
         Files.createDirectories(dir);
         Path path = dir.resolve(id + ".part");
-        Files.createFile(path);
-        UploadSession u = new UploadSession(id, tenant, actors.requireSubject(), safeName(fileName),
-                safeType(contentType), bytes, hash(sha256), provider, objectPrefix, path.toString(), clock.instant());
-        u.quotaReservationId = reservationId;
-        uploads.save(u);
-        audit.record(tenant, actors.requireSubject(), "UPLOAD_INITIATED", "upload_session", id.toString());
-        return view(u);
+        try {
+            Files.createFile(path);
+            UploadSession u = new UploadSession(id, tenant, actors.requireSubject(), safeName(fileName),
+                    safeType(contentType), bytes, hash(sha256), provider, objectPrefix, path.toString(), clock.instant());
+            u.quotaReservationId = reservationId;
+            uploads.save(u);
+            audit.record(tenant, actors.requireSubject(), "UPLOAD_INITIATED", "upload_session", id.toString());
+            return view(u);
+        } catch (IOException | RuntimeException failure) {
+            try {
+                Files.deleteIfExists(path);
+            } catch (IOException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+                log.error("Could not remove staging file after upload initialization failed for tenant {}",
+                        tenant, cleanupFailure);
+            }
+            throw failure;
+        }
     }
 
     /**
@@ -143,7 +154,7 @@ class UploadService {
                 || contentLength > expectedBytes - receivedBytes;
     }
 
-    @Transactional
+    @Transactional(rollbackFor = IOException.class)
     UploadView append(UUID id, long offset, InputStream body, long contentLength) throws IOException {
         auth.require(PermissionKey.CONTENT_MANAGE);
         requireUploadStagingEnabled();
@@ -194,7 +205,9 @@ class UploadService {
      * produced instead of re-scanning, re-uploading to the provider, and inserting a duplicate
      * {@link StorageObject}. The check runs under the session's pessimistic row lock.
      */
-    @Transactional(noRollbackFor = UploadRejectedException.class)
+    @Transactional(
+            rollbackFor = {IOException.class, GeneralSecurityException.class},
+            noRollbackFor = UploadRejectedException.class)
     StorageView finalizeUpload(UUID id) throws IOException, GeneralSecurityException {
         auth.require(PermissionKey.CONTENT_MANAGE);
         requireUploadStagingEnabled();
@@ -223,7 +236,14 @@ class UploadService {
         if (scan == ScanStatus.REJECTED) {
             u.status = UploadStatus.ABORTED;
             if (u.quotaReservationId != null) storageQuota.release(tenant, u.quotaReservationId);
-            Files.deleteIfExists(path);
+            try {
+                Files.deleteIfExists(path);
+                u.stagingCleanedAt = clock.instant();
+            } catch (IOException cleanupFailure) {
+                // The terminal rejection must commit even when local cleanup needs a retry.
+                log.warn("Could not remove malware-rejected upload staging file for tenant {} upload {}",
+                        tenant, u.id, cleanupFailure);
+            }
             audit.record(tenant, actors.requireSubject(), "UPLOAD_REJECTED_MALWARE", "upload_session", u.id.toString());
             throw new UploadRejectedException("Upload rejected by malware scanner");
         }
@@ -302,13 +322,20 @@ class UploadService {
     }
 
     @Transactional
-    void abort(UUID id) throws IOException {
+    void abort(UUID id) {
         auth.require(PermissionKey.CONTENT_MANAGE);
         UploadSession u = uploads.lock(tenants.requireTenantId(), id).orElseThrow();
         if (u.status != UploadStatus.COMPLETED) {
             u.status = UploadStatus.ABORTED;
             if (u.quotaReservationId != null) storageQuota.release(u.tenantId, u.quotaReservationId);
-            Files.deleteIfExists(Path.of(u.stagingPath));
+            try {
+                Files.deleteIfExists(Path.of(u.stagingPath));
+                u.stagingCleanedAt = clock.instant();
+            } catch (IOException cleanupFailure) {
+                // Abort and quota release are durable; the cleanup worker retries the local file.
+                log.warn("Could not remove aborted upload staging file for tenant {} upload {}",
+                        u.tenantId, u.id, cleanupFailure);
+            }
         }
     }
 
