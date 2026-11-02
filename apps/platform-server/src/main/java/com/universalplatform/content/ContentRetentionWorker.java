@@ -3,6 +3,7 @@ package com.universalplatform.content;
 import com.universalplatform.audit.AuditService;
 import com.universalplatform.storage.StorageObjectStatus;
 import com.universalplatform.storage.StorageAdapterRegistry;
+import com.universalplatform.storage.StorageQuotaService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -30,6 +31,7 @@ class ContentRetentionWorker {
     private final StorageObjectRepository objects;
     private final ContentRetentionPolicyRepository policies;
     private final StorageAdapterRegistry adapters;
+    private final StorageQuotaService storageQuota;
     private final AuditService audit;
     private final Clock clock = Clock.systemUTC();
 
@@ -38,12 +40,14 @@ class ContentRetentionWorker {
                            StorageObjectRepository objects,
                            ContentRetentionPolicyRepository policies,
                            StorageAdapterRegistry adapters,
+                           StorageQuotaService storageQuota,
                            AuditService audit) {
         this.resources = resources;
         this.versions = versions;
         this.objects = objects;
         this.policies = policies;
         this.adapters = adapters;
+        this.storageQuota = storageQuota;
         this.audit = audit;
     }
 
@@ -83,7 +87,11 @@ class ContentRetentionWorker {
                 continue;
             }
             try {
+                if (o.quotaReservationId == null) {
+                    throw new IllegalStateException("Storage object has no quota reservation; refusing unaccounted deletion");
+                }
                 adapters.require(o.provider).delete(o.locator);
+                storageQuota.release(r.tenantId, o.quotaReservationId);
                 o.markDeleted(now);
                 v.storageObjectId = null;
                 audit.record(r.tenantId, RETENTION_ACTOR, "STORAGE_OBJECT_PURGED", "storage_object", o.id.toString());

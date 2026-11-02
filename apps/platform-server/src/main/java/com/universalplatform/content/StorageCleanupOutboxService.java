@@ -20,6 +20,12 @@ public class StorageCleanupOutboxService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void enqueue(UUID tenantId, StorageProviderType provider, String locator,
                         String objectKey, Throwable reason) {
+        enqueue(tenantId, provider, locator, objectKey, null, reason);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void enqueue(UUID tenantId, StorageProviderType provider, String locator,
+                        String objectKey, UUID reservationId, Throwable reason) {
         if (tenantId == null || provider == null || locator == null || locator.isBlank()
                 || objectKey == null || objectKey.isBlank()) {
             throw new IllegalArgumentException("Complete storage cleanup identity is required");
@@ -27,9 +33,7 @@ public class StorageCleanupOutboxService {
         Instant now = clock.instant();
         // Persist only the exception class, not its message: provider errors may contain URLs or
         // response content that should not be retained in the operational outbox.
-        String error = reason == null ? "Upload transaction rolled back"
-                : reason.getClass().getSimpleName();
         repository.enqueueIfAbsent(UUID.randomUUID(), tenantId, provider.name(), locator,
-                objectKey, now, now);
+                objectKey, reservationId, now, now);
     }
 }

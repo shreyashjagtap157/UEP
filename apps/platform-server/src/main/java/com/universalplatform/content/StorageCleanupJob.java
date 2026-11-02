@@ -44,6 +44,9 @@ class StorageCleanupJob {
     @Column(length = 240)
     private String lastError;
 
+    @Column(name = "quota_reservation_id")
+    private UUID quotaReservationId;
+
     @Version
     private long rowVersion;
 
@@ -51,11 +54,17 @@ class StorageCleanupJob {
 
     StorageCleanupJob(UUID id, UUID tenantId, StorageProviderType provider, String locator,
                       String objectKey, Instant now) {
+        this(id, tenantId, provider, locator, objectKey, null, now);
+    }
+
+    StorageCleanupJob(UUID id, UUID tenantId, StorageProviderType provider, String locator,
+                      String objectKey, UUID quotaReservationId, Instant now) {
         this.id = id;
         this.tenantId = tenantId;
         this.provider = provider;
         this.locator = locator;
         this.objectKey = objectKey;
+        this.quotaReservationId = quotaReservationId;
         this.createdAt = now;
         this.nextAttemptAt = now;
     }
@@ -65,6 +74,7 @@ class StorageCleanupJob {
     StorageProviderType provider() { return provider; }
     String locator() { return locator; }
     String objectKey() { return objectKey; }
+    UUID quotaReservationId() { return quotaReservationId; }
     Instant nextAttemptAt() { return nextAttemptAt; }
     int attemptCount() { return attemptCount; }
     Instant deletedAt() { return deletedAt; }

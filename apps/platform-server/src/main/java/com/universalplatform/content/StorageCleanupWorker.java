@@ -1,6 +1,7 @@
 package com.universalplatform.content;
 
 import com.universalplatform.storage.StorageAdapterRegistry;
+import com.universalplatform.storage.StorageQuotaService;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
@@ -22,16 +23,18 @@ class StorageCleanupWorker {
 
     private final StorageCleanupRepository jobs;
     private final StorageAdapterRegistry adapters;
+    private final StorageQuotaService storageQuota;
     private final TransactionTemplate processingTransaction;
     private final TransactionTemplate failureTransaction;
     private final int batchSize;
     private final Clock clock = Clock.systemUTC();
 
     StorageCleanupWorker(StorageCleanupRepository jobs, StorageAdapterRegistry adapters,
-                         PlatformTransactionManager transactionManager,
+                         StorageQuotaService storageQuota, PlatformTransactionManager transactionManager,
                          @Value("${platform.storage.cleanup-batch-size:50}") int batchSize) {
         this.jobs = jobs;
         this.adapters = adapters;
+        this.storageQuota = storageQuota;
         this.processingTransaction = new TransactionTemplate(transactionManager);
         this.processingTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.failureTransaction = new TransactionTemplate(transactionManager);
@@ -55,6 +58,9 @@ class StorageCleanupWorker {
                 }
                 try {
                     adapters.require(job.provider()).delete(job.locator());
+                    if (job.quotaReservationId() != null) {
+                        storageQuota.release(job.tenantId(), job.quotaReservationId());
+                    }
                     job.markDeleted(clock.instant());
                 } catch (Exception exception) {
                     // Marking failed is committed inside this transaction; external deletion is

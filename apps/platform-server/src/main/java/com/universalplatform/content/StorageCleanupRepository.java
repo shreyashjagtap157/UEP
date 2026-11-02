@@ -16,11 +16,13 @@ interface StorageCleanupRepository extends JpaRepository<StorageCleanupJob, UUID
     @Modifying
     @Query(value = """
             INSERT INTO storage_cleanup_outbox(
-                id, tenant_id, provider, locator, object_key, created_at, next_attempt_at
+                id, tenant_id, provider, locator, object_key, quota_reservation_id, created_at, next_attempt_at
             ) VALUES (
-                :id, :tenantId, :provider, :locator, :objectKey, :createdAt, :nextAttemptAt
+                :id, :tenantId, :provider, :locator, :objectKey, :reservationId, :createdAt, :nextAttemptAt
             )
-            ON CONFLICT (tenant_id, provider, locator) DO NOTHING
+            ON CONFLICT (tenant_id, provider, locator) DO UPDATE
+            SET quota_reservation_id = COALESCE(storage_cleanup_outbox.quota_reservation_id,
+                                                EXCLUDED.quota_reservation_id)
             """, nativeQuery = true)
     int enqueueIfAbsent(
             @Param("id") UUID id,
@@ -28,6 +30,7 @@ interface StorageCleanupRepository extends JpaRepository<StorageCleanupJob, UUID
             @Param("provider") String provider,
             @Param("locator") String locator,
             @Param("objectKey") String objectKey,
+            @Param("reservationId") UUID reservationId,
             @Param("createdAt") Instant createdAt,
             @Param("nextAttemptAt") Instant nextAttemptAt);
 

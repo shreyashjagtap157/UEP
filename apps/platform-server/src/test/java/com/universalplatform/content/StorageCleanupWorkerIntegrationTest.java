@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.universalplatform.storage.StorageAdapter;
 import com.universalplatform.storage.StorageAdapterRegistry;
+import com.universalplatform.storage.StorageQuotaService;
 import com.universalplatform.storage.StorageProviderType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -29,6 +30,7 @@ class StorageCleanupWorkerIntegrationTest {
 
     @Autowired JdbcTemplate jdbc;
     @Autowired StorageCleanupRepository jobs;
+    @Autowired StorageQuotaService storageQuota;
     @Autowired PlatformTransactionManager transactionManager;
 
     @BeforeEach
@@ -91,7 +93,7 @@ class StorageCleanupWorkerIntegrationTest {
     }
 
     private StorageCleanupWorker worker(StorageAdapter adapter) {
-        return new StorageCleanupWorker(jobs, new StorageAdapterRegistry(List.of(adapter)), transactionManager, 20);
+        return new StorageCleanupWorker(jobs, new StorageAdapterRegistry(List.of(adapter)), storageQuota, transactionManager, 20);
     }
 
     private static StorageAdapter adapter(DeleteAction deleteAction) {
