@@ -212,8 +212,18 @@ class UploadService {
      * is longer than the committed {@code receivedBytes}. Re-align the file to the committed
      * offset before appending so a legitimate offset retry cannot produce a corrupt file.
      */
-    private static void realignIfStagingIsAheadOfCommittedOffset(Path path, long committedBytes) throws IOException {
-        if (Files.exists(path) && Files.size(path) > committedBytes) {
+    static void realignIfStagingIsAheadOfCommittedOffset(Path path, long committedBytes) throws IOException {
+        if (committedBytes < 0) {
+            throw new IllegalArgumentException("Committed upload offset cannot be negative");
+        }
+        if (!Files.exists(path)) {
+            throw new IOException("Upload staging file is missing");
+        }
+        long stagedBytes = Files.size(path);
+        if (stagedBytes < committedBytes) {
+            throw new IOException("Upload staging file is shorter than its committed offset");
+        }
+        if (stagedBytes > committedBytes) {
             try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
                 channel.truncate(committedBytes);
             }
