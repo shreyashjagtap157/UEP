@@ -102,7 +102,7 @@ class IdentityAuthorizationIntegrationTest {
                         .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.membershipStatus").value("SUSPENDED"))
-                .andExpect(jsonPath("$.externalReference").value("NATIVE-PATCH-QUALIFICATION"));
+                .andExpect(jsonPath("$.externalReference").value("NATIVE-PATCH-QUALIFICATION"))
                 .andExpect(jsonPath("$.version").value(1));
     }
 
