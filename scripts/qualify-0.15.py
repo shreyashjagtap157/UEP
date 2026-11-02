@@ -563,6 +563,43 @@ staging_service = text('apps/platform-server/src/main/java/com/universalplatform
 if 'Propagation.REQUIRES_NEW' not in staging_service or 'staging_cleaned_at = CURRENT_TIMESTAMP' not in staging_service:
     errors.append('committed staging cleanup must persist its marker in a new transaction')
 
+# Recording workers must drain candidate sets using stable keyset cursors rather than top-100 slices.
+recording_repository = text('apps/platform-server/src/main/java/com/universalplatform/recording/RecordingRepository.java')
+recording_worker = text('apps/platform-server/src/main/java/com/universalplatform/recording/RecordingWorker.java')
+recording_worker_test = text('apps/platform-server/src/test/java/com/universalplatform/recording/RecordingWorkerKeysetPaginationTest.java')
+for required in [
+    'findProcessableAfter(',
+    'findArchiveCandidatesAfter(',
+    'findPurgeCandidatesAfter(',
+    'order by r.requestedAt asc, r.id asc',
+    'order by r.readyAt asc, r.id asc',
+]:
+    if required not in recording_repository:
+        errors.append(f'recording repository is missing stable keyset query: {required}')
+for required in [
+    'findProcessableAfter(',
+    'findArchiveCandidatesAfter(',
+    'findPurgeCandidatesAfter(',
+    'while (true)',
+    'PageRequest.of(0, BATCH_SIZE)',
+]:
+    if required not in recording_worker:
+        errors.append(f'recording worker is missing keyset pagination: {required}')
+for stale in [
+    'findTop100ByStatusInOrderByRequestedAtAsc(',
+    'findTop100ByStatusInAndReadyAtBeforeOrderByReadyAtAsc(',
+    'findTop100ByStatusInOrderByReadyAtAsc(',
+]:
+    if stale in recording_worker:
+        errors.append(f'recording worker must not use starvation-prone top-100 query: {stale}')
+for required_test in [
+    'processVisitsEveryCandidateAcrossMoreThanTwoPages',
+    'archiveVisitsEveryCandidateAcrossMoreThanTwoPages',
+    'purgeVisitsEveryCandidateAcrossMoreThanTwoPages',
+]:
+    if required_test not in recording_worker_test:
+        errors.append(f'missing recording worker keyset pagination regression: {required_test}')
+
 # Tenant isolation gate: require tenant-leading indexes for the high-frequency 0.15 query paths.
 required_indexes = {
     "ix_tenant_membership_tenant_status", "ix_enrollment_tenant_status_started",
