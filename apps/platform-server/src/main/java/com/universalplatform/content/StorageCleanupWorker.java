@@ -96,6 +96,8 @@ class StorageCleanupWorker {
     }
 
     private static final class StorageCleanupProcessingException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
         private StorageCleanupProcessingException(Exception cause) {
             super(cause.getClass().getSimpleName(), cause);
         }
