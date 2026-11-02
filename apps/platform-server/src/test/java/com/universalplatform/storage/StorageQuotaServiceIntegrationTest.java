@@ -166,6 +166,26 @@ class StorageQuotaServiceIntegrationTest {
     }
 
     @Test
+    void staleRecordingReservationsAreReportedWithoutAutoRelease() {
+        UUID stale = quota.reserveDurable(tenantId, StorageProviderType.LOCAL,
+                "recording:" + UUID.randomUUID() + ":MASTER", "recording/master.mp4", 100);
+        UUID ordinaryUpload = quota.reserveDurable(tenantId, StorageProviderType.LOCAL,
+                "upload:" + UUID.randomUUID(), "uploads/document.pdf", 100);
+        jdbc.update("""
+                UPDATE storage_quota_reservation
+                SET created_at = CURRENT_TIMESTAMP - INTERVAL '2 hours'
+                WHERE id IN (?, ?)
+                """, stale, ordinaryUpload);
+
+        List<StorageQuotaService.StaleReservation> rows =
+                quota.staleRecordingReservations(java.time.Instant.now().minus(java.time.Duration.ofHours(1)));
+
+        assertThat(rows).extracting(StorageQuotaService.StaleReservation::id).contains(stale).doesNotContain(ordinaryUpload);
+        assertThat(reservedBytes()).isEqualTo(200);
+        assertThat(quota.reconciliationDrift()).isEmpty();
+    }
+
+    @Test
     void providerDeleteOperationsRemainBudgetedWhenReadsAndWritesAreDisabled() {
         setS3OperationLimits(3, 3, 30, 300, 30, 300);
         jdbc.update("""
