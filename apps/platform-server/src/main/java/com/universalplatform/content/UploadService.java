@@ -278,6 +278,8 @@ class UploadService {
         if (!TransactionSynchronizationManager.isSynchronizationActive()
                 || !TransactionSynchronizationManager.isActualTransactionActive()) {
             try {
+                storageQuota.consumeProviderDeleteOperations(
+                        tenantId, provider, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
                 adapter.delete(locator);
                 storageQuota.releaseDurable(tenantId, reservationId);
             } catch (Exception cleanupFailure) {
@@ -304,6 +306,8 @@ class UploadService {
                 // Database state rolled back after the provider accepted the object.
                 try {
                     storageQuota.authorizeDelete(tenantId, provider);
+                    storageQuota.consumeProviderDeleteOperations(
+                            tenantId, provider, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
                     adapter.delete(locator);
                     storageQuota.releaseDurable(tenantId, reservationId);
                 } catch (Exception cleanupFailure) {
