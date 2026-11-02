@@ -199,34 +199,58 @@ jobs:
           set -euo pipefail
           PGPASSWORD="$UEP_CI_DB_PASSWORD" psql "postgresql://education@localhost:5432/postgres" -X -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE education_platform_smoke OWNER education;"
-          jar="apps/platform-server/target/platform-server-0.15.0.0-SNAPSHOT.jar"
-          test -f "$jar"
-          java -jar "$jar" > /tmp/uep-platform-server.log 2>&1 &
-          app_pid=$!
+          container="uep-platform-api-smoke"
+          docker rm --force "$container" >/dev/null 2>&1 || true
           cleanup() {
-            kill "$app_pid" 2>/dev/null || true
-            wait "$app_pid" 2>/dev/null || true
+            docker logs --tail 200 "$container" >/tmp/uep-platform-server.log 2>&1 || true
+            docker rm --force "$container" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
+          docker run --detach --name "$container" --network host \
+            --env SUPABASE_DB_URL \
+            --env SUPABASE_DB_USER \
+            --env SUPABASE_DB_PASS \
+            --env OIDC_ISSUER_URI \
+            --env OIDC_JWK_SET_URI \
+            --env PLATFORM_RECORDING_PLAYBACK_SECRET \
+            --env PLATFORM_INTEGRATION_SECRET_KEY \
+            --env LIVEKIT_API_KEY \
+            --env LIVEKIT_API_SECRET \
+            --env PLATFORM_DEV_MODE \
+            --env SPRING_PROFILES_ACTIVE \
+            --env SPRING_FLYWAY_ENABLED \
+            --env PLATFORM_BACKGROUND_WORKERS_ENABLED \
+            --env PLATFORM_LIVEKIT_ENABLED \
+            --env PLATFORM_UPLOAD_STAGING_ENABLED \
+            --env PLATFORM_CLAMAV_ENABLED \
+            uep-platform-api:ci
+          configured_user="$(docker inspect --format '{{.Config.User}}' "$container")"
+          if [ "$configured_user" != "10001:10001" ]; then
+            docker logs "$container" || true
+            echo "API runtime container must run as UID/GID 10001." >&2
+            exit 1
+          fi
           ready=false
           for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error http://localhost:8080/actuator/health >/tmp/uep-health.json; then
               ready=true
               break
             fi
-            if ! kill -0 "$app_pid" 2>/dev/null; then
-              cat /tmp/uep-platform-server.log
+            running="$(docker inspect --format '{{.State.Running}}' "$container" 2>/dev/null || true)"
+            if [ "$running" != "true" ]; then
+              docker logs "$container" || true
+              echo "Production API container exited before becoming healthy." >&2
               exit 1
             fi
             sleep 2
           done
           if [ "$ready" != "true" ]; then
-            tail -n 200 /tmp/uep-platform-server.log
-            echo "Packaged production-profile server did not become healthy in 120 seconds" >&2
+            docker logs --tail 200 "$container"
+            echo "Packaged production-profile container did not become healthy in 120 seconds" >&2
             exit 1
           fi
-          echo "Packaged production-profile server startup log (last 120 lines):"
-          tail -n 120 /tmp/uep-platform-server.log
+          echo "Packaged production-profile container startup log (last 120 lines):"
+          docker logs --tail 120 "$container"
           python3 scripts/load-smoke.py http://localhost:8080/actuator/health 30 6 2500 4000
 
   web:
