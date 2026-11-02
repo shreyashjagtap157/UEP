@@ -19,13 +19,13 @@ test('CSV export uses the shared authenticated API transport', () => {
 })
 
 test('native Real browser smoke proves API persistence and database-role boundaries', () => {
-  assert.ok(nativeSmoke.includes("request.method() === 'POST'"))
-  assert.ok(nativeSmoke.includes("request.method() === 'GET'"))
+  assert.ok(nativeSmoke.includes("response.request().method() === 'POST'"))
+  assert.ok(nativeSmoke.includes("response.request().method() === 'GET'"))
   assert.ok(nativeSmoke.includes('FROM public.branch'))
   assert.ok(nativeSmoke.includes('current_user'))
   assert.ok(nativeSmoke.includes('__uep_native_runtime_forbidden_probe'))
   assert.ok(nativeSmoke.includes('public.flyway_schema_history'))
-  assert.ok(nativeSmoke.includes('PGPASSWORD: database.password'))
+  assert.ok(nativeSmoke.includes("['PGPASSWORD']: database.password"))
   assert.ok(!nativeSmoke.includes('console.log('))
   assert.ok(!nativeSmoke.includes('console.info('))
   assert.ok(!nativeSmoke.includes('console.debug('))
