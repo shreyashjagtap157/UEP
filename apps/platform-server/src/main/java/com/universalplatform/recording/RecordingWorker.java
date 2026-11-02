@@ -1,19 +1,22 @@
 package com.universalplatform.recording;
 
 import com.universalplatform.security.TenantExecutionContext;
-import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
 class RecordingWorker {
+    private static final int BATCH_SIZE = 100;
+    private static final Instant FIRST_CURSOR = Instant.parse("0001-01-01T00:00:00Z");
+    private static final UUID FIRST_ID = new UUID(0L, 0L);
+
     private final RecordingRepository recordings;
     private final RecordingService service;
     private final TenantExecutionContext tenantExecution;
-    private final Clock clock = Clock.systemUTC();
 
     RecordingWorker(RecordingRepository recordings, RecordingService service, TenantExecutionContext tenantExecution) {
         this.recordings = recordings;
@@ -23,29 +26,73 @@ class RecordingWorker {
 
     @Scheduled(fixedDelayString = "${platform.recording.worker-poll-ms:2000}")
     void process() {
-        for (UUID id : recordings
-                .findTop100ByStatusInOrderByRequestedAtAsc(List.of(RecordingProcessingStatus.REQUESTED,
-                        RecordingProcessingStatus.RECORDING, RecordingProcessingStatus.STARTING))
-                .stream().map(Recording::id).toList()) {
-            recordings.findById(id).ifPresent(r -> tenantExecution.run(r.tenantId(), () -> service.processOrReconcile(r)));
+        Instant afterRequestedAt = FIRST_CURSOR;
+        UUID afterId = FIRST_ID;
+        List<RecordingProcessingStatus> statuses = List.of(
+                RecordingProcessingStatus.REQUESTED,
+                RecordingProcessingStatus.RECORDING,
+                RecordingProcessingStatus.STARTING);
+
+        while (true) {
+            List<Recording> batch = recordings.findProcessableAfter(
+                    statuses, afterRequestedAt, afterId, PageRequest.of(0, BATCH_SIZE));
+            if (batch.isEmpty()) break;
+
+            for (Recording candidate : batch) {
+                // Advance by immutable ordering keys before processing; the worker may change status.
+                afterRequestedAt = candidate.requestedAt();
+                afterId = candidate.id();
+                recordings.findById(candidate.id()).ifPresent(
+                        recording -> tenantExecution.run(recording.tenantId(),
+                                () -> service.processOrReconcile(recording)));
+            }
+            if (batch.size() < BATCH_SIZE) break;
         }
     }
 
-    /** ARCHIVING rows are included so a partially completed migration pass on any instance recovers safely. */
+    /** Keyset pagination prevents an old ARCHIVING row from starving later recordings. */
     @Scheduled(fixedDelayString = "${platform.recording.archive-poll-ms:60000}")
     void archive() {
-        Instant now = clock.instant();
-        for (Recording r : recordings.findTop100ByStatusInAndReadyAtBeforeOrderByReadyAtAsc(
-                List.of(RecordingProcessingStatus.READY, RecordingProcessingStatus.ARCHIVING), now.minusSeconds(1))) {
-            tenantExecution.run(r.tenantId(), () -> service.archiveDue(r));
+        Instant before = Instant.now().minusSeconds(1);
+        Instant afterReadyAt = FIRST_CURSOR;
+        UUID afterId = FIRST_ID;
+        List<RecordingProcessingStatus> statuses = List.of(
+                RecordingProcessingStatus.READY,
+                RecordingProcessingStatus.ARCHIVING);
+
+        while (true) {
+            List<Recording> batch = recordings.findArchiveCandidatesAfter(
+                    statuses, before, afterReadyAt, afterId, PageRequest.of(0, BATCH_SIZE));
+            if (batch.isEmpty()) break;
+
+            for (Recording recording : batch) {
+                afterReadyAt = recording.readyAt();
+                afterId = recording.id();
+                tenantExecution.run(recording.tenantId(), () -> service.archiveDue(recording));
+            }
+            if (batch.size() < BATCH_SIZE) break;
         }
     }
 
     @Scheduled(fixedDelayString = "${platform.recording.retention-poll-ms:3600000}")
     void purge() {
-        for (Recording r : recordings.findTop100ByStatusInOrderByReadyAtAsc(
-                List.of(RecordingProcessingStatus.READY, RecordingProcessingStatus.ARCHIVED))) {
-            tenantExecution.run(r.tenantId(), () -> service.purgeDue(r));
+        Instant afterReadyAt = FIRST_CURSOR;
+        UUID afterId = FIRST_ID;
+        List<RecordingProcessingStatus> statuses = List.of(
+                RecordingProcessingStatus.READY,
+                RecordingProcessingStatus.ARCHIVED);
+
+        while (true) {
+            List<Recording> batch = recordings.findPurgeCandidatesAfter(
+                    statuses, afterReadyAt, afterId, PageRequest.of(0, BATCH_SIZE));
+            if (batch.isEmpty()) break;
+
+            for (Recording recording : batch) {
+                afterReadyAt = recording.readyAt();
+                afterId = recording.id();
+                tenantExecution.run(recording.tenantId(), () -> service.purgeDue(recording));
+            }
+            if (batch.size() < BATCH_SIZE) break;
         }
     }
 }
