@@ -37,6 +37,23 @@ class WebhookFailurePersistencePrivacyTest {
     }
 
     @Test
+    void nullFailureTextUsesStableFallbackCategories() {
+        Instant now = Instant.parse("2026-11-02T00:00:00Z");
+        WebhookDelivery delivery = new WebhookDelivery(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                "CLASS_CREATED", "{}", now);
+        WebhookSubscription subscription = new WebhookSubscription(
+                UUID.randomUUID(), UUID.randomUUID(), "https://hooks.example.test/events",
+                "*", "encrypted-secret", now);
+
+        delivery.failed(null, now);
+        subscription.failed(now, null);
+
+        assertThat(delivery.lastError()).isEqualTo("WebhookDeliveryFailure");
+        assertThat(subscription.lastError()).isEqualTo("WebhookSubscriptionFailure");
+    }
+
+    @Test
     void knownSafeWebhookFailureCategoriesRemainOperationallyUseful() {
         Instant now = Instant.parse("2026-11-02T00:00:00Z");
         WebhookDelivery delivery = new WebhookDelivery(

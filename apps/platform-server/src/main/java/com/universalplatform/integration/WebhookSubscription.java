@@ -70,6 +70,6 @@ class WebhookSubscription {
     private static String safeFailure(String value) {
         if (value != null && value.matches("[A-Za-z0-9_$]{1,160}")) return value;
         if (value != null && value.matches("Webhook HTTP [1-5][0-9]{2}")) return value;
-        return SAFE_FAILURE_MESSAGES.contains(value) ? value : "WebhookSubscriptionFailure";
+        return value != null && SAFE_FAILURE_MESSAGES.contains(value) ? value : "WebhookSubscriptionFailure";
     }
 }
