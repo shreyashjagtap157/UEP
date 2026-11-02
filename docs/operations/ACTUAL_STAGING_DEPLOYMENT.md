@@ -692,3 +692,151 @@ After these prerequisites, execute Flyway, deploy backend then frontend, and
 run the identity matrix and cross-role product workflows. Re-run CI against
 any repository changes and record provider release IDs and persisted E2E
 evidence before claiming staging acceptance.
+
+
+## Live provider re-audit — 2026-11-02
+
+This checkpoint supplements the 2026-11-01 investigation. Repository code was
+audited at `18a088205c123394dd31910e71e2e69982286cb2` before this documentation
+update. Provider checks below were read-only. No database schema, deployment,
+machine, secret, project, billing resource, or test identity was created or
+changed during this audit.
+
+### Repository and CI
+
+- Audited `main`: `18a088205c123394dd31910e71e2e69982286cb2`.
+- UEP CI run #802 (`41345313779`) completed successfully on that exact SHA.
+  All six jobs passed: backend PostgreSQL 17.11, backend PostgreSQL 18.4,
+  repository-policy, web, Keycloak staging container, and vulnerability scan.
+- UEP Staging E2E run #111 (`41345638160`) was `skipped`, not passed.
+  No deployed identity or product workflow has been qualified.
+
+### Supabase — rechecked, still not approved for application initialization
+
+The connected Supabase project `rykmwcslbzmkzmnnzvxm` is ACTIVE_HEALTHY,
+in `ap-southeast-1`, and runs PostgreSQL `17.11.0.011`.
+
+A fresh read-only catalog audit confirmed:
+
+- `public` contains zero base tables and zero RLS policies.
+- `public.flyway_schema_history` does not exist. The Supabase migration
+  listing contains the provider-side ACL remediation
+  `20261101175327_restrict_rls_auto_enable_function_execute`; this is not
+  UEP's application Flyway history.
+- The `ensure_rls` event trigger is enabled. Its SECURITY DEFINER function
+  `public.rls_auto_enable()` is owned by `postgres`; direct EXECUTE is
+  denied to `anon`, `authenticated`, and `service_role`, and retained by
+  `postgres`.
+- The connector session is `postgres`, which has `BYPASSRLS`; Supabase's
+  `service_role` also has `BYPASSRLS`. No `uep_runtime`,
+  `uep_migrator`, or `uep_keycloak` role exists.
+- Supabase security and performance advisors both returned zero lints.
+
+This confirms the earlier safety boundary; it does not establish that this
+database is an isolated, disposable staging target. Do not apply UEP V001–V046
+to this project, do not use `postgres` or `service_role` as the API runtime
+identity, and do not try to work around the event trigger or missing tenant RLS
+policies. The repository's PostgreSQL 17 UUIDv7 callback is a compatibility
+fix, not authorization to initialize this project.
+
+### Cloudflare Pages — existing projects inspected
+
+The `uep-frontend-testing` project remains connected to
+`shreyashjagtap157/UEP` on `main`, rooted at `apps/web`, with build output
+`dist`. Its Git deployments and previews are disabled, as intended.
+
+Its configured production and preview variables include
+`VITE_LOCAL_MODE=false`, `VITE_BACKEND_URL=https://uep-backend-testing.fly.dev`,
+realm `education`, and client `platform-web`. The required
+`VITE_KEYCLOAK_URL` is absent from the current project environment
+configuration. The latest recorded production deployment is
+`e9b88386-1a56-497c-859c-96d7ea734501`, created 2026-11-01 06:11 UTC from
+`c9352ea789cf5a3e9e6938e46d9803881a990a5b` with
+`commit_dirty=true`; it is not built from the audited `main` SHA above.
+Its deployment stage reports success, but that is not product acceptance.
+
+The separate `uep-frontend-demo` project has Git production and preview
+deployments enabled and sets `VITE_LOCAL_MODE=true`. Keep it classified as
+a demo only; do not use it as the real product or staging acceptance target.
+No Cloudflare project settings or deployments were changed during this audit.
+
+### Vercel-first candidate — account and feature access unresolved
+
+The connected Vercel account reports the Hobby plan. A user-scope project
+search returned no UEP project, and the default team was not accessible to
+the current connection (HTTP 403). A single-use team authorization request
+was generated and its approval link was provided to the user in the
+conversation. Team access is not yet confirmed. No Vercel project, deployment,
+or Marketplace database was created.
+
+The repository's `vercel.json` keeps Git deployments disabled. The planned
+one-time deployment must remain manual and must be paused after its successful
+smoke test, per the usage-conservation requirement.
+
+Vercel's Services feature is documented as a private beta requiring access by
+request. Team authorization alone does not prove that Services/container
+runtime access has been granted. Confirm that feature entitlement and the
+project's framework setting before attempting this multi-service deployment.
+
+The connected account is on Hobby. Vercel documents Hobby as personal and
+non-commercial use, with 4 active CPU-hours and 360 GB-hours of provisioned
+memory per month; exceeding included limits generally requires waiting for
+the usage window to reset, and Hobby does not provide on-demand usage
+purchases. Confirm plan eligibility before using this account for any
+commercial or customer-facing UEP operation. Do not assume a container
+deployment is free merely because the account is Hobby.
+
+Neon remains a candidate database for the Vercel-first profile, not a
+provisioned resource. Neon announced that its Free plan provides 1 GB of
+PostgreSQL storage and 100 CU-hours per project per month; its announcement
+also describes 5 GB of S3-compatible object storage. Recheck the provider
+dashboard's current region, plan, storage, usage, connection pooling, and
+billing terms immediately before provisioning. No Neon resource or database
+credentials have been created.
+
+References checked for this re-audit:
+- https://vercel.com/docs/services
+- https://vercel.com/docs/plans/hobby
+- https://vercel.com/docs/functions/usage-and-pricing
+- https://neon.com/blog/neon-free-plan-1-gb-per-project
+
+### Fly.io and TinyFish access — not reverified
+
+No direct Fly.io account connector is available in this session. The available
+TinyFish profiles currently report no recorded signed-in sites, so no
+authenticated Fly dashboard or machine inspection was attempted. The
+existing backend and Keycloak Fly configurations remain provisional; the
+previously recorded region discrepancy and actual app/machine/release/volume
+state are unresolved. Do not resume, redeploy, change region, create a
+replacement app, or attach a volume until the authenticated Fly account has
+been inspected.
+
+### Updated blocking sequence
+
+1. Confirm the chosen topology. The Vercel-first profile is separate from the
+   Cloudflare Pages + Fly backend + Supabase profile; do not mix their
+   environment variables, redirect origins, or database roles.
+2. Complete the already-issued Vercel team authorization and separately
+   establish Vercel Services/container beta eligibility. Confirm the Hobby
+   plan's permitted use and resource headroom.
+3. Inspect the existing Fly apps, machines, releases, regions, secrets by
+   presence only, volumes, and cost before any Fly action. Verify or deploy
+   the staging Keycloak service only after this inspection.
+4. Provision an explicitly selected isolated database only after plan/cost
+   review. For the Vercel/Neon profile, create separate migration-owner,
+   application runtime, and Keycloak database roles; run the explicit
+   one-shot migration workflow only after independently verifying the target.
+5. Verify the real Keycloak discovery document, issuer, and JWKS; update the
+   realm redirect/origin allowlist for the actual frontend URL. Do not use a
+   guessed issuer or the old Pages origin for Vercel.
+6. Configure durable storage and a separately qualified worker runtime before
+   enabling uploads, notifications, scheduled announcements, webhooks,
+   retention, recordings, or LiveKit-dependent product flows. The Vercel
+   profile intentionally fails closed for upload staging, workers, and
+   LiveKit until those services are verified.
+7. Keep staging E2E disabled until the complete identity configuration and
+   synthetic 14-role account matrix are installed. Then run the identity
+   suite and cross-role persistence/isolation workflows; retain evidence and
+   provider release IDs.
+
+No release or staging acceptance is claimed by this checkpoint.
