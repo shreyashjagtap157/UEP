@@ -1,6 +1,7 @@
 package com.universalplatform.content;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.universalplatform.storage.StorageAdapter;
 import com.universalplatform.storage.StorageAdapterRegistry;
@@ -20,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest(properties = {
         "platform.storage.cleanup-poll-ms=3600000",
@@ -31,6 +33,7 @@ class StorageCleanupWorkerIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired StorageCleanupRepository jobs;
     @Autowired StorageQuotaService storageQuota;
+    @Autowired StorageCleanupOutboxService cleanupOutbox;
     @Autowired PlatformTransactionManager transactionManager;
 
     @BeforeEach
@@ -47,6 +50,34 @@ class StorageCleanupWorkerIntegrationTest {
                 """, (rs, row) -> rs.getObject(1, UUID.class), tenantId);
         for (UUID reservationId : outstanding) storageQuota.release(tenantId, reservationId);
         jdbc.update("DELETE FROM tenant WHERE id = ?", tenantId);
+    }
+
+    @Test
+    void enqueueWithinCurrentTransactionRollsBackWithCaller() {
+        UUID reservationId = storageQuota.reserve(tenantId, StorageProviderType.LOCAL,
+                "recording-cleanup-rollback:" + UUID.randomUUID(), "recording/cleanup-rollback", 512);
+        String locator = "recording-cleanup-rollback-" + UUID.randomUUID();
+        storageQuota.commit(tenantId, reservationId, 512, locator, "recording/cleanup-rollback");
+        TransactionTemplate callerTransaction = new TransactionTemplate(transactionManager);
+
+        assertThatThrownBy(() -> callerTransaction.executeWithoutResult(status -> {
+            cleanupOutbox.enqueueWithinCurrentTransaction(tenantId, StorageProviderType.LOCAL,
+                    locator, "recording/cleanup-rollback", reservationId, null);
+            throw new IllegalStateException("abort recording metadata retirement");
+        })).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("abort recording metadata retirement");
+
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM storage_cleanup_outbox
+                WHERE tenant_id = ? AND provider = 'LOCAL' AND locator = ?
+                """, Long.class, tenantId, locator)).isZero();
+
+        callerTransaction.executeWithoutResult(status -> cleanupOutbox.enqueueWithinCurrentTransaction(
+                tenantId, StorageProviderType.LOCAL, locator, "recording/cleanup-rollback", reservationId, null));
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM storage_cleanup_outbox
+                WHERE tenant_id = ? AND provider = 'LOCAL' AND locator = ?
+                """, Long.class, tenantId, locator)).isEqualTo(1L);
     }
 
     @Test

@@ -424,6 +424,8 @@ if '@ConditionalOnProperty(prefix = "platform.storage.cleanup", name = "enabled"
     errors.append('storage cleanup scheduler must support disabling the managed poller for deterministic integration tests')
 if '"platform.storage.cleanup.enabled=false"' not in storage_cleanup_test:
     errors.append('storage cleanup worker integration tests must disable the managed background poller')
+if 'enqueueWithinCurrentTransactionRollsBackWithCaller' not in storage_cleanup_test:
+    errors.append('storage cleanup outbox must have a database integration test proving caller-transaction rollback and commit')
 storage_cleanup_migration = text('apps/platform-server/src/main/resources/db/migration/V029__storage_cleanup_outbox.sql')
 for required in [
     'CREATE TABLE storage_cleanup_outbox',
