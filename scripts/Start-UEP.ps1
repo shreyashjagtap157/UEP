@@ -120,7 +120,7 @@ function Ensure-Maven {
     else {
         Protect-Directory $ToolDir
         $zip = Join-Path $ToolDir 'apache-maven-3.10.0-bin.zip'
-        $url = 'https://downloads.apache.org/maven/maven-3/3.10.0/binaries/apache-maven-3.10.0-bin.zip'
+        $url = 'https://dlcdn.apache.org/maven/maven-3/3.10.0/binaries/apache-maven-3.10.0-bin.zip'
         Write-Host 'Downloading Apache Maven 3.10.0...' -ForegroundColor Yellow
         Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
         $hashText = (Invoke-WebRequest -Uri ($url + '.sha512') -UseBasicParsing).Content
@@ -132,7 +132,12 @@ function Ensure-Maven {
         $script:MavenCmd = $localMaven
     }
     if (-not (Test-Path $script:MavenCmd)) { throw 'Maven 3.9+ could not be located.' }
-    Write-Status 'Maven' ((& $script:MavenCmd -version 2>&1 | Select-Object -First 1).ToString()) Green
+    $mavenLine = (& $script:MavenCmd -version 2>&1 | Select-Object -First 1).ToString()
+    $mavenMatch = [regex]::Match($mavenLine, 'Apache Maven (?<version>\d+\.\d+\.\d+)')
+    if (-not $mavenMatch.Success -or [version]$mavenMatch.Groups['version'].Value -lt [version]'3.9.0') {
+        throw "Maven 3.9 or later is required. Detected: $mavenLine"
+    }
+    Write-Status 'Maven' ("OK — " + $mavenLine) Green
 }
 function Find-PostgresTools {
     $cmd = Get-Command 'psql.exe' -ErrorAction SilentlyContinue
@@ -161,6 +166,11 @@ function Ensure-Postgres {
     }
     if (-not $script:Psql -or -not (Test-Path $script:PgIsReady)) {
         throw 'PostgreSQL client tools were not found. Install PostgreSQL 17 or 18 from https://www.postgresql.org/download/windows/ and rerun.'
+    }
+    $clientVersionLine = (& $script:Psql --version 2>&1 | Out-String).Trim()
+    $clientVersionMatch = [regex]::Match($clientVersionLine, 'PostgreSQL\) (?<major>\d+)')
+    if (-not $clientVersionMatch.Success -or [int]$clientVersionMatch.Groups['major'].Value -notin @(17, 18)) {
+        throw "PostgreSQL client 17 or 18 is required. Detected: $clientVersionLine. Install PostgreSQL 18.4 side-by-side; do not upgrade/delete an existing database cluster automatically."
     }
     $service = Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^postgresql-x64-\d+' } | Sort-Object Name -Descending | Select-Object -First 1
     if ($service) {
@@ -238,18 +248,34 @@ function Initialize-LocalState {
     }
     Save-State
 }
+function Assert-PostgresServerVersion([string]$User, [string]$Password) {
+    $serverVersionNumber = Invoke-Psql $User $Password 'postgres' 'SHOW server_version_num'
+    $parsedNumber = 0
+    if (-not [int]::TryParse($serverVersionNumber.Trim(), [ref]$parsedNumber)) {
+        throw 'Could not determine the PostgreSQL server version; refusing to initialize the local database.'
+    }
+    $major = [int][Math]::Floor($parsedNumber / 10000)
+    if ($major -notin @(17, 18)) {
+        throw "UEP local qualification supports PostgreSQL 17 or 18. The connected local server reports major version $major. No migrations were run."
+    }
+    Write-Status 'PostgreSQL' ("Server version " + $major + " verified") Green
+}
 function Initialize-LocalDatabase {
     $migrationCheck = $false
     try {
         $result = Invoke-Psql $State.MigrationUser $State.MigrationPassword $State.DatabaseName 'SELECT current_database()'
         $migrationCheck = [bool]$result
     } catch { $migrationCheck = $false }
+    if ($migrationCheck) {
+        Assert-PostgresServerVersion $State.MigrationUser $State.MigrationPassword
+    }
     if (-not $migrationCheck) {
         Write-Host 'Enter the PostgreSQL superuser password set during installation. It is not stored.' -ForegroundColor Yellow
         $secure = Read-Host 'PostgreSQL password for user postgres' -AsSecureString
         $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
         try { $adminPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) }
         finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
+        Assert-PostgresServerVersion 'postgres' $adminPassword
         $rolesFile = Join-Path $LocalDir 'bootstrap-local-roles.sql'
         $roleSql = @'
 DO $uep_local_roles$
