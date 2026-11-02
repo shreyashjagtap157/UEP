@@ -164,6 +164,11 @@ public class StorageQuotaService {
         if (requestAttempts < 1) throw new IllegalArgumentException("Provider operation attempts must be positive");
 
         ProviderQuota account = lockProvider(provider);
+        boolean providerOperationEnabled = operationClass == OperationClass.CLASS_A
+                ? account.writesEnabled() : account.readsEnabled();
+        if (!providerOperationEnabled) {
+            throw StorageQuotaException.providerUnavailable(provider.name());
+        }
         Long dailyLimit = operationClass == OperationClass.CLASS_A
                 ? account.classADailyLimit() : account.classBDailyLimit();
         Long monthlyLimit = operationClass == OperationClass.CLASS_A
@@ -381,14 +386,14 @@ public class StorageQuotaService {
 
     private ProviderQuota lockProvider(StorageProviderType provider) {
         List<ProviderQuota> rows = jdbc.query("""
-                SELECT writes_enabled, hard_limit_bytes, max_object_bytes, reserved_bytes, committed_bytes,
+                SELECT reads_enabled, writes_enabled, hard_limit_bytes, max_object_bytes, reserved_bytes, committed_bytes,
                        class_a_daily_limit, class_a_monthly_limit, class_b_daily_limit, class_b_monthly_limit,
                        tenant_class_a_daily_limit, tenant_class_b_daily_limit
                 FROM storage_provider_quota
                 WHERE provider = ?
                 FOR UPDATE
                 """, (rs, row) -> new ProviderQuota(
-                rs.getBoolean("writes_enabled"), nullableLong(rs, "hard_limit_bytes"),
+                rs.getBoolean("reads_enabled"), rs.getBoolean("writes_enabled"), nullableLong(rs, "hard_limit_bytes"),
                 nullableLong(rs, "max_object_bytes"), rs.getLong("reserved_bytes"),
                 rs.getLong("committed_bytes"), nullableLong(rs, "class_a_daily_limit"),
                 nullableLong(rs, "class_a_monthly_limit"), nullableLong(rs, "class_b_daily_limit"),
@@ -462,7 +467,7 @@ public class StorageQuotaService {
         return rs.wasNull() ? null : value;
     }
 
-    private record ProviderQuota(boolean writesEnabled, Long hardLimitBytes, Long maxObjectBytes,
+    private record ProviderQuota(boolean readsEnabled, boolean writesEnabled, Long hardLimitBytes, Long maxObjectBytes,
                                  long reservedBytes, long committedBytes, Long classADailyLimit,
                                  Long classAMonthlyLimit, Long classBDailyLimit, Long classBMonthlyLimit,
                                  Long tenantClassADailyLimit, Long tenantClassBDailyLimit) {}
