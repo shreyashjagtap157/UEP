@@ -11,6 +11,8 @@ python scripts/verify-source-structure.py
 if ($LASTEXITCODE -ne 0) { throw "Java source structure verification failed" }
 python scripts/verify-contract-parity.py
 if ($LASTEXITCODE -ne 0) { throw "Cross-layer contract parity verification failed" }
+python scripts/verify-staging-workflow.py
+if ($LASTEXITCODE -ne 0) { throw "Staging workflow security contract failed" }
 
 $Diff = git diff --check
 if ($LASTEXITCODE -ne 0) { throw $Diff }
