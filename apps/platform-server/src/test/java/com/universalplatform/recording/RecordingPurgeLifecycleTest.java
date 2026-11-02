@@ -113,6 +113,25 @@ class RecordingPurgeLifecycleTest {
     }
 
     @Test
+    void archiveRecoverySerializesAndRechecksAlreadyArchivingCandidate() {
+        // The worker can hold a detached ARCHIVING snapshot after a previous attempt.
+        // Another instance may already have completed the row; re-read it under the lock.
+        recording.markArchiving();
+        Recording latest = new Recording(recordingId, tenantId, liveClassId, classSessionId,
+                "recording-room", RecordingQualityPreset.BALANCED, StorageProviderType.LOCAL,
+                Instant.now().minus(Duration.ofDays(100)));
+        latest.delete(Instant.now());
+        when(recordings.findByTenantIdAndId(tenantId, recordingId)).thenReturn(Optional.of(latest));
+
+        service.archiveDue(recording);
+
+        verify(workerLock).acquire(tenantId);
+        verify(recordings).findByTenantIdAndId(tenantId, recordingId);
+        verify(policies, never()).findById(tenantId);
+        verify(adapters, never()).require(StorageProviderType.LOCAL);
+    }
+
+    @Test
     void directReadPlaybackAndStreamEnforceActiveBatchVisibility() throws Exception {
         when(enrollment.activeBatchIdsForMembership(callerMembershipId)).thenReturn(Set.of(visibleBatchId));
 

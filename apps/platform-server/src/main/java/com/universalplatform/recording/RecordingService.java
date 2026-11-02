@@ -238,8 +238,14 @@ class RecordingService {
     private static String normalizeEgressStatus(String raw) { return raw == null ? "" : raw.strip().toUpperCase(Locale.ROOT).replace("EGRESS_STATUS_", ""); }
 
     @Transactional
-    void archiveDue(Recording r) {
-        if (r.status() != RecordingProcessingStatus.READY && r.status() != RecordingProcessingStatus.ARCHIVING) return;
+    void archiveDue(Recording candidate) {
+        // A previously committed ARCHIVING state can be retried by more than one
+        // application instance. Serialize every candidate by tenant, then refresh the
+        // persisted state under that lock before any provider operation.
+        workerLock.acquire(candidate.tenantId());
+        Recording r = recordings.findByTenantIdAndId(candidate.tenantId(), candidate.id()).orElse(null);
+        if (r == null || (r.status() != RecordingProcessingStatus.READY
+                && r.status() != RecordingProcessingStatus.ARCHIVING)) return;
         RecordingStoragePolicy p = policies.findById(r.tenantId()).orElse(null);
         if (p == null || r.readyAt() == null) return;
         Instant now = clock.instant();
