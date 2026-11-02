@@ -458,10 +458,25 @@ for required in [
         errors.append(f'persistent storage quota migration is missing invariant: {required}')
 
 storage_quota_service = text('apps/platform-server/src/main/java/com/universalplatform/storage/StorageQuotaService.java')
-for required in ['FOR UPDATE', 'public UUID reserve(', 'public void commit(', 'public void release(',
-                 'reconciliationDrift()', 'Math.addExact']:
+for required in [
+    'FOR UPDATE',
+    'public UUID reserve(',
+    'public void commit(',
+    'public void release(',
+    'reconciliationDrift()',
+    'Math.addExact',
+    'account.writesEnabled()',
+    'account.readsEnabled()',
+    'SELECT reads_enabled, writes_enabled',
+    'rs.getBoolean("reads_enabled")',
+]:
+
     if required not in storage_quota_service:
         errors.append(f'persistent storage quota service is missing contract: {required}')
+
+storage_quota_test = text('apps/platform-server/src/test/java/com/universalplatform/storage/StorageQuotaServiceIntegrationTest.java')
+if 'providerOperationChargeRechecksReadAndWriteAvailability' not in storage_quota_test:
+    errors.append('missing disabled-provider operation charge regression test')
 
 upload_service_quota = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
 for required in ['storageQuota.reserve(', 'storageQuota.commit(', 'storageQuota.release(',
