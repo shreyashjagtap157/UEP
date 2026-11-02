@@ -419,6 +419,10 @@ if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/integra
 
 # Upload provider side effects must be compensated after rollback, with durable retry when delete fails.
 storage_cleanup_worker = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java')
+storage_cleanup_job = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupJob.java')
+storage_cleanup_repository = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupRepository.java')
+storage_cleanup_operations = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupOperationsService.java')
+storage_cleanup_controller = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupOperationsController.java')
 storage_cleanup_test = text('apps/platform-server/src/test/java/com/universalplatform/content/StorageCleanupWorkerIntegrationTest.java')
 if '@ConditionalOnProperty(prefix = "platform.storage.cleanup", name = "enabled"' not in storage_cleanup_worker:
     errors.append('storage cleanup scheduler must support disabling the managed poller for deterministic integration tests')
@@ -438,177 +442,84 @@ required_cleanup_files = [
     'apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupRepository.java',
     'apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupOutboxService.java',
     'apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java',
+    'apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupOperationsService.java',
+    'apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupOperationsController.java',
+    'apps/platform-server/src/test/java/com/universalplatform/content/StorageCleanupOperationsServiceTest.java',
     'apps/platform-server/src/test/java/com/universalplatform/content/UploadFinalizationCompensationTest.java',
     'apps/platform-server/src/test/java/com/universalplatform/content/StorageCleanupWorkerIntegrationTest.java',
 ]
 for rel in required_cleanup_files:
     if not (ROOT / rel).exists():
-        errors.append(f'missing upload compensation component/test: {rel}')
-upload_service = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
+        errors.append(f'missing storage cleanup component/test: {rel}')
+storage_cleanup_entity = storage_cleanup_job
+for required in ['MAX_ATTEMPTS = 12', 'deadLetteredAt', 'void requeue(Instant now)', 'safeFailureType']:
+    if required not in storage_cleanup_entity:
+        errors.append(f'storage cleanup entity is missing bounded dead-letter contract: {required}')
 for required in [
-    'registerProviderObjectCompensation',
-    'TransactionSynchronizationManager.registerSynchronization',
-    'storageCleanupOutbox.enqueue(tenantId, provider, locator, objectKey, reservationId, cleanupFailure)',
-    'STATUS_COMMITTED',
+    'job.deadLetteredAt is null', 'job.attemptCount < 12',
+    'findTop100ByTenantIdAndDeletedAtIsNullAndDeadLetteredAtIsNotNullOrderByDeadLetteredAtAsc',
+    'lockByTenantIdAndId', 'claimIfAvailable',
+    'processingLeaseExpiresAt is null or job.processingLeaseExpiresAt <= :now',
+    'THEN EXCLUDED.quota_reservation_id',
+    'THEN EXCLUDED.object_key',
+    'IS DISTINCT FROM (EXCLUDED.object_key, EXCLUDED.quota_reservation_id)',
 ]:
-    if required not in upload_service:
-        errors.append(f'upload finalization is missing rollback compensation contract: {required}')
-storage_quota_migration = text('apps/platform-server/src/main/resources/db/migration/V047__persistent_storage_quota_ledger.sql')
+    if required not in storage_cleanup_repository:
+        errors.append(f'storage cleanup repository is missing terminal/identity invariant: {required}')
+for required in ['OPERATIONS_VIEW', 'OPERATIONS_MANAGE', 'scope.tenantWide()', 'STORAGE_CLEANUP_REQUEUED']:
+    if required not in storage_cleanup_operations:
+        errors.append(f'storage cleanup operations service is missing authorization/audit contract: {required}')
+for required in ['/dead-letter', '/{id}/requeue']:
+    if required not in storage_cleanup_controller:
+        errors.append(f'storage cleanup controller is missing operations endpoint: {required}')
 for required in [
-    'CREATE TABLE storage_provider_quota',
-    'CREATE TABLE storage_tenant_usage',
-    'CREATE TABLE storage_quota_reservation',
-    "('S3_COMPATIBLE', false, false",
-    'uq_storage_reservation_live_object',
-    'Storage quota backfill stopped',
-]:
-    if required not in storage_quota_migration:
-        errors.append(f'persistent storage quota migration is missing invariant: {required}')
-
-quota_reconciliation_worker = text('apps/platform-server/src/main/java/com/universalplatform/storage/StorageQuotaReconciliationWorker.java')
-if 'staleRecordingReservations(' not in quota_reconciliation_worker:
-    errors.append('storage quota reconciler must alert on stale recording reservations without auto-release')
-
-storage_quota_service = text('apps/platform-server/src/main/java/com/universalplatform/storage/StorageQuotaService.java')
-for required in [
-    'FOR UPDATE',
-    'public UUID reserve(',
-    'public void commit(',
-    'public void release(',
-    'reconciliationDrift()',
-    'Math.addExact',
-    'account.writesEnabled()',
-    'account.readsEnabled()',
-    'SELECT reads_enabled, writes_enabled',
-    'rs.getBoolean("reads_enabled")',
-    'providerOperationEnabled',
-    'StorageQuotaException.providerUnavailable(provider.name())',
-    'public void consumeProviderDeleteOperations(',
-    'staleRecordingReservations(',
-]:
-
-    if required not in storage_quota_service:
-        errors.append(f'persistent storage quota service is missing contract: {required}')
-
-storage_quota_test = text('apps/platform-server/src/test/java/com/universalplatform/storage/StorageQuotaServiceIntegrationTest.java')
-for test_name in [
-    'providerOperationChargeRechecksReadAndWriteAvailability',
-    'providerDeleteOperationsRemainBudgetedWhenReadsAndWritesAreDisabled',
-    'staleRecordingReservationsAreReportedWithoutAutoRelease',
-]:
-    if test_name not in storage_quota_test:
-        errors.append(f'missing storage quota regression test: {test_name}')
-
-recording_service_storage = text('apps/platform-server/src/main/java/com/universalplatform/recording/RecordingService.java')
-upload_service_storage = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
-retention_worker_storage = text('apps/platform-server/src/main/java/com/universalplatform/content/ContentRetentionWorker.java')
-cleanup_worker_storage = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java')
-# RecordingService retains four direct provider-delete charges for tier migration and
-# compensation. Retention purge enqueues unique objects transactionally, and
-# StorageCleanupWorker charges quota when it executes each durable cleanup job.
-for rel, source, expected_deletes in [
-    ('RecordingService.java', recording_service_storage, 4),
-    ('UploadService.java', upload_service_storage, 2),
-    ('ContentRetentionWorker.java', retention_worker_storage, 1),
-    ('StorageCleanupWorker.java', cleanup_worker_storage, 1),
-]:
-    charged_deletes = source.count('consumeProviderDeleteOperations(')
-    if charged_deletes != expected_deletes:
-        errors.append(f'{rel} must charge each inline provider deletion; expected {expected_deletes}, found {charged_deletes}')
-
-recording_cleanup_queue = text('apps/platform-server/src/main/java/com/universalplatform/storage/StorageCleanupQueue.java')
-recording_cleanup_outbox = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupOutboxService.java')
-for required in [
-    'enqueueWithinCurrentTransaction(UUID tenantId, StorageProviderType provider, String locator,',
-    'cleanupQueue.enqueueWithinCurrentTransaction(recording.tenantId(), pending.provider(),',
-]:
-    if required not in recording_cleanup_queue + recording_service_storage:
-        errors.append(f'recording purge must enqueue durable object deletion transactionally: {required}')
-recording_cleanup_outbox_normalized = ' '.join(recording_cleanup_outbox.split())
-if '@Transactional public void enqueueWithinCurrentTransaction(' not in recording_cleanup_outbox_normalized:
-    errors.append('recording cleanup outbox must join the caller transaction for atomic metadata retirement')
-for required in [
-    'storageQuota.authorizeDelete(job.tenantId(), job.provider())',
-    'storageQuota.consumeProviderDeleteOperations(job.tenantId(), job.provider(),',
-    'adapters.require(job.provider()).delete(job.locator())',
-    'storageQuota.release(job.tenantId(), job.quotaReservationId())',
-]:
-    if required not in cleanup_worker_storage:
-        errors.append(f'durable storage cleanup worker is missing provider deletion/quota contract: {required}')
-recording_purge_test = text('apps/platform-server/src/test/java/com/universalplatform/recording/RecordingPurgeLifecycleTest.java')
-for test_name in [
-    'purgeEnqueuesUniqueProviderCleanupAndRetiresMetadataAtomically',
-    'cleanupOutboxFailurePreventsRecordingMetadataRetirement',
-]:
-    if test_name not in recording_purge_test:
-        errors.append(f'missing recording retention outbox regression test: {test_name}')
-
-upload_service_quota = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
-for required in ['storageQuota.reserve(', 'storageQuota.commit(', 'storageQuota.release(',
-                 'quotaReservationId', 'reservationId, cleanupFailure']:
-    if required not in upload_service_quota:
-        errors.append(f'upload lifecycle is missing persistent quota integration: {required}')
-
-for rel, required in [
-    ('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java',
-     ['storageQuota.release(', 'adapters.require(job.provider()).delete(job.locator())']),
-    ('apps/platform-server/src/main/java/com/universalplatform/content/ContentRetentionWorker.java',
-     ['storageQuota.release(', 'quotaReservationId']),
-    ('apps/platform-server/src/main/java/com/universalplatform/content/UploadCleanupWorker.java',
-     ['storageQuota.release(', 'UploadStatus.EXPIRED']),
-]:
-    source = text(rel)
-    for contract in required:
-        if contract not in source:
-            errors.append(f'{rel} is missing storage quota contract: {contract}')
-if 'UploadStatus.EXPIRED' not in text('apps/platform-server/src/main/java/com/universalplatform/content/UploadCleanupWorker.java'):
-    errors.append('staging cleanup must retry files left behind by previously expired sessions')
-
-staging_migration = text('apps/platform-server/src/main/resources/db/migration/V030__upload_staging_cleanup_state.sql')
-if 'ADD COLUMN staging_cleaned_at timestamptz' not in staging_migration:
-    errors.append('upload staging cleanup needs a durable staging_cleaned_at marker')
-upload_repository = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadSessionRepository.java')
-for required in [
-    'findExpiredWithUncleanedStaging',
-    'findCompletedWithUncleanedStaging',
-    'order by u.expiresAt asc, u.id asc',
-    'order by u.completedAt asc, u.id asc',
-    'afterExpiresAt',
-    'afterCompletedAt',
-    'Pageable pageable',
-    'u.status = :abortedStatus',
-    '@Param("abortedStatus") UploadStatus abortedStatus',
-]:
-    if required not in upload_repository:
-        errors.append(f'upload cleanup repository is missing keyset cleanup contract: {required}')
-upload_cleanup_worker = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadCleanupWorker.java')
-for required in [
-    'UploadStatus.ABORTED',
-    'expiredStatuses, now, UploadStatus.ABORTED',
-    'PageRequest.of(0, CLEANUP_BATCH_SIZE)',
-    'afterExpiresAt',
-    'afterCompletedAt',
-    'Instant.parse("0001-01-01T00:00:00Z")',
-]:
-    if required not in upload_cleanup_worker:
-        errors.append(f'upload cleanup worker is missing starvation-safe cleanup contract: {required}')
-if ':afterExpiresAt is null' in upload_repository or ':afterCompletedAt is null' in upload_repository:
-    errors.append('upload keyset pagination must not rely on untyped nullable PostgreSQL cursor parameters')
-upload_cleanup_test = text('apps/platform-server/src/test/java/com/universalplatform/content/UploadCleanupWorkerIntegrationTest.java')
-if 'failedOldFilesDoNotStarveLaterCleanupAndAbortedSessionsStayAborted' not in upload_cleanup_test:
-    errors.append('missing upload staging cleanup pagination/abort regression test')
-storage_cleanup_worker = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java')
-storage_cleanup_worker_test = text('apps/platform-server/src/test/java/com/universalplatform/content/StorageCleanupWorkerIntegrationTest.java')
-for required in [
+    'claimTransaction.execute',
+    'jobs.claimIfAvailable',
+    'processingTransaction.executeWithoutResult',
     'failureTransaction.executeWithoutResult',
     'status.setRollbackOnly()',
-    'job.failed(reason.getClass().getSimpleName(), clock.instant())',
+    'job.failed(failureType, clock.instant())',
+    'claimToken.equals(job.processingToken())',
+    'Duration.ofMinutes(5)',
 ]:
     if required not in storage_cleanup_worker:
         errors.append(f'storage cleanup worker is missing independent retry persistence: {required}')
-if 'quotaFailurePersistsBackoffInIndependentTransaction' not in storage_cleanup_worker_test:
-    errors.append('missing storage cleanup quota-failure backoff regression')
-
+if 'reason.getClass().getSimpleName(), reason' in storage_cleanup_worker:
+    errors.append('storage cleanup worker logs must not attach raw provider throwable details')
+for required in [
+    'ADD COLUMN dead_lettered_at timestamptz',
+    'attempt_count >= 12',
+    'dead_lettered_at IS NULL',
+    'uq_storage_cleanup_pending_reservation',
+    'processing_token uuid',
+    'processing_lease_expires_at timestamptz',
+]:
+    if required not in text('apps/platform-server/src/main/resources/db/migration/V050__storage_cleanup_dead_letter_and_identity_guard.sql'):
+        errors.append(f'V050 storage cleanup migration is missing: {required}')
+for test_name in [
+    'providerCleanupDeadLettersAfterTwelveFailuresAndCanBeRequeued',
+    'enqueueRejectsAConflictingObjectIdentityForAnActiveLocator',
+    'enqueueRejectsQuotaReservationReuseForAnotherPhysicalLocator',
+    'enqueueAllowsANewObjectGenerationAfterThePreviousLocatorWasDeleted',
+    'durableClaimLeaseExcludesConcurrentClaimsAndRecoversAfterExpiry',
+]:
+    if test_name not in storage_cleanup_test:
+        errors.append(f'missing storage cleanup integration regression: {test_name}')
+if 'IS DISTINCT FROM (EXCLUDED.object_key, EXCLUDED.quota_reservation_id)' not in storage_cleanup_repository:
+    errors.append('cleanup enqueue must distinguish an idempotent duplicate from a new object generation')
+if 'deletedAt()).isNotNull()' not in storage_cleanup_test:
+    errors.append('duplicate enqueue must not reopen a completed provider deletion')
+if 'Tenant-wide operations scope is required' not in storage_cleanup_operations:
+    errors.append('storage cleanup recovery must reject branch-scoped operations identities')
+storage_cleanup_operations_test = text('apps/platform-server/src/test/java/com/universalplatform/content/StorageCleanupOperationsServiceTest.java')
+for test_name in [
+    'deadLetterListingRequiresTenantWideOperationsScope',
+    'branchScopedOperationsCannotInspectTenantWideStorageCleanupFailures',
+    'requeueRequiresTenantWideManageScopeAndWritesAuditEvent',
+    'requeueCannotResolveJobFromAnotherTenant',
+]:
+    if test_name not in storage_cleanup_operations_test:
+        errors.append(f'missing storage cleanup operations authorization regression: {test_name}')
 upload_initiation_service = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
 upload_compensation_test = text('apps/platform-server/src/test/java/com/universalplatform/content/UploadFinalizationCompensationTest.java')
 if 'registerInitiationStagingCompensation(tenant, id, path)' not in upload_initiation_service:

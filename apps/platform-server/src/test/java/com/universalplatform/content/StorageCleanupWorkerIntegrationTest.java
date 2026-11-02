@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -81,6 +82,36 @@ class StorageCleanupWorkerIntegrationTest {
     }
 
     @Test
+    void durableClaimLeaseExcludesConcurrentClaimsAndRecoversAfterExpiry() {
+        UUID jobId = saveDueJob("claim-lease-locator");
+        UUID firstToken = UUID.randomUUID();
+        UUID secondToken = UUID.randomUUID();
+        Instant now = Instant.now();
+        TransactionTemplate claimTransaction = new TransactionTemplate(transactionManager);
+
+        assertThat(claimTransaction.execute(status ->
+                jobs.claimIfAvailable(jobId, firstToken, now, now.plusSeconds(300)))).isEqualTo(1);
+        assertThat(jobs.findDueIds(Instant.now(), org.springframework.data.domain.PageRequest.of(0, 20)))
+                .doesNotContain(jobId);
+        assertThat(claimTransaction.execute(status ->
+                jobs.claimIfAvailable(jobId, secondToken, Instant.now(), Instant.now().plusSeconds(300))))
+                .isZero();
+
+        jdbc.update("""
+                UPDATE storage_cleanup_outbox
+                SET processing_lease_expires_at = CURRENT_TIMESTAMP - interval '1 second'
+                WHERE id = ?
+                """, jobId);
+
+        assertThat(jobs.findDueIds(Instant.now(), org.springframework.data.domain.PageRequest.of(0, 20)))
+                .contains(jobId);
+        assertThat(claimTransaction.execute(status ->
+                jobs.claimIfAvailable(jobId, secondToken, Instant.now(), Instant.now().plusSeconds(300))))
+                .isEqualTo(1);
+        assertThat(jobs.findById(jobId).orElseThrow().processingToken()).isEqualTo(secondToken);
+    }
+
+    @Test
     void successfulDeleteIsPersistedAndRepeatedProcessingIsIdempotent() {
         AtomicInteger deletes = new AtomicInteger();
         StorageAdapter adapter = adapter((locator) -> deletes.incrementAndGet());
@@ -122,6 +153,111 @@ class StorageCleanupWorkerIntegrationTest {
         worker.processOne(jobId);
         StorageCleanupJob stillFailed = jobs.findById(jobId).orElseThrow();
         assertThat(stillFailed.attemptCount()).isEqualTo(1);
+        assertThat(deletes).hasValue(1);
+    }
+
+    @Test
+    void providerCleanupDeadLettersAfterTwelveFailuresAndCanBeRequeued() {
+        AtomicInteger deletes = new AtomicInteger();
+        StorageCleanupWorker failingWorker = worker(adapter(locator -> {
+            deletes.incrementAndGet();
+            throw new IOException("provider endpoint and credentials must not be retained");
+        }));
+        UUID jobId = saveDueJob("dead-letter-locator");
+
+        for (int attempt = 0; attempt < StorageCleanupJob.MAX_ATTEMPTS; attempt++) {
+            jdbc.update("""
+                    UPDATE storage_cleanup_outbox
+                    SET next_attempt_at = CURRENT_TIMESTAMP - interval '1 second'
+                    WHERE id = ?
+                    """, jobId);
+            failingWorker.processOne(jobId);
+        }
+
+        StorageCleanupJob deadLettered = jobs.findById(jobId).orElseThrow();
+        assertThat(deadLettered.attemptCount()).isEqualTo(StorageCleanupJob.MAX_ATTEMPTS);
+        assertThat(deadLettered.deadLetteredAt()).isNotNull();
+        assertThat(deadLettered.lastError()).isEqualTo("IOException");
+        assertThat(jobs.findDueIds(Instant.now(), PageRequest.of(0, 20))).doesNotContain(jobId);
+
+        failingWorker.processOne(jobId);
+        assertThat(deletes).hasValue(StorageCleanupJob.MAX_ATTEMPTS);
+        assertThat(jobs.findById(jobId).orElseThrow().attemptCount()).isEqualTo(StorageCleanupJob.MAX_ATTEMPTS);
+
+        TransactionTemplate operatorTransaction = new TransactionTemplate(transactionManager);
+        operatorTransaction.executeWithoutResult(status ->
+                jobs.lockByTenantIdAndId(tenantId, jobId).orElseThrow().requeue(Instant.now()));
+        assertThat(jobs.findDueIds(Instant.now(), PageRequest.of(0, 20))).contains(jobId);
+
+        AtomicInteger successfulDeletes = new AtomicInteger();
+        worker(adapter(locator -> successfulDeletes.incrementAndGet())).processOne(jobId);
+        StorageCleanupJob completed = jobs.findById(jobId).orElseThrow();
+        assertThat(completed.deletedAt()).isNotNull();
+        assertThat(completed.deadLetteredAt()).isNull();
+        assertThat(completed.attemptCount()).isZero();
+        assertThat(jdbc.queryForObject("SELECT state FROM storage_quota_reservation WHERE id = ?",
+                String.class, completed.quotaReservationId())).isEqualTo("RELEASED");
+        assertThat(successfulDeletes).hasValue(1);
+    }
+
+    @Test
+    void enqueueRejectsAConflictingObjectIdentityForAnActiveLocator() {
+        UUID jobId = saveDueJob("identity-conflict-locator");
+        StorageCleanupJob existing = jobs.findById(jobId).orElseThrow();
+
+        cleanupOutbox.enqueue(tenantId, StorageProviderType.LOCAL, existing.locator(),
+                existing.objectKey(), existing.quotaReservationId(), null);
+
+        assertThatThrownBy(() -> cleanupOutbox.enqueue(tenantId, StorageProviderType.LOCAL,
+                existing.locator(), existing.objectKey() + "-different", existing.quotaReservationId(), null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("identity conflicts");
+
+        StorageCleanupJob unchanged = jobs.findById(jobId).orElseThrow();
+        assertThat(unchanged.objectKey()).isEqualTo(existing.objectKey());
+        assertThat(unchanged.quotaReservationId()).isEqualTo(existing.quotaReservationId());
+    }
+
+    @Test
+    void enqueueRejectsQuotaReservationReuseForAnotherPhysicalLocator() {
+        UUID jobId = saveDueJob("reservation-reuse-first-locator");
+        StorageCleanupJob existing = jobs.findById(jobId).orElseThrow();
+
+        assertThatThrownBy(() -> cleanupOutbox.enqueue(tenantId, StorageProviderType.LOCAL,
+                "reservation-reuse-second-locator", existing.objectKey(),
+                existing.quotaReservationId(), null))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        assertThat(jobs.count()).isEqualTo(1L);
+    }
+
+    @Test
+    void enqueueAllowsANewObjectGenerationAfterThePreviousLocatorWasDeleted() {
+        AtomicInteger deletes = new AtomicInteger();
+        StorageCleanupWorker worker = worker(adapter(locator -> deletes.incrementAndGet()));
+        UUID oldJobId = saveDueJob("reused-locator");
+        worker.processOne(oldJobId);
+        StorageCleanupJob oldJob = jobs.findById(oldJobId).orElseThrow();
+        assertThat(oldJob.deletedAt()).isNotNull();
+
+        cleanupOutbox.enqueue(tenantId, StorageProviderType.LOCAL,
+                "reused-locator", oldJob.objectKey(), oldJob.quotaReservationId(), null);
+        assertThat(jobs.findById(oldJobId).orElseThrow().deletedAt()).isNotNull();
+
+        String newObjectKey = "cleanup/new-generation/" + UUID.randomUUID();
+        UUID newReservationId = storageQuota.reserve(tenantId, StorageProviderType.LOCAL,
+                "cleanup:new-generation:" + UUID.randomUUID(), newObjectKey, 512);
+        storageQuota.commit(tenantId, newReservationId, 512, "reused-locator", newObjectKey);
+
+        cleanupOutbox.enqueue(tenantId, StorageProviderType.LOCAL, "reused-locator",
+                newObjectKey, newReservationId, null);
+
+        StorageCleanupJob pending = jobs.findById(oldJobId).orElseThrow();
+        assertThat(pending.deletedAt()).isNull();
+        assertThat(pending.id()).isEqualTo(oldJobId);
+        assertThat(pending.objectKey()).isEqualTo(newObjectKey);
+        assertThat(pending.quotaReservationId()).isEqualTo(newReservationId);
+        assertThat(pending.attemptCount()).isZero();
         assertThat(deletes).hasValue(1);
     }
 

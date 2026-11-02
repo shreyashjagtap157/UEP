@@ -47,7 +47,7 @@ class AnnouncementRetryStateTest {
 
         announcement.failExpiry(start.plusSeconds(1), "TransportException");
         assertThat(announcement.expiryAttemptCount()).isEqualTo(1);
-        assertThat(announcement.expiryAvailableAt()).isEqualTo(start.plusSeconds(11));
+        assertThat(announcement.expiryAvailableAt()).isEqualTo(start.plusSeconds(10));
         assertThat(announcement.expiryDeadLetteredAt()).isNull();
 
         long elapsed = 11;
@@ -55,7 +55,7 @@ class AnnouncementRetryStateTest {
             Instant attemptAt = start.plusSeconds(elapsed);
             announcement.failExpiry(attemptAt, "secret endpoint / token");
             if (attempt == 11) {
-                assertThat(announcement.expiryAvailableAt()).isEqualTo(attemptAt.plusSeconds(3600));
+                assertThat(announcement.publishAvailableAt()).isEqualTo(attemptAt.plusSeconds(3600));
             }
             if (attempt < 12) elapsed += Math.min(3600L, 5L << Math.min(attempt, 10));
         }

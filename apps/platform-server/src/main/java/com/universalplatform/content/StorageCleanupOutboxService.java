@@ -1,7 +1,7 @@
 package com.universalplatform.content;
 
-import com.universalplatform.storage.StorageProviderType;
 import com.universalplatform.storage.StorageCleanupQueue;
+import com.universalplatform.storage.StorageProviderType;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
@@ -41,7 +41,10 @@ public class StorageCleanupOutboxService implements StorageCleanupQueue {
         Instant now = clock.instant();
         // Persist only the exception class, not its message: provider errors may contain URLs or
         // response content that should not be retained in the operational outbox.
-        repository.enqueueIfAbsent(UUID.randomUUID(), tenantId, provider.name(), locator,
-                objectKey, reservationId, now, now);
+        int affected = repository.enqueueIfAbsent(UUID.randomUUID(), tenantId, provider.name(),
+                locator, objectKey, reservationId, now, now);
+        if (affected != 1) {
+            throw new IllegalStateException("Storage cleanup identity conflicts with a pending or dead-lettered provider locator");
+        }
     }
 }

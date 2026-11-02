@@ -31,3 +31,13 @@ A learning resource has a stable key and immutable numbered versions. Each versi
 - provider credentials never appear in resource API responses.
 
 Malware scanning is represented explicitly by scan state. An optional ClamAV INSTREAM adapter scans the staged file before provider finalization. Until a scanner is configured, objects are marked `NOT_CONFIGURED` rather than falsely claiming they were scanned; detected malware is rejected and never finalized into provider storage.
+
+## Durable storage cleanup and recovery
+
+Provider-object deletion is dispatched through a tenant-scoped transactional outbox. A pending cleanup job retains its live quota reservation (RESERVED or COMMITTED) until provider deletion succeeds; a failed transaction rolls back quota-operation accounting and persists retry state in a separate transaction. Retry delay grows exponentially and is capped at one hour. After 12 failed attempts the job is dead-lettered and removed from the worker's due query; its quota reservation remains in its existing RESERVED or COMMITTED state and is not silently released.
+
+Tenant-wide operations viewers can inspect at most 100 dead-lettered cleanup jobs at `GET /api/v1/storage-cleanup/dead-letter`. Tenant-wide operations managers can requeue a specific job through `POST /api/v1/storage-cleanup/{id}/requeue`. Requeue resets the attempt count and makes the job immediately eligible; success still requires provider deletion and quota release. Branch-scoped operators cannot inspect or replay these rows because cleanup records have no branch attribution.
+
+Workers claim rows in an independent transaction with a five-minute lease before provider I/O. The row lock and claim token prevent concurrent instances from processing the same live claim; an expired lease allows recovery after a worker crash. External deletion is at-least-once and storage adapters treat an already-absent object as success.
+
+An idempotent enqueue may coalesce only the same tenant/provider/locator/object-key/quota-reservation identity. Reuse of a locator is allowed only after the prior cleanup is marked deleted; a conflicting active or dead-lettered identity is rejected rather than merged. Operational logs and persisted retry metadata contain exception types only, never provider exception messages, callback URLs, credentials or response bodies.

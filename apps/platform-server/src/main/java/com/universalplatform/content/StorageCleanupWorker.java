@@ -3,6 +3,7 @@ package com.universalplatform.content;
 import com.universalplatform.storage.StorageAdapterRegistry;
 import com.universalplatform.storage.StorageQuotaService;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -20,10 +21,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 @ConditionalOnProperty(prefix = "platform.storage.cleanup", name = "enabled", havingValue = "true", matchIfMissing = true)
 class StorageCleanupWorker {
     private static final Logger log = LoggerFactory.getLogger(StorageCleanupWorker.class);
+    private static final Duration CLAIM_LEASE = Duration.ofMinutes(5);
 
     private final StorageCleanupRepository jobs;
     private final StorageAdapterRegistry adapters;
     private final StorageQuotaService storageQuota;
+    private final TransactionTemplate claimTransaction;
     private final TransactionTemplate processingTransaction;
     private final TransactionTemplate failureTransaction;
     private final int batchSize;
@@ -35,6 +38,8 @@ class StorageCleanupWorker {
         this.jobs = jobs;
         this.adapters = adapters;
         this.storageQuota = storageQuota;
+        this.claimTransaction = new TransactionTemplate(transactionManager);
+        this.claimTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.processingTransaction = new TransactionTemplate(transactionManager);
         this.processingTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.failureTransaction = new TransactionTemplate(transactionManager);
@@ -50,10 +55,25 @@ class StorageCleanupWorker {
     }
 
     void processOne(UUID id) {
+        UUID claimToken = UUID.randomUUID();
+        Instant claimTime = clock.instant();
+        try {
+            Integer claimed = claimTransaction.execute(status ->
+                    jobs.claimIfAvailable(id, claimToken, claimTime, claimTime.plus(CLAIM_LEASE)));
+            if (claimed == null || claimed != 1) return;
+        } catch (RuntimeException claimFailure) {
+            log.error("Could not claim storage cleanup job {} ({})", id, claimFailure.getClass().getSimpleName());
+            return;
+        }
+
         try {
             processingTransaction.executeWithoutResult(status -> {
                 StorageCleanupJob job = jobs.lockById(id).orElse(null);
-                if (job == null || job.deletedAt() != null || job.nextAttemptAt().isAfter(clock.instant())) {
+                Instant now = clock.instant();
+                if (job == null || !claimToken.equals(job.processingToken())
+                        || job.deletedAt() != null || job.deadLetteredAt() != null
+                        || job.attemptCount() >= StorageCleanupJob.MAX_ATTEMPTS
+                        || job.nextAttemptAt().isAfter(now)) {
                     return;
                 }
                 try {
@@ -67,9 +87,9 @@ class StorageCleanupWorker {
                     storageQuota.release(job.tenantId(), job.quotaReservationId());
                     job.markDeleted(clock.instant());
                 } catch (Exception failure) {
-                    // Roll back the processing transaction before persisting retry metadata.
-                    // A REQUIRED quota-ledger exception can mark this transaction rollback-only
-                    // even when caught, so the backoff write must use its own transaction.
+                    // Roll back provider/quota accounting before persisting retry metadata.
+                    // The independently committed claim lease prevents another instance from
+                    // taking this row in the rollback-to-backoff handoff window.
                     status.setRollbackOnly();
                     throw new StorageCleanupProcessingException(failure);
                 }
@@ -78,20 +98,23 @@ class StorageCleanupWorker {
             Throwable reason = transactionFailure instanceof StorageCleanupProcessingException
                     && transactionFailure.getCause() != null
                     ? transactionFailure.getCause() : transactionFailure;
+            String failureType = reason.getClass().getSimpleName();
             try {
                 failureTransaction.executeWithoutResult(status -> {
                     StorageCleanupJob job = jobs.lockById(id).orElse(null);
-                    if (job == null || job.deletedAt() != null || job.nextAttemptAt().isAfter(clock.instant())) {
+                    if (job == null || !claimToken.equals(job.processingToken())
+                            || job.deletedAt() != null || job.deadLetteredAt() != null
+                            || job.attemptCount() >= StorageCleanupJob.MAX_ATTEMPTS) {
                         return;
                     }
-                    job.failed(reason.getClass().getSimpleName(), clock.instant());
+                    job.failed(failureType, clock.instant());
                 });
             } catch (RuntimeException persistenceFailure) {
-                transactionFailure.addSuppressed(persistenceFailure);
-                log.error("Could not persist storage cleanup backoff for job {}", id, transactionFailure);
+                log.error("Could not persist storage cleanup retry for job {} (processing failure {}, retry-state failure {})",
+                        id, failureType, persistenceFailure.getClass().getSimpleName());
             }
             log.warn("Storage cleanup failed for job {} ({}); retry metadata is handled independently",
-                    id, reason.getClass().getSimpleName(), reason);
+                    id, failureType);
         }
     }
 

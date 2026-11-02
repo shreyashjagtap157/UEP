@@ -14,6 +14,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "storage_cleanup_outbox")
 class StorageCleanupJob {
+    static final int MAX_ATTEMPTS = 12;
+
     @Id
     private UUID id;
 
@@ -40,6 +42,9 @@ class StorageCleanupJob {
     private int attemptCount;
 
     private Instant deletedAt;
+    private Instant deadLetteredAt;
+    private UUID processingToken;
+    private Instant processingLeaseExpiresAt;
 
     @Column(length = 240)
     private String lastError;
@@ -78,18 +83,55 @@ class StorageCleanupJob {
     Instant nextAttemptAt() { return nextAttemptAt; }
     int attemptCount() { return attemptCount; }
     Instant deletedAt() { return deletedAt; }
+    Instant deadLetteredAt() { return deadLetteredAt; }
+    UUID processingToken() { return processingToken; }
+    Instant processingLeaseExpiresAt() { return processingLeaseExpiresAt; }
     String lastError() { return lastError; }
+
+    void claim(UUID token, Instant leaseExpiresAt) {
+        this.processingToken = token;
+        this.processingLeaseExpiresAt = leaseExpiresAt;
+    }
 
     void markDeleted(Instant now) {
         this.deletedAt = now;
+        this.deadLetteredAt = null;
+        this.processingToken = null;
+        this.processingLeaseExpiresAt = null;
         this.lastError = null;
     }
 
-    void failed(String safeError, Instant now) {
+    void failed(String failureType, Instant now) {
+        if (deletedAt != null || deadLetteredAt != null) return;
+        this.processingToken = null;
+        this.processingLeaseExpiresAt = null;
         this.attemptCount++;
-        this.lastError = safeError == null ? "Storage deletion failed"
-                : safeError.substring(0, Math.min(240, safeError.length()));
-        long backoffSeconds = Math.min(3600, 5L << Math.min(this.attemptCount, 9));
-        this.nextAttemptAt = now.plusSeconds(backoffSeconds);
+        this.lastError = safeFailureType(failureType);
+        if (attemptCount >= MAX_ATTEMPTS) {
+            deadLetteredAt = now;
+        } else {
+            nextAttemptAt = now.plusSeconds(retryDelaySeconds(attemptCount));
+        }
+    }
+
+    void requeue(Instant now) {
+        if (deletedAt != null || deadLetteredAt == null) {
+            throw new IllegalStateException("Only a pending dead-lettered storage cleanup can be requeued");
+        }
+        attemptCount = 0;
+        deadLetteredAt = null;
+        processingToken = null;
+        processingLeaseExpiresAt = null;
+        lastError = null;
+        nextAttemptAt = now;
+    }
+
+    private static long retryDelaySeconds(int attempt) {
+        return Math.min(3600L, 5L << Math.min(attempt, 10));
+    }
+
+    private static String safeFailureType(String value) {
+        if (value == null || !value.matches("[A-Za-z0-9_$]{1,160}")) return "StorageDeletionFailure";
+        return value;
     }
 }

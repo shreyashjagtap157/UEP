@@ -2401,6 +2401,41 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/WebhookTestRequest'}
       responses: {'204': {description: Test queued}}
+  /storage-cleanup/dead-letter:
+    get:
+      operationId: listStorageCleanupDeadLetters
+      description: Requires tenant-wide OPERATIONS_VIEW permission. Branch-scoped operations identities are denied because cleanup jobs do not carry branch attribution.
+      responses:
+        '200':
+          description: At most 100 pending dead-lettered provider cleanup jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StorageCleanupFailureView'
+        '403':
+          description: Tenant-wide OPERATIONS_VIEW permission is required
+  /storage-cleanup/{id}/requeue:
+    post:
+      operationId: requeueStorageCleanupDeadLetter
+      description: Requires tenant-wide OPERATIONS_MANAGE permission. Requeues the tenant-owned cleanup job and records an audit event.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Requeued storage cleanup job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageCleanupFailureView'
+        '400':
+          description: Job is absent from the active tenant or is not pending in the dead-letter queue
+        '403':
+          description: Tenant-wide OPERATIONS_MANAGE permission is required
   /integrations/storage:
     get:
       operationId: getStorageBinding
@@ -5572,6 +5607,15 @@ components:
         providerType: {type: string, enum: [LOCAL, S3_COMPATIBLE, GOOGLE_DRIVE, GOOGLE_SHARED_DRIVE]}
         objectPrefix: {type: string, maxLength: 200}
         expectedVersion: {type: integer, format: int64}
+    StorageCleanupFailureView:
+      type: object
+      required: [id, provider, attemptCount]
+      properties:
+        id: {type: string, format: uuid}
+        provider: {type: string, enum: [LOCAL, S3_COMPATIBLE, GOOGLE_DRIVE, GOOGLE_SHARED_DRIVE]}
+        attemptCount: {type: integer, minimum: 0}
+        failureType: {type: [string, 'null'], maxLength: 160}
+        deadLetteredAt: {type: [string, 'null'], format: date-time}
     StorageBindingView:
       type: object
       required: [providerType, objectPrefix, version]
