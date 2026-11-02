@@ -20,6 +20,7 @@ $StateFile = Join-Path $StateDir 'state.json'
 $Processes = New-Object System.Collections.Generic.List[object]
 $PostgresServiceStartedByScript = $false
 $PostgresServiceName = $null
+$PostgresClientMajor = $null
 $Psql = $null
 $PgIsReady = $null
 $MavenCmd = $null
@@ -56,7 +57,7 @@ function Show-RequirementInventory {
         $java = Find-Java
         $maven = Get-Command 'mvn.cmd' -ErrorAction SilentlyContinue
         Find-PostgresTools
-        $pgService = Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^postgresql-x64-\d+' } | Sort-Object Name -Descending | Select-Object -First 1
+        $pgService = Get-PostgresService
         $keycloak = Join-Path $ToolDir 'keycloak-26.7.0\bin\kc.bat'
         Write-Status 'JDK 21+' $(if ($java) { 'PRESENT' } else { 'MISSING — installer will be offered' }) $(if ($java) { 'Green' } else { 'Yellow' })
         Write-Status 'Maven 3.9+' $(if ($maven -or (Test-Path (Join-Path $ToolDir 'apache-maven-3.10.0\bin\mvn.cmd'))) { 'PRESENT' } else { 'MISSING — download will be offered' }) $(if ($maven -or (Test-Path (Join-Path $ToolDir 'apache-maven-3.10.0\bin\mvn.cmd'))) { 'Green' } else { 'Yellow' })
@@ -88,6 +89,20 @@ function Protect-Directory([string]$Path) {
     $acl.AddAccessRule($rule)
     Set-Acl -Path $Path -AclObject $acl
 }
+function Protect-File([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $acl = New-Object System.Security.AccessControl.FileSecurity
+    $acl.SetAccessRuleProtection($true, $false)
+    $acl.SetOwner((New-Object System.Security.Principal.NTAccount($identity)))
+    $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+        $identity,
+        [System.Security.AccessControl.FileSystemRights]::FullControl,
+        [System.Security.AccessControl.AccessControlType]::Allow
+    )
+    $acl.AddAccessRule($rule)
+    Set-Acl -Path $Path -AclObject $acl
+}
 function New-RandomSecret([int]$Bytes = 32) {
     $buffer = New-Object byte[] $Bytes
     $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
@@ -96,7 +111,9 @@ function New-RandomSecret([int]$Bytes = 32) {
 }
 function Save-State {
     Protect-Directory $StateDir
+    if (Test-Path -LiteralPath $StateFile -PathType Leaf) { Protect-File $StateFile }
     $State | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $StateFile -Encoding UTF8
+    Protect-File $StateFile
 }
 function Test-Command([string]$Name) { return [bool](Get-Command $Name -ErrorAction SilentlyContinue) }
 function Refresh-Path {
@@ -182,22 +199,73 @@ function Ensure-Maven {
     Write-Status 'Maven' ("OK — " + $mavenLine) Green
 }
 function Find-PostgresTools {
-    $cmd = Get-Command 'psql.exe' -ErrorAction SilentlyContinue
-    if ($cmd) {
-        $script:Psql = $cmd.Source
-        $script:PgIsReady = Join-Path (Split-Path $cmd.Source -Parent) 'pg_isready.exe'
-        return
-    }
+    $candidates = @()
     $root = 'C:\Program Files\PostgreSQL'
     if (Test-Path $root) {
-        $found = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending |
-            ForEach-Object { Join-Path $_.FullName 'bin\psql.exe' } | Where-Object { Test-Path $_ } | Select-Object -First 1
-        if ($found) {
-            $script:Psql = $found
-            $script:PgIsReady = Join-Path (Split-Path $found -Parent) 'pg_isready.exe'
-            $env:Path = (Split-Path $found -Parent) + ';' + $env:Path
+        foreach ($directory in Get-ChildItem $root -Directory -ErrorAction SilentlyContinue) {
+            $versionMatch = [regex]::Match($directory.Name, '^(?<major>\d+)(?:\.\d+)?$')
+            if (-not $versionMatch.Success) { continue }
+            $major = [int]$versionMatch.Groups['major'].Value
+            if ($major -notin @(17, 18)) { continue }
+            $psqlPath = Join-Path $directory.FullName 'bin\psql.exe'
+            $readyPath = Join-Path $directory.FullName 'bin\pg_isready.exe'
+            if ((Test-Path $psqlPath) -and (Test-Path $readyPath)) {
+                $candidates += [pscustomobject]@{ Major = $major; Psql = $psqlPath; PgIsReady = $readyPath }
+            }
         }
     }
+
+    $pathCommand = Get-Command 'psql.exe' -ErrorAction SilentlyContinue
+    if ($pathCommand) {
+        $versionText = (& $pathCommand.Source --version 2>&1 | Out-String).Trim()
+        $pathVersionMatch = [regex]::Match($versionText, 'PostgreSQL\) (?<major>\d+)')
+        if ($pathVersionMatch.Success) {
+            $major = [int]$pathVersionMatch.Groups['major'].Value
+            $readyPath = Join-Path (Split-Path $pathCommand.Source -Parent) 'pg_isready.exe'
+            if ($major -in @(17, 18) -and (Test-Path $readyPath) -and
+                -not ($candidates | Where-Object { $_.Psql -eq $pathCommand.Source })) {
+                $candidates += [pscustomobject]@{
+                    Major = $major
+                    Psql = $pathCommand.Source
+                    PgIsReady = $readyPath
+                }
+            }
+        }
+    }
+
+    $selected = $candidates | Sort-Object -Property Major -Descending | Select-Object -First 1
+    if ($selected) {
+        $script:PostgresClientMajor = [int]$selected.Major
+        $script:Psql = $selected.Psql
+        $script:PgIsReady = $selected.PgIsReady
+        $env:Path = (Split-Path $selected.Psql -Parent) + ';' + $env:Path
+    } else {
+        $script:PostgresClientMajor = $null
+        $script:Psql = $null
+        $script:PgIsReady = $null
+    }
+}
+function Get-PostgresService {
+    $services = @(
+        Get-Service -ErrorAction SilentlyContinue | ForEach-Object {
+            $match = [regex]::Match($_.Name, '^postgresql-x64-(?<major>\d+)$')
+            if ($match.Success) {
+                $major = [int]$match.Groups['major'].Value
+                if ($major -in @(17, 18)) {
+                    [pscustomobject]@{ Major = $major; Service = $_ }
+                }
+            }
+        } | Sort-Object -Property Major -Descending
+    )
+    $running = $services | Where-Object { $_.Service.Status -eq 'Running' } | Select-Object -First 1
+    if ($running) { return $running.Service }
+    if ($script:PostgresClientMajor) {
+        $matching = $services | Where-Object { $_.Major -eq $script:PostgresClientMajor } | Select-Object -First 1
+        if ($matching) { return $matching.Service }
+    }
+    $selected = $services | Select-Object -First 1
+    if ($selected) { return $selected.Service }
+    return $null
 }
 function Ensure-Postgres {
     Find-PostgresTools
@@ -214,7 +282,7 @@ function Ensure-Postgres {
     if (-not $clientVersionMatch.Success -or [int]$clientVersionMatch.Groups['major'].Value -notin @(17, 18)) {
         throw "PostgreSQL client 17 or 18 is required. Detected: $clientVersionLine. Install PostgreSQL 18.4 side-by-side; do not upgrade/delete an existing database cluster automatically."
     }
-    $service = Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^postgresql-x64-\d+' } | Sort-Object Name -Descending | Select-Object -First 1
+    $service = Get-PostgresService
     if ($service) {
         $script:PostgresServiceName = $service.Name
         if ($service.Status -ne 'Running') {
@@ -344,6 +412,7 @@ $uep_local_roles$;
         $roleSql = $roleSql.Replace('__RUNTIME_USER__', $State.RuntimeUser).Replace('__RUNTIME_PASSWORD__', $State.RuntimePassword)
         $roleSql = $roleSql.Replace('__KEYCLOAK_USER__', $State.KeycloakUser).Replace('__KEYCLOAK_PASSWORD__', $State.KeycloakPassword)
         $roleSql | Set-Content -LiteralPath $rolesFile -Encoding ASCII
+        Protect-File $rolesFile
         Protect-Directory $LocalDir
         Invoke-Psql 'postgres' $adminPassword 'postgres' '' $rolesFile
         $exists = Invoke-Psql 'postgres' $adminPassword 'postgres' "SELECT 1 FROM pg_database WHERE datname = '$($State.DatabaseName)'"
@@ -402,6 +471,7 @@ function Start-ManagedProcess([string]$Name, [string]$CommandFile, [string]$Work
 function Write-CommandFile([string]$Name, [string[]]$Lines) {
     $path = Join-Path $LocalDir ($Name + '.cmd')
     $Lines | Set-Content -LiteralPath $path -Encoding ASCII
+    Protect-File $path
     return $path
 }
 function Wait-ForHttp([string]$Url, [int]$TimeoutSeconds = 120, [string]$Name = 'service') {
@@ -611,38 +681,6 @@ function Ensure-LocalTestAccounts([string]$OwnerToken, [string]$AdminToken) {
     Save-State
     Write-Status 'Test users' 'OK — 13 tenant-scoped OIDC users; Branch Administrator is branch-scoped' Green
 }
-function Write-CommandFile([string]$Name, [string[]]$Lines) {
-    $path = Join-Path $LocalDir ($Name + '.cmd')
-    $Lines | Set-Content -LiteralPath $path -Encoding ASCII
-    return $path
-}
-function Start-ManagedProcess([string]$Name, [string]$CommandFile, [string]$WorkingDirectory) {
-    $stdout = Join-Path $LogDir ($Name + '.log')
-    $stderr = Join-Path $LogDir ($Name + '.err.log')
-    $proc = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/c', ('"' + $CommandFile + '"')) -WorkingDirectory $WorkingDirectory -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-    $entry = [pscustomobject]@{ Name = $Name; ProcessId = $proc.Id; Log = $stdout; ErrorLog = $stderr }
-    $script:Processes.Add($entry)
-    Write-Status $Name ("started (PID " + $proc.Id + ')') Yellow
-    return $entry
-}
-function Wait-ForHttp([string]$Url, [int]$TimeoutSeconds = 120, [string]$Name = 'service') {
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    while ((Get-Date) -lt $deadline) {
-        try {
-            $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 4
-            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) { return $true }
-        } catch {}
-        Start-Sleep -Seconds 2
-    }
-    foreach ($entry in $script:Processes) {
-        if ($entry.Name -eq $Name -and (Test-Path $entry.Log)) {
-            Write-Host ("Last log lines for " + $Name + ":") -ForegroundColor Red
-            Get-Content $entry.Log -Tail 80
-            if (Test-Path $entry.ErrorLog) { Get-Content $entry.ErrorLog -Tail 40 }
-        }
-    }
-    return $false
-}
 function Test-PortAvailable([int]$Port) {
     $listener = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($listener) {
@@ -807,6 +845,7 @@ try {
             foreach ($account in $State.TestAccounts) { $accountLines += ($account.username + ' / ' + $account.password + ' / ' + $account.email) }
             $accountsFile = Join-Path $StateDir 'accounts.txt'
             $accountLines | Set-Content -LiteralPath $accountsFile -Encoding UTF8
+            Protect-File $accountsFile
             Write-Host ('  Credentials file: ' + $accountsFile)
         }
     }
