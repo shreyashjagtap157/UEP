@@ -3,6 +3,7 @@ package com.universalplatform.recording;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,7 +51,7 @@ class RecordingWorkerKeysetPaginationTest {
         byId = new HashMap<>();
         candidates.forEach(recording -> byId.put(recording.id(), recording));
 
-        when(recordings.findById(any(UUID.class)))
+        lenient().when(recordings.findById(any(UUID.class)))
                 .thenAnswer(invocation -> Optional.ofNullable(byId.get(invocation.getArgument(0))));
         doAnswer(invocation -> {
             invocation.<Runnable>getArgument(1).run();
@@ -127,7 +128,10 @@ class RecordingWorkerKeysetPaginationTest {
                 .filter(recording -> timestamp.apply(recording).isAfter(cursorAt)
                         || (timestamp.apply(recording).equals(cursorAt)
                         && recording.id().compareTo(cursorId) > 0))
-                .sorted(Comparator.comparing(timestamp).thenComparing(Recording::id))
+                .sorted((left, right) -> {
+                    int timeOrder = timestamp.apply(left).compareTo(timestamp.apply(right));
+                    return timeOrder != 0 ? timeOrder : left.id().compareTo(right.id());
+                })
                 .limit(pageable.getPageSize())
                 .toList();
     }
