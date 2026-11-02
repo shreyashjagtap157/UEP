@@ -61,6 +61,8 @@ class StorageCleanupWorker {
                         throw new IllegalStateException("Pending storage cleanup has no quota reservation; refusing unaccounted deletion");
                     }
                     storageQuota.authorizeDelete(job.tenantId(), job.provider());
+                    storageQuota.consumeProviderDeleteOperations(job.tenantId(), job.provider(),
+                            StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
                     adapters.require(job.provider()).delete(job.locator());
                     storageQuota.release(job.tenantId(), job.quotaReservationId());
                     job.markDeleted(clock.instant());
