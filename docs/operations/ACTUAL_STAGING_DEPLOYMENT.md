@@ -1,8 +1,16 @@
-# UEP — actual remote staging deployment and qualification
+# UEP — historical Fly.io + Supabase staging deployment record
 
-This is the deployment authority for the real UEP product. The older root-level
-`FREE_TIER_DEPLOYMENT.md` and `docs/CLOUDFLARE_DEMO_DEPLOY.md` described a local
-presentation build and are not evidence of a functioning multi-tenant deployment.
+> **SUPERSEDED — DO NOT USE FOR NEW DEPLOYMENTS.** On 2026-11-02 the target
+> topology was changed to OCI Always Free + Cloudflare Pages + Cloudflare R2.
+> Use [OCI_CLOUDFLARE_STAGING.md](OCI_CLOUDFLARE_STAGING.md) as the current
+> deployment runbook. This file is retained as an audit/history record only.
+> Its Fly.io and Supabase instructions are not authorization to create,
+> resume, migrate, or incur charges on those providers.
+
+The original document described a Fly.io + Supabase staging candidate. Its
+historical verification boundaries remain useful for understanding why that
+candidate was not accepted, but its deployment commands, hostnames, provider
+variables, and acceptance path must not be followed for the new topology.
 
 ## Required architecture
 
