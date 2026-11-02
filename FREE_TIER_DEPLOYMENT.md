@@ -1,22 +1,14 @@
-# Deployment status — superseded guide
+# Retired free-tier deployment guide
 
-This document is retained only to preserve the historical path. Its Railway,
-AWS, H2, `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, and
-`VITE_LOCAL_MODE=true` instructions are obsolete and must not be followed for
-a real product deployment.
+**STATUS: RETIRED — DO NOT FOLLOW.**
 
-The prior Cloudflare Pages deployment described here was a local presentation
-build. It did not prove a connected Keycloak identity provider, Spring Boot
-backend, Supabase PostgreSQL database, durable storage, or real multi-tenant
-product behaviour.
+All earlier Railway, AWS, H2, Fly.io, Supabase, Vercel and free-tier deployment proposals in this file are obsolete. None is an approved or supported deployment path for this repository.
 
-Use the current deployment authority instead:
+The owner requires every task and runtime to use only genuinely free resources and incur no additional charges. The prior Fly API machine is stopped; the Keycloak Fly app does not exist; the connected Supabase UEP Free project was paused and is inactive. The hosted backend/database deployment entry points were removed from main. Provider-side permanent deletion is not claimed; see [the decommission record](docs/operations/FLY_SUPABASE_STAGING.md).
 
-- [Actual remote staging deployment and qualification](docs/operations/ACTUAL_STAGING_DEPLOYMENT.md)
+The supported path is local:
+- [Native Windows launcher](scripts/Start-UEP.ps1)
+- [Local environment guide](docs/operations/LOCAL_NATIVE_WINDOWS.md)
+- [Local full-stack acceptance prompt](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md)
 
-**Acceptance rule:** LocalExperience and LocalDemoStore are not product
-identity/data providers and their tests do not qualify deployment. UEP is
-accepted as a real staging product only after the frontend, backend, deployed
-Keycloak realm, isolated Supabase database, staging identities, role matrix,
-and cross-role feature workflows have all been verified against the remote
-deployment.
+The Demo mode is an offline presentation using local fixtures. The Real mode runs the actual Spring Boot API, Keycloak OIDC and PostgreSQL database locally. Neither connects to hosted infrastructure.
