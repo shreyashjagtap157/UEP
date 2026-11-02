@@ -501,9 +501,9 @@ recording_service_storage = text('apps/platform-server/src/main/java/com/univers
 upload_service_storage = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
 retention_worker_storage = text('apps/platform-server/src/main/java/com/universalplatform/content/ContentRetentionWorker.java')
 cleanup_worker_storage = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java')
-# RecordingService retains four direct provider-delete charges for tier-migration and
-# compensation paths. Retention purge now enqueues each unique object transactionally;
-# StorageCleanupWorker owns the fifth/sixth deletion paths and their quota charges.
+# RecordingService retains four direct provider-delete charges for tier migration and
+# compensation. Retention purge enqueues unique objects transactionally, and
+# StorageCleanupWorker charges quota when it executes each durable cleanup job.
 for rel, source, expected_deletes in [
     ('RecordingService.java', recording_service_storage, 4),
     ('UploadService.java', upload_service_storage, 2),
@@ -522,7 +522,7 @@ for required in [
 ]:
     if required not in recording_cleanup_queue + recording_service_storage:
         errors.append(f'recording purge must enqueue durable object deletion transactionally: {required}')
-if '@Transactional\\n    public void enqueueWithinCurrentTransaction(' not in recording_cleanup_outbox:
+if not re.search(r'@Transactional\\s+public void enqueueWithinCurrentTransaction\\(', recording_cleanup_outbox):
     errors.append('recording cleanup outbox must join the caller transaction for atomic metadata retirement')
 for required in [
     'storageQuota.authorizeDelete(job.tenantId(), job.provider())',
