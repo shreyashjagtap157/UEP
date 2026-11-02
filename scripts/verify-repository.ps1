@@ -11,7 +11,7 @@ python scripts/verify-source-structure.py
 if ($LASTEXITCODE -ne 0) { throw "Java source structure verification failed" }
 python scripts/verify-contract-parity.py
 if ($LASTEXITCODE -ne 0) { throw "Cross-layer contract parity verification failed" }
-python scripts/verify-staging-workflow.py
+python scripts/verify-local-deployment-boundary.py
 if ($LASTEXITCODE -ne 0) { throw "Hosted deployment retirement contract failed" }
 python scripts/verify-local-native-launcher.py
 if ($LASTEXITCODE -ne 0) { throw "Native Windows launcher contract failed" }
