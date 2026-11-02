@@ -317,3 +317,16 @@ CI status at the last live check:
 - Native Windows runtime remains unexecuted in this environment. No claim of local full-stack runtime success is permitted.
 
 Next work: inspect current-head CI and any failures; then continue a method-by-method OpenAPI-to-frontend-workspace inventory. Do not assume all 225 operations require direct UI buttons—some are internal lifecycle, public verification, background operations, or role-gated APIs. Prioritize user-facing workflow gaps, preserve permission boundaries and use real backend/database tests. Do not weaken CI or remove coverage.
+
+## Continuation update — role assignment persistence and permission visibility
+
+- CI runs #1074 through #1076 all completed successfully, including all six jobs. #1076 was on d25ab79c038b8ba80ad5820863a9212dcc4a694f.
+- A UI permission issue was found during source review: role assignment controls were nested inside the USERS_MANAGE-only membership editor cell. This hid role assignment management from users who had USERS_VIEW plus ROLES_VIEW/ROLES_ASSIGN but not USERS_MANAGE. The People table now has a separate Role assignments column, independently gated by ROLES_VIEW or ROLES_ASSIGN; the membership-edit column remains gated by USERS_MANAGE. Commit 1e104c4da3ee462b9c9e5d1d1d2177ad9bf3d619.
+- Added a frontend contract assertion for independent role-assignment visibility. Commit 39654059994125a517d8afb4406dac42f3a1c2e9.
+- Extended the native Playwright scenario to query public.role_assignment using the restricted runtime database account immediately after Student role assignment and after DELETE. It asserts persisted `1|TENANT` after POST and `0|` after DELETE. Commit 1379fbf668079bc190af7cceca0d14b22c6c42da.
+- Added source-contract assertions for the role-assignment database lifecycle. Commit 25f7c8d3928cbd8e38eddf46c3fd84d12bde8252.
+- Latest main at this update: 25f7c8d3928cbd8e38eddf46c3fd84d12bde8252.
+- CI runs #1077 through #1080 were created for the recent commits. At last check, #1080 (current HEAD) was in progress across all six jobs; #1079 and #1078 were also in progress, with #1078 web already passed. Do not claim current HEAD green until run #1080 completes.
+- The native role-assignment test now verifies API POST/DELETE responses, authenticated bearer presence, UI changes, and actual PostgreSQL row insertion/removal. It still has not been executed on the user's native Windows machine.
+
+Next: inspect CI #1080; if web fails, read full job logs and fix the actual cause. Continue permission matrix review and native run. Keep main-only, preserve DB data, and do not report source-contract tests as real runtime proof.
