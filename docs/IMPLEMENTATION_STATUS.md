@@ -1,5 +1,25 @@
 # Implementation Status
 
+## Current verified state — 2026-11-02
+
+The live `main` head is `a29485b7b73f522a553a94e769a8318d5b774702`. GitHub Actions [UEP CI run #935](https://github.com/shreyashjagtap157/UEP/actions/runs/41406036125) ran on this exact commit and completed successfully with all six jobs green:
+
+- `backend (17.11)` and `backend (18.4)`: Maven verification, PostgreSQL migration callback checks, least-privilege runtime database grants/function ACL checks, OCI and ARM64 API image builds, and packaged-server startup/health smoke.
+- `web`: locked dependency installation, lint, demo workflow tests, and production-mode build.
+- `repository-policy`: repository policy, Vercel deployment contract, backup/restore safety guards, load-smoke percentile/latency checks, and 0.15 qualification.
+- `vulnerability-scan`: Java dependency SBOM generation and OSV dependency scanning.
+- `keycloak-staging-container`: realm/container contract checks and OCI/ARM64 image build/smoke.
+
+The announcement retry/dead-letter implementation and its fixture/type-test corrections were also covered by green [run #932](https://github.com/shreyashjagtap157/UEP/actions/runs/41404638692). Current source includes publication-time audience resolution, tenant/branch-scoped dead-letter inspection and administrator replay, per-item worker exception isolation, bounded retries, and tests for audience materialization, replay authorization, retry state, and worker continuation.
+
+Recent notification/security commits also ensure SMTP and webhook-fan-out failures persist safe exception categories; provider/worker operational logs omit raw exception messages. Regression tests cover sensitive callback/SMTP text redaction, while repository qualification checks enforce the corresponding worker call-site and logging rules.
+
+These are repository-CI results for the exact commits, not independent local execution or production qualification. `0.15.0.0-SNAPSHOT` remains unreleased; production-like load, live identity/provider, operational recovery, accessibility, and external service qualification remain separate gates.
+
+## Historical status snapshot — 2026-10-28
+
+The following section records the earlier state and historical CI evidence as it stood on 28 October 2026. It is retained for traceability and must not be read as the current repository head or current CI status.
+
 ## Current verified state — 2026-10-28
 
 `0.15.0.0-SNAPSHOT` remains the development version. The latest dependency merges are PR #25 (`@types/node` 26.6.5) and PR #22 (`livekit-client` 2.23.0); PR #22 merged as `8290fc16f9d18d3f3350f22934be5b1ee33a8ccc`. The latest confirmed full CI run is GitHub Actions run `40701828392` on main commit `8af6a2580cb8e43194238088e02cbf2582e008ff`. All four jobs passed: backend verification, web lint/workflow tests/build, repository-policy qualification, and vulnerability scanning. This green run includes the assessment catalog, Student/Guardian permissions, V044 role migration, question-bank authorization, assignment draft/list scoping with database pagination, academic-review decision scoping, gradebook viewer authorization, and the associated regression tests.

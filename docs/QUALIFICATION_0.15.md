@@ -4,14 +4,11 @@ This milestone is a hardening release; it does not introduce a major business fe
 
 ## Evidence boundary — 2 November 2026
 
-The CI observations below are historical evidence for their exact commits, not
-a current-main qualification result. Since run #380, `main` has added the
-persistent storage quota ledger (V047), reservation-key reuse (V048), provider-
-wide operation budgets, and further storage cleanup/recording lifecycle changes.
-Those changes require a complete CI run on the exact current `main` SHA before
-they can be considered verified. The successful run #690 belongs to the
-separate head of PR #26, not `main`; that PR is materially divergent and its
-green result is not evidence for the current branch.
+The current `main` head is `a29485b7b73f522a553a94e769a8318d5b774702`. [UEP CI run #935](https://github.com/shreyashjagtap157/UEP/actions/runs/41406036125) ran on that exact commit and all six jobs passed: backend verification against PostgreSQL 17.11 and 18.4, web lint/demo-workflow tests/production build, repository-policy and qualification, vulnerability scanning, and Keycloak staging-container validation. Backend jobs additionally completed Flyway/runtime database checks, least-privilege database-grant checks, OCI/ARM64 image builds, and packaged-server health smoke.
+
+The durable announcement retry/dead-letter work and its fixture/type-test fixes were covered by [run #932](https://github.com/shreyashjagtap157/UEP/actions/runs/41404638692); the latest #935 run verifies the complete current `main` head. Notification privacy hardening is present in the same current tree and is covered by regression tests for safe persisted SMTP/webhook failure categories, provider/worker log redaction, and static qualification checks.
+
+This evidence supersedes the earlier statement that current-main CI had not yet been verified. It is repository-CI evidence only: it does not establish production deployment, live provider connectivity, production-scale capacity, WCAG conformance, or a completed production backup/restore drill. Pull request #26 remains a separate, materially divergent branch; its CI is not used as main evidence and it must not be merged wholesale.
 
 ## Automated gates
 

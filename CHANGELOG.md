@@ -1,10 +1,24 @@
 # Changelog
 
+## Unreleased — 2026-11-02
+
+### Added
+- durable scheduled-announcement publication and expiry retry state with bounded exponential backoff, terminal dead-lettering after 12 attempts, and authorized tenant/branch-scoped failure inspection and replay;
+- regression coverage for announcement audience resolution at publication time, dead-letter exclusion/replay authorization, retry-state reset, and per-item worker isolation so one invalid item does not stop later due work.
+
+### Fixed
+- persist only sanitized exception categories for SMTP delivery and webhook event fan-out failures; redact provider/worker operational logs so raw transport exceptions, callback URLs, query credentials and provider details are not written to logs or retry-state columns;
+- restore announcement integration fixtures and correct retry timing/type-cleanup assertions.
+
+### Verification
+- GitHub Actions [UEP CI run #935](https://github.com/shreyashjagtap157/UEP/actions/runs/41406036125) passed all six jobs on exact `main` HEAD `a29485b7b73f522a553a94e769a8318d5b774702`, including PostgreSQL 17.11/18.4 backend matrices, web lint/tests/build, repository policy/qualification, vulnerability scanning, and Keycloak OCI/ARM64 validation.
+- GitHub Actions [UEP CI run #932](https://github.com/shreyashjagtap157/UEP/actions/runs/41404638692) passed all six jobs on the announcement fixture restoration commit.
+
 ## 0.15.0.0 — Reliability and Performance Qualification
 
 Hardening milestone covering repeatable load probes, database indexes, connection-pool bounds, backup/restore drill tooling, tenant-isolation checks, and security/configuration qualification. (Tracked by the milestone gate in `docs/QUALIFICATION_0.15.md`.)
 
-## Unreleased — 2026-10-26
+## Earlier unreleased work — 2026-10-26
 
 ### Added
 - durable per-recipient messaging receipts with monotonic PENDING → DELIVERED → READ transitions, participant-scoped visibility, and sender inspection of delivery/read state;
