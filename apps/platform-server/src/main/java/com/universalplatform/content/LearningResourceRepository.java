@@ -1,7 +1,21 @@
 package com.universalplatform.content;
 import java.time.Instant; import java.util.*; import org.springframework.data.domain.*; import org.springframework.data.jpa.repository.*; import org.springframework.data.repository.query.Param;
 interface LearningResourceRepository extends JpaRepository<LearningResource,UUID>{
- Optional<LearningResource> findByTenantIdAndId(UUID tenantId,UUID id); List<LearningResource> findTop100ByExpiresAtBeforeAndPurgedAtIsNullOrderByExpiresAtAsc(Instant before); Page<LearningResource> findAllByTenantId(UUID tenantId,Pageable p);
+ Optional<LearningResource> findByTenantIdAndId(UUID tenantId,UUID id);
+ @Query("""
+ select r from LearningResource r
+ where r.purgedAt is null
+   and r.expiresAt < :before
+   and (r.expiresAt > :afterExpiresAt
+        or (r.expiresAt = :afterExpiresAt and r.id > :afterId))
+ order by r.expiresAt asc, r.id asc
+ """)
+ List<LearningResource> findExpiredForPurgeAfter(
+     @Param("before") Instant before,
+     @Param("afterExpiresAt") Instant afterExpiresAt,
+     @Param("afterId") UUID afterId,
+     Pageable pageable);
+ Page<LearningResource> findAllByTenantId(UUID tenantId,Pageable p);
  @Query("""
  select r from LearningResource r where r.tenantId=:tenantId
  and (r.releaseAt is null or r.releaseAt<=:now) and (r.expiresAt is null or r.expiresAt>:now)
