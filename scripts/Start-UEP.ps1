@@ -511,41 +511,39 @@ function Ensure-LocalTestAccounts([string]$OwnerToken, [string]$AdminToken) {
         $user = Ensure-KeycloakUser $persona.Username $persona.Email $nameParts[0] $nameParts[-1] $account.password $State.TenantId $AdminToken
         $membership = $existingMemberships.items | Where-Object { $_.oidcSubject -eq $user.id } | Select-Object -First 1
 
-        if (-not $membership) {
-            if ($persona.Role -eq 'CUSTOM') {
-                $roleId = $developerRole.id
-                $primaryBranchId = $null
-                $initialRoleIds = @($roleId)
-            } elseif ($persona.Role -eq 'BRANCH_ADMINISTRATOR') {
-                $roleId = $roles[$persona.Role].id
-                $primaryBranchId = $testBranch.id
-                $initialRoleIds = @()
-            } else {
-                if (-not $roles.ContainsKey($persona.Role)) {
-                    throw "Required system role '$($persona.Role)' was not returned by the backend."
-                }
-                $roleId = $roles[$persona.Role].id
-                $primaryBranchId = $null
-                $initialRoleIds = @($roleId)
+        if ($persona.Role -eq 'CUSTOM') {
+            $roleId = $developerRole.id
+        } else {
+            if (-not $roles.ContainsKey($persona.Role)) {
+                throw "Required system role '$($persona.Role)' was not returned by the backend."
             }
+            $roleId = $roles[$persona.Role].id
+        }
 
-            $membership = Invoke-Api 'Post' '/api/v1/identity/memberships' $OwnerToken @{
+        if (-not $membership) {
+            $primaryBranchId = if ($persona.Role -eq 'BRANCH_ADMINISTRATOR') { $testBranch.id } else { $null }
+            $initialRoleIds = if ($persona.Role -eq 'BRANCH_ADMINISTRATOR') { @() } else { @($roleId) }
+            Invoke-Api 'Post' '/api/v1/identity/memberships' $OwnerToken @{
                 subject = $user.id
                 email = $persona.Email
                 displayName = $persona.Name
                 primaryBranchId = $primaryBranchId
                 roleIds = $initialRoleIds
-            }
+            } | Out-Null
             $existingMemberships = Invoke-Api 'Get' '/api/v1/identity/memberships?size=100' $OwnerToken
             $membership = $existingMemberships.items | Where-Object { $_.oidcSubject -eq $user.id } | Select-Object -First 1
-        } elseif ($persona.Role -eq 'BRANCH_ADMINISTRATOR') {
-            $membership = Invoke-Api 'Get' ("/api/v1/identity/memberships/" + $membership.membershipId) $OwnerToken
-            if (-not $membership.primaryBranchId) {
-                throw "Branch Administrator '$($persona.Username)' already exists without the local test branch. No broader role was assigned."
-            }
         }
 
         if ($persona.Role -eq 'BRANCH_ADMINISTRATOR') {
+            $membership = Invoke-Api 'Get' ("/api/v1/identity/memberships/" + $membership.membershipId) $OwnerToken
+            if ($membership.primaryBranchId -ne $testBranch.id) {
+                Invoke-Api 'Patch' ("/api/v1/identity/memberships/" + $membership.membershipId) $OwnerToken @{
+                    status = $membership.membershipStatus
+                    primaryBranchId = $testBranch.id
+                    externalReference = $membership.externalReference
+                    expectedVersion = $membership.version
+                } | Out-Null
+            }
             $assignments = Invoke-Api 'Get' ("/api/v1/identity/roles/memberships/" + $membership.membershipId + '?size=100') $OwnerToken
             $correct = $assignments.items | Where-Object {
                 $_.roleId -eq $roleId -and $_.scopeKind -eq 'BRANCH' -and $_.scopeId -eq $testBranch.id
