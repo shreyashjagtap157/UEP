@@ -103,8 +103,7 @@ class IdentityAuthorizationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.membershipStatus").value("SUSPENDED"))
                 .andExpect(jsonPath("$.primaryBranchId").value(org.hamcrest.Matchers.nullValue()))
-                .andExpect(jsonPath("$.externalReference").value("NATIVE-PATCH-QUALIFICATION"))
-                ;
+                .andExpect(jsonPath("$.externalReference").value("NATIVE-PATCH-QUALIFICATION"));
     }
 
     @Test
