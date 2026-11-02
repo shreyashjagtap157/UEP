@@ -266,13 +266,13 @@ jobs:
         run: npm --prefix apps/web run lint
       - name: Demo workflow tests
         run: npm --prefix apps/web test
-      - name: Build with the Vercel production-mode contract
+      - name: Build with the real OIDC production contract
         env:
           VITE_LOCAL_MODE: "false"
           VITE_KEYCLOAK_URL: https://identity.example.invalid
           VITE_KEYCLOAK_REALM: education
           VITE_KEYCLOAK_CLIENT_ID: platform-web
-        run: npm --prefix apps/web run build:vercel
+        run: npm --prefix apps/web run build:production
 
   repository-policy:
     runs-on: ubuntu-latest
@@ -295,8 +295,8 @@ jobs:
             exit 1
           }
           Write-Host 'Native Windows launcher PowerShell syntax passed.'
-      - name: Verify Vercel deployment contract
-        run: python3 scripts/verify-vercel-config.py
+      - name: Verify local-only deployment boundary
+        run: python3 scripts/verify-local-deployment-boundary.py
       - name: Test backup/restore safety guards
         run: bash scripts/test-backup-restore-drill.sh
       - name: Test load-smoke percentile and latency checks
