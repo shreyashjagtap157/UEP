@@ -21,8 +21,24 @@ interface StorageCleanupRepository extends JpaRepository<StorageCleanupJob, UUID
                 :id, :tenantId, :provider, :locator, :objectKey, :reservationId, :createdAt, :nextAttemptAt
             )
             ON CONFLICT (tenant_id, provider, locator) DO UPDATE
-            SET quota_reservation_id = COALESCE(storage_cleanup_outbox.quota_reservation_id,
-                                                EXCLUDED.quota_reservation_id)
+            SET quota_reservation_id = COALESCE(EXCLUDED.quota_reservation_id,
+                                                storage_cleanup_outbox.quota_reservation_id),
+                deleted_at = CASE
+                    WHEN storage_cleanup_outbox.deleted_at IS NOT NULL THEN NULL
+                    ELSE storage_cleanup_outbox.deleted_at
+                END,
+                attempt_count = CASE
+                    WHEN storage_cleanup_outbox.deleted_at IS NOT NULL THEN 0
+                    ELSE storage_cleanup_outbox.attempt_count
+                END,
+                last_error = CASE
+                    WHEN storage_cleanup_outbox.deleted_at IS NOT NULL THEN NULL
+                    ELSE storage_cleanup_outbox.last_error
+                END,
+                next_attempt_at = CASE
+                    WHEN storage_cleanup_outbox.deleted_at IS NOT NULL THEN EXCLUDED.next_attempt_at
+                    ELSE LEAST(storage_cleanup_outbox.next_attempt_at, EXCLUDED.next_attempt_at)
+                END
             """, nativeQuery = true)
     int enqueueIfAbsent(
             @Param("id") UUID id,

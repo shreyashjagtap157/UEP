@@ -41,6 +41,11 @@ class StorageCleanupWorkerIntegrationTest {
 
     @AfterEach
     void cleanTenant() {
+        List<UUID> outstanding = jdbc.query("""
+                SELECT id FROM storage_quota_reservation
+                WHERE tenant_id = ? AND state IN ('RESERVED', 'COMMITTED')
+                """, (rs, row) -> rs.getObject(1, UUID.class), tenantId);
+        for (UUID reservationId : outstanding) storageQuota.release(tenantId, reservationId);
         jdbc.update("DELETE FROM tenant WHERE id = ?", tenantId);
     }
 
@@ -57,6 +62,11 @@ class StorageCleanupWorkerIntegrationTest {
         StorageCleanupJob persisted = jobs.findById(jobId).orElseThrow();
         assertThat(persisted.deletedAt()).isNotNull();
         assertThat(persisted.attemptCount()).isZero();
+        assertThat(persisted.quotaReservationId()).isNotNull();
+        assertThat(jdbc.queryForObject("SELECT state FROM storage_quota_reservation WHERE id = ?",
+                String.class, persisted.quotaReservationId())).isEqualTo("RELEASED");
+        assertThat(jdbc.queryForObject("SELECT released_bytes FROM storage_quota_reservation WHERE id = ?",
+                Long.class, persisted.quotaReservationId())).isEqualTo(512L);
         assertThat(deletes).hasValue(1);
     }
 
@@ -86,9 +96,13 @@ class StorageCleanupWorkerIntegrationTest {
 
     private UUID saveDueJob(String locator) {
         UUID id = UUID.randomUUID();
+        String objectKey = "cleanup/" + id;
+        UUID reservationId = storageQuota.reserve(tenantId, StorageProviderType.LOCAL,
+                "cleanup:" + id, objectKey, 512);
+        storageQuota.commit(tenantId, reservationId, 512, locator, objectKey);
         Instant due = Instant.now().minusSeconds(2);
         jobs.saveAndFlush(new StorageCleanupJob(id, tenantId, StorageProviderType.LOCAL,
-                locator, "cleanup/" + id, due));
+                locator, objectKey, reservationId, due));
         return id;
     }
 

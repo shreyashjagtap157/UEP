@@ -57,11 +57,12 @@ class StorageCleanupWorker {
                     return;
                 }
                 try {
+                    if (job.quotaReservationId() == null) {
+                        throw new IllegalStateException("Pending storage cleanup has no quota reservation; refusing unaccounted deletion");
+                    }
                     storageQuota.authorizeDelete(job.tenantId(), job.provider());
                     adapters.require(job.provider()).delete(job.locator());
-                    if (job.quotaReservationId() != null) {
-                        storageQuota.release(job.tenantId(), job.quotaReservationId());
-                    }
+                    storageQuota.release(job.tenantId(), job.quotaReservationId());
                     job.markDeleted(clock.instant());
                 } catch (Exception exception) {
                     // Marking failed is committed inside this transaction; external deletion is

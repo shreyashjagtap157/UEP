@@ -265,3 +265,7 @@ ALTER TABLE storage_cleanup_outbox
     ADD CONSTRAINT fk_storage_cleanup_quota_reservation
     FOREIGN KEY (tenant_id, provider, quota_reservation_id)
     REFERENCES storage_quota_reservation(tenant_id, provider, id) ON DELETE RESTRICT;
+
+ALTER TABLE storage_cleanup_outbox
+    ADD CONSTRAINT ck_storage_cleanup_pending_has_reservation
+    CHECK (deleted_at IS NOT NULL OR quota_reservation_id IS NOT NULL);
