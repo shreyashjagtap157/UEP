@@ -9,6 +9,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +53,7 @@ class UploadCleanupWorkerIntegrationTest {
         List<UploadSession> rows = new ArrayList<>();
         List<UUID> failedCleanupIds = new ArrayList<>();
         List<UUID> cleanableIds = new ArrayList<>();
+        Set<UUID> abortedIds = new HashSet<>();
 
         // More than one full cleanup page deliberately fails local deletion. The keyset
         // cursor must still advance to later rows instead of retrying this same first page.
@@ -59,8 +62,9 @@ class UploadCleanupWorkerIntegrationTest {
             Path blockedDirectory = tempDir.resolve("blocked-" + id);
             Files.createDirectories(blockedDirectory);
             Files.writeString(blockedDirectory.resolve("keep.txt"), "prevent directory deletion");
-            UploadSession upload = session(id, blockedDirectory, olderExpiry, now);
+            UploadSession upload = session(id, blockedDirectory, olderExpiry, now.minus(Duration.ofDays(5)));
             upload.status = index % 2 == 0 ? UploadStatus.ABORTED : UploadStatus.UPLOADING;
+            if (upload.status == UploadStatus.ABORTED) abortedIds.add(id);
             rows.add(upload);
             failedCleanupIds.add(id);
             sessionIds.add(id);
@@ -70,7 +74,7 @@ class UploadCleanupWorkerIntegrationTest {
             UUID id = UUID.randomUUID();
             Path stagingFile = tempDir.resolve("cleanable-" + id + ".part");
             Files.writeString(stagingFile, "staging data");
-            UploadSession upload = session(id, stagingFile, newerExpiry, now);
+            UploadSession upload = session(id, stagingFile, newerExpiry, now.minus(Duration.ofDays(5)));
             upload.status = UploadStatus.UPLOADING;
             rows.add(upload);
             cleanableIds.add(id);
@@ -88,8 +92,7 @@ class UploadCleanupWorkerIntegrationTest {
         for (UploadSession upload : persisted) {
             if (failedCleanupIds.contains(upload.id)) {
                 assertThat(upload.stagingCleanedAt).as("failed staging cleanup remains retryable").isNull();
-                if (upload.id.equals(failedCleanupIds.getFirst())
-                        || rows.stream().anyMatch(row -> row.id.equals(upload.id) && row.status == UploadStatus.ABORTED)) {
+                if (abortedIds.contains(upload.id)) {
                     // Terminal user-abort state must not be rewritten as EXPIRED by the worker.
                     assertThat(upload.status).isEqualTo(UploadStatus.ABORTED);
                 } else {
