@@ -4,12 +4,15 @@ import com.universalplatform.security.TenantExecutionContext;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Service
 class AnnouncementPublishingWorker {
+    private static final Logger log = LoggerFactory.getLogger(AnnouncementPublishingWorker.class);
     private final AnnouncementRepository announcements;
     private final AnnouncementService service;
     private final TenantExecutionContext tenantExecution;
@@ -26,7 +29,13 @@ class AnnouncementPublishingWorker {
     void publishDue() {
         Instant now = clock.instant();
         for (UUID id : announcements.findDuePublishIds(now, PageRequest.of(0, 50))) {
-            announcements.findById(id).ifPresent(item -> tenantExecution.run(item.tenantId(), () -> service.publishScheduled(id)));
+            try {
+                announcements.findById(id).ifPresent(item ->
+                        tenantExecution.run(item.tenantId(), () -> service.publishScheduled(id)));
+            } catch (RuntimeException failure) {
+                // One invalid announcement must not prevent later due announcements from publishing.
+                log.error("Scheduled announcement publication failed for {}", id, failure);
+            }
         }
     }
 
@@ -34,7 +43,13 @@ class AnnouncementPublishingWorker {
     void expireDue() {
         Instant now = clock.instant();
         for (UUID id : announcements.findDueExpiryIds(now, PageRequest.of(0, 100))) {
-            announcements.findById(id).ifPresent(item -> tenantExecution.run(item.tenantId(), () -> service.expireScheduled(id)));
+            try {
+                announcements.findById(id).ifPresent(item ->
+                        tenantExecution.run(item.tenantId(), () -> service.expireScheduled(id)));
+            } catch (RuntimeException failure) {
+                // Preserve batch progress when one announcement cannot be expired.
+                log.error("Scheduled announcement expiry failed for {}", id, failure);
+            }
         }
     }
 }
