@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -95,6 +96,29 @@ class UploadFinalizationCompensationTest {
             TransactionSynchronizationManager.clearSynchronization();
         }
         TransactionSynchronizationManager.setActualTransactionActive(false);
+    }
+
+    @Test
+    void initiationRollbackRemovesStagingFileCreatedBeforeDatabaseCommit() throws Exception {
+        UUID reservationId = UUID.randomUUID();
+        when(storageBindings.findByTenantId(tenantId))
+                .thenReturn(Optional.of(new com.universalplatform.storage.TenantStorageBinding(
+                        StorageProviderType.LOCAL, "")));
+        when(storageQuota.reserve(eq(tenantId), eq(StorageProviderType.LOCAL),
+                anyString(), isNull(), eq(16L))).thenReturn(reservationId);
+
+        service.initiate("new-upload.bin", "application/octet-stream", 16, null);
+
+        Path tenantStaging = tempDir.resolve(tenantId.toString());
+        Path createdFile;
+        try (var files = Files.list(tenantStaging)) {
+            createdFile = files.findFirst().orElseThrow();
+        }
+        assertThat(Files.exists(createdFile)).isTrue();
+
+        completeSynchronizations(TransactionSynchronization.STATUS_ROLLED_BACK);
+
+        assertThat(Files.exists(createdFile)).isFalse();
     }
 
     @Test
