@@ -2,21 +2,21 @@
 
 ## Current verified state — 2026-11-02
 
-The live `main` head is `a29485b7b73f522a553a94e769a8318d5b774702`. GitHub Actions [UEP CI run #935](https://github.com/shreyashjagtap157/UEP/actions/runs/41406036125) ran on this exact commit and completed successfully with all six jobs green:
+The current source-bearing `main` commit is `e6acf6d4d80c057b5f601fcb4c637ee586b15847`. The latest fully completed all-green main-branch CI run is [UEP CI #935](https://github.com/shreyashjagtap157/UEP/actions/runs/41406036125), which passed all six jobs on the earlier code-bearing commit `a29485b7b73f522a553a94e769a8318d5b774702`.
 
-- `backend (17.11)` and `backend (18.4)`: Maven verification, PostgreSQL migration callback checks, least-privilege runtime database grants/function ACL checks, OCI and ARM64 API image builds, and packaged-server startup/health smoke.
-- `web`: locked dependency installation, lint, demo workflow tests, and production-mode build.
-- `repository-policy`: repository policy, Vercel deployment contract, backup/restore safety guards, load-smoke percentile/latency checks, and 0.15 qualification.
-- `vulnerability-scan`: Java dependency SBOM generation and OSV dependency scanning.
-- `keycloak-staging-container`: realm/container contract checks and OCI/ARM64 image build/smoke.
+[UEP CI #939](https://github.com/shreyashjagtap157/UEP/actions/runs/41425009098) is running on the current source commit. Confirmed passed jobs: web lint/demo workflow tests/production build, repository policy and 0.15 qualification, Java/web dependency scanning, and Keycloak OCI/ARM64 validation. Within both backend matrices, Maven verification (including the new failure-persistence model tests), PostgreSQL migration callback checks, least-privilege runtime grants/function ACL checks, and native-architecture API image builds have passed. Backend ARM64 API image smoke and packaged-server startup/health steps have not yet reached a terminal result. Therefore #939 is not yet a completed full-CI qualification.
 
-The announcement retry/dead-letter implementation and its fixture/type-test corrections were also covered by green [run #932](https://github.com/shreyashjagtap157/UEP/actions/runs/41404638692). Current source includes publication-time audience resolution, tenant/branch-scoped dead-letter inspection and administrator replay, per-item worker exception isolation, bounded retries, and tests for audience materialization, replay authorization, retry state, and worker continuation.
+Current source enforces safe error persistence at the notification-outbox, email-delivery, webhook-event-outbox, outbound-webhook-delivery and webhook-subscription model boundaries. The tests verify that arbitrary provider URLs, query credentials, addresses and null failure input do not become persisted error text, while stable exception categories and bounded operational labels remain usable. Repository qualification now requires these guards and their regression tests.
 
-Recent notification/security commits also ensure SMTP and webhook-fan-out failures persist safe exception categories; provider/worker operational logs omit raw exception messages. Regression tests cover sensitive callback/SMTP text redaction, while repository qualification checks enforce the corresponding worker call-site and logging rules.
+The announcement retry/dead-letter implementation remains covered by green [run #932](https://github.com/shreyashjagtap157/UEP/actions/runs/41404638692). The source includes publication-time audience resolution, tenant/branch-scoped dead-letter inspection and administrator replay, per-item worker exception isolation, bounded retries, and tests for audience materialization, replay authorization, retry state and worker continuation.
 
-These are repository-CI results for the exact commits, not independent local execution or production qualification. `0.15.0.0-SNAPSHOT` remains unreleased; production-like load, live identity/provider, operational recovery, accessibility, and external service qualification remain separate gates.
+CI evidence is repository-only. It does not imply production deployment, external provider delivery, production-scale capacity, WCAG conformance or a completed production backup/restore drill. `0.15.0.0-SNAPSHOT` remains unreleased.
 
 ## Historical status snapshot — 2026-10-28
+
+The following section records the earlier state and historical CI evidence as it stood on 28 October 2026. It is retained for traceability and must not be read as the current repository head or current CI status.
+
+
 
 The following section records the earlier state and historical CI evidence as it stood on 28 October 2026. It is retained for traceability and must not be read as the current repository head or current CI status.
 

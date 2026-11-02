@@ -13,7 +13,8 @@
 - enforce the same safe-category boundary in webhook delivery and subscription entities while preserving bounded HTTP-status and known operational categories; add direct model regressions for both persistence paths.
 
 ### Verification
-- GitHub Actions [UEP CI run #935](https://github.com/shreyashjagtap157/UEP/actions/runs/41406036125) passed all six jobs on exact `main` HEAD `a29485b7b73f522a553a94e769a8318d5b774702`, including PostgreSQL 17.11/18.4 backend matrices, web lint/tests/build, repository policy/qualification, vulnerability scanning, and Keycloak OCI/ARM64 validation.
+- GitHub Actions [UEP CI run #935](https://github.com/shreyashjagtap157/UEP/actions/runs/41406036125) passed all six jobs on source commit `a29485b7b73f522a553a94e769a8318d5b774702`.
+- GitHub Actions [UEP CI run #939](https://github.com/shreyashjagtap157/UEP/actions/runs/41425009098) is running on the current source commit `e6acf6d4d80c057b5f601fcb4c637ee586b15847`. Web, repository-policy/qualification, vulnerability-scan and Keycloak-container jobs have passed; both backend Maven verification and DB checks passed; backend ARM64 image smoke and packaged-server health smoke are not yet terminal.
 - GitHub Actions [UEP CI run #932](https://github.com/shreyashjagtap157/UEP/actions/runs/41404638692) passed all six jobs on the announcement fixture restoration commit.
 
 ## 0.15.0.0 — Reliability and Performance Qualification

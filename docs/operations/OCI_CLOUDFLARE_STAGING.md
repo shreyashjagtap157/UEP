@@ -423,9 +423,7 @@ A real staging deployment is accepted only when all are true:
 3. **Stable HTTPS hostname:** no Cloudflare DNS zone or custom domain has
    been verified. Qualify domain or IP-certificate renewal before configuring
    OIDC.
-4. **ARM64 image qualification:** Keycloak ARM64 build/smoke has passed on
-   CI run #886; backend ARM64 image smoke and a full CI run on the current
-   source head remain outstanding.
+4. **ARM64 image qualification:** Keycloak ARM64 build/smoke passed in current CI run #939. Backend Maven verification, native-architecture image builds and database checks have passed on PostgreSQL 17.11/18.4; backend ARM64 API image smoke and packaged-server startup/health checks are still running in #939. Do not clear this gate until both backend matrices complete successfully. Even a green CI image smoke does not prove allocation/startup on the actual OCI A1 tenancy; that real deployment remains blocked by unverified tenancy and regional capacity.
 5. **R2 no-charge qualification:** provider byte/operation reservation
    safeguards exist in source and default to disabled. They must pass CI on
    the exact release SHA, be applied to the approved database, and be proven
