@@ -457,6 +457,10 @@ for required in [
     if required not in storage_quota_migration:
         errors.append(f'persistent storage quota migration is missing invariant: {required}')
 
+quota_reconciliation_worker = text('apps/platform-server/src/main/java/com/universalplatform/storage/StorageQuotaReconciliationWorker.java')
+if 'staleRecordingReservations(' not in quota_reconciliation_worker:
+    errors.append('storage quota reconciler must alert on stale recording reservations without auto-release')
+
 storage_quota_service = text('apps/platform-server/src/main/java/com/universalplatform/storage/StorageQuotaService.java')
 for required in [
     'FOR UPDATE',
@@ -471,14 +475,35 @@ for required in [
     'rs.getBoolean("reads_enabled")',
     'providerOperationEnabled',
     'StorageQuotaException.providerUnavailable(provider.name())',
+    'public void consumeProviderDeleteOperations(',
+    'staleRecordingReservations(',
 ]:
 
     if required not in storage_quota_service:
         errors.append(f'persistent storage quota service is missing contract: {required}')
 
 storage_quota_test = text('apps/platform-server/src/test/java/com/universalplatform/storage/StorageQuotaServiceIntegrationTest.java')
-if 'providerOperationChargeRechecksReadAndWriteAvailability' not in storage_quota_test:
-    errors.append('missing disabled-provider operation charge regression test')
+for test_name in [
+    'providerOperationChargeRechecksReadAndWriteAvailability',
+    'providerDeleteOperationsRemainBudgetedWhenReadsAndWritesAreDisabled',
+    'staleRecordingReservationsAreReportedWithoutAutoRelease',
+]:
+    if test_name not in storage_quota_test:
+        errors.append(f'missing storage quota regression test: {test_name}')
+
+recording_service_storage = text('apps/platform-server/src/main/java/com/universalplatform/recording/RecordingService.java')
+upload_service_storage = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
+retention_worker_storage = text('apps/platform-server/src/main/java/com/universalplatform/content/ContentRetentionWorker.java')
+cleanup_worker_storage = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java')
+for rel, source, expected_deletes in [
+    ('RecordingService.java', recording_service_storage, 6),
+    ('UploadService.java', upload_service_storage, 2),
+    ('ContentRetentionWorker.java', retention_worker_storage, 1),
+    ('StorageCleanupWorker.java', cleanup_worker_storage, 1),
+]:
+    charged_deletes = source.count('consumeProviderDeleteOperations(')
+    if charged_deletes != expected_deletes:
+        errors.append(f'{rel} must charge each provider deletion; expected {expected_deletes}, found {charged_deletes}')
 
 upload_service_quota = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
 for required in ['storageQuota.reserve(', 'storageQuota.commit(', 'storageQuota.release(',
