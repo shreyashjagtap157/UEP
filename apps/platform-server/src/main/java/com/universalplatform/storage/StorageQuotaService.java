@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 /**
  * Persistent storage-capacity ledger. Reservations and aggregates are changed in one transaction;
@@ -25,6 +26,18 @@ public class StorageQuotaService {
     @Transactional
     public UUID reserve(UUID tenantId, StorageProviderType provider, String reservationKey,
                         String objectKey, long expectedBytes) {
+        return reserveInternal(tenantId, provider, reservationKey, objectKey, expectedBytes);
+    }
+
+    /** Persists a reservation independently of an enclosing worker transaction before remote I/O. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public UUID reserveDurable(UUID tenantId, StorageProviderType provider, String reservationKey,
+                               String objectKey, long expectedBytes) {
+        return reserveInternal(tenantId, provider, reservationKey, objectKey, expectedBytes);
+    }
+
+    private UUID reserveInternal(UUID tenantId, StorageProviderType provider, String reservationKey,
+                                 String objectKey, long expectedBytes) {
         Objects.requireNonNull(tenantId, "tenantId");
         Objects.requireNonNull(provider, "provider");
         if (reservationKey == null || reservationKey.isBlank() || reservationKey.length() > 200) {
@@ -105,6 +118,26 @@ public class StorageQuotaService {
                 WHERE provider = ?
                 """, expectedBytes, provider.name());
         return reservationId;
+    }
+
+    @Transactional(readOnly = true)
+    public void authorizeRead(UUID tenantId, StorageProviderType provider) {
+        List<Boolean> enabled = jdbc.query("""
+                SELECT reads_enabled FROM storage_provider_quota WHERE provider = ?
+                """, (rs, row) -> rs.getBoolean(1), provider.name());
+        if (enabled.isEmpty() || !enabled.getFirst()) {
+            throw StorageQuotaException.providerUnavailable(provider.name());
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public void authorizeDelete(UUID tenantId, StorageProviderType provider) {
+        List<Boolean> configured = jdbc.query("""
+                SELECT true FROM storage_provider_quota WHERE provider = ?
+                """, (rs, row) -> rs.getBoolean(1), provider.name());
+        if (configured.isEmpty()) {
+            throw StorageQuotaException.providerUnavailable(provider.name());
+        }
     }
 
     @Transactional

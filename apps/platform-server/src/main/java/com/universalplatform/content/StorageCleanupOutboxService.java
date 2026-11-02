@@ -1,6 +1,7 @@
 package com.universalplatform.content;
 
 import com.universalplatform.storage.StorageProviderType;
+import com.universalplatform.storage.StorageCleanupQueue;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
@@ -9,7 +10,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class StorageCleanupOutboxService {
+public class StorageCleanupOutboxService implements StorageCleanupQueue {
     private final StorageCleanupRepository repository;
     private final Clock clock = Clock.systemUTC();
 
@@ -23,6 +24,7 @@ public class StorageCleanupOutboxService {
         enqueue(tenantId, provider, locator, objectKey, null, reason);
     }
 
+    @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void enqueue(UUID tenantId, StorageProviderType provider, String locator,
                         String objectKey, UUID reservationId, Throwable reason) {
