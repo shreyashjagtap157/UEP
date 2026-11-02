@@ -29,6 +29,21 @@ test('membership editing uses authenticated PATCH and optimistic versioning', ()
   assert.ok(appSource.includes('name="externalReference"'))
 })
 
+test('membership role assignments use authenticated tenant-scoped API operations', () => {
+  assert.match(apiCore, /export const fetchRoleAssignments=/)
+  assert.ok(apiCore.includes('/api/v1/identity/roles/memberships/'))
+  assert.match(apiCore, /export function assignRole/)
+  assert.ok(apiCore.includes("method:'POST'"))
+  assert.ok(apiCore.includes('/api/v1/identity/roles/assignments'))
+  assert.match(apiCore, /export function unassignRole/)
+  assert.ok(apiCore.includes("method:'DELETE'"))
+  assert.ok(appSource.includes('MembershipRoleAssignments'))
+  assert.ok(appSource.includes("has(me, 'ROLES_VIEW')"))
+  assert.ok(appSource.includes("has(me, 'ROLES_ASSIGN')"))
+  assert.ok(appSource.includes("scopeKind === 'BRANCH' && !scopeId"))
+  assert.ok(appSource.includes('Select a branch before assigning a branch-scoped role.'))
+})
+
 test('native Real browser smoke proves API persistence and database-role boundaries', () => {
   assert.ok(nativeSmoke.includes("response.request().method() === 'POST'"))
   assert.ok(nativeSmoke.includes("response.request().method() === 'GET'"))
