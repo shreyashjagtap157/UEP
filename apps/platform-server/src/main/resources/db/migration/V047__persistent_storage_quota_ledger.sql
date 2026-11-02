@@ -2,12 +2,12 @@
 -- A pre-ledger compensation job represents a physical object whose size and reservation
 -- cannot be reconstructed from the current metadata. Drain these jobs before backfilling so
 -- the provider-wide capacity baseline is never understated.
-DO $
+DO $storage_quota_guard$
 BEGIN
     IF EXISTS (SELECT 1 FROM storage_cleanup_outbox WHERE deleted_at IS NULL) THEN
         RAISE EXCEPTION 'Storage quota migration blocked: drain pending storage_cleanup_outbox jobs before applying V047';
     END IF;
-END $;
+END $storage_quota_guard$;
 
 CREATE TABLE storage_provider_quota (
     provider varchar(32) PRIMARY KEY,
