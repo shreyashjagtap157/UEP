@@ -128,7 +128,7 @@ function expectRuntimeRoleDenial(
   expect(denied, 'the restricted Spring Boot database role must not perform this operation').toBe(true)
 }
 
-test('real OIDC owner exports analytics and persists a branch through Vite, Spring Boot and restricted PostgreSQL', async ({ page, request }) => {
+test('real OIDC owner proves authenticated analytics, branch and membership persistence through restricted PostgreSQL', async ({ page, request }) => {
   const credentials = loadLocalOwnerCredentials()
   const browserApiOrigins = new Set<string>()
 
@@ -307,6 +307,104 @@ test('real OIDC owner exports analytics and persists a branch through Vite, Spri
   ].join(' ')
   const persistedRow = runAsRuntimeRole(psql, runtimeDatabase, persistedBranchSql)
   expect(persistedRow).toBe(branchCode + '|' + branchName + '|ACTIVE')
+
+  // Provision a synthetic, role-free tenant membership through the People UI,
+  // update it through the authenticated PATCH path, and verify the committed row.
+  const membershipSubject = 'native-e2e-' + Date.now().toString()
+  const membershipName = 'Native E2E Membership ' + membershipSubject
+  const membershipReference = 'NATIVE-PATCH-' + Date.now().toString()
+
+  await page.getByRole('button', { name: 'People', exact: true }).click()
+  await page.getByLabel('OIDC subject').fill(membershipSubject)
+  await page.getByLabel('Display name').fill(membershipName)
+  await page.getByLabel('Email').fill(membershipSubject + '@example.invalid')
+
+  const provisionMembershipPromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/identity/memberships'
+      && response.request().method() === 'POST'
+  })
+  await page.getByRole('button', { name: 'Create membership', exact: true }).click()
+  const provisionMembershipResponse = await provisionMembershipPromise
+  expect(provisionMembershipResponse.status()).toBe(200)
+  const createdMembership = await provisionMembershipResponse.json() as {
+    membershipId: string
+    oidcSubject: string
+    membershipStatus: string
+    version: number
+  }
+  expect(createdMembership.membershipId).toMatch(/^[0-9a-f-]{36}$/i)
+  expect(createdMembership.oidcSubject).toBe(membershipSubject)
+  expect(createdMembership.membershipStatus).toBe('ACTIVE')
+  expect(createdMembership.version).toBe(0)
+  test.info().annotations.push({
+    type: 'created-membership',
+    description: membershipSubject + ' / ' + createdMembership.membershipId + ' (retained: no membership-delete API exists)',
+  })
+
+  const provisionHeaders = await provisionMembershipResponse.request().allHeaders()
+  expect(provisionHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
+
+  const membershipRow = page.getByRole('row').filter({ hasText: membershipSubject })
+  await expect(membershipRow).toBeVisible()
+  await membershipRow.locator('select[name="status"]').selectOption('SUSPENDED')
+  await membershipRow.locator('input[name="externalReference"]').fill(membershipReference)
+
+  const updateMembershipPromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/identity/memberships/' + createdMembership.membershipId
+      && response.request().method() === 'PATCH'
+  })
+  await membershipRow.getByRole('button', { name: 'Save membership', exact: true }).click()
+  const updateMembershipResponse = await updateMembershipPromise
+  expect(updateMembershipResponse.status()).toBe(200)
+  const updatedMembership = await updateMembershipResponse.json() as {
+    membershipId: string
+    membershipStatus: string
+    externalReference: string
+    version: number
+  }
+  expect(updatedMembership.membershipId).toBe(createdMembership.membershipId)
+  expect(updatedMembership.membershipStatus).toBe('SUSPENDED')
+  expect(updatedMembership.externalReference).toBe(membershipReference)
+  expect(updatedMembership.version).toBe(1)
+
+  const updateHeaders = await updateMembershipResponse.request().allHeaders()
+  expect(updateHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
+
+  const membershipReadbackPromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/identity/memberships'
+      && response.request().method() === 'GET'
+  })
+  await page.reload()
+  await expect(page.locator('.app-frame')).toBeVisible()
+  await page.getByRole('button', { name: 'People', exact: true }).click()
+  const membershipReadback = await membershipReadbackPromise
+  expect(membershipReadback.status()).toBe(200)
+  const membershipPage = await membershipReadback.json() as {
+    items: Array<{ membershipId: string; membershipStatus: string; externalReference: string; version: number }>
+  }
+  expect(membershipPage.items).toContainEqual(expect.objectContaining({
+    membershipId: createdMembership.membershipId,
+    membershipStatus: 'SUSPENDED',
+    externalReference: membershipReference,
+    version: 1,
+  }))
+  await expect(page.getByRole('row').filter({ hasText: membershipSubject })).toContainText('SUSPENDED')
+
+  const persistedMembershipSql = [
+    "SELECT m.status || '|' || COALESCE(m.external_reference, '') || '|' || m.version::text",
+    'FROM public.tenant_membership m',
+    'JOIN public.user_account u ON u.id = m.user_id',
+    "WHERE u.oidc_subject = '" + membershipSubject + "'",
+    "AND m.tenant_id = '" + identity.tenantId + "'::uuid",
+  ].join(' ')
+  const persistedMembership = runAsRuntimeRole(psql, runtimeDatabase, persistedMembershipSql)
+  expect(persistedMembership).toBe('SUSPENDED|' + membershipReference + '|1')
 
   expectRuntimeRoleDenial(psql, runtimeDatabase,
     'CREATE TABLE public.__uep_native_runtime_forbidden_probe (id integer)')
