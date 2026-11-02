@@ -381,3 +381,23 @@ Validation status at handoff authoring: source-level permission parity was check
 - Added a typed authenticated notification-provider list helper and inventory with provider type, endpoint, version and explicit test action.
 - Clarified the separate permissions: `FEDERATION_VIEW` is required to inspect and update existing IdP configuration; `INTEROPERABILITY_VIEW` is required to inspect/update existing notification provider configuration, while the corresponding manage permissions allow creation/configuration and test delivery. The UI surfaces this instead of silently submitting version 0 for an existing provider.
 - Web contract coverage asserts current-version selection, inventory refresh and permission guidance. Current-head CI and backend/native validation remain pending.
+
+
+## 2026-11-03 CI evidence snapshot — current main
+
+Snapshot recorded after commits `89b0632`, `5b07aea`, `7bb3517` and `2358087`. Source head at snapshot time: `23580876b315053a9bd0bcc15d68792c7de6d334`.
+
+### Completed CI evidence
+
+- **Run 1087 — custom-role lifecycle commit `89b0632`:** [workflow](https://github.com/shreyashjagtap157/UEP/actions/runs/41521969656) completed successfully. PostgreSQL 17.11 and 18.4 each reported 245 Maven tests, 0 failures, 0 errors and 0 skipped; Flyway reached schema version 050 and least-privilege runtime grants were verified. Web, repository-policy, vulnerability-scan and Keycloak container jobs passed.
+- **Run 1088 — administrator session controls commit `5b07aea`:** [workflow](https://github.com/shreyashjagtap157/UEP/actions/runs/41522776332). Web (45/45 tests), repository-policy, vulnerability-scan and Keycloak container jobs passed. PostgreSQL 17.11 and 18.4 jobs were still in progress at the last status check.
+- **Run 1089 — credential/webhook lifecycle commit `7bb3517`:** [workflow](https://github.com/shreyashjagtap157/UEP/actions/runs/41523291335). Web (47/47 tests), repository-policy, vulnerability-scan and Keycloak container jobs passed. PostgreSQL 17.11 and 18.4 jobs were still in progress at the last status check.
+- **Run 1090 — provider optimistic-version fix commit `2358087`:** [workflow](https://github.com/shreyashjagtap157/UEP/actions/runs/41523843098). Web (48/48 tests), repository-policy and vulnerability-scan passed. PostgreSQL 17.11, PostgreSQL 18.4 and Keycloak container jobs were still in progress at the last status check.
+
+For runs 1088–1090, backend job logs were not yet published by GitHub while jobs remained in progress. Treat those backend outcomes as **PENDING**, not PASS; re-check the workflows after syncing or before final release qualification.
+
+### Validation boundary
+
+The native Playwright Real-mode spec is discovered in web CI (one test in one file), but the GitHub Linux web job does not execute it. The local Windows Real-mode service/browser/PostgreSQL run, full native browser workflow, multi-persona and cross-tenant/branch isolation phases, service/database restart persistence, and local operator evidence collection remain **NOT TESTED** in this assistant session. The user must run the native Windows prompt in the same Windows profile that initialized the protected LocalAppData state; do not expose its credentials.
+
+No hosted production deployment was started or modified by these commits. All changes above are source, tests and documentation on `main`.
