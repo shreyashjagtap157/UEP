@@ -559,6 +559,18 @@ if ':afterExpiresAt is null' in upload_repository or ':afterCompletedAt is null'
 upload_cleanup_test = text('apps/platform-server/src/test/java/com/universalplatform/content/UploadCleanupWorkerIntegrationTest.java')
 if 'failedOldFilesDoNotStarveLaterCleanupAndAbortedSessionsStayAborted' not in upload_cleanup_test:
     errors.append('missing upload staging cleanup pagination/abort regression test')
+storage_cleanup_worker = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java')
+storage_cleanup_worker_test = text('apps/platform-server/src/test/java/com/universalplatform/content/StorageCleanupWorkerIntegrationTest.java')
+for required in [
+    'failureTransaction.executeWithoutResult',
+    'status.setRollbackOnly()',
+    'job.failed(reason.getClass().getSimpleName(), clock.instant())',
+]:
+    if required not in storage_cleanup_worker:
+        errors.append(f'storage cleanup worker is missing independent retry persistence: {required}')
+if 'quotaFailurePersistsBackoffInIndependentTransaction' not in storage_cleanup_worker_test:
+    errors.append('missing storage cleanup quota-failure backoff regression')
+
 upload_initiation_service = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
 upload_compensation_test = text('apps/platform-server/src/test/java/com/universalplatform/content/UploadFinalizationCompensationTest.java')
 if 'registerInitiationStagingCompensation(tenant, id, path)' not in upload_initiation_service:
