@@ -121,7 +121,7 @@ checks = {
 # Regression guards for defects found during native launcher source review.
 checks.update({
     "launcher defines each process/readiness helper exactly once": all(
-        len(re.findall(rf"(?m)^function\\s+{name}\\s*\\(", launcher)) == 1
+        len(re.findall(rf"(?m)^function\s+{name}\s*\(", launcher)) == 1
         for name in ("Start-ManagedProcess", "Write-CommandFile", "Wait-ForHttp")
     ),
     "service readiness requires a successful 2xx response": (
