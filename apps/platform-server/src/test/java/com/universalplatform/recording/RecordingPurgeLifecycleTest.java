@@ -20,6 +20,8 @@ import com.universalplatform.notification.NotificationPublisher;
 import com.universalplatform.security.TenantContext;
 import com.universalplatform.storage.StorageAdapter;
 import com.universalplatform.storage.StorageAdapterRegistry;
+import com.universalplatform.storage.StorageQuotaService;
+import com.universalplatform.storage.StorageCleanupQueue;
 import com.universalplatform.storage.StorageProviderType;
 import java.io.IOException;
 import java.time.Duration;
@@ -58,6 +60,8 @@ class RecordingPurgeLifecycleTest {
     @Mock RecordingMediaProvider media;
     @Mock RecordingThumbnailService thumbnails;
     @Mock StorageAdapterRegistry adapters;
+    @Mock StorageQuotaService storageQuota;
+    @Mock StorageCleanupQueue cleanupQueue;
     @Mock RecordingWorkerLock workerLock;
     @Mock PlatformTransactionManager transactionManager;
     @Mock AuditService audit;
@@ -72,7 +76,7 @@ class RecordingPurgeLifecycleTest {
     @BeforeEach
     void setUp() {
         service = new RecordingService(tenants, actors, auth, memberships, enrollment, liveClasses,
-                recordings, assets, policies, media, thumbnails, adapters, workerLock, transactionManager,
+                recordings, assets, policies, media, thumbnails, adapters, storageQuota, cleanupQueue, workerLock, transactionManager,
                 audit, notifications, "./target/test-recording-processing", "test-playback-secret");
         lenient().when(tenants.requireTenantId()).thenReturn(tenantId);
         lenient().when(auth.has(PermissionKey.RECORDINGS_MANAGE)).thenReturn(false);
@@ -87,12 +91,13 @@ class RecordingPurgeLifecycleTest {
         recording = new Recording(recordingId, tenantId, liveClassId, classSessionId, "recording-room",
                 RecordingQualityPreset.BALANCED, StorageProviderType.LOCAL, oldReadyAt);
         recording.ready("master-locator", "master-object-key", "a".repeat(64), 1024, 10, oldReadyAt);
+        recording.quotaReservationId = UUID.randomUUID();
         master = new RecordingAsset(UUID.randomUUID(), tenantId, recordingId, RecordingAssetKind.MASTER,
                 StorageProviderType.LOCAL, "master-locator", "master-object-key", "video/mp4", 1024,
-                "a".repeat(64), oldReadyAt);
+                "a".repeat(64), oldReadyAt, recording.quotaReservationId);
         thumbnail = new RecordingAsset(UUID.randomUUID(), tenantId, recordingId, RecordingAssetKind.THUMBNAIL,
                 StorageProviderType.LOCAL, "thumbnail-locator", "thumbnail-object-key", "image/jpeg", 128,
-                "b".repeat(64), oldReadyAt);
+                "b".repeat(64), oldReadyAt, UUID.randomUUID());
 
         RecordingStoragePolicy policy = new RecordingStoragePolicy(tenantId, oldReadyAt);
         policy.retentionDays = 30;
@@ -149,6 +154,8 @@ class RecordingPurgeLifecycleTest {
         verify(assets).deleteAll(List.of(master, thumbnail));
         verify(recordings).save(recording);
         verify(audit).record(tenantId, "system", "RECORDING_PURGED", "recording", recordingId.toString());
+        verify(storageQuota).release(tenantId, recording.quotaReservationId);
+        verify(storageQuota).release(tenantId, thumbnail.quotaReservationId());
     }
 
     @Test

@@ -11,6 +11,7 @@ import com.universalplatform.security.TenantContext;
 import com.universalplatform.scheduling.ScheduleDirectory;
 import com.universalplatform.storage.StorageAdapter;
 import com.universalplatform.storage.StorageAdapterRegistry;
+import com.universalplatform.storage.StorageQuotaService;
 import com.universalplatform.storage.StorageObjectStatus;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,6 +40,7 @@ class ContentService implements ContentDirectory {
     private final LearningResourceVersionRepository versions;
     private final StorageObjectRepository objects;
     private final StorageAdapterRegistry adapters;
+    private final StorageQuotaService storageQuota;
     private final ContentRetentionPolicyRepository retention;
     private final AuditService audit;
     private final Clock clock = Clock.systemUTC();
@@ -46,7 +48,7 @@ class ContentService implements ContentDirectory {
     ContentService(CurriculumDirectory curriculum, ScheduleDirectory schedules, EnrollmentDirectory enrollment,
                    TenantContext tenants, ActorContext actors, AuthorizationService auth, MembershipDirectory memberships,
                    LearningResourceRepository resources, LearningResourceVersionRepository versions,
-                   StorageObjectRepository objects, StorageAdapterRegistry adapters,
+                   StorageObjectRepository objects, StorageAdapterRegistry adapters, StorageQuotaService storageQuota,
                    ContentRetentionPolicyRepository retention, AuditService audit) {
         this.curriculum = curriculum;
         this.schedules = schedules;
@@ -59,6 +61,7 @@ class ContentService implements ContentDirectory {
         this.versions = versions;
         this.objects = objects;
         this.adapters = adapters;
+        this.storageQuota = storageQuota;
         this.retention = retention;
         this.audit = audit;
     }
@@ -163,7 +166,10 @@ class ContentService implements ContentDirectory {
         if (v.storageObjectId == null) throw new IllegalArgumentException("Text resources do not have a file download");
         StorageObject o = objects.findByTenantIdAndId(r.tenantId, v.storageObjectId).orElseThrow();
         return new DownloadHandle(o.contentType, o.sizeBytes, o.objectKey, r.downloadPolicy,
-                () -> adapters.require(o.provider).open(o.locator));
+                () -> {
+                    storageQuota.authorizeRead(o.tenantId, o.provider);
+                    return adapters.require(o.provider).open(o.locator);
+                });
     }
 
     @Transactional

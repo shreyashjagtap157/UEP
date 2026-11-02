@@ -199,6 +199,16 @@ public class StorageQuotaService {
      */
     @Transactional
     public void release(UUID tenantId, UUID reservationId) {
+        releaseInternal(tenantId, reservationId);
+    }
+
+    /** Release from afterCommit/afterCompletion callbacks in a transaction of its own. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void releaseDurable(UUID tenantId, UUID reservationId) {
+        releaseInternal(tenantId, reservationId);
+    }
+
+    private void releaseInternal(UUID tenantId, UUID reservationId) {
         Reservation reservation = lockReservation(tenantId, reservationId);
         if ("RELEASED".equals(reservation.state())) return;
 

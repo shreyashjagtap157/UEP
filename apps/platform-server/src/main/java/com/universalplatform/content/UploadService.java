@@ -257,7 +257,7 @@ class UploadService {
                 || !TransactionSynchronizationManager.isActualTransactionActive()) {
             try {
                 adapter.delete(locator);
-                storageQuota.release(tenantId, reservationId);
+                storageQuota.releaseDurable(tenantId, reservationId);
             } catch (Exception cleanupFailure) {
                 storageCleanupOutbox.enqueue(tenantId, provider, locator, objectKey, reservationId, cleanupFailure);
             }

@@ -14,6 +14,8 @@ import com.universalplatform.notification.NotificationPublisher;
 import com.universalplatform.security.ActorContext;
 import com.universalplatform.security.TenantContext;
 import com.universalplatform.storage.StorageAdapterRegistry;
+import com.universalplatform.storage.StorageQuotaService;
+import com.universalplatform.storage.StorageCleanupQueue;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -34,6 +36,8 @@ class RecordingServiceFeatureGateTest {
     private final RecordingMediaProvider media = mock(RecordingMediaProvider.class);
     private final RecordingThumbnailService thumbnails = mock(RecordingThumbnailService.class);
     private final StorageAdapterRegistry adapters = mock(StorageAdapterRegistry.class);
+    private final StorageQuotaService storageQuota = mock(StorageQuotaService.class);
+    private final StorageCleanupQueue cleanupQueue = mock(StorageCleanupQueue.class);
     private final RecordingWorkerLock workerLock = mock(RecordingWorkerLock.class);
     private final PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
     private final AuditService audit = mock(AuditService.class);
@@ -65,7 +69,7 @@ class RecordingServiceFeatureGateTest {
 
     private RecordingService serviceWithLiveKitDisabled() {
         RecordingService service = new RecordingService(tenants, actors, auth, memberships, enrollment, liveClasses,
-                recordings, assets, policies, media, thumbnails, adapters, workerLock, transactions, audit,
+                recordings, assets, policies, media, thumbnails, adapters, storageQuota, cleanupQueue, workerLock, transactions, audit,
                 notifications, "./target/test-recording-processing", "test-playback-secret-0123456789abcdef");
         ReflectionTestUtils.setField(service, "liveKitEnabled", false);
         return service;

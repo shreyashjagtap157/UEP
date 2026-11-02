@@ -57,6 +57,7 @@ class StorageCleanupWorker {
                     return;
                 }
                 try {
+                    storageQuota.authorizeDelete(job.tenantId(), job.provider());
                     adapters.require(job.provider()).delete(job.locator());
                     if (job.quotaReservationId() != null) {
                         storageQuota.release(job.tenantId(), job.quotaReservationId());
