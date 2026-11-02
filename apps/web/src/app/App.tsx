@@ -353,6 +353,8 @@ function People({ me }: { me: CurrentIdentity }) {
                   {has(me, 'BRANCHES_VIEW') && branches.data
                     ? <label>Primary branch<select name="primaryBranchId" defaultValue={member.primaryBranchId ?? ''}>
                         <option value="">No primary branch</option>
+                        {member.primaryBranchId && !branches.data.items.some(branch => branch.id === member.primaryBranchId)
+                          && <option value={member.primaryBranchId}>Current branch ({shortId(member.primaryBranchId)})</option>}
                         {branches.data.items.map(branch => <option key={branch.id} value={branch.id}>{branch.displayName}</option>)}
                       </select></label>
                     : <input type="hidden" name="primaryBranchId" defaultValue={member.primaryBranchId ?? ''} />}
