@@ -60,7 +60,7 @@ test.describe('Deployed UEP product — staging integration', () => {
         userId: string
       }
 
-      expect(identity.tenantId).toBe(account.tenantId)
+      expect(identity.tenantId === account.tenantId, 'authenticated membership must resolve to the configured staging tenant').toBe(true)
       expect(identity.membershipStatus).toBe('ACTIVE')
       expect(identity.displayName).toBe(account.displayName)
       expect(identity.membershipId).toBeTruthy()
