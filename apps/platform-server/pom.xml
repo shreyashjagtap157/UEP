@@ -23,7 +23,7 @@
     <spring-modulith.version>2.1.2</spring-modulith.version>
     <aws-sdk.version>2.57.3</aws-sdk.version>
     <maven.compiler.release>21</maven.compiler.release>
-    <jacoco.version>0.8.15</jacoco.version>
+    <jacoco.version>0.8.16</jacoco.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
