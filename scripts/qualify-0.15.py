@@ -559,6 +559,15 @@ if ':afterExpiresAt is null' in upload_repository or ':afterCompletedAt is null'
 upload_cleanup_test = text('apps/platform-server/src/test/java/com/universalplatform/content/UploadCleanupWorkerIntegrationTest.java')
 if 'failedOldFilesDoNotStarveLaterCleanupAndAbortedSessionsStayAborted' not in upload_cleanup_test:
     errors.append('missing upload staging cleanup pagination/abort regression test')
+upload_initiation_service = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
+upload_compensation_test = text('apps/platform-server/src/test/java/com/universalplatform/content/UploadFinalizationCompensationTest.java')
+if 'registerInitiationStagingCompensation(tenant, id, path)' not in upload_initiation_service:
+    errors.append('upload initiation must register filesystem compensation before transaction completion')
+if 'afterCompletion(int completionStatus)' not in upload_initiation_service or 'Files.deleteIfExists(stagingPath)' not in upload_initiation_service:
+    errors.append('upload initiation rollback must remove the pre-commit staging file')
+if 'initiationRollbackRemovesStagingFileCreatedBeforeDatabaseCommit' not in upload_compensation_test:
+    errors.append('missing upload initiation transaction rollback cleanup regression')
+
 staging_service = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadStagingCleanupService.java')
 if 'Propagation.REQUIRES_NEW' not in staging_service or 'staging_cleaned_at = CURRENT_TIMESTAMP' not in staging_service:
     errors.append('committed staging cleanup must persist its marker in a new transaction')
