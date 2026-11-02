@@ -2,12 +2,7 @@
 
 > **SUPERSEDED HISTORICAL RECORD.** The current target has been re-opened as Cloudflare Pages + Fly.io + Supabase PostgreSQL. Use [FLY_SUPABASE_STAGING.md](FLY_SUPABASE_STAGING.md) for the active plan. This file preserves the previous Fly/Supabase attempt; its old commands, credentials and deployment claims must not be reused without requalification.
 
-The original document described a Fly.io + Supabase staging candidate. Its
-historical verification boundaries remain useful for understanding why that
-candidate was not accepted, but its deployment commands, hostnames, provider
-variables, and acceptance path must not be followed for the new topology.
-
-## Required architecture
+## Previous architecture snapshot
 
 ```
 Browser

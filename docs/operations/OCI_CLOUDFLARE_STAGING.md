@@ -1,4 +1,4 @@
-# UEP — OCI + Cloudflare Pages + R2 staging deployment
+# UEP — superseded OCI + Cloudflare Pages + R2 staging proposal
 
 **Status: OCI backend/database/Keycloak and R2 are not deployed. The existing Cloudflare Pages testing project has an unqualified ad-hoc deployment and stale Fly.io API configuration; it is not an accepted staging release.**  
 **Last reviewed: 2026-11-02**
