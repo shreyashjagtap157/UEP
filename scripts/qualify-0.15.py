@@ -1020,6 +1020,8 @@ if 'event.failed(exception.getClass().getSimpleName(), clock.instant()' not in w
 if 'exception.getMessage()' in webhook_fanout_worker:
     errors.append('webhook fan-out worker must not persist raw transport exception messages')
 for rel, test_name in [
+    ('apps/platform-server/src/test/java/com/universalplatform/notification/NotificationOutboxFailurePrivacyTest.java',
+     'failedOutboxFailurePersistsOnlyAnExceptionCategory'),
     ('apps/platform-server/src/test/java/com/universalplatform/notification/NotificationDeliveryFailurePrivacyTest.java',
      'failedEmailDeliveryPersistsOnlyAnExceptionCategory'),
     ('apps/platform-server/src/test/java/com/universalplatform/integration/WebhookEventOutboxFailurePrivacyTest.java',
@@ -1028,6 +1030,12 @@ for rel, test_name in [
     test_source = text(rel)
     if test_name not in test_source:
         errors.append(f'missing persistence redaction regression: {test_name}')
+
+# Notification outbox model state must enforce safe failure categories independently of its worker.
+notification_outbox = text('apps/platform-server/src/main/java/com/universalplatform/notification/NotificationOutbox.java')
+for required in ['safeFailureType(message)', 'NotificationOutboxFailure', 'value.matches("[A-Za-z0-9_$]{1,160}")']:
+    if required not in notification_outbox:
+        errors.append(f'notification outbox failure persistence is not redacted: {required}')
 
 # PII/secret response anti-patterns in controllers.
 for p in (ROOT/'apps/platform-server/src/main/java/com/universalplatform').rglob('*Controller.java'):

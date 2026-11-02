@@ -66,6 +66,7 @@ class NotificationOutbox {
     Instant processedAt() { return processedAt; }
     Instant deadLetteredAt() { return deadLetteredAt; }
     int attemptCount() { return attemptCount; }
+    String lastError() { return lastError; }
 
     void processed(Instant now) {
         this.processedAt = now;
@@ -74,7 +75,7 @@ class NotificationOutbox {
 
     void failed(String message, Instant failedAt, Instant retryAt) {
         this.attemptCount++;
-        this.lastError = message == null ? "Notification outbox processing failed" : truncate(message, 1000);
+        this.lastError = safeFailureType(message);
         if (this.attemptCount >= 12) {
             this.deadLetteredAt = failedAt;
         } else {
@@ -82,7 +83,8 @@ class NotificationOutbox {
         }
     }
 
-    private static String truncate(String value, int max) {
-        return value.length() <= max ? value : value.substring(0, max);
+    private static String safeFailureType(String value) {
+        return value != null && value.matches("[A-Za-z0-9_$]{1,160}")
+                ? value : "NotificationOutboxFailure";
     }
 }

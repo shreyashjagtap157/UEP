@@ -9,6 +9,7 @@
 ### Fixed
 - persist only sanitized exception categories for SMTP delivery and webhook event fan-out failures; redact provider/worker operational logs so raw transport exceptions, callback URLs, query credentials and provider details are not written to logs or retry-state columns;
 - restore announcement integration fixtures and correct retry timing/type-cleanup assertions.
+- enforce safe failure-category persistence inside the notification outbox entity itself, so future callers cannot bypass the worker's redaction policy; add a direct model regression and static qualification check.
 
 ### Verification
 - GitHub Actions [UEP CI run #935](https://github.com/shreyashjagtap157/UEP/actions/runs/41406036125) passed all six jobs on exact `main` HEAD `a29485b7b73f522a553a94e769a8318d5b774702`, including PostgreSQL 17.11/18.4 backend matrices, web lint/tests/build, repository policy/qualification, vulnerability scanning, and Keycloak OCI/ARM64 validation.
