@@ -166,8 +166,15 @@ jobs:
             fi
           done
 
-      - name: Build Vercel backend container image
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build API container image for the current runner architecture
         run: docker build --pull --tag uep-platform-api:ci apps/platform-server
+      - name: Build and smoke-test OCI ARM64 API container image
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/arm64 --load --tag uep-platform-api:arm64-ci apps/platform-server
+          docker run --rm --platform linux/arm64 --entrypoint java uep-platform-api:arm64-ci -version
       - name: Start packaged server on a fresh database and run health smoke
         env:
           SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform_smoke
@@ -219,8 +226,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22.22.0'
-      - name: Install
-        run: npm --prefix apps/web install --ignore-scripts
+      - name: Install locked web dependencies
+        run: npm --prefix apps/web ci --ignore-scripts
       - name: Lint
         run: npm --prefix apps/web run lint
       - name: Demo workflow tests
@@ -255,8 +262,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22.22.0'
-      - name: Resolve web lock metadata without install scripts
-        run: npm --prefix apps/web install --package-lock-only --ignore-scripts
+      - name: Install locked web dependencies for vulnerability scanning
+        run: npm --prefix apps/web ci --ignore-scripts
       - name: Generate Java dependency SBOM
         run: >-
           mvn -B -f apps/platform-server/pom.xml
@@ -278,11 +285,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Validate staging Keycloak realm and Fly configuration
+      - name: Validate Keycloak realm and OCI container contract
         run: |
           python3 - <<'PY'
           import json
-          import tomllib
           from pathlib import Path
 
           realm = json.loads(Path("infra/keycloak/education-realm-staging.json").read_text())
@@ -296,15 +302,33 @@ jobs:
           assert client["redirectUris"] == ["https://uep-frontend-testing.pages.dev/*"]
           assert client["webOrigins"] == ["https://uep-frontend-testing.pages.dev"]
           assert "localhost" not in json.dumps(client)
-          fly = tomllib.loads(Path("infra/keycloak/fly.toml").read_text())
-          assert fly["app"] == "uep-keycloak-testing"
-          assert fly["primary_region"] == "syd"
-          assert fly["http_service"]["internal_port"] == 8080
-          assert fly["env"]["KC_DB"] == "postgres"
-          assert fly["env"]["KC_DB_SCHEMA"] == "keycloak"
-          assert fly["env"]["KC_PROXY_HEADERS"] == "xforwarded"
-          assert fly["checks"][0]["port"] == 9000
-          print("Staging Keycloak realm and Fly configuration passed.")
+
+          api_dockerfile = Path("apps/platform-server/Dockerfile").read_text()
+          assert "eclipse-temurin:21-jre" in api_dockerfile
+          assert "USER 10001:10001" in api_dockerfile
+          oci_profile = Path("apps/platform-server/src/main/resources/application-oci.yaml").read_text()
+          assert "flyway:" in oci_profile and "enabled: false" in oci_profile
+          migration_runner = Path("apps/platform-server/src/main/java/com/universalplatform/DatabaseMigrationRunner.java").read_text()
+          for required in (
+              "UEP_DATABASE_MIGRATION_JDBC_URL",
+              "UEP_DATABASE_MIGRATION_USERNAME",
+              "UEP_DATABASE_MIGRATION_PASSWORD",
+              "UEP_DATABASE_RUNTIME_USERNAME",
+              "validateRuntimeRole",
+          ):
+              assert required in migration_runner
+
+          keycloak_dockerfile = Path("infra/keycloak/Dockerfile").read_text()
+          assert "quay.io/keycloak/keycloak:26.7.0" in keycloak_dockerfile
+          assert 'CMD ["start", "--optimized", "--import-realm"]' in keycloak_dockerfile
+          print("Keycloak realm and OCI container contract passed.")
           PY
-      - name: Build optimized staging Keycloak image
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build optimized staging Keycloak image for the current runner
         run: docker build --pull --tag uep-keycloak-staging:ci infra/keycloak
+      - name: Build and smoke-test OCI ARM64 Keycloak image
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/arm64 --load --tag uep-keycloak-staging:arm64-ci infra/keycloak
+          docker run --rm --platform linux/arm64 --entrypoint /opt/keycloak/bin/kc.sh uep-keycloak-staging:arm64-ci --version
