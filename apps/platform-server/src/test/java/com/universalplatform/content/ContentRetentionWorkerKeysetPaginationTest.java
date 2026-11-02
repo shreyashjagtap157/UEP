@@ -73,7 +73,8 @@ class ContentRetentionWorkerKeysetPaginationTest {
         worker.purgeExpired();
 
         assertThatPurgedCountIs(RESOURCE_COUNT);
-        verify(resources, times(4)).findExpiredForPurgeAfter(
+        // 205 rows are consumed as 100 + 100 + 5; the short final page ends the poll.
+        verify(resources, times(3)).findExpiredForPurgeAfter(
                 any(Instant.class), any(Instant.class), any(UUID.class), any(Pageable.class));
         verify(audit, times(RESOURCE_COUNT)).record(
                 any(UUID.class), any(String.class), any(String.class), any(String.class), any(String.class));

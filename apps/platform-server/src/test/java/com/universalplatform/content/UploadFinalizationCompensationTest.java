@@ -80,8 +80,6 @@ class UploadFinalizationCompensationTest {
 
         when(tenants.requireTenantId()).thenReturn(tenantId);
         when(actors.requireSubject()).thenReturn(actor);
-        when(uploads.lock(tenantId, uploadId)).thenReturn(Optional.of(session));
-        when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.CLEAN);
         lenient().when(adapters.require(StorageProviderType.LOCAL)).thenReturn(adapter);
         lenient().when(adapter.put(anyString(), any(), eq((long) FILE_BYTES.length), eq("application/octet-stream")))
                 .thenReturn("remote-locator");
@@ -123,6 +121,7 @@ class UploadFinalizationCompensationTest {
 
     @Test
     void truncatedStagingFileAbortsUploadReleasesQuotaAndReturnsConflict() throws Exception {
+        stubUploadSession();
         Files.write(stagingFile, new byte[]{1, 2});
 
         assertThatThrownBy(() -> service.append(uploadId, FILE_BYTES.length,
@@ -142,6 +141,7 @@ class UploadFinalizationCompensationTest {
 
     @Test
     void missingStagingFileAbortsUploadReleasesQuotaAndReturnsConflict() throws Exception {
+        stubUploadSession();
         Files.delete(stagingFile);
 
         assertThatThrownBy(() -> service.append(uploadId, FILE_BYTES.length,
@@ -160,6 +160,7 @@ class UploadFinalizationCompensationTest {
 
     @Test
     void malwareRejectionCommitsTerminalAbortAndRemovesStagingFile() throws Exception {
+        stubUploadSession();
         when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.REJECTED);
 
         assertThatThrownBy(() -> service.finalizeUpload(uploadId))
@@ -175,6 +176,8 @@ class UploadFinalizationCompensationTest {
 
     @Test
     void rollbackDeletesProviderObjectAndKeepsStagingFileForRetry() throws Exception {
+        stubUploadSession();
+        stubCleanScan();
         service.finalizeUpload(uploadId);
 
         completeSynchronizations(TransactionSynchronization.STATUS_ROLLED_BACK);
@@ -187,6 +190,8 @@ class UploadFinalizationCompensationTest {
 
     @Test
     void rollbackPersistsDurableCleanupWhenProviderCompensationFails() throws Exception {
+        stubUploadSession();
+        stubCleanScan();
         doThrow(new IOException("provider failure")).when(adapter).delete("remote-locator");
 
         service.finalizeUpload(uploadId);
@@ -201,6 +206,8 @@ class UploadFinalizationCompensationTest {
 
     @Test
     void commitKeepsProviderObjectAndRemovesStagingFile() throws Exception {
+        stubUploadSession();
+        stubCleanScan();
         service.finalizeUpload(uploadId);
 
         completeSynchronizations(TransactionSynchronization.STATUS_COMMITTED);
@@ -214,6 +221,8 @@ class UploadFinalizationCompensationTest {
 
     @Test
     void auditFailureCompensatesProviderObjectWhenTransactionRollsBack() throws Exception {
+        stubUploadSession();
+        stubCleanScan();
         doThrow(new IllegalStateException("audit unavailable"))
                 .when(audit).record(eq(tenantId), eq(actor), eq("UPLOAD_COMPLETED"), eq("storage_object"), anyString());
 
@@ -224,6 +233,14 @@ class UploadFinalizationCompensationTest {
 
         verify(adapter).delete("remote-locator");
         assertThat(Files.exists(stagingFile)).isTrue();
+    }
+
+    private void stubUploadSession() {
+        when(uploads.lock(tenantId, uploadId)).thenReturn(Optional.of(session));
+    }
+
+    private void stubCleanScan() {
+        when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.CLEAN);
     }
 
     private static void completeSynchronizations(int status) {
