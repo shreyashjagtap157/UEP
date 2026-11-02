@@ -37,7 +37,7 @@ checks = {
     ),
     "retirement record captures the stopped Fly machine and absent Keycloak app": (
         "d89565db307d58" in runbook
-        and "Keycloak app uep-keycloak-testing: does not exist" in runbook
+        and "Keycloak app uep-keycloak-testing does not exist" in runbook
     ),
     "retirement record confirms the Supabase project was paused": (
         "reported INACTIVE" in runbook and "pause operation returned success" in runbook
