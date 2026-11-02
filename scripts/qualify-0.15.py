@@ -646,6 +646,20 @@ for required_test in [
     if required_test not in recording_worker_test:
         errors.append(f'missing recording worker keyset pagination regression: {required_test}')
 
+# Notification outbox failures must be durably backed off outside a rollback-only materialization transaction.
+notification_outbox_processor = text('apps/platform-server/src/main/java/com/universalplatform/notification/NotificationOutboxProcessor.java')
+notification_outbox_test = text('apps/platform-server/src/test/java/com/universalplatform/notification/NotificationIntegrationTest.java')
+for required in [
+    'processingTransaction.executeWithoutResult',
+    'failureTransaction.executeWithoutResult',
+    'status.setRollbackOnly()',
+    'event.failed(reason.getClass().getSimpleName()',
+]:
+    if required not in notification_outbox_processor:
+        errors.append(f'notification outbox retry handling is missing: {required}')
+if 'invalidOutboxEventPersistsRetryBackoffOutsideFailedProcessingTransaction' not in notification_outbox_test:
+    errors.append('missing notification outbox poisoned-event retry persistence regression')
+
 # Scheduled announcement workers must isolate per-record failures so one bad row cannot stop the batch.
 announcement_worker = text('apps/platform-server/src/main/java/com/universalplatform/communication/AnnouncementPublishingWorker.java')
 announcement_worker_test = text('apps/platform-server/src/test/java/com/universalplatform/communication/AnnouncementPublishingWorkerTest.java')
