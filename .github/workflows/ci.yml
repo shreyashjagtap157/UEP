@@ -280,6 +280,21 @@ jobs:
       - uses: actions/checkout@v7
       - name: Verify repository policy
         run: bash scripts/verify-repository.sh
+      - name: Parse native PowerShell launcher
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts/Start-UEP.ps1'),
+            [ref]$tokens,
+            [ref]$parseErrors
+          ) | Out-Null
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Error $_.ToString() }
+            exit 1
+          }
+          Write-Host 'Native Windows launcher PowerShell syntax passed.'
       - name: Verify Vercel deployment contract
         run: python3 scripts/verify-vercel-config.py
       - name: Test backup/restore safety guards
