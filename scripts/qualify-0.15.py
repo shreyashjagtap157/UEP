@@ -646,6 +646,18 @@ for required_test in [
     if required_test not in recording_worker_test:
         errors.append(f'missing recording worker keyset pagination regression: {required_test}')
 
+# Scheduled announcement workers must isolate per-record failures so one bad row cannot stop the batch.
+announcement_worker = text('apps/platform-server/src/main/java/com/universalplatform/communication/AnnouncementPublishingWorker.java')
+announcement_worker_test = text('apps/platform-server/src/test/java/com/universalplatform/communication/AnnouncementPublishingWorkerTest.java')
+if 'catch (RuntimeException failure)' not in announcement_worker:
+    errors.append('announcement worker must isolate per-announcement publish/expiry failures')
+for test_name in [
+    'oneInvalidScheduledAnnouncementDoesNotBlockLaterDueAnnouncements',
+    'oneInvalidExpiryDoesNotBlockLaterDueAnnouncements',
+]:
+    if test_name not in announcement_worker_test:
+        errors.append(f'missing announcement worker batch-progress regression: {test_name}')
+
 # Content-retention polling must not let a persistent oldest-page failure starve later resources.
 content_repository = text('apps/platform-server/src/main/java/com/universalplatform/content/LearningResourceRepository.java')
 content_worker = text('apps/platform-server/src/main/java/com/universalplatform/content/ContentRetentionWorker.java')
