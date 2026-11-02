@@ -496,12 +496,15 @@ for required in [
     'afterExpiresAt',
     'afterCompletedAt',
     'Pageable pageable',
+    'u.status = :abortedStatus',
+    '@Param("abortedStatus") UploadStatus abortedStatus',
 ]:
     if required not in upload_repository:
         errors.append(f'upload cleanup repository is missing keyset cleanup contract: {required}')
 upload_cleanup_worker = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadCleanupWorker.java')
 for required in [
     'UploadStatus.ABORTED',
+    'expiredStatuses, now, UploadStatus.ABORTED',
     'PageRequest.of(0, CLEANUP_BATCH_SIZE)',
     'afterExpiresAt',
     'afterCompletedAt',
