@@ -198,6 +198,8 @@ class UploadService {
             realignIfStagingIsAheadOfCommittedOffset(path, u.receivedBytes);
         } catch (IOException stagingCorruption) {
             u.status = UploadStatus.ABORTED;
+            audit.record(u.tenantId, actors.requireSubject(),
+                    "UPLOAD_ABORTED_STAGING_CORRUPTION", "upload_session", u.id.toString());
             if (u.quotaReservationId != null) {
                 storageQuota.release(u.tenantId, u.quotaReservationId);
             }
@@ -209,8 +211,6 @@ class UploadService {
                 log.warn("Could not remove corrupted upload staging file for tenant {} upload {}",
                         u.tenantId, u.id, cleanupFailure);
             }
-            audit.record(u.tenantId, actors.requireSubject(),
-                    "UPLOAD_ABORTED_STAGING_CORRUPTION", "upload_session", u.id.toString());
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Upload staging data is corrupted; restart the upload", stagingCorruption);
         }
