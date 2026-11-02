@@ -292,3 +292,28 @@ Latest verified repository state during the 2026-11-03 continuation:
 - These new commits were pushed directly to main. CI for the new code has not yet been inspected at this exact head. Check current main and latest workflow before claiming green.
 - Native Windows execution remains unverified here. The Playwright test creates and retains a uniquely named synthetic membership because there is no membership-delete operation; it records the membership subject and ID in a Playwright annotation and never deletes rows with SQL.
 - The native suite still does not qualify PUT/DELETE, multi-persona or cross-tenant/branch isolation, broad product workflows, service restart persistence, or complete DB object-ownership grants. Do not overstate coverage.
+
+## Continuation update — role assignment management and native qualification
+
+Live API inventory from docs/api/openapi.yaml:
+- OpenAPI declares 225 operations: GET 94, POST 97, PUT 25, PATCH 1, DELETE 8. This is a contract count, not a count of missing UI implementations; multiple feature workspaces have their own API clients and need individual matching.
+- Identity API already supports GET role assignments per membership, POST tenant/branch role assignment, and DELETE role assignment. RoleManagementService enforces ROLES_VIEW for listing and ROLES_ASSIGN for assignment/removal, validates tenant membership and scope, prevents assignment to ended memberships, and protects privileged Organization Owner grants/removals.
+- The People workspace previously had no complete existing-member assignment lifecycle. It now lists assignments, supports tenant-scoped and branch-scoped assignment, and supports removal, with explicit ROLES_VIEW / ROLES_ASSIGN gates. Branch scope is only offered when BRANCHES_VIEW and branch data are available; missing branch selection is validated client-side.
+
+New commits pushed directly to main:
+- fce464c3f344f92114be13063ed21edae8ba0132 — typed authenticated API client functions for listing, assigning and unassigning membership roles.
+- d40d716669a1f2775cf3ea6bc759373823e9ee1d — People workspace assignment listing and management UI.
+- c0cce8c757273cd2cf381dd92a32afa266236344 — branch-scope selection validation.
+- 405fd391533c9e30668cfeeb9bbd27b79a4eb6d6 — source-contract assertions for assignment transport and permission gates.
+- 5ba77414f2d535990483c7901ad78a969b4446db — native Playwright tenant role assign/unassign lifecycle using the existing Student role.
+- 7fe6abfed834719b07953522d3fbcf031d577dc3 — source-contract assertions for native assignment lifecycle.
+- 11cdbf74f33abbf10beef976c8a614ca1feaf848 — native Windows acceptance prompt updated for role assignment lifecycle.
+
+Native smoke now intends to cover, under local Keycloak and Vite proxy: OIDC login, analytics CSV export, branch create/reload/API readback, restricted PostgreSQL role boundaries and branch readback, synthetic membership create, tenant-scoped Student role assignment and removal, membership PATCH with optimistic version 0→1, reload/GET readback, and restricted-role PostgreSQL membership readback. The test's synthetic branch and membership are retained and annotated because delete operations are absent for those resources; the temporary Student role assignment is removed through the API.
+
+CI status at the last live check:
+- main = 11cdbf74f33abbf10beef976c8a614ca1feaf848.
+- CI run #1075 (41514410820) for this exact SHA was queued. Run #1074 (41514348790) on the immediately preceding native-test code SHA was also queued. Earlier run #1068 had web, repository-policy and vulnerability jobs passed while backend 17.11/18.4 and Keycloak were still running. Do not claim latest role-assignment changes have passed CI until #1075 (or a newer run on main) completes.
+- Native Windows runtime remains unexecuted in this environment. No claim of local full-stack runtime success is permitted.
+
+Next work: inspect current-head CI and any failures; then continue a method-by-method OpenAPI-to-frontend-workspace inventory. Do not assume all 225 operations require direct UI buttons—some are internal lifecycle, public verification, background operations, or role-gated APIs. Prioritize user-facing workflow gaps, preserve permission boundaries and use real backend/database tests. Do not weaken CI or remove coverage.
