@@ -26,7 +26,7 @@ function loadLocalOwnerCredentials(): { username: string; password: string } {
   let state: LocalBootstrapState
   try {
     const statePath = join(localAppData, 'UEP', 'local-native', 'state.json')
-    state = JSON.parse(readFileSync(statePath, 'utf8')) as LocalBootstrapState
+    state = JSON.parse(readFileSync(statePath, 'utf8').replace(/^\uFEFF/, '')) as LocalBootstrapState
   } catch {
     throw new Error('Protected local UEP bootstrap state is unavailable. Start Real mode under this Windows user first.')
   }
@@ -44,7 +44,7 @@ function loadLocalOwnerCredentials(): { username: string; password: string } {
   return { username: state.LocalAdminUsername, password: state.LocalAdminPassword }
 }
 
-test('real OIDC owner exports a database-backed analytics report through the authenticated Vite proxy', async ({ page }) => {
+test('real OIDC owner exports a database-backed analytics report through the authenticated Vite proxy', async ({ page, request }) => {
   const credentials = loadLocalOwnerCredentials()
   const browserApiOrigins = new Set<string>()
 
@@ -108,7 +108,7 @@ test('real OIDC owner exports a database-backed analytics report through the aut
   expect(requestHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
   expect([...browserApiOrigins]).toEqual([frontend])
 
-  const discovery = await page.request.get(keycloakIssuer + '/.well-known/openid-configuration')
+  const discovery = await request.get(keycloakIssuer + '/.well-known/openid-configuration')
   expect(discovery.status()).toBe(200)
   const metadata = await discovery.json() as { issuer?: string }
   expect(metadata.issuer).toBe(keycloakIssuer)
