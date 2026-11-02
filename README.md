@@ -1,12 +1,16 @@
 # Universal Education, Training and Learning Operations Platform
 
-## Current verified status — 26 October 2026
+## Current verified status — 2 November 2026
 
-> **Release gate: NOT YET QUALIFIED FOR PRODUCTION.** The repository remains at `0.15.0.0-SNAPSHOT`. The latest complete green CI run is [run #380](https://github.com/shreyashjagtap157/UEP/actions/runs/40266626824), commit `341b6cfc970f52dff75f7c2c0a9a974885f7fe47`: backend Maven verification passed (131 tests, zero failures/errors), Flyway validated and applied all 36 migrations, the packaged server started against a fresh PostgreSQL database, and 30/30 concurrent health requests passed at 6-worker concurrency with observed p95 39.3 ms / p99 39.7 ms in that CI environment. The web lint/tests/build, repository-policy qualification, backup/restore safety checks, load-smoke tests, static qualification, and dependency scan also passed.
+> **Release gate: NOT YET QUALIFIED FOR PRODUCTION.** The repository remains at `0.15.0.0-SNAPSHOT`. The latest fully documented historical main-branch CI result is [run #380](https://github.com/shreyashjagtap157/UEP/actions/runs/40266626824), commit `341b6cfc970f52dff75f7c2c0a9a974885f7fe47`: backend Maven verification passed (131 tests, zero failures/errors), Flyway validated and applied all 36 migrations, the packaged server started against a fresh PostgreSQL database, and 30/30 concurrent health requests passed at 6-worker concurrency (p95 39.3 ms / p99 39.7 ms in that CI environment). Web lint/tests/build, repository-policy qualification, backup/restore safety checks, load-smoke tests, static qualification, and dependency scanning also passed. These are historical results, not validation of today's main branch.
 
-> These results establish CI and smoke-level evidence, not production capacity or end-to-end provider qualification. Before production release, the 0.15 milestone still requires an executed PostgreSQL backup/restore drill against a disposable target, production-like k6/load results, external provider qualification, and operational backup/alert/restore runbooks.
+> Since that run, main has added the persistent storage quota ledger (V047), active-only storage reservation-key uniqueness (V048), provider-wide S3/R2 operation budgets, and further upload/recording cleanup changes. The staging and database-migration workflows have also been hardened, and CI now checks OCI container configuration and ARM64 image builds. **A completed full CI run against the exact current main head has not yet been verified.** The successful PR #26 run validates its separate, substantially divergent branch only; it is not current-main evidence and the PR must not be merged wholesale.
 
-> See [GitHub Actions](https://github.com/shreyashjagtap157/UEP/actions), [issue/PR tracker](https://github.com/shreyashjagtap157/UEP/pulls), the [0.15 qualification guide](docs/QUALIFICATION_0.15.md), and the [master implementation plan](docs/MASTER_IMPLEMENTATION_PLAN.md). The sections below describe documented scope and should not be read as proof that every external provider or production drill has run.
+> Production and real-staging qualification remain blocked. The OCI tenancy/A1 capacity and stable HTTPS hostname are not verified; R2 remains disabled; the Cloudflare testing Pages project still has the superseded Fly backend URL and lacks a verified Keycloak URL; and the GitHub `staging` and `vercel-database-migrations` Environments still require independent main-only deployment-branch and reviewer-policy verification. See the [current OCI + Cloudflare staging runbook](docs/operations/OCI_CLOUDFLARE_STAGING.md).
+
+> CI smoke results do not establish production capacity or provider durability. The 0.15 release still requires a disposable PostgreSQL backup/restore drill, production-like k6 results, live identity and provider qualification, and operational backup/alert/restore runbooks.
+
+> See [GitHub Actions](https://github.com/shreyashjagtap157/UEP/actions), [pull requests](https://github.com/shreyashjagtap157/UEP/pulls), the [0.15 qualification guide](docs/QUALIFICATION_0.15.md), and the [master implementation plan](docs/MASTER_IMPLEMENTATION_PLAN.md). Implemented source and documented scope are not proof that every external service or production drill has run.
 
 ---
 ## 0.15.0.0 — Reliability and Performance Qualification
@@ -71,9 +75,9 @@ The current hardening milestone is implemented in source and intentionally remai
 
 ## Required production toolchain
 
-- JDK 25
+- JDK 21+ (CI currently verifies on JDK 25; Maven compiles to Java 21 bytecode)
 - Maven 3.9+
-- Node.js 22.12+ (or another Vite 8 supported Node release)
+- Node.js 22.22.0+
 - PostgreSQL 18
 - Keycloak 26.7.x for the reference identity deployment
 - Valkey 9.1.x optional
@@ -83,7 +87,7 @@ The current hardening milestone is implemented in source and intentionally remai
 
 ```bash
 mvn -f apps/platform-server/pom.xml verify
-npm --prefix apps/web install --ignore-scripts
+npm --prefix apps/web ci --ignore-scripts
 npm --prefix apps/web test
 npm --prefix apps/web run build
 ```
