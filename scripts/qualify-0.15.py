@@ -646,6 +646,32 @@ for required_test in [
     if required_test not in recording_worker_test:
         errors.append(f'missing recording worker keyset pagination regression: {required_test}')
 
+# Content-retention polling must not let a persistent oldest-page failure starve later resources.
+content_repository = text('apps/platform-server/src/main/java/com/universalplatform/content/LearningResourceRepository.java')
+content_worker = text('apps/platform-server/src/main/java/com/universalplatform/content/ContentRetentionWorker.java')
+content_retention_test = text('apps/platform-server/src/test/java/com/universalplatform/content/ContentRetentionWorkerKeysetPaginationTest.java')
+for required in [
+    'findExpiredForPurgeAfter(',
+    'order by r.expiresAt asc, r.id asc',
+    'afterExpiresAt',
+    'afterId',
+]:
+    if required not in content_repository:
+        errors.append(f'content repository is missing retention keyset contract: {required}')
+for required in [
+    'findExpiredForPurgeAfter(',
+    'while (true)',
+    'PageRequest.of(0, RETENTION_BATCH_SIZE)',
+    'FIRST_CURSOR',
+    'FIRST_ID',
+]:
+    if required not in content_worker:
+        errors.append(f'content retention worker is missing keyset pagination: {required}')
+if 'findTop100ByExpiresAtBeforeAndPurgedAtIsNullOrderByExpiresAtAsc' in content_worker:
+    errors.append('content retention worker must not use starvation-prone top-100 polling')
+if 'retentionPollVisitsEveryResourceAcrossMoreThanTwoPages' not in content_retention_test:
+    errors.append('missing content retention pagination regression beyond 100 resources')
+
 # Tenant isolation gate: require tenant-leading indexes for the high-frequency 0.15 query paths.
 required_indexes = {
     "ix_tenant_membership_tenant_status", "ix_enrollment_tenant_status_started",
