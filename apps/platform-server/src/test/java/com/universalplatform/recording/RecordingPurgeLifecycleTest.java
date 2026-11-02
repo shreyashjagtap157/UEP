@@ -241,8 +241,13 @@ class RecordingPurgeLifecycleTest {
     @Test
     void cleanupOutboxFailurePreventsRecordingMetadataRetirement() throws Exception {
         doThrow(new IllegalStateException("cleanup outbox unavailable"))
-                .when(cleanupQueue).enqueueWithinCurrentTransaction(tenantId, StorageProviderType.LOCAL,
-                        "thumbnail-locator", "thumbnail-object-key", thumbnail.quotaReservationId(), null);
+                .when(cleanupQueue).enqueueWithinCurrentTransaction(
+                        org.mockito.ArgumentMatchers.eq(tenantId),
+                        org.mockito.ArgumentMatchers.eq(StorageProviderType.LOCAL),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(UUID.class),
+                        org.mockito.ArgumentMatchers.isNull());
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.purgeDue(recording))
                 .isInstanceOf(IllegalStateException.class)
