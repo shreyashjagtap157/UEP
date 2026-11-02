@@ -266,6 +266,9 @@ jobs:
         run: npm --prefix apps/web run lint
       - name: Demo workflow tests
         run: npm --prefix apps/web test
+      - name: Validate native Real Playwright smoke test discovery (does not start local services)
+        working-directory: apps/web
+        run: npx playwright test --config playwright.native.config.ts --list
       - name: Build with the real OIDC production contract
         env:
           VITE_LOCAL_MODE: "false"
