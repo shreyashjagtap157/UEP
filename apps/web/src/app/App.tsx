@@ -42,6 +42,7 @@ import {
   provisionMembership,
   revokeOwnSession,
   updateOrganizationSettings,
+  updateMembership,
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
 
@@ -279,8 +280,16 @@ function People({ me }: { me: CurrentIdentity }) {
   const queryClient = useQueryClient()
   const members = useQuery({ queryKey: ['members'], queryFn: fetchMembers })
   const roles = useQuery({ queryKey: ['roles'], queryFn: fetchRoles, enabled: has(me, 'ROLES_VIEW') })
+  const branches = useQuery({ queryKey: ['branches'], queryFn: fetchBranches, enabled: has(me, 'BRANCHES_VIEW') })
   const mutation = useMutation({
     mutationFn: provisionMembership,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['members'] }),
+  })
+  const updateMutation = useMutation({
+    mutationFn: ({ membershipId, input }: {
+      membershipId: string
+      input: { status: 'ACTIVE' | 'SUSPENDED' | 'ENDED'; primaryBranchId?: string | null; externalReference?: string | null; expectedVersion: number }
+    }) => updateMembership(membershipId, input),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['members'] }),
   })
 
@@ -315,8 +324,44 @@ function People({ me }: { me: CurrentIdentity }) {
       <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">Directory</p><h3>Tenant people</h3></div><span className="count-badge">{members.data?.totalElements ?? 0}</span></div>
         {members.isPending ? <LoadingLine /> : members.isError ? <ErrorLine error={members.error} /> : (
-          <div className="table-wrap"><table aria-label="Tenant member directory"><thead><tr><th>Name</th><th>Status</th><th>Roles</th><th>Identity subject</th></tr></thead><tbody>
-            {members.data.items.map(member => <tr key={member.membershipId}><td><strong>{member.displayName}</strong><span>{member.email ?? 'No email'}</span></td><td>{member.membershipStatus}</td><td>{member.roles.map(role => role.name).join(', ') || '—'}</td><td><code>{member.oidcSubject}</code></td></tr>)}
+          <div className="table-wrap"><table aria-label="Tenant member directory"><thead><tr><th>Name</th><th>Status</th><th>Roles</th><th>Identity subject</th>{has(me, 'USERS_MANAGE') && <th>Manage membership</th>}</tr></thead><tbody>
+            {members.data.items.map(member => <tr key={member.membershipId}>
+              <td><strong>{member.displayName}</strong><span>{member.email ?? 'No email'}</span></td>
+              <td>{member.membershipStatus}</td>
+              <td>{member.roles.map(role => role.name).join(', ') || '—'}</td>
+              <td><code>{member.oidcSubject}</code></td>
+              {has(me, 'USERS_MANAGE') && <td>
+                <form className="form-grid" onSubmit={event => {
+                  event.preventDefault()
+                  const data = new FormData(event.currentTarget)
+                  const primaryBranchId = has(me, 'BRANCHES_VIEW')
+                    ? (String(data.get('primaryBranchId') ?? '') || null)
+                    : (member.primaryBranchId ?? null)
+                  updateMutation.mutate({
+                    membershipId: member.membershipId,
+                    input: {
+                      status: String(data.get('status')) as 'ACTIVE' | 'SUSPENDED' | 'ENDED',
+                      primaryBranchId,
+                      externalReference: String(data.get('externalReference') ?? '') || null,
+                      expectedVersion: member.version,
+                    },
+                  })
+                }}>
+                  <label>Status<select name="status" defaultValue={member.membershipStatus}>
+                    <option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option><option value="ENDED">Ended</option>
+                  </select></label>
+                  {has(me, 'BRANCHES_VIEW') && branches.data
+                    ? <label>Primary branch<select name="primaryBranchId" defaultValue={member.primaryBranchId ?? ''}>
+                        <option value="">No primary branch</option>
+                        {branches.data.items.map(branch => <option key={branch.id} value={branch.id}>{branch.displayName}</option>)}
+                      </select></label>
+                    : <input type="hidden" name="primaryBranchId" value={member.primaryBranchId ?? ''} />}
+                  <label>External reference<input name="externalReference" maxLength={160} defaultValue={member.externalReference ?? ''} /></label>
+                  <button className="primary-button" disabled={updateMutation.isPending}>Save membership</button>
+                  {updateMutation.isError && <p className="error-text" role="alert">{updateMutation.error.message}</p>}
+                </form>
+              </td>}
+            </tr>)}
           </tbody></table></div>
         )}
       </section>
