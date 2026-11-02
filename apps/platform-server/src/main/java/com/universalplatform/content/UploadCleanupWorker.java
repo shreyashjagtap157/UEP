@@ -47,7 +47,8 @@ class UploadCleanupWorker {
         // Offset pagination would repeatedly select the same first page and starve later rows.
         while (true) {
             List<UploadSession> batch = uploads.findExpiredWithUncleanedStaging(
-                    expiredStatuses, now, afterExpiresAt, afterId, PageRequest.of(0, CLEANUP_BATCH_SIZE));
+                    expiredStatuses, now, UploadStatus.ABORTED,
+                    afterExpiresAt, afterId, PageRequest.of(0, CLEANUP_BATCH_SIZE));
             if (batch.isEmpty()) break;
 
             for (UploadSession upload : batch) {
