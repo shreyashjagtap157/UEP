@@ -1,3 +1,6 @@
+# SUPERSEDED — DO NOT DEPLOY.
+# The active staging target is OCI + Cloudflare Pages, not Fly.io.
+# Retained only as an audit record. See docs/operations/OCI_CLOUDFLARE_STAGING.md.
 # fly.toml app configuration file generated for uep-backend-testing on 2026-10-31T13:11:45+05:30
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
