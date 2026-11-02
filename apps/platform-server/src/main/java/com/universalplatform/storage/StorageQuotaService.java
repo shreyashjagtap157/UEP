@@ -342,6 +342,29 @@ public class StorageQuotaService {
                 "reservation release");
     }
 
+    /**
+     * Finds recording/migration reservations that outlived the normal provider write window.
+     * These are deliberately reported, never auto-released: a timed-out PUT may have succeeded
+     * remotely even when the application did not receive its locator.
+     */
+    @Transactional(readOnly = true)
+    public List<StaleReservation> staleRecordingReservations(Instant olderThan) {
+        return jdbc.query("""
+                SELECT id, tenant_id, provider, reservation_key, object_key, created_at
+                FROM storage_quota_reservation
+                WHERE state = 'RESERVED'
+                  AND object_locator IS NULL
+                  AND created_at < ?
+                  AND (reservation_key LIKE 'recording:%' OR reservation_key LIKE 'migration:%')
+                ORDER BY created_at ASC, id ASC
+                LIMIT 100
+                """, (rs, row) -> new StaleReservation(
+                rs.getObject("id", UUID.class), rs.getObject("tenant_id", UUID.class),
+                rs.getString("provider"), rs.getString("reservation_key"),
+                rs.getString("object_key"), rs.getTimestamp("created_at").toInstant()),
+                Timestamp.from(olderThan));
+    }
+
     @Transactional(readOnly = true)
     public List<UsageDrift> reconciliationDrift() {
         return jdbc.query("""
@@ -474,6 +497,8 @@ public class StorageQuotaService {
     private record TenantUsage(long reservedBytes, long committedBytes) {}
     private record Reservation(UUID id, String provider, String state, long reservedBytes,
                                long committedBytes, String objectLocator, String objectKey) {}
+    public record StaleReservation(UUID id, UUID tenantId, String provider, String reservationKey,
+                                    String objectKey, Instant createdAt) {}
     public record UsageDrift(String scope, String scopeKey, long aggregateReserved, long ledgerReserved,
                              long aggregateCommitted, long ledgerCommitted) {}
 }
