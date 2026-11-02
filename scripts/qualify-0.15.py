@@ -580,6 +580,31 @@ if 'afterCompletion(int completionStatus)' not in upload_initiation_service or '
 if 'initiationRollbackRemovesStagingFileCreatedBeforeDatabaseCommit' not in upload_compensation_test:
     errors.append('missing upload initiation transaction rollback cleanup regression')
 
+upload_append_service = upload_initiation_service
+upload_corruption_tests = text('apps/platform-server/src/test/java/com/universalplatform/content/UploadFinalizationCompensationTest.java')
+upload_staging_boundary_tests = text('apps/platform-server/src/test/java/com/universalplatform/content/UploadStorageBindingTest.java')
+for required in [
+    'realignIfStagingIsAheadOfCommittedOffset(path, u.receivedBytes)',
+    'UPLOAD_ABORTED_STAGING_CORRUPTION',
+    'noRollbackFor = ResponseStatusException.class',
+    'UploadStatus.ABORTED',
+]:
+    if required not in upload_append_service:
+        errors.append(f'upload append corruption handling is missing: {required}')
+for test_name in [
+    'truncatedStagingFileAbortsUploadReleasesQuotaAndReturnsConflict',
+    'missingStagingFileAbortsUploadReleasesQuotaAndReturnsConflict',
+]:
+    if test_name not in upload_corruption_tests:
+        errors.append(f'missing upload corruption lifecycle regression: {test_name}')
+for test_name in [
+    'stagingRealignmentTruncatesOnlyUncommittedTrailingBytes',
+    'stagingRealignmentRejectsFilesShorterThanCommittedOffset',
+    'stagingRealignmentRejectsMissingFiles',
+]:
+    if test_name not in upload_staging_boundary_tests:
+        errors.append(f'missing staging realignment boundary regression: {test_name}')
+
 staging_service = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadStagingCleanupService.java')
 if 'Propagation.REQUIRES_NEW' not in staging_service or 'staging_cleaned_at = CURRENT_TIMESTAMP' not in staging_service:
     errors.append('committed staging cleanup must persist its marker in a new transaction')
