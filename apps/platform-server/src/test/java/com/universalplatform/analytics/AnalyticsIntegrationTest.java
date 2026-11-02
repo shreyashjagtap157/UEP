@@ -36,6 +36,7 @@ class AnalyticsIntegrationTest {
         jdbc.update("INSERT INTO tenant_membership(id, tenant_id, user_id, status) VALUES (?, ?, ?, 'ACTIVE')", MEMBER, TENANT, USER);
         jdbc.update("INSERT INTO role_definition(id, tenant_id, name, system_managed) VALUES (?, ?, 'Analytics Operator', false)", ROLE, TENANT);
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'OPERATIONS_VIEW')", ROLE);
+        jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'ANALYTICS_VIEW')", ROLE);
         jdbc.update("INSERT INTO role_assignment(id, tenant_id, membership_id, role_id, scope_kind, assigned_by_subject) VALUES (uuidv7(), ?, ?, ?, 'TENANT', ?)", TENANT, MEMBER, ROLE, SUBJECT);
         jdbc.update("""
                 INSERT INTO notification_outbox(
