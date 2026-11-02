@@ -204,15 +204,24 @@ SET quota_reservation_id = object.quota_reservation_id
 FROM storage_object object
 WHERE upload.tenant_id = object.tenant_id
   AND upload.storage_object_id = object.id
-  AND upload.status = 'COMPLETED';
+  AND upload.status = 'COMPLETED'
+  AND object.status <> 'DELETED';
 
 DO $$
 BEGIN
     IF EXISTS (
-        SELECT 1 FROM upload_session
-        WHERE status = 'COMPLETED' AND quota_reservation_id IS NULL
+        SELECT 1
+        FROM upload_session upload
+        LEFT JOIN storage_object object
+          ON object.tenant_id = upload.tenant_id
+         AND object.id = upload.storage_object_id
+        WHERE upload.status = 'COMPLETED'
+          AND (
+              object.id IS NULL
+              OR (object.status <> 'DELETED' AND upload.quota_reservation_id IS NULL)
+          )
     ) THEN
-        RAISE EXCEPTION 'Storage quota backfill stopped: a completed upload has no committed storage object';
+        RAISE EXCEPTION 'Storage quota backfill stopped: a completed upload has missing or unaccounted live storage metadata';
     END IF;
 END $$;
 

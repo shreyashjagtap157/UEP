@@ -391,8 +391,9 @@ class RecordingService {
             public void afterCommit() {
                 try {
                     storageQuota.authorizeDelete(tenantId, provider);
+                    storageQuota.authorizeDelete(tenantId, provider);
                     adapter.delete(locator);
-                    storageQuota.release(tenantId, reservationId);
+                    storageQuota.releaseDurable(tenantId, reservationId);
                 } catch (Exception failure) {
                     cleanupQueue.enqueue(tenantId, provider, locator, objectKey, reservationId, failure);
                 }

@@ -67,6 +67,7 @@ class StorageQuotaServiceIntegrationTest {
         quota.release(tenantId, reservation);
         assertThat(reservedBytes()).isZero();
         assertThat(committedBytes()).isZero();
+        assertThat(releasedBytes(reservation)).isEqualTo(480);
         assertThat(quota.reconciliationDrift()).isEmpty();
     }
 
@@ -120,6 +121,12 @@ class StorageQuotaServiceIntegrationTest {
         return jdbc.queryForObject("""
                 SELECT COALESCE((SELECT reserved_bytes FROM storage_tenant_usage WHERE tenant_id = ?), 0)
                 """, Long.class, tenantId);
+    }
+
+    private long releasedBytes(UUID reservationId) {
+        return jdbc.queryForObject("""
+                SELECT released_bytes FROM storage_quota_reservation WHERE id = ?
+                """, Long.class, reservationId);
     }
 
     private long committedBytes() {

@@ -281,8 +281,9 @@ class UploadService {
 
                 // Database state rolled back after the provider accepted the object.
                 try {
+                    storageQuota.authorizeDelete(tenantId, provider);
                     adapter.delete(locator);
-                    storageQuota.release(tenantId, reservationId);
+                    storageQuota.releaseDurable(tenantId, reservationId);
                 } catch (Exception cleanupFailure) {
                     log.warn("Could not compensate remote object after upload rollback for tenant {} provider {}",
                             tenantId, provider, cleanupFailure);

@@ -56,23 +56,26 @@ public class StorageQuotaService {
         TenantUsage tenant = lockTenant(tenantId);
 
         List<Reservation> existing = jdbc.query("""
-                SELECT id, provider, state, reserved_bytes, committed_bytes, object_locator
+                SELECT id, provider, state, reserved_bytes, committed_bytes, object_locator, object_key
                 FROM storage_quota_reservation
                 WHERE tenant_id = ? AND reservation_key = ?
                 FOR UPDATE
                 """, (rs, row) -> new Reservation(
                 rs.getObject("id", UUID.class), rs.getString("provider"), rs.getString("state"),
-                rs.getLong("reserved_bytes"), rs.getLong("committed_bytes"), rs.getString("object_locator")),
+                rs.getLong("reserved_bytes"), rs.getLong("committed_bytes"), rs.getString("object_locator"),
+                rs.getString("object_key")),
                 tenantId, reservationKey);
         if (!existing.isEmpty()) {
             Reservation reservation = existing.getFirst();
             if (!reservation.provider().equals(provider.name())) {
                 throw StorageQuotaException.invalidReservation("provider changed for " + reservationKey);
             }
-            if ("RESERVED".equals(reservation.state()) && reservation.reservedBytes() == expectedBytes) {
+            if ("RESERVED".equals(reservation.state()) && reservation.reservedBytes() == expectedBytes
+                    && Objects.equals(reservation.objectKey(), objectKey)) {
                 return reservation.id();
             }
-            if ("COMMITTED".equals(reservation.state()) && reservation.committedBytes() == expectedBytes) {
+            if ("COMMITTED".equals(reservation.state()) && reservation.committedBytes() == expectedBytes
+                    && (objectKey == null || Objects.equals(reservation.objectKey(), objectKey))) {
                 return reservation.id();
             }
             throw StorageQuotaException.invalidReservation("key is already " + reservation.state());
@@ -111,12 +114,12 @@ public class StorageQuotaService {
                 UPDATE storage_tenant_usage
                 SET reserved_bytes = reserved_bytes + ?, row_version = row_version + 1
                 WHERE tenant_id = ?
-                """, expectedBytes, tenantId);
-        jdbc.update("""
+                """, expectedBytes, tenantId), "tenant reservation reserve");
+        requireOne(jdbc.update("""
                 UPDATE storage_provider_quota
                 SET reserved_bytes = reserved_bytes + ?, updated_at = CURRENT_TIMESTAMP
                 WHERE provider = ?
-                """, expectedBytes, provider.name());
+                """, expectedBytes, provider.name()), "provider reservation reserve");
         return reservationId;
     }
 
@@ -152,12 +155,15 @@ public class StorageQuotaService {
 
     @Transactional
     public void commit(UUID tenantId, UUID reservationId, long actualBytes, String objectLocator, String objectKey) {
-        if (actualBytes < 0 || objectLocator == null || objectLocator.isBlank()) {
+        if (actualBytes < 0 || objectLocator == null || objectLocator.isBlank()
+                || objectKey == null || objectKey.isBlank()) {
             throw new IllegalArgumentException("A committed storage object requires a locator and non-negative size");
         }
         Reservation reservation = lockReservation(tenantId, reservationId);
         if ("COMMITTED".equals(reservation.state())) {
-            if (reservation.committedBytes() == actualBytes && Objects.equals(reservation.objectLocator(), objectLocator)) {
+            if (reservation.committedBytes() == actualBytes
+                    && Objects.equals(reservation.objectLocator(), objectLocator)
+                    && Objects.equals(reservation.objectKey(), objectKey)) {
                 return;
             }
             throw StorageQuotaException.invalidReservation("committed object does not match the repeated completion");
@@ -230,7 +236,8 @@ public class StorageQuotaService {
                 "provider reservation release");
         requireOne(jdbc.update("""
                 UPDATE storage_quota_reservation
-                SET state = 'RELEASED', reserved_bytes = 0, committed_bytes = 0,
+                SET state = 'RELEASED', released_bytes = reserved_bytes + committed_bytes,
+                    reserved_bytes = 0, committed_bytes = 0,
                     released_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ? AND tenant_id = ? AND state <> 'RELEASED'
                 """, reservationId, tenantId),
@@ -316,13 +323,14 @@ public class StorageQuotaService {
         lockProvider(StorageProviderType.valueOf(providers.getFirst()));
         lockTenant(tenantId);
         List<Reservation> rows = jdbc.query("""
-                SELECT id, provider, state, reserved_bytes, committed_bytes, object_locator
+                SELECT id, provider, state, reserved_bytes, committed_bytes, object_locator, object_key
                 FROM storage_quota_reservation
                 WHERE tenant_id = ? AND id = ?
                 FOR UPDATE
                 """, (rs, row) -> new Reservation(
                 rs.getObject("id", UUID.class), rs.getString("provider"), rs.getString("state"),
-                rs.getLong("reserved_bytes"), rs.getLong("committed_bytes"), rs.getString("object_locator")),
+                rs.getLong("reserved_bytes"), rs.getLong("committed_bytes"), rs.getString("object_locator"),
+                rs.getString("object_key")),
                 tenantId, reservationId);
         if (rows.isEmpty()) throw StorageQuotaException.invalidReservation("reservation does not exist");
         return rows.getFirst();
@@ -349,7 +357,7 @@ public class StorageQuotaService {
                                  long reservedBytes, long committedBytes) {}
     private record TenantUsage(long reservedBytes, long committedBytes) {}
     private record Reservation(UUID id, String provider, String state, long reservedBytes,
-                               long committedBytes, String objectLocator) {}
+                               long committedBytes, String objectLocator, String objectKey) {}
     public record UsageDrift(String scope, String scopeKey, long aggregateReserved, long ledgerReserved,
                              long aggregateCommitted, long ledgerCommitted) {}
 }
