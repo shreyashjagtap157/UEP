@@ -122,6 +122,43 @@ class UploadFinalizationCompensationTest {
     }
 
     @Test
+    void truncatedStagingFileAbortsUploadReleasesQuotaAndReturnsConflict() throws Exception {
+        Files.write(stagingFile, new byte[]{1, 2});
+
+        assertThatThrownBy(() -> service.append(uploadId, FILE_BYTES.length,
+                new java.io.ByteArrayInputStream(new byte[0]), 0))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .satisfies(error -> assertThat(
+                        ((org.springframework.web.server.ResponseStatusException) error).getStatusCode())
+                        .isEqualTo(org.springframework.http.HttpStatus.CONFLICT));
+
+        assertThat(session.status).isEqualTo(UploadStatus.ABORTED);
+        assertThat(session.stagingCleanedAt).isNotNull();
+        assertThat(Files.exists(stagingFile)).isFalse();
+        verify(storageQuota).release(tenantId, session.quotaReservationId);
+        verify(audit).record(tenantId, actor, "UPLOAD_ABORTED_STAGING_CORRUPTION",
+                "upload_session", uploadId.toString());
+    }
+
+    @Test
+    void missingStagingFileAbortsUploadReleasesQuotaAndReturnsConflict() throws Exception {
+        Files.delete(stagingFile);
+
+        assertThatThrownBy(() -> service.append(uploadId, FILE_BYTES.length,
+                new java.io.ByteArrayInputStream(new byte[0]), 0))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .satisfies(error -> assertThat(
+                        ((org.springframework.web.server.ResponseStatusException) error).getStatusCode())
+                        .isEqualTo(org.springframework.http.HttpStatus.CONFLICT));
+
+        assertThat(session.status).isEqualTo(UploadStatus.ABORTED);
+        assertThat(session.stagingCleanedAt).isNotNull();
+        verify(storageQuota).release(tenantId, session.quotaReservationId);
+        verify(audit).record(tenantId, actor, "UPLOAD_ABORTED_STAGING_CORRUPTION",
+                "upload_session", uploadId.toString());
+    }
+
+    @Test
     void malwareRejectionCommitsTerminalAbortAndRemovesStagingFile() throws Exception {
         when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.REJECTED);
 
