@@ -16,6 +16,8 @@ import com.universalplatform.storage.StorageQuotaService;
 import com.universalplatform.storage.StorageProviderType;
 import com.universalplatform.storage.TenantStorageBinding;
 import com.universalplatform.storage.TenantStorageBindingResolver;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.UUID;
@@ -61,6 +63,35 @@ class UploadStorageBindingTest {
     void chunkLengthValidationAllowsExactlyTheRemainingBytes() {
         assertThat(UploadService.chunkExceedsExpectedLength(12, 88, 100)).isFalse();
         assertThat(UploadService.chunkExceedsExpectedLength(0, 0, 0)).isFalse();
+    }
+
+    @Test
+    void stagingRealignmentTruncatesOnlyUncommittedTrailingBytes() throws Exception {
+        Path staged = staging.resolve("ahead.part");
+        Files.write(staged, new byte[]{1, 2, 3, 4, 5});
+
+        UploadService.realignIfStagingIsAheadOfCommittedOffset(staged, 3);
+
+        assertThat(Files.readAllBytes(staged)).containsExactly((byte) 1, (byte) 2, (byte) 3);
+    }
+
+    @Test
+    void stagingRealignmentRejectsFilesShorterThanCommittedOffset() throws Exception {
+        Path staged = staging.resolve("short.part");
+        Files.write(staged, new byte[]{1, 2});
+
+        assertThatThrownBy(() -> UploadService.realignIfStagingIsAheadOfCommittedOffset(staged, 3))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("shorter than its committed offset");
+    }
+
+    @Test
+    void stagingRealignmentRejectsMissingFiles() {
+        Path missing = staging.resolve("missing.part");
+
+        assertThatThrownBy(() -> UploadService.realignIfStagingIsAheadOfCommittedOffset(missing, 0))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("staging file is missing");
     }
 
     @Test
