@@ -65,6 +65,7 @@ public class StorageQuotaService {
                 SELECT id, provider, state, reserved_bytes, committed_bytes, object_locator, object_key
                 FROM storage_quota_reservation
                 WHERE tenant_id = ? AND reservation_key = ?
+                  AND state IN ('RESERVED', 'COMMITTED')
                 FOR UPDATE
                 """, (rs, row) -> new Reservation(
                 rs.getObject("id", UUID.class), rs.getString("provider"), rs.getString("state"),

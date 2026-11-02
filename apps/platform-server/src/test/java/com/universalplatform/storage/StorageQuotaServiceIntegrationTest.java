@@ -78,6 +78,22 @@ class StorageQuotaServiceIntegrationTest {
     }
 
     @Test
+    void releasedReservationKeyCanBeReusedWithoutLosingReleaseHistory() {
+        String key = "recording:" + UUID.randomUUID() + ":MASTER";
+        UUID first = quota.reserve(tenantId, StorageProviderType.LOCAL, key, "master.mp4", 200);
+        quota.commit(tenantId, first, 180, "local://first/master.mp4", "master.mp4");
+        quota.release(tenantId, first);
+
+        UUID second = quota.reserve(tenantId, StorageProviderType.LOCAL, key, "master.mp4", 200);
+
+        assertThat(second).isNotEqualTo(first);
+        assertThat(reservedBytes()).isEqualTo(200);
+        assertThat(committedBytes()).isZero();
+        assertThat(releasedBytes(first)).isEqualTo(180);
+        assertThat(quota.reconciliationDrift()).isEmpty();
+    }
+
+    @Test
     void concurrentReservationsCannotExceedTenantEntitlement() throws Exception {
         jdbc.update("UPDATE entitlement_limit SET hard_limit = 100 WHERE tenant_id = ? AND limit_key = 'STORAGE_BYTES'",
                 tenantId);
