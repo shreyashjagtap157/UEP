@@ -331,7 +331,7 @@ function People({ me }: { me: CurrentIdentity }) {
               <td>{member.roles.map(role => role.name).join(', ') || '—'}</td>
               <td><code>{member.oidcSubject}</code></td>
               {has(me, 'USERS_MANAGE') && <td>
-                <form className="form-grid" onSubmit={event => {
+                <form key={`${member.membershipId}:${member.version}`} className="form-grid" onSubmit={event => {
                   event.preventDefault()
                   const data = new FormData(event.currentTarget)
                   const primaryBranchId = has(me, 'BRANCHES_VIEW')
@@ -355,10 +355,10 @@ function People({ me }: { me: CurrentIdentity }) {
                         <option value="">No primary branch</option>
                         {branches.data.items.map(branch => <option key={branch.id} value={branch.id}>{branch.displayName}</option>)}
                       </select></label>
-                    : <input type="hidden" name="primaryBranchId" value={member.primaryBranchId ?? ''} />}
+                    : <input type="hidden" name="primaryBranchId" defaultValue={member.primaryBranchId ?? ''} />}
                   <label>External reference<input name="externalReference" maxLength={160} defaultValue={member.externalReference ?? ''} /></label>
                   <button className="primary-button" disabled={updateMutation.isPending}>Save membership</button>
-                  {updateMutation.isError && <p className="error-text" role="alert">{updateMutation.error.message}</p>}
+                  {updateMutation.isError && updateMutation.variables?.membershipId === member.membershipId && <p className="error-text" role="alert">{updateMutation.error.message}</p>}
                 </form>
               </td>}
             </tr>)}
