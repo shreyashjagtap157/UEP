@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.ResponseInputStream;
@@ -59,6 +60,8 @@ class S3StorageAdapter implements StorageAdapter {
                 .overrideConfiguration(ClientOverrideConfiguration.builder()
                         .apiCallAttemptTimeout(Duration.ofMinutes(10))
                         .apiCallTimeout(Duration.ofMinutes(30))
+                        .retryStrategy(AwsRetryStrategy.standardRetryStrategy().toBuilder()
+                                .maxAttempts(StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS).build())
                         .build());
         builder.credentialsProvider(accessKey.isBlank() || secretKey.isBlank()
                 ? DefaultCredentialsProvider.create()

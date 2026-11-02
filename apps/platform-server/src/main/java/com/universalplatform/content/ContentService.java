@@ -168,6 +168,9 @@ class ContentService implements ContentDirectory {
         return new DownloadHandle(o.contentType, o.sizeBytes, o.objectKey, r.downloadPolicy,
                 () -> {
                     storageQuota.authorizeRead(o.tenantId, o.provider);
+                    storageQuota.consumeProviderOperations(o.tenantId, o.provider,
+                            StorageQuotaService.OperationClass.CLASS_B,
+                            StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
                     return adapters.require(o.provider).open(o.locator);
                 });
     }

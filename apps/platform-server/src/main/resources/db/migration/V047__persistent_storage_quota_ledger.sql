@@ -15,23 +15,64 @@ CREATE TABLE storage_provider_quota (
     writes_enabled boolean NOT NULL,
     hard_limit_bytes bigint,
     max_object_bytes bigint,
+    class_a_daily_limit bigint,
+    class_a_monthly_limit bigint,
+    class_b_daily_limit bigint,
+    class_b_monthly_limit bigint,
+    tenant_class_a_daily_limit bigint,
+    tenant_class_b_daily_limit bigint,
     reserved_bytes bigint NOT NULL DEFAULT 0 CHECK (reserved_bytes >= 0),
     committed_bytes bigint NOT NULL DEFAULT 0 CHECK (committed_bytes >= 0),
     updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT ck_storage_provider_limit CHECK (hard_limit_bytes IS NULL OR hard_limit_bytes >= 0),
-    CONSTRAINT ck_storage_provider_object_limit CHECK (max_object_bytes IS NULL OR max_object_bytes >= 0)
+    CONSTRAINT ck_storage_provider_object_limit CHECK (max_object_bytes IS NULL OR max_object_bytes >= 0),
+    CONSTRAINT ck_storage_provider_class_a_daily CHECK (class_a_daily_limit IS NULL OR class_a_daily_limit >= 0),
+    CONSTRAINT ck_storage_provider_class_a_monthly CHECK (class_a_monthly_limit IS NULL OR class_a_monthly_limit >= 0),
+    CONSTRAINT ck_storage_provider_class_b_daily CHECK (class_b_daily_limit IS NULL OR class_b_daily_limit >= 0),
+    CONSTRAINT ck_storage_provider_class_b_monthly CHECK (class_b_monthly_limit IS NULL OR class_b_monthly_limit >= 0),
+    CONSTRAINT ck_storage_provider_tenant_class_a_daily CHECK (tenant_class_a_daily_limit IS NULL OR tenant_class_a_daily_limit >= 0),
+    CONSTRAINT ck_storage_provider_tenant_class_b_daily CHECK (tenant_class_b_daily_limit IS NULL OR tenant_class_b_daily_limit >= 0)
 );
 
 -- One configured account/bucket per provider adapter in this deployment. R2 is deliberately
 -- disabled: these conservative byte limits are not a provider billing cap and must not be
 -- enabled until the external account, credentials, operation budgets and trust boundary qualify.
 INSERT INTO storage_provider_quota(
-    provider, reads_enabled, writes_enabled, hard_limit_bytes, max_object_bytes
+    provider, reads_enabled, writes_enabled, hard_limit_bytes, max_object_bytes,
+    class_a_daily_limit, class_a_monthly_limit, class_b_daily_limit, class_b_monthly_limit,
+    tenant_class_a_daily_limit, tenant_class_b_daily_limit
 ) VALUES
-    ('LOCAL', true, true, NULL, NULL),
-    ('GOOGLE_DRIVE', true, true, NULL, NULL),
-    ('GOOGLE_SHARED_DRIVE', true, true, NULL, NULL),
-    ('S3_COMPATIBLE', false, false, 8000000000, 1000000000);
+    ('LOCAL', true, true, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('GOOGLE_DRIVE', true, true, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('GOOGLE_SHARED_DRIVE', true, true, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    -- Reserve at least 25% of the current R2 free operation allowances. These counts are
+    -- provider-wide across all UEP tenants. Class A/B requests reserve the maximum three
+    -- HTTP attempts configured in the S3 client; daily caps also bound within-month spikes.
+    ('S3_COMPATIBLE', false, false, 8000000000, 1000000000,
+     25000, 750000, 250000, 7500000, 3000, 30000);
+
+CREATE TABLE storage_provider_operation_counter (
+    provider varchar(32) NOT NULL REFERENCES storage_provider_quota(provider) ON DELETE RESTRICT,
+    operation_class varchar(16) NOT NULL CHECK (operation_class IN ('CLASS_A', 'CLASS_B')),
+    period_kind varchar(16) NOT NULL CHECK (period_kind IN ('DAILY', 'MONTHLY')),
+    period_start date NOT NULL,
+    consumed bigint NOT NULL DEFAULT 0 CHECK (consumed >= 0),
+    updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (provider, operation_class, period_kind, period_start)
+);
+
+CREATE TABLE storage_tenant_operation_counter (
+    tenant_id uuid NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+    provider varchar(32) NOT NULL REFERENCES storage_provider_quota(provider) ON DELETE RESTRICT,
+    operation_class varchar(16) NOT NULL CHECK (operation_class IN ('CLASS_A', 'CLASS_B')),
+    period_start date NOT NULL,
+    consumed bigint NOT NULL DEFAULT 0 CHECK (consumed >= 0),
+    updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (tenant_id, provider, operation_class, period_start)
+);
+
+CREATE INDEX ix_storage_tenant_operation_period
+    ON storage_tenant_operation_counter(provider, period_start);
 
 CREATE TABLE storage_tenant_usage (
     tenant_id uuid PRIMARY KEY REFERENCES tenant(id) ON DELETE CASCADE,

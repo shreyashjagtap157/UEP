@@ -158,6 +158,8 @@ class RecordingService {
         PlaybackToken parsed = parseToken(token);
         if (!parsed.recordingId().equals(id) || !parsed.membershipId().equals(memberships.current().membershipId()) || parsed.expiresAt() < clock.instant().toEpochMilli()) throw new SecurityException("Playback token is invalid or expired");
         storageQuota.authorizeRead(r.tenantId(), r.storageProvider());
+        storageQuota.consumeProviderOperations(r.tenantId(), r.storageProvider(),
+                StorageQuotaService.OperationClass.CLASS_B, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
         return adapters.require(r.storageProvider()).open(r.storageLocator());
     }
 
@@ -307,10 +309,14 @@ class RecordingService {
         StorageAdapter source = adapters.require(r.storageProvider());
         StorageAdapter destination = adapters.require(targetType);
         storageQuota.authorizeRead(r.tenantId(), r.storageProvider());
+        storageQuota.consumeProviderOperations(r.tenantId(), r.storageProvider(),
+                StorageQuotaService.OperationClass.CLASS_B, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
         long bytes = r.sizeBytes() == null ? 0 : r.sizeBytes();
         UUID reservationId = storageQuota.reserveDurable(r.tenantId(), targetType,
                 "migration:" + r.quotaReservationId() + ":" + targetType, r.objectKey(), bytes);
         String newLocator;
+        storageQuota.consumeProviderOperations(r.tenantId(), targetType,
+                StorageQuotaService.OperationClass.CLASS_A, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
         try (InputStream in = source.open(r.storageLocator())) {
             newLocator = destination.put(r.objectKey(), in, bytes, "video/mp4");
         }
@@ -331,10 +337,14 @@ class RecordingService {
             StorageAdapter source = adapters.require(asset.provider());
             StorageAdapter destination = adapters.require(targetType);
             storageQuota.authorizeRead(r.tenantId(), asset.provider());
+            storageQuota.consumeProviderOperations(r.tenantId(), asset.provider(),
+                    StorageQuotaService.OperationClass.CLASS_B, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
             UUID newReservation = storageQuota.reserveDurable(r.tenantId(), targetType,
                     "migration:" + asset.quotaReservationId() + ":" + targetType,
                     asset.objectKey(), asset.sizeBytes());
             String newLocator;
+            storageQuota.consumeProviderOperations(r.tenantId(), targetType,
+                    StorageQuotaService.OperationClass.CLASS_A, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
             try (InputStream in = source.open(asset.locator())) {
                 newLocator = destination.put(asset.objectKey(), in, asset.sizeBytes(), asset.mimeType());
             }
@@ -473,6 +483,8 @@ class RecordingService {
             UUID reservationId = storageQuota.reserveDurable(r.tenantId(), r.storageProvider(),
                     "recording:" + r.id() + ":MASTER", key, bytes);
             String locator;
+            storageQuota.consumeProviderOperations(r.tenantId(), r.storageProvider(),
+                    StorageQuotaService.OperationClass.CLASS_A, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
             try (InputStream in = Files.newInputStream(video)) {
                 locator = target.put(key, in, bytes, "video/mp4");
             }
@@ -501,6 +513,8 @@ class RecordingService {
             UUID reservationId = storageQuota.reserveDurable(r.tenantId(), r.storageProvider(),
                     "recording:" + r.id() + ":THUMBNAIL", key, bytes);
             String locator;
+            storageQuota.consumeProviderOperations(r.tenantId(), r.storageProvider(),
+                    StorageQuotaService.OperationClass.CLASS_A, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
             try (InputStream in = Files.newInputStream(thumb)) {
                 locator = target.put(key, in, bytes, "image/jpeg");
             }

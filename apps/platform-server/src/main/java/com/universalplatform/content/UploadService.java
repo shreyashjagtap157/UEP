@@ -234,6 +234,8 @@ class UploadService {
         }
         StorageAdapter adapter = adapters.require(u.provider);
         String locator;
+        storageQuota.consumeProviderOperations(tenant, u.provider,
+                StorageQuotaService.OperationClass.CLASS_A, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
         try (InputStream in = Files.newInputStream(path)) {
             locator = adapter.put(key, in, u.expectedBytes, u.contentType);
         }

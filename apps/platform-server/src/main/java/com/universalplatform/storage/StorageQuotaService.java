@@ -2,6 +2,9 @@ package com.universalplatform.storage;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -17,7 +20,10 @@ import org.springframework.transaction.annotation.Propagation;
  */
 @Service
 public class StorageQuotaService {
+    public static final int PROVIDER_OPERATION_MAX_ATTEMPTS = 3;
+
     private final JdbcTemplate jdbc;
+    private final Clock clock = Clock.systemUTC();
 
     public StorageQuotaService(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -141,6 +147,85 @@ public class StorageQuotaService {
         if (enabled.isEmpty() || !enabled.getFirst()) {
             throw StorageQuotaException.providerUnavailable(provider.name());
         }
+    }
+
+    /**
+     * Persist a conservative provider operation charge before the external HTTP request.
+     * The S3 client is configured for at most three attempts, so callers reserve three
+     * billable requests per logical PUT/GET even when the first attempt succeeds.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void consumeProviderOperations(UUID tenantId, StorageProviderType provider,
+                                          OperationClass operationClass, long requestAttempts) {
+        Objects.requireNonNull(tenantId, "tenantId");
+        Objects.requireNonNull(provider, "provider");
+        Objects.requireNonNull(operationClass, "operationClass");
+        if (requestAttempts < 1) throw new IllegalArgumentException("Provider operation attempts must be positive");
+
+        ProviderQuota account = lockProvider(provider);
+        Long dailyLimit = operationClass == OperationClass.CLASS_A
+                ? account.classADailyLimit() : account.classBDailyLimit();
+        Long monthlyLimit = operationClass == OperationClass.CLASS_A
+                ? account.classAMonthlyLimit() : account.classBMonthlyLimit();
+        Long tenantDailyLimit = operationClass == OperationClass.CLASS_A
+                ? account.tenantClassADailyLimit() : account.tenantClassBDailyLimit();
+        if (dailyLimit == null && monthlyLimit == null && tenantDailyLimit == null) return;
+
+        jdbc.update("""
+                INSERT INTO storage_tenant_usage(tenant_id)
+                VALUES (?)
+                ON CONFLICT (tenant_id) DO NOTHING
+                """, tenantId);
+        lockTenant(tenantId);
+
+        LocalDate today = LocalDate.now(clock);
+        if (dailyLimit != null) {
+            consumeProviderCounter(provider, operationClass, "DAILY", today, dailyLimit, requestAttempts);
+        }
+        if (monthlyLimit != null) {
+            consumeProviderCounter(provider, operationClass, "MONTHLY",
+                    YearMonth.from(today).atDay(1), monthlyLimit, requestAttempts);
+        }
+        if (tenantDailyLimit != null) {
+            jdbc.update("""
+                    INSERT INTO storage_tenant_operation_counter(
+                        tenant_id, provider, operation_class, period_start, consumed
+                    ) VALUES (?, ?, ?, ?, 0)
+                    ON CONFLICT (tenant_id, provider, operation_class, period_start) DO NOTHING
+                    """, tenantId, provider.name(), operationClass.name(), java.sql.Date.valueOf(today));
+            requireOne(jdbc.update("""
+                    UPDATE storage_tenant_operation_counter
+                    SET consumed = consumed + ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE tenant_id = ? AND provider = ? AND operation_class = ?
+                      AND period_start = ? AND consumed <= ? - ?
+                    """, requestAttempts, tenantId, provider.name(), operationClass.name(),
+                    java.sql.Date.valueOf(today), tenantDailyLimit, requestAttempts),
+                    "tenant " + operationClass + " daily operation budget");
+        }
+    }
+
+    private void consumeProviderCounter(StorageProviderType provider, OperationClass operationClass,
+                                         String periodKind, LocalDate periodStart, long limit, long units) {
+        jdbc.update("""
+                INSERT INTO storage_provider_operation_counter(
+                    provider, operation_class, period_kind, period_start, consumed
+                ) VALUES (?, ?, ?, ?, 0)
+                ON CONFLICT (provider, operation_class, period_kind, period_start) DO NOTHING
+                """, provider.name(), operationClass.name(), periodKind,
+                java.sql.Date.valueOf(periodStart));
+        requireOne(jdbc.update("""
+                UPDATE storage_provider_operation_counter
+                SET consumed = consumed + ?, updated_at = CURRENT_TIMESTAMP
+                WHERE provider = ? AND operation_class = ? AND period_kind = ?
+                  AND period_start = ? AND consumed <= ? - ?
+                """, units, provider.name(), operationClass.name(), periodKind,
+                java.sql.Date.valueOf(periodStart), limit, units),
+                "provider " + operationClass + " " + periodKind.toLowerCase(java.util.Locale.ROOT) + " operation budget");
+    }
+
+    public enum OperationClass {
+        CLASS_A,
+        CLASS_B
     }
 
     @Transactional(readOnly = true)
@@ -288,14 +373,19 @@ public class StorageQuotaService {
 
     private ProviderQuota lockProvider(StorageProviderType provider) {
         List<ProviderQuota> rows = jdbc.query("""
-                SELECT writes_enabled, hard_limit_bytes, max_object_bytes, reserved_bytes, committed_bytes
+                SELECT writes_enabled, hard_limit_bytes, max_object_bytes, reserved_bytes, committed_bytes,
+                       class_a_daily_limit, class_a_monthly_limit, class_b_daily_limit, class_b_monthly_limit,
+                       tenant_class_a_daily_limit, tenant_class_b_daily_limit
                 FROM storage_provider_quota
                 WHERE provider = ?
                 FOR UPDATE
                 """, (rs, row) -> new ProviderQuota(
                 rs.getBoolean("writes_enabled"), nullableLong(rs, "hard_limit_bytes"),
                 nullableLong(rs, "max_object_bytes"), rs.getLong("reserved_bytes"),
-                rs.getLong("committed_bytes")), provider.name());
+                rs.getLong("committed_bytes"), nullableLong(rs, "class_a_daily_limit"),
+                nullableLong(rs, "class_a_monthly_limit"), nullableLong(rs, "class_b_daily_limit"),
+                nullableLong(rs, "class_b_monthly_limit"), nullableLong(rs, "tenant_class_a_daily_limit"),
+                nullableLong(rs, "tenant_class_b_daily_limit")), provider.name());
         if (rows.isEmpty()) throw StorageQuotaException.providerUnavailable(provider.name());
         return rows.getFirst();
     }
@@ -354,7 +444,9 @@ public class StorageQuotaService {
     }
 
     private record ProviderQuota(boolean writesEnabled, Long hardLimitBytes, Long maxObjectBytes,
-                                 long reservedBytes, long committedBytes) {}
+                                 long reservedBytes, long committedBytes, Long classADailyLimit,
+                                 Long classAMonthlyLimit, Long classBDailyLimit, Long classBMonthlyLimit,
+                                 Long tenantClassADailyLimit, Long tenantClassBDailyLimit) {}
     private record TenantUsage(long reservedBytes, long committedBytes) {}
     private record Reservation(UUID id, String provider, String state, long reservedBytes,
                                long committedBytes, String objectLocator, String objectKey) {}

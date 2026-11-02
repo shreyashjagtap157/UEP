@@ -27,6 +27,8 @@ class StorageQuotaServiceIntegrationTest {
 
     @BeforeEach
     void createTenant() {
+        jdbc.update("DELETE FROM storage_provider_operation_counter WHERE provider = 'S3_COMPATIBLE'");
+        jdbc.update("DELETE FROM storage_tenant_operation_counter WHERE provider = 'S3_COMPATIBLE'");
         tenantId = UUID.randomUUID();
         jdbc.update("INSERT INTO tenant(id, slug, display_name, status) VALUES (?, ?, 'Storage quota test', 'ACTIVE')",
                 tenantId, "storage-quota-" + tenantId);
@@ -38,6 +40,10 @@ class StorageQuotaServiceIntegrationTest {
                     reserved_bytes = 0, committed_bytes = 0
                 WHERE provider = 'LOCAL'
                 """);
+        jdbc.update("DELETE FROM storage_provider_operation_counter WHERE provider = 'S3_COMPATIBLE'");
+        jdbc.update("DELETE FROM storage_tenant_operation_counter WHERE provider = 'S3_COMPATIBLE'");
+        resetS3OperationLimits();
+        resetS3OperationLimits();
     }
 
     @AfterEach
@@ -115,6 +121,131 @@ class StorageQuotaServiceIntegrationTest {
                 .hasMessageContaining("disabled by the deployment storage policy");
         assertThat(reservedBytes()).isZero();
         assertThat(committedBytes()).isZero();
+    }
+
+    @Test
+    void providerDailyOperationBudgetIsEnforcedAtomically() {
+        setS3OperationLimits(6, 90, 100, 1000, 90, 900);
+
+        quota.consumeProviderOperations(tenantId, StorageProviderType.S3_COMPATIBLE,
+                StorageQuotaService.OperationClass.CLASS_A, 3);
+        quota.consumeProviderOperations(tenantId, StorageProviderType.S3_COMPATIBLE,
+                StorageQuotaService.OperationClass.CLASS_A, 3);
+
+        assertThatThrownBy(() -> quota.consumeProviderOperations(tenantId, StorageProviderType.S3_COMPATIBLE,
+                StorageQuotaService.OperationClass.CLASS_A, 3))
+                .isInstanceOf(StorageQuotaException.class)
+                .hasMessageContaining("daily operation budget");
+        assertThat(providerOperations("CLASS_A", "DAILY")).isEqualTo(6);
+        assertThat(providerOperations("CLASS_A", "MONTHLY")).isEqualTo(6);
+    }
+
+    @Test
+    void providerMonthlyOperationBudgetIsEnforcedIndependentlyOfDailyBudget() {
+        setS3OperationLimits(100, 6, 100, 1000, 100, 1000);
+
+        quota.consumeProviderOperations(tenantId, StorageProviderType.S3_COMPATIBLE,
+                StorageQuotaService.OperationClass.CLASS_A, 3);
+        quota.consumeProviderOperations(tenantId, StorageProviderType.S3_COMPATIBLE,
+                StorageQuotaService.OperationClass.CLASS_A, 3);
+
+        assertThatThrownBy(() -> quota.consumeProviderOperations(tenantId, StorageProviderType.S3_COMPATIBLE,
+                StorageQuotaService.OperationClass.CLASS_A, 3))
+                .isInstanceOf(StorageQuotaException.class)
+                .hasMessageContaining("monthly operation budget");
+        assertThat(providerOperations("CLASS_A", "MONTHLY")).isEqualTo(6);
+    }
+
+    @Test
+    void tenantDailyOperationBudgetPreventsOneTenantExhaustingProviderAllowance() {
+        setS3OperationLimits(1000, 30000, 1000, 30000, 6, 1000);
+
+        quota.consumeProviderOperations(tenantId, StorageProviderType.S3_COMPATIBLE,
+                StorageQuotaService.OperationClass.CLASS_A, 3);
+        quota.consumeProviderOperations(tenantId, StorageProviderType.S3_COMPATIBLE,
+                StorageQuotaService.OperationClass.CLASS_A, 3);
+
+        assertThatThrownBy(() -> quota.consumeProviderOperations(tenantId, StorageProviderType.S3_COMPATIBLE,
+                StorageQuotaService.OperationClass.CLASS_A, 3))
+                .isInstanceOf(StorageQuotaException.class)
+                .hasMessageContaining("tenant CLASS_A daily operation budget");
+        assertThat(tenantOperations("CLASS_A")).isEqualTo(6);
+    }
+
+    @Test
+    void concurrentProviderOperationChargesCannotExceedDailyBudget() throws Exception {
+        setS3OperationLimits(12, 120, 100, 1000, 12, 1000);
+        int attempts = 20;
+        ExecutorService pool = Executors.newFixedThreadPool(10);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            List<Callable<Boolean>> tasks = new ArrayList<>();
+            for (int i = 0; i < attempts; i++) {
+                tasks.add(() -> {
+                    start.await();
+                    try {
+                        quota.consumeProviderOperations(tenantId, StorageProviderType.S3_COMPATIBLE,
+                                StorageQuotaService.OperationClass.CLASS_A, 3);
+                        return true;
+                    } catch (StorageQuotaException rejected) {
+                        return false;
+                    }
+                });
+            }
+            List<Future<Boolean>> futures = new ArrayList<>();
+            for (Callable<Boolean> task : tasks) futures.add(pool.submit(task));
+            start.countDown();
+            int accepted = 0;
+            for (Future<Boolean> future : futures) if (future.get()) accepted++;
+            assertThat(accepted).isEqualTo(4);
+            assertThat(providerOperations("CLASS_A", "DAILY")).isEqualTo(12);
+            assertThat(tenantOperations("CLASS_A")).isEqualTo(12);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private void setS3OperationLimits(long classADaily, long classAMonthly,
+                                      long classBDaily, long classBMonthly,
+                                      long tenantClassADaily, long tenantClassBDaily) {
+        jdbc.update("""
+                UPDATE storage_provider_quota
+                SET class_a_daily_limit = ?, class_a_monthly_limit = ?,
+                    class_b_daily_limit = ?, class_b_monthly_limit = ?,
+                    tenant_class_a_daily_limit = ?, tenant_class_b_daily_limit = ?
+                WHERE provider = 'S3_COMPATIBLE'
+                """, classADaily, classAMonthly, classBDaily, classBMonthly,
+                tenantClassADaily, tenantClassBDaily);
+    }
+
+    private void resetS3OperationLimits() {
+        jdbc.update("""
+                UPDATE storage_provider_quota
+                SET reads_enabled = false, writes_enabled = false,
+                    hard_limit_bytes = 8000000000, max_object_bytes = 1000000000,
+                    class_a_daily_limit = 25000, class_a_monthly_limit = 750000,
+                    class_b_daily_limit = 250000, class_b_monthly_limit = 7500000,
+                    tenant_class_a_daily_limit = 3000, tenant_class_b_daily_limit = 30000,
+                    reserved_bytes = 0, committed_bytes = 0
+                WHERE provider = 'S3_COMPATIBLE'
+                """);
+    }
+
+    private long providerOperations(String operationClass, String periodKind) {
+        return jdbc.queryForObject("""
+                SELECT COALESCE((SELECT consumed FROM storage_provider_operation_counter
+                WHERE provider = 'S3_COMPATIBLE' AND operation_class = ? AND period_kind = ?
+                AND period_start = CASE WHEN ? = 'DAILY' THEN CURRENT_DATE
+                  ELSE date_trunc('month', CURRENT_DATE)::date END), 0)
+                """, Long.class, operationClass, periodKind, periodKind);
+    }
+
+    private long tenantOperations(String operationClass) {
+        return jdbc.queryForObject("""
+                SELECT COALESCE((SELECT consumed FROM storage_tenant_operation_counter
+                WHERE tenant_id = ? AND provider = 'S3_COMPATIBLE' AND operation_class = ?
+                  AND period_start = CURRENT_DATE), 0)
+                """, Long.class, tenantId, operationClass);
     }
 
     private long reservedBytes() {
