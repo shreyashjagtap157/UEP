@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -27,7 +29,8 @@ class NotificationOutboxProcessor {
     private final NotificationPreferenceRepository preferences;
     private final PlatformNotificationRepository notifications;
     private final NotificationDeliveryRepository deliveries;
-    private final TransactionTemplate transactions;
+    private final TransactionTemplate processingTransaction;
+    private final TransactionTemplate failureTransaction;
     private final boolean emailDeliveryEnabled;
     private final Clock clock = Clock.systemUTC();
 
@@ -36,14 +39,17 @@ class NotificationOutboxProcessor {
                                 NotificationPreferenceRepository preferences,
                                 PlatformNotificationRepository notifications,
                                 NotificationDeliveryRepository deliveries,
-                                TransactionTemplate transactions,
+                                PlatformTransactionManager transactionManager,
                                 @Value("${platform.notifications.email.enabled:false}") boolean emailDeliveryEnabled) {
         this.outbox = outbox;
         this.recipients = recipients;
         this.preferences = preferences;
         this.notifications = notifications;
         this.deliveries = deliveries;
-        this.transactions = transactions;
+        this.processingTransaction = new TransactionTemplate(transactionManager);
+        this.processingTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.failureTransaction = new TransactionTemplate(transactionManager);
+        this.failureTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.emailDeliveryEnabled = emailDeliveryEnabled;
     }
 
@@ -63,22 +69,52 @@ class NotificationOutboxProcessor {
 
     /** Public for tests; executes the per-event work in a separate transaction each call. */
     public void processOne(UUID id) {
-        transactions.executeWithoutResult(status -> processWithinTransaction(id));
+        try {
+            processingTransaction.executeWithoutResult(status -> processWithinTransaction(id, status));
+        } catch (RuntimeException processingFailure) {
+            Throwable reason = processingFailure instanceof NotificationOutboxProcessingException
+                    && processingFailure.getCause() != null
+                    ? processingFailure.getCause() : processingFailure;
+            try {
+                failureTransaction.executeWithoutResult(status -> outbox.lockById(id).ifPresent(event -> {
+                    if (event.processedAt() == null && event.deadLetteredAt() == null) {
+                        Instant now = clock.instant();
+                        int attempt = event.attemptCount() + 1;
+                        long seconds = Math.min(3600, 5L << Math.min(attempt, 9));
+                        // Persist only a safe failure class, not provider/database messages or payload data.
+                        event.failed(reason.getClass().getSimpleName(), now, now.plusSeconds(seconds));
+                    }
+                }));
+            } catch (RuntimeException persistenceFailure) {
+                processingFailure.addSuppressed(persistenceFailure);
+                log.error("Could not persist notification outbox retry state for event {}", id, processingFailure);
+            }
+            log.warn("Notification outbox event {} failed; retry state is handled independently",
+                    id, reason);
+        }
     }
 
-    private void processWithinTransaction(UUID id) {
+    private void processWithinTransaction(UUID id, org.springframework.transaction.TransactionStatus status) {
         NotificationOutbox event = outbox.lockById(id).orElse(null);
-        if (event == null || event.processedAt() != null || event.deadLetteredAt() != null || event.availableAt().isAfter(clock.instant())) return;
+        if (event == null || event.processedAt() != null || event.deadLetteredAt() != null
+                || event.availableAt().isAfter(clock.instant())) return;
         Instant now = clock.instant();
         try {
             for (NotificationOutboxRecipient recipient : recipients.findAllByIdOutboxId(event.id())) {
                 materialize(event, recipient, now);
             }
             event.processed(now);
-        } catch (RuntimeException exception) {
-            int attempt = event.attemptCount() + 1;
-            long seconds = Math.min(3600, 5L << Math.min(attempt, 9));
-            event.failed(exception.getMessage(), now, now.plusSeconds(seconds));
+        } catch (RuntimeException failure) {
+            status.setRollbackOnly();
+            throw new NotificationOutboxProcessingException(failure);
+        }
+    }
+
+    private static final class NotificationOutboxProcessingException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        private NotificationOutboxProcessingException(RuntimeException cause) {
+            super(cause.getClass().getSimpleName(), cause);
         }
     }
 
