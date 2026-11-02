@@ -473,6 +473,17 @@ function Ensure-LocalTestAccounts([string]$OwnerToken, [string]$AdminToken) {
             expectedVersion = 0
         }
     }
+
+    $branches = Invoke-Api 'Get' '/api/v1/organization/branches?size=100' $OwnerToken
+    $testBranch = $branches.items | Where-Object { $_.code -eq 'NATIVE-LOCAL' } | Select-Object -First 1
+    if (-not $testBranch) {
+        $testBranch = Invoke-Api 'Post' '/api/v1/organization/branches' $OwnerToken @{
+            code = 'NATIVE-LOCAL'
+            displayName = 'UEP Native Local Test Branch'
+            timezone = 'Asia/Kolkata'
+        }
+    }
+
     $existingMemberships = Invoke-Api 'Get' '/api/v1/identity/memberships?size=100' $OwnerToken
     $personas = @(
         @{ Key='student'; Username='uep-student'; Email='student@local.uep'; Name='Asha Sharma'; Role='STUDENT' },
@@ -498,19 +509,65 @@ function Ensure-LocalTestAccounts([string]$OwnerToken, [string]$AdminToken) {
         }
         $nameParts = $persona.Name.Split(' ', 2)
         $user = Ensure-KeycloakUser $persona.Username $persona.Email $nameParts[0] $nameParts[-1] $account.password $State.TenantId $AdminToken
-        $membershipExists = $existingMemberships.items | Where-Object { $_.oidcSubject -eq $user.id } | Select-Object -First 1
-        if (-not $membershipExists) {
-            if ($persona.Role -eq 'CUSTOM') { $roleId = $developerRole.id }
-            else {
-                if (-not $roles.ContainsKey($persona.Role)) { throw "Required system role '$($persona.Role)' was not returned by the backend." }
+        $membership = $existingMemberships.items | Where-Object { $_.oidcSubject -eq $user.id } | Select-Object -First 1
+
+        if (-not $membership) {
+            if ($persona.Role -eq 'CUSTOM') {
+                $roleId = $developerRole.id
+                $primaryBranchId = $null
+                $initialRoleIds = @($roleId)
+            } elseif ($persona.Role -eq 'BRANCH_ADMINISTRATOR') {
                 $roleId = $roles[$persona.Role].id
+                $primaryBranchId = $testBranch.id
+                $initialRoleIds = @()
+            } else {
+                if (-not $roles.ContainsKey($persona.Role)) {
+                    throw "Required system role '$($persona.Role)' was not returned by the backend."
+                }
+                $roleId = $roles[$persona.Role].id
+                $primaryBranchId = $null
+                $initialRoleIds = @($roleId)
             }
-            Invoke-Api 'Post' '/api/v1/identity/memberships' $OwnerToken @{ subject = $user.id; email = $persona.Email; displayName = $persona.Name; roleIds = @($roleId) } | Out-Null
+
+            $membership = Invoke-Api 'Post' '/api/v1/identity/memberships' $OwnerToken @{
+                subject = $user.id
+                email = $persona.Email
+                displayName = $persona.Name
+                primaryBranchId = $primaryBranchId
+                roleIds = $initialRoleIds
+            }
             $existingMemberships = Invoke-Api 'Get' '/api/v1/identity/memberships?size=100' $OwnerToken
+            $membership = $existingMemberships.items | Where-Object { $_.oidcSubject -eq $user.id } | Select-Object -First 1
+        } elseif ($persona.Role -eq 'BRANCH_ADMINISTRATOR') {
+            $membership = Invoke-Api 'Get' ("/api/v1/identity/memberships/" + $membership.membershipId) $OwnerToken
+            if (-not $membership.primaryBranchId) {
+                throw "Branch Administrator '$($persona.Username)' already exists without the local test branch. No broader role was assigned."
+            }
+        }
+
+        if ($persona.Role -eq 'BRANCH_ADMINISTRATOR') {
+            $assignments = Invoke-Api 'Get' ("/api/v1/identity/roles/memberships/" + $membership.membershipId + '?size=100') $OwnerToken
+            $correct = $assignments.items | Where-Object {
+                $_.roleId -eq $roleId -and $_.scopeKind -eq 'BRANCH' -and $_.scopeId -eq $testBranch.id
+            } | Select-Object -First 1
+            if (-not $correct) {
+                $tenantScoped = $assignments.items | Where-Object {
+                    $_.roleId -eq $roleId -and $_.scopeKind -eq 'TENANT'
+                }
+                foreach ($wrongScope in $tenantScoped) {
+                    Invoke-Api 'Delete' ("/api/v1/identity/roles/assignments/" + $wrongScope.id) $OwnerToken | Out-Null
+                }
+                Invoke-Api 'Post' '/api/v1/identity/roles/assignments' $OwnerToken @{
+                    membershipId = $membership.membershipId
+                    roleId = $roleId
+                    scopeKind = 'BRANCH'
+                    scopeId = $testBranch.id
+                } | Out-Null
+            }
         }
     }
     Save-State
-    Write-Status 'Test users' 'OK — 13 tenant-scoped OIDC users provisioned' Green
+    Write-Status 'Test users' 'OK — 13 tenant-scoped OIDC users; Branch Administrator is branch-scoped' Green
 }
 function Write-CommandFile([string]$Name, [string[]]$Lines) {
     $path = Join-Path $LocalDir ($Name + '.cmd')
