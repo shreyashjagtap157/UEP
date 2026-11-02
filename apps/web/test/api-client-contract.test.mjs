@@ -6,6 +6,7 @@ import test from 'node:test'
 const apiCore = readFileSync(fileURLToPath(new URL('../src/platform/api-core.ts', import.meta.url)), 'utf8')
 const apiBusiness = readFileSync(fileURLToPath(new URL('../src/platform/api-business.ts', import.meta.url)), 'utf8')
 const nativeSmoke = readFileSync(fileURLToPath(new URL('./native/real-analytics-export.native.spec.ts', import.meta.url)), 'utf8')
+const appSource = readFileSync(fileURLToPath(new URL('../src/app/App.tsx', import.meta.url)), 'utf8')
 
 test('CSV export uses the shared authenticated API transport', () => {
   assert.match(apiCore, /export async function requestText/)
@@ -16,6 +17,16 @@ test('CSV export uses the shared authenticated API transport', () => {
   assert.match(apiBusiness, /import \{ request, requestText \} from '\.\/api-core'/)
   assert.match(apiBusiness, /export const exportAnalytics=.*requestText\(/)
   assert.doesNotMatch(apiBusiness, /\bfetch\s*\(/)
+})
+
+test('membership editing uses authenticated PATCH and optimistic versioning', () => {
+  assert.match(apiCore, /export function updateMembership/)
+  assert.ok(apiCore.includes("method:'PATCH'"))
+  assert.ok(apiCore.includes('/api/v1/identity/memberships/'))
+  assert.ok(appSource.includes('updateMembership'))
+  assert.ok(appSource.includes('expectedVersion: member.version'))
+  assert.ok(appSource.includes('name="status"'))
+  assert.ok(appSource.includes('name="externalReference"'))
 })
 
 test('native Real browser smoke proves API persistence and database-role boundaries', () => {
