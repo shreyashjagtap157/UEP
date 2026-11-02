@@ -5578,6 +5578,7 @@ components:
         expiresAt: {type: string, format: date-time}
         secret: {type: string}
         version: {type: integer, format: int64}
+        revokedAt: {type: string, format: date-time, nullable: true}
     WebhookRequest:
       type: object
       required: [callbackUrl]

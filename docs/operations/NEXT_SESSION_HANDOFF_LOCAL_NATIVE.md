@@ -364,3 +364,11 @@ Validation status at handoff authoring: source-level permission parity was check
 - The Security workspace now lists observed sessions for other tenant memberships when the actor has both `USERS_VIEW` (required for the membership directory) and `SESSIONS_VIEW`; revocation controls are shown only when `SESSIONS_MANAGE` is also present. It excludes the actor's own membership from the administrator selector, preserving the separate self-service revoke path.
 - Added frontend endpoint/permission contract coverage and backend integration tests for authorized administrator revocation, denial on subsequent use of the revoked OIDC session, and 403 enforcement for ordinary members.
 - Validation/CI for this follow-up commit and native Windows acceptance remain pending until actual results are collected.
+
+
+## 2026-11-03 follow-up — integration credential and webhook controls
+
+- API credential responses now expose the persisted `revokedAt` timestamp in both create/list DTOs and the OpenAPI schema. The one-time secret remains returned only on creation; list responses continue to omit it.
+- Integration workspace now displays credential expiry/status and offers permission-gated, optimistic-version API credential revocation. The list refresh confirms a revoked credential is no longer active.
+- Webhook subscriptions can now be revoked from the workspace using their current version. A test-event form uses the existing backend test route and clearly states that an event is queued to every enabled subscription whose filter matches; queuing is not proof of remote delivery.
+- The web contract suite now asserts the revoke/test helpers, version usage, status display and the warning about test event fan-out. CI for this follow-up and backend/native validation remain pending.

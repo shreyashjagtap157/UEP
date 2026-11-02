@@ -44,7 +44,7 @@ public class ApiCredentialService {
         ApiCredential saved = repo.save(new ApiCredential(UUID.randomUUID(), tenant, membershipId, normalized,
                 hash(raw), effective.stream().sorted().reduce((a, b) -> a + "," + b).orElse(""),
                 clock.instant(), expiresAt));
-        return new CredentialView(saved.id(), saved.name(), effective, saved.expiresAt(), raw, saved.version());
+        return new CredentialView(saved.id(), saved.name(), effective, saved.expiresAt(), raw, saved.version(), saved.revokedAt());
     }
 
     @Transactional(readOnly = true)
@@ -53,7 +53,7 @@ public class ApiCredentialService {
         UUID tenant = tenants.requireTenantId();
         auth.requireApiCredentialTarget(membershipId);
         return repo.findAllByTenantIdAndMembershipIdOrderByCreatedAtDesc(tenant, membershipId).stream()
-                .map(c -> new CredentialView(c.id(), c.name(), scopeSet(c.scopes()), c.expiresAt(), null, c.version()))
+                .map(c -> new CredentialView(c.id(), c.name(), scopeSet(c.scopes()), c.expiresAt(), null, c.version(), c.revokedAt()))
                 .toList();
     }
 
@@ -108,6 +108,6 @@ public class ApiCredentialService {
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
-    public record CredentialView(UUID id, String name, Set<String> scopes, Instant expiresAt, String secret, long version) {
+    public record CredentialView(UUID id, String name, Set<String> scopes, Instant expiresAt, String secret, long version, Instant revokedAt) {
     }
 }

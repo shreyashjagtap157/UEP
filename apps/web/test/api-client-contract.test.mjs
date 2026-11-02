@@ -8,6 +8,8 @@ const apiBusiness = readFileSync(fileURLToPath(new URL('../src/platform/api-busi
 const apiTypes = readFileSync(fileURLToPath(new URL('../src/platform/api.ts', import.meta.url)), 'utf8')
 const nativeSmoke = readFileSync(fileURLToPath(new URL('./native/real-analytics-export.native.spec.ts', import.meta.url)), 'utf8')
 const appSource = readFileSync(fileURLToPath(new URL('../src/app/App.tsx', import.meta.url)), 'utf8')
+const integrationApi = readFileSync(fileURLToPath(new URL('../src/platform/api-integrations.ts', import.meta.url)), 'utf8')
+const integrationSource = readFileSync(fileURLToPath(new URL('../src/integration/IntegrationWorkspace.tsx', import.meta.url)), 'utf8')
 
 test('CSV export uses the shared authenticated API transport', () => {
   assert.match(apiCore, /export async function requestText/)
@@ -46,6 +48,27 @@ test('membership role assignments use authenticated tenant-scoped API operations
   assert.ok(appSource.includes("has(me, 'ROLES_ASSIGN')"))
   assert.ok(appSource.includes("scopeKind === 'BRANCH' && !scopeId"))
   assert.ok(appSource.includes('Select a branch before assigning a branch-scoped role.'))
+})
+
+test('API credential revocation exposes server status and uses optimistic versions', () => {
+  assert.match(integrationApi, /export const revokeApiCredential=/)
+  assert.ok(integrationApi.includes('expectedVersion'))
+  assert.ok(integrationSource.includes('revokeApiCredential(id, version)'))
+  assert.ok(integrationSource.includes('credentialRevoke.mutate({ id: c.id, version: c.version })'))
+  assert.ok(integrationSource.includes('c.revokedAt'))
+  assert.ok(integrationSource.includes('Revoke credential'))
+  assert.ok(integrationSource.includes('Clients using it will stop authenticating'))
+})
+
+test('webhook test events are explicitly queued and subscriptions can be revoked', () => {
+  assert.match(integrationApi, /export const testWebhook=/)
+  assert.match(integrationApi, /export const revokeWebhook=/)
+  assert.ok(integrationSource.includes('testWebhook'))
+  assert.ok(integrationSource.includes('revokeWebhook(id, version)'))
+  assert.ok(integrationSource.includes('Queue test event'))
+  assert.ok(integrationSource.includes('queued for every enabled webhook whose event filter matches'))
+  assert.ok(integrationSource.includes('Queueing does not confirm remote delivery'))
+  assert.ok(integrationSource.includes('Revoke webhook'))
 })
 
 test('administrator session controls use authenticated tenant-scoped list/revoke endpoints and separate permissions', () => {
