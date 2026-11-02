@@ -266,3 +266,14 @@ Windows-native runtime remains unexecuted in this ChatGPT environment. The launc
 The OpenAPI file currently defines 225 operations: 94 GET, 97 POST, 25 PUT, 1 PATCH and 8 DELETE. The frontend API layer uses a shared authenticated transport, but not every documented operation has a UI action yet. In particular, role-assignment list/add/remove is not yet exposed as a dedicated UI workflow (initial role selection during membership provisioning is available); custom-role update/delete and administrator revocation of another member's sessions also need a deliberate UI coverage decision. Continue mapping actual controllers, authorization rules and current UI before implementing these. Do not claim all 225 operations are wired or end-to-end tested.
 
 At this checkpoint, the live main SHA before this handoff update was `f2bdb1c751ccd46c7cb927606b1120ecab49b0d9`. CI runs #1042–#1045 were queued/in progress; fetch the latest head and workflow status before relying on any result. Windows-native startup and browser-to-PostgreSQL runtime qualification remain unperformed in this environment.
+
+### Continuation update — membership PATCH response version correctness
+
+CI run #1042 exposed a response-version defect in the new membership update integration test: the service built `MemberView` before JPA flushed the entity's `@Version` increment, so a successful PATCH response reported the pre-update version. The backend now calls `memberships.flush()` after recording the update and before constructing the response DTO. The integration test again asserts that an initial version 0 membership returns version 1 after a successful PATCH. This preserves the optimistic-concurrency contract instead of weakening the test.
+
+- Fix commit: `fe607782bcb3312145a7c4c8e2bb8de30e193f37`.
+- Regression assertion commit: `4735a3343a23540aed8c4923c42d103b43c66f5e`.
+- Latest observed main SHA before this handoff update: `4735a3343a23540aed8c4923c42d103b43c66f5e`.
+- CI run #1050 was queued for that exact SHA at last inspection. Earlier run #1042 failed on the old pre-flush response behavior; do not count that stale run as validation of the fix.
+
+On the next session, inspect #1050 (or the newest run for live main) and confirm the 17.11/18.4 backend matrix, web tests, repository policy, Keycloak CI and vulnerability scan. The Windows-native runtime still needs execution on the user's machine.
