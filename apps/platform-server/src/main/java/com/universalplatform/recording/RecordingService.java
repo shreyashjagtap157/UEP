@@ -454,9 +454,8 @@ class RecordingService {
             } else {
                 // The provider may have accepted the object before the client lost its response.
                 // Keep the durable reservation charged; the reconciliation worker surfaces it.
-                log.error("Recording provider write outcome is unknown; quota reservation {} remains charged "
-                                + "for tenant {} provider {} object key {}",
-                        reservationId, tenantId, provider, objectKey, failure);
+                log.error("Recording provider write outcome is unknown; reservation {} remains charged for tenant {} provider {} (failure type {})",
+                        reservationId, tenantId, provider, failure.getClass().getSimpleName());
             }
             if (failure instanceof java.io.IOException ioFailure) throw ioFailure;
             if (failure instanceof RuntimeException runtimeFailure) throw runtimeFailure;
@@ -471,8 +470,8 @@ class RecordingService {
             reservationChanged.accept(null);
         } catch (Exception releaseFailure) {
             cause.addSuppressed(releaseFailure);
-            log.error("Could not release pre-write recording reservation {} for tenant {}",
-                    reservationId, tenantId, releaseFailure);
+            log.error("Could not release pre-write recording reservation {} for tenant {} (failure type {})",
+                    reservationId, tenantId, releaseFailure.getClass().getSimpleName());
         }
     }
 
@@ -491,11 +490,11 @@ class RecordingService {
                 cleanupQueue.enqueue(tenantId, provider, locator, objectKey, reservationId, cleanupFailure);
             } catch (Exception enqueueFailure) {
                 cleanupFailure.addSuppressed(enqueueFailure);
-                log.error("Could not enqueue compensation for recording storage object {} reservation {}",
-                        locator, reservationId, enqueueFailure);
+                log.error("Could not enqueue recording storage compensation for reservation {} (failure type {})",
+                        reservationId, enqueueFailure.getClass().getSimpleName());
             }
-            log.error("Recording storage compensation is pending for tenant {} provider {} reservation {}",
-                    tenantId, provider, reservationId, cleanupFailure);
+            log.error("Recording storage compensation is pending for tenant {} provider {} reservation {} (failure type {})",
+                    tenantId, provider, reservationId, cleanupFailure.getClass().getSimpleName());
             return false;
         }
     }
@@ -604,8 +603,8 @@ class RecordingService {
                     r.storageProvider(), locator, key, "image/jpeg", bytes, hash, clock.instant(), reservationId));
             Files.deleteIfExists(thumb);
         } catch (Exception failure) {
-            log.warn("Recording thumbnail storage failed for tenant {} recording {}; continuing without thumbnail",
-                    r.tenantId(), r.id(), failure);
+            log.warn("Recording thumbnail storage failed for tenant {} recording {}; continuing without thumbnail (failure type {})",
+                    r.tenantId(), r.id(), failure.getClass().getSimpleName());
         }
     }
 

@@ -80,8 +80,8 @@ class RecordingWorker {
         try {
             tenantExecution.run(recording.tenantId(), work);
         } catch (RuntimeException failure) {
-            log.error("Recording {} failed for tenant {} recording {}; later candidates will continue",
-                    operation, recording.tenantId(), recording.id(), failure);
+            log.error("Recording {} failed for tenant {} recording {} (failure type {}); later candidates will continue",
+                    operation, recording.tenantId(), recording.id(), failure.getClass().getSimpleName());
         }
     }
 

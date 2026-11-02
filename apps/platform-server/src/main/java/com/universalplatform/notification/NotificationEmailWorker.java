@@ -51,7 +51,8 @@ class NotificationEmailWorker {
             } catch (RuntimeException exception) {
                 // A transient infrastructure failure must not stop the batch; the failure state
                 // (attempt count, next attempt, dead-letter after 8) persists in the per-delivery tx.
-                log.warn("Notification email delivery {} failed", id, exception);
+                log.warn("Notification email delivery {} failed (failure type {})",
+                        id, exception.getClass().getSimpleName());
             }
         }
     }

@@ -67,7 +67,8 @@ class WebhookEventFanoutWorker {
             } catch (RuntimeException failureRecordingException) {
                 exception.addSuppressed(failureRecordingException);
             }
-            log.warn("Webhook fan-out event {} failed", id, exception);
+            log.warn("Webhook fan-out event {} failed (failure type {})",
+                    id, exception.getClass().getSimpleName());
         }
     }
 

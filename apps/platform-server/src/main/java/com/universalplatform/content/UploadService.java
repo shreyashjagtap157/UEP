@@ -135,8 +135,8 @@ class UploadService {
                 Files.deleteIfExists(path);
             } catch (IOException cleanupFailure) {
                 failure.addSuppressed(cleanupFailure);
-                log.error("Could not remove staging file after upload initialization failed for tenant {}",
-                        tenant, cleanupFailure);
+                log.error("Could not remove staging file after upload initialization failed for tenant {} (failure type {})",
+                        tenant, cleanupFailure.getClass().getSimpleName());
             }
             throw failure;
         }
@@ -154,8 +154,8 @@ class UploadService {
                 try {
                     Files.deleteIfExists(stagingPath);
                 } catch (IOException cleanupFailure) {
-                    log.error("Could not remove uncommitted staging file for tenant {} upload {}",
-                            tenantId, uploadId, cleanupFailure);
+                    log.error("Could not remove uncommitted staging file for tenant {} upload {} (failure type {})",
+                            tenantId, uploadId, cleanupFailure.getClass().getSimpleName());
                 }
             }
         });
@@ -208,8 +208,8 @@ class UploadService {
                 u.stagingCleanedAt = clock.instant();
             } catch (IOException cleanupFailure) {
                 stagingCorruption.addSuppressed(cleanupFailure);
-                log.warn("Could not remove corrupted upload staging file for tenant {} upload {}",
-                        u.tenantId, u.id, cleanupFailure);
+                log.warn("Could not remove corrupted upload staging file for tenant {} upload {} (failure type {})",
+                        u.tenantId, u.id, cleanupFailure.getClass().getSimpleName());
             }
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Upload staging data is corrupted; restart the upload", stagingCorruption);
@@ -290,8 +290,8 @@ class UploadService {
                 u.stagingCleanedAt = clock.instant();
             } catch (IOException cleanupFailure) {
                 // The terminal rejection must commit even when local cleanup needs a retry.
-                log.warn("Could not remove malware-rejected upload staging file for tenant {} upload {}",
-                        tenant, u.id, cleanupFailure);
+                log.warn("Could not remove malware-rejected upload staging file for tenant {} upload {} (failure type {})",
+                        tenant, u.id, cleanupFailure.getClass().getSimpleName());
             }
             audit.record(tenant, actors.requireSubject(), "UPLOAD_REJECTED_MALWARE", "upload_session", u.id.toString());
             throw new UploadRejectedException("Upload rejected by malware scanner");
@@ -346,8 +346,8 @@ class UploadService {
                         uploadStagingCleanup.markCleaned(tenantId, uploadId);
                     } catch (Exception cleanupFailure) {
                         // Completed sessions retain their staging path so the cleanup worker can retry.
-                        log.warn("Could not remove committed upload staging file for tenant {} object key {}",
-                                tenantId, objectKey, cleanupFailure);
+                        log.warn("Could not remove committed upload staging file for tenant {} upload {} (failure type {})",
+                                tenantId, uploadId, cleanupFailure.getClass().getSimpleName());
                     }
                     return;
                 }
@@ -360,14 +360,14 @@ class UploadService {
                     adapter.delete(locator);
                     storageQuota.releaseDurable(tenantId, reservationId);
                 } catch (Exception cleanupFailure) {
-                    log.warn("Could not compensate remote object after upload rollback for tenant {} provider {}",
-                            tenantId, provider, cleanupFailure);
+                    log.warn("Could not compensate remote object after upload rollback for tenant {} provider {} (failure type {})",
+                            tenantId, provider, cleanupFailure.getClass().getSimpleName());
                     try {
                         storageCleanupOutbox.enqueue(tenantId, provider, locator, objectKey, reservationId, cleanupFailure);
                     } catch (RuntimeException enqueueFailure) {
                         cleanupFailure.addSuppressed(enqueueFailure);
-                        log.error("Could not persist remote-object cleanup after upload rollback for tenant {}",
-                                tenantId, cleanupFailure);
+                        log.error("Could not persist remote-object cleanup after upload rollback for tenant {} (cleanup {}, enqueue {})",
+                                tenantId, cleanupFailure.getClass().getSimpleName(), enqueueFailure.getClass().getSimpleName());
                     }
                 }
             }
@@ -386,8 +386,8 @@ class UploadService {
                 u.stagingCleanedAt = clock.instant();
             } catch (IOException cleanupFailure) {
                 // Abort and quota release are durable; the cleanup worker retries the local file.
-                log.warn("Could not remove aborted upload staging file for tenant {} upload {}",
-                        u.tenantId, u.id, cleanupFailure);
+                log.warn("Could not remove aborted upload staging file for tenant {} upload {} (failure type {})",
+                        u.tenantId, u.id, cleanupFailure.getClass().getSimpleName());
             }
         }
     }

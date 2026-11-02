@@ -972,6 +972,34 @@ required_tests = [
 for rel in required_tests:
     if not (ROOT / rel).exists():
         errors.append(f'missing mandatory isolation test: {rel}')
+# Operational worker/compensation logs must not serialize raw throwable messages or stack traces.
+failure_log_sources = [
+    'apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java',
+    'apps/platform-server/src/main/java/com/universalplatform/content/UploadCleanupWorker.java',
+    'apps/platform-server/src/main/java/com/universalplatform/recording/RecordingService.java',
+    'apps/platform-server/src/main/java/com/universalplatform/recording/RecordingWorker.java',
+    'apps/platform-server/src/main/java/com/universalplatform/notification/NotificationOutboxProcessor.java',
+    'apps/platform-server/src/main/java/com/universalplatform/notification/NotificationEmailWorker.java',
+    'apps/platform-server/src/main/java/com/universalplatform/integration/WebhookEventFanoutWorker.java',
+    'apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java',
+]
+for rel in failure_log_sources:
+    source = text(rel)
+    if 'getClass().getSimpleName()' not in source:
+        errors.append(f'{rel} must log safe exception categories for operational failures')
+    throwable_names = set(re.findall(
+        r'catch\s*\([^)]*?\b([A-Za-z_$][\w$]*)\s*\)', source))
+    throwable_names.update({
+        'failure', 'exception', 'reason', 'cleanupFailure', 'enqueueFailure',
+        'persistenceFailure', 'processingFailure', 'releaseFailure',
+        'stagingCorruption', 'failureRecordingException', 'transactionFailure',
+        'claimFailure', 'cause',
+    })
+    for call in re.findall(r'log\\.(?:warn|error)\\s*\\(([\\s\\S]*?)\\)\\s*;', source):
+        last_argument = call.rsplit(',', 1)[-1].strip()
+        if last_argument in throwable_names:
+            errors.append(f'{rel} must not attach raw throwable {last_argument} to an operational log')
+
 # PII/secret response anti-patterns in controllers.
 for p in (ROOT/'apps/platform-server/src/main/java/com/universalplatform').rglob('*Controller.java'):
     s=p.read_text(encoding='utf-8')

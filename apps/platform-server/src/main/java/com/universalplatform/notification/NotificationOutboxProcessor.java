@@ -62,7 +62,8 @@ class NotificationOutboxProcessor {
             } catch (RuntimeException exception) {
                 // One poisoned event must not stop the batch; its failure state is recorded
                 // inside the per-event transaction so it backs off via availableAt.
-                log.warn("Notification outbox event {} failed to process", id, exception);
+                log.warn("Notification outbox event {} failed to process (failure type {})",
+                        id, exception.getClass().getSimpleName());
             }
         }
     }
@@ -87,10 +88,11 @@ class NotificationOutboxProcessor {
                 }));
             } catch (RuntimeException persistenceFailure) {
                 processingFailure.addSuppressed(persistenceFailure);
-                log.error("Could not persist notification outbox retry state for event {}", id, processingFailure);
+                log.error("Could not persist notification outbox retry state for event {} (failure type {})",
+                        id, persistenceFailure.getClass().getSimpleName());
             }
-            log.warn("Notification outbox event {} failed; retry state is handled independently",
-                    id, reason);
+            log.warn("Notification outbox event {} failed (failure type {}); retry state is handled independently",
+                    id, reason.getClass().getSimpleName());
         }
     }
 

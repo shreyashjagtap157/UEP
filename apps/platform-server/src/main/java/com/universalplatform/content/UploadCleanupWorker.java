@@ -92,8 +92,8 @@ class UploadCleanupWorker {
             Files.deleteIfExists(Path.of(upload.stagingPath));
             upload.stagingCleanedAt = clock.instant();
         } catch (IOException failure) {
-            log.warn("Could not delete staging file for tenant {} {} {}",
-                    upload.tenantId, purpose, upload.id, failure);
+            log.warn("Could not delete staging file for tenant {} {} {} (failure type {})",
+                    upload.tenantId, purpose, upload.id, failure.getClass().getSimpleName());
         }
     }
 }
