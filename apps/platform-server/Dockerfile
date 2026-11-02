@@ -1,23 +1,21 @@
-# Multi-stage Dockerfile for UEP Backend (Spring Boot + Java 21)
+# Multi-stage UEP API image. The Maven compiler target is Java 21.
+# OCI runtime secrets and external endpoints are injected by the deployment environment.
 
-# Stage 1: Build
 FROM maven:3.9.6-eclipse-temurin-21 AS build
 WORKDIR /app
-COPY pom.xml .
+COPY pom.xml ./
 RUN mvn dependency:go-offline -B
 COPY src ./src
-RUN mvn clean package -DskipTests -B
+RUN mvn -B clean package -DskipTests
 
-# Stage 2: Run
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
+RUN mkdir -p /app/var/uploads /app/var/recordings \
+    && chown -R 10001:10001 /app
+COPY --from=build --chown=10001:10001 /app/target/*.jar /app/app.jar
 
-# Expose application port
 EXPOSE 8080
-
-# Database credentials and provider URLs are runtime secrets, supplied by Fly.io.
 ENV SPRING_PROFILES_ACTIVE=production
 
-# Run the application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+USER 10001:10001
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
