@@ -49,7 +49,7 @@ checks = {
     "native Windows guide is the active replacement": (
         LOCAL_GUIDE.is_file()
         and "scripts/Start-UEP.ps1" in local
-        and "does not use Docker" in local.lower()
+        and "does not use docker" in local.lower()
     ),
     "Real frontend proxies API requests over IPv4 loopback": (
         "'/api'" in vite and "target: 'http://127.0.0.1:8080'" in vite
