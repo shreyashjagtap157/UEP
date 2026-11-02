@@ -3,10 +3,7 @@
 **Status: OCI backend/database/Keycloak and R2 are not deployed. The existing Cloudflare Pages testing project has an unqualified ad-hoc deployment and stale Fly.io API configuration; it is not an accepted staging release.**  
 **Last reviewed: 2026-11-02**
 
-This runbook supersedes the historical Fly.io + Supabase topology for the next
-staging deployment. It is deliberately written as a gated procedure: do not
-create resources, enter payment details, upgrade a plan, or enable a metered
-service merely to progress through a step.
+This runbook is superseded by the current Cloudflare Pages + Fly.io + Supabase PostgreSQL target. Retain it as an OCI/R2 proposal and audit record only; do not provision resources from it. The active gated procedure is in FLY_SUPABASE_STAGING.md.
 
 ## 1. Target architecture
 

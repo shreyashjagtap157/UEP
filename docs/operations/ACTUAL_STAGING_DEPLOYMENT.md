@@ -1,11 +1,6 @@
 # UEP — historical Fly.io + Supabase staging deployment record
 
-> **SUPERSEDED — DO NOT USE FOR NEW DEPLOYMENTS.** On 2026-11-02 the target
-> topology was changed to OCI Always Free + Cloudflare Pages + Cloudflare R2.
-> Use [OCI_CLOUDFLARE_STAGING.md](OCI_CLOUDFLARE_STAGING.md) as the current
-> deployment runbook. This file is retained as an audit/history record only.
-> Its Fly.io and Supabase instructions are not authorization to create,
-> resume, migrate, or incur charges on those providers.
+> **SUPERSEDED HISTORICAL RECORD.** The current target has been re-opened as Cloudflare Pages + Fly.io + Supabase PostgreSQL. Use [FLY_SUPABASE_STAGING.md](FLY_SUPABASE_STAGING.md) for the active plan. This file preserves the previous Fly/Supabase attempt; its old commands, credentials and deployment claims must not be reused without requalification.
 
 The original document described a Fly.io + Supabase staging candidate. Its
 historical verification boundaries remain useful for understanding why that
