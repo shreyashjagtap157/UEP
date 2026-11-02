@@ -294,8 +294,12 @@ if 'int touchLastUsedAt(' not in credential_repository:
 
 # Malware rejection is a terminal state transition; throwing must not roll that transition back.
 upload_service_for_rejection = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
-if '@Transactional(noRollbackFor = UploadRejectedException.class)' not in upload_service_for_rejection:
+if 'rollbackFor = {IOException.class, GeneralSecurityException.class}' not in upload_service_for_rejection:
+    errors.append('upload finalization must roll back checked I/O and security failures')
+if 'noRollbackFor = UploadRejectedException.class' not in upload_service_for_rejection:
     errors.append('malware rejection must commit the ABORTED upload state')
+if upload_service_for_rejection.count('@Transactional(rollbackFor = IOException.class)') < 2:
+    errors.append('upload initiation and append must roll back checked I/O failures')
 if 'throw new UploadRejectedException("Upload rejected by malware scanner")' not in upload_service_for_rejection:
     errors.append('malware rejection must throw the non-rollback terminal exception')
 if not (ROOT / 'apps/platform-server/src/main/java/com/universalplatform/content/UploadRejectedException.java').exists():
@@ -485,11 +489,28 @@ if 'ADD COLUMN staging_cleaned_at timestamptz' not in staging_migration:
     errors.append('upload staging cleanup needs a durable staging_cleaned_at marker')
 upload_repository = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadSessionRepository.java')
 for required in [
-    'AndStagingCleanedAtIsNullAndExpiresAtBeforeOrderByExpiresAtAsc',
-    'AndStagingCleanedAtIsNullAndCompletedAtBeforeOrderByCompletedAtAsc',
+    'findExpiredWithUncleanedStaging',
+    'findCompletedWithUncleanedStaging',
+    'order by u.expiresAt asc, u.id asc',
+    'order by u.completedAt asc, u.id asc',
+    'afterExpiresAt',
+    'afterCompletedAt',
+    'Pageable pageable',
 ]:
     if required not in upload_repository:
-        errors.append(f'upload cleanup repository is missing filtered cleanup query: {required}')
+        errors.append(f'upload cleanup repository is missing keyset cleanup contract: {required}')
+upload_cleanup_worker = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadCleanupWorker.java')
+for required in [
+    'UploadStatus.ABORTED',
+    'PageRequest.of(0, CLEANUP_BATCH_SIZE)',
+    'afterExpiresAt',
+    'afterCompletedAt',
+]:
+    if required not in upload_cleanup_worker:
+        errors.append(f'upload cleanup worker is missing starvation-safe cleanup contract: {required}')
+upload_cleanup_test = text('apps/platform-server/src/test/java/com/universalplatform/content/UploadCleanupWorkerIntegrationTest.java')
+if 'failedOldFilesDoNotStarveLaterCleanupAndAbortedSessionsStayAborted' not in upload_cleanup_test:
+    errors.append('missing upload staging cleanup pagination/abort regression test')
 staging_service = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadStagingCleanupService.java')
 if 'Propagation.REQUIRES_NEW' not in staging_service or 'staging_cleaned_at = CURRENT_TIMESTAMP' not in staging_service:
     errors.append('committed staging cleanup must persist its marker in a new transaction')
