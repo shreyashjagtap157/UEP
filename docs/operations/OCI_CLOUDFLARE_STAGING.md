@@ -350,6 +350,15 @@ The workflow disables Playwright traces, screenshots, and video; the retained
 HTML/JUnit artifact is limited to seven days. Keep test assertions and test
 logs free of credentials and tenant identifiers.
 
+The database migration workflow is separately privileged. The
+`vercel-database-migrations` GitHub Environment must also restrict deployment
+branches to `main` only and require an authorized reviewer before it receives
+the schema-owner migration credentials. Its workflow checks the selected ref,
+checks out `main` explicitly, and maps migration credentials only to the
+credential-check and migration steps. These checks are defense in depth; the
+Environment's server-side branch restriction is the trust boundary. Do not
+reuse the staging test-account Environment for database-owner credentials.
+
 ## 11. Release acceptance gates
 
 A real staging deployment is accepted only when all are true:
