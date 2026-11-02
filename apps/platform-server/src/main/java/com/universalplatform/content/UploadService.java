@@ -123,6 +123,7 @@ class UploadService {
         Path path = dir.resolve(id + ".part");
         try {
             Files.createFile(path);
+            registerInitiationStagingCompensation(tenant, id, path);
             UploadSession u = new UploadSession(id, tenant, actors.requireSubject(), safeName(fileName),
                     safeType(contentType), bytes, hash(sha256), provider, objectPrefix, path.toString(), clock.instant());
             u.quotaReservationId = reservationId;
@@ -139,6 +140,25 @@ class UploadService {
             }
             throw failure;
         }
+    }
+
+    private void registerInitiationStagingCompensation(UUID tenantId, UUID uploadId, Path stagingPath) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int completionStatus) {
+                if (completionStatus == STATUS_COMMITTED) return;
+                try {
+                    Files.deleteIfExists(stagingPath);
+                } catch (IOException cleanupFailure) {
+                    log.error("Could not remove uncommitted staging file for tenant {} upload {}",
+                            tenantId, uploadId, cleanupFailure);
+                }
+            }
+        });
     }
 
     /**
