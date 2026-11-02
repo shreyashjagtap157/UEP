@@ -277,3 +277,18 @@ CI run #1042 exposed a response-version defect in the new membership update inte
 - CI run #1050 was queued for that exact SHA at last inspection. Earlier run #1042 failed on the old pre-flush response behavior; do not count that stale run as validation of the fix.
 
 On the next session, inspect #1050 (or the newest run for live main) and confirm the 17.11/18.4 backend matrix, web tests, repository policy, Keycloak CI and vulnerability scan. The Windows-native runtime still needs execution on the user's machine.
+
+
+## Continuation update — native membership end-to-end test
+
+Latest verified repository state during the 2026-11-03 continuation:
+
+- main was 5f1ce44f3e6b87f1696174bfd10219d4203c37c2 after the documentation update; fetch the live branch before further edits.
+- CI run #1053 for the previous code head 5c1a009769a76d3be375ecdeabf01e5f0c34a708 completed successfully. All six jobs passed: web, vulnerability scan, repository policy, backend PostgreSQL 17.11, backend PostgreSQL 18.4, and Keycloak staging-container qualification. Both backend jobs included migration, least-privilege grant, image and packaged-server smoke steps.
+- The native Playwright test already covered OIDC login, analytics CSV export, branch creation/reload/API readback, direct restricted-role PostgreSQL branch readback, and runtime-role denial probes.
+- It has now been extended to create a synthetic role-free membership through the People UI, update it through authenticated PATCH (SUSPENDED plus external reference), assert optimistic version 0 to 1, reload and GET-read it, and verify the committed tenant_membership/user_account row using the restricted runtime role.
+- apps/web/test/api-client-contract.test.mjs now guards the native membership POST/PATCH and PostgreSQL readback coverage.
+- docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md documents the expanded scope and retained synthetic test records.
+- These new commits were pushed directly to main. CI for the new code has not yet been inspected at this exact head. Check current main and latest workflow before claiming green.
+- Native Windows execution remains unverified here. The Playwright test creates and retains a uniquely named synthetic membership because there is no membership-delete operation; it records the membership subject and ID in a Playwright annotation and never deletes rows with SQL.
+- The native suite still does not qualify PUT/DELETE, multi-persona or cross-tenant/branch isolation, broad product workflows, service restart persistence, or complete DB object-ownership grants. Do not overstate coverage.
