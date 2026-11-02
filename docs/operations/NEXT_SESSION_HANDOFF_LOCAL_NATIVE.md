@@ -372,3 +372,12 @@ Validation status at handoff authoring: source-level permission parity was check
 - Integration workspace now displays credential expiry/status and offers permission-gated, optimistic-version API credential revocation. The list refresh confirms a revoked credential is no longer active.
 - Webhook subscriptions can now be revoked from the workspace using their current version. A test-event form uses the existing backend test route and clearly states that an event is queued to every enabled subscription whose filter matches; queuing is not proof of remote delivery.
 - The web contract suite now asserts the revoke/test helpers, version usage, status display and the warning about test event fan-out. CI for this follow-up and backend/native validation remain pending.
+
+
+## 2026-11-03 follow-up — optimistic integration provider updates
+
+- Identity Provider and External Notification Provider forms previously hard-coded `expectedVersion: 0`, which was correct only for creation and caused updates to existing providers to be rejected as stale.
+- Provider forms now look up the current matching provider version when the actor has the relevant list permission, submit that optimistic version, and invalidate/refetch the provider inventory after a successful save.
+- Added a typed authenticated notification-provider list helper and inventory with provider type, endpoint, version and explicit test action.
+- Clarified the separate permissions: `FEDERATION_VIEW` is required to inspect and update existing IdP configuration; `INTEROPERABILITY_VIEW` is required to inspect/update existing notification provider configuration, while the corresponding manage permissions allow creation/configuration and test delivery. The UI surfaces this instead of silently submitting version 0 for an existing provider.
+- Web contract coverage asserts current-version selection, inventory refresh and permission guidance. Current-head CI and backend/native validation remain pending.

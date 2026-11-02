@@ -50,6 +50,20 @@ test('membership role assignments use authenticated tenant-scoped API operations
   assert.ok(appSource.includes('Select a branch before assigning a branch-scoped role.'))
 })
 
+test('identity and notification provider updates use current versions and refresh inventories', () => {
+  assert.match(integrationApi, /export const fetchNotificationProviders=/)
+  assert.ok(integrationSource.includes("queryKey: ['integration-notification-providers']"))
+  assert.ok(integrationSource.includes("queryFn: fetchNotificationProviders"))
+  assert.ok(integrationSource.includes("expectedVersion: currentProvider?.version ?? 0"))
+  assert.ok(integrationSource.includes("providerKey,"))
+  assert.ok(integrationSource.includes("client.invalidateQueries({ queryKey: ['integration-idps'] })"))
+  assert.ok(integrationSource.includes("client.invalidateQueries({ queryKey: ['integration-notification-providers'] })"))
+  assert.ok(integrationSource.includes("FEDERATION_VIEW is also required"))
+  assert.ok(integrationSource.includes("INTEROPERABILITY_VIEW is also required"))
+  assert.ok(integrationSource.includes('notificationProviders.data?.map(provider'))
+  assert.ok(integrationSource.includes('Send test'))
+})
+
 test('API credential revocation exposes server status and uses optimistic versions', () => {
   assert.match(integrationApi, /export const revokeApiCredential=/)
   assert.ok(integrationApi.includes('expectedVersion'))
