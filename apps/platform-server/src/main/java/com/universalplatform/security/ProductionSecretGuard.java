@@ -30,12 +30,6 @@ final class ProductionSecretGuard {
         boolean developmentMode = environment.getProperty(DEV_MODE_PROPERTY, Boolean.class, false);
         boolean productionProfile = java.util.Arrays.stream(environment.getActiveProfiles())
                 .anyMatch(profile -> profile.equalsIgnoreCase("prod") || profile.equalsIgnoreCase("production"));
-        boolean vercelProfile = java.util.Arrays.stream(environment.getActiveProfiles())
-                .anyMatch(profile -> profile.equalsIgnoreCase("vercel"));
-        if (vercelProfile && !productionProfile) {
-            throw new IllegalStateException(
-                    "Refusing to start: the vercel Spring profile requires the production profile.");
-        }
         if (developmentMode && productionProfile) {
             throw new IllegalStateException(
                     "Refusing to start: " + DEV_MODE_PROPERTY
