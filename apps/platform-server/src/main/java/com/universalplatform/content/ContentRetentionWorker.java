@@ -91,6 +91,8 @@ class ContentRetentionWorker {
                     throw new IllegalStateException("Storage object has no quota reservation; refusing unaccounted deletion");
                 }
                 storageQuota.authorizeDelete(r.tenantId, o.provider);
+                storageQuota.consumeProviderDeleteOperations(r.tenantId, o.provider,
+                        StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
                 adapters.require(o.provider).delete(o.locator);
                 storageQuota.release(r.tenantId, o.quotaReservationId);
                 o.markDeleted(now);
