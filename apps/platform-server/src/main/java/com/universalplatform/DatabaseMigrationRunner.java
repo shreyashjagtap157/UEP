@@ -10,7 +10,7 @@ import org.flywaydb.core.Flyway;
 
 /**
  * One-shot, explicitly invoked database migration entry point.
- * Never run this from a request-serving Vercel API instance.
+ * Never run this from any request-serving API instance.
  *
  * Flyway runs as the schema-owner role. After migrations, this runner grants
  * CRUD access to a separate non-owner application role and configures default
