@@ -24,30 +24,43 @@ export const backendUrl = () => resolveBackendBaseUrl(
   localMode,
   import.meta.env.VITE_LOCAL_BACKEND_URL,
 )
-export async function request<T>(path:string,init:RequestInit={}):Promise<T>{
+async function authorizedResponse(path:string,init:RequestInit,accept:string):Promise<Response>{
   let token:string
   try{token=await accessToken()}catch(error){
     const reason=error instanceof Error&&error.message?error.message:String(error)
     throw new PlatformApiError(0,`Network error: the authentication session could not provide an access token (${reason})`)
   }
   const headers=new Headers(init.headers)
-  headers.set('Accept','application/json')
+  headers.set('Accept',accept)
   headers.set('Authorization',`Bearer ${token}`)
   if(init.body&&!headers.has('Content-Type'))headers.set('Content-Type','application/json')
   const fullPath = joinBackendUrl(backendUrl(),path)
-  let response:Response
   try{
-    response=await fetch(fullPath,{...init,headers})
+    return await fetch(fullPath,{...init,headers})
   }catch(error){
     const reason=error instanceof Error&&error.message?error.message:String(error)
     throw new PlatformApiError(0,`Network error: the platform service could not be reached for ${fullPath} (${reason})`)
   }
+}
+function parseResponseBody(text:string):unknown{
+  if(!text)return undefined
+  try{return JSON.parse(text) as unknown}catch{return text}
+}
+export async function request<T>(path:string,init:RequestInit={}):Promise<T>{
+  const response=await authorizedResponse(path,init,'application/json')
   if(response.status===204)return undefined as T
   const text=await response.text()
-  let body:unknown
-  if(text){try{body=JSON.parse(text) as unknown}catch{body=text}}
+  const body=parseResponseBody(text)
   if(!response.ok)throw new PlatformApiError(response.status,extractServerMessage(body,`Platform request failed: ${response.status} ${response.statusText}`),body)
   return body as T
+}
+export async function requestText(path:string,init:RequestInit={}):Promise<string>{
+  const response=await authorizedResponse(path,init,'text/csv')
+  if(response.status===204)return ''
+  const text=await response.text()
+  const body=parseResponseBody(text)
+  if(!response.ok)throw new PlatformApiError(response.status,extractServerMessage(body,`Platform request failed: ${response.status} ${response.statusText}`),body)
+  return text
 }
 export async function fetchPlatformVersion(signal?:AbortSignal):Promise<PlatformVersion|undefined>{
   try{
