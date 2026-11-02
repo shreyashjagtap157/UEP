@@ -355,3 +355,12 @@ Implementation added in this follow-up:
 - Native Real Playwright acceptance creates, updates and deletes a uniquely named custom role through the browser/API and checks the corresponding `role_definition` and `role_permission` rows using the restricted PostgreSQL runtime account. The custom role is deleted through the API, not by direct SQL.
 
 Validation status at handoff authoring: source-level permission parity was checked (83/83). Backend integration, web test/build, CI on this commit and native Windows execution remain pending until actual results are collected. Do not treat a newly added test as a passing test. The existing native local runtime remains unqualified in this session.
+
+
+## 2026-11-03 follow-up — administrative session management UI
+
+- The backend already exposed tenant-scoped member-session listing and administrator revocation. The Security workspace previously exposed only current-member self-service sessions.
+- Added authenticated frontend calls for `GET /api/v1/identity/sessions/memberships/{membershipId}` and administrator `DELETE /api/v1/identity/sessions/{sessionId}` with a bounded audit reason.
+- The Security workspace now lists observed sessions for other tenant memberships when the actor has both `USERS_VIEW` (required for the membership directory) and `SESSIONS_VIEW`; revocation controls are shown only when `SESSIONS_MANAGE` is also present. It excludes the actor's own membership from the administrator selector, preserving the separate self-service revoke path.
+- Added frontend endpoint/permission contract coverage and backend integration tests for authorized administrator revocation, denial on subsequent use of the revoked OIDC session, and 403 enforcement for ordinary members.
+- Validation/CI for this follow-up commit and native Windows acceptance remain pending until actual results are collected.

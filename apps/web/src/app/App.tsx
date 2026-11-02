@@ -37,6 +37,7 @@ import {
   fetchBranches,
   fetchCurrentIdentity,
   fetchMembers,
+  fetchMemberSessions,
   fetchMySessions,
   fetchOrganizationSettings,
   fetchPlatformVersion,
@@ -44,6 +45,7 @@ import {
   fetchRoleAssignments,
   provisionMembership,
   revokeOwnSession,
+  revokeMemberSession,
   updateOrganizationSettings,
   updateMembership,
   updateRole,
@@ -646,10 +648,124 @@ function SettingsForm({ settings, editable, onSubmit, pending, error }: { settin
 
 function Security({ me }: { me: CurrentIdentity }) {
   const queryClient = useQueryClient()
+  // Listing tenant memberships requires USERS_VIEW in addition to SESSIONS_VIEW.
+  const canViewMemberSessions = has(me, 'USERS_VIEW') && has(me, 'SESSIONS_VIEW')
+  const canManageMemberSessions = canViewMemberSessions && has(me, 'SESSIONS_MANAGE')
+  const [selectedMembershipId, setSelectedMembershipId] = useState('')
   const sessions = useQuery({ queryKey: ['my-sessions'], queryFn: fetchMySessions })
-  const revoke = useMutation({ mutationFn: revokeOwnSession, onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['my-sessions'] }) })
+  const members = useQuery({ queryKey: ['session-members'], queryFn: fetchMembers, enabled: canViewMemberSessions })
+  const memberSessions = useQuery({
+    queryKey: ['member-sessions', selectedMembershipId],
+    queryFn: () => fetchMemberSessions(selectedMembershipId),
+    enabled: canViewMemberSessions && Boolean(selectedMembershipId),
+  })
+  const revoke = useMutation({
+    mutationFn: revokeOwnSession,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['my-sessions'] }),
+  })
+  const adminRevoke = useMutation({
+    mutationFn: ({ sessionId, reason }: { sessionId: string; reason: string }) => revokeMemberSession(sessionId, reason),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['member-sessions', selectedMembershipId] })
+      void queryClient.invalidateQueries({ queryKey: ['my-sessions'] })
+    },
+  })
   const assurance = me.authenticationAssurance
-  return <div className="content-stack"><section className="panel"><div className="panel-heading"><div><p className="eyebrow">Authentication</p><h3>Strong sign-in</h3></div></div><div className="metric-grid"><Metric label="ACR" value={assurance.acr || 'Not asserted'} /><Metric label="OTP evidence" value={assurance.otpEvidence ? 'Present' : 'Not present'} /><Metric label="WebAuthn evidence" value={assurance.webAuthnEvidence ? 'Present' : 'Not present'} /></div><div className="button-row"><button className="primary-button" onClick={() => void enrollPasskey()}>Register passkey</button><button className="secondary-button" onClick={() => void enrollOtp()}>Configure OTP</button><button className="secondary-button" onClick={() => void openAccountManagement()}>Identity account</button></div></section><section className="panel"><div className="panel-heading"><div><p className="eyebrow">Session control</p><h3>Platform sessions</h3></div></div>{sessions.isPending ? <LoadingLine /> : sessions.isError ? <ErrorLine error={sessions.error} /> : <div className="session-list">{sessions.data.items.map(session => <div className="session-row" key={session.id}><div><strong>{session.current ? 'Current session' : 'Authenticated session'}</strong><span>Last seen {new Date(session.lastSeenAt).toLocaleString()}</span></div><div>{session.revokedAt ? <span className="danger-chip">Revoked</span> : <button className="text-button" disabled={revoke.isPending} onClick={() => revoke.mutate(session.id)}>Revoke</button>}</div></div>)}</div>}</section></div>
+  const manageableMembers = (members.data?.items ?? []).filter(member => member.membershipId !== me.membershipId)
+
+  return (
+    <div className="content-stack">
+      <section className="panel">
+        <div className="panel-heading"><div><p className="eyebrow">Authentication</p><h3>Strong sign-in</h3></div></div>
+        <div className="metric-grid">
+          <Metric label="ACR" value={assurance.acr || 'Not asserted'} />
+          <Metric label="OTP evidence" value={assurance.otpEvidence ? 'Present' : 'Not present'} />
+          <Metric label="WebAuthn evidence" value={assurance.webAuthnEvidence ? 'Present' : 'Not present'} />
+        </div>
+        <div className="button-row">
+          <button className="primary-button" onClick={() => void enrollPasskey()}>Register passkey</button>
+          <button className="secondary-button" onClick={() => void enrollOtp()}>Configure OTP</button>
+          <button className="secondary-button" onClick={() => void openAccountManagement()}>Identity account</button>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-heading"><div><p className="eyebrow">Self-service session control</p><h3>My platform sessions</h3></div></div>
+        {sessions.isPending ? <LoadingLine /> : sessions.isError ? <ErrorLine error={sessions.error} /> : (
+          <div className="session-list">
+            {sessions.data.items.map(session => (
+              <div className="session-row" key={session.id}>
+                <div>
+                  <strong>{session.current ? 'Current session' : 'Authenticated session'}</strong>
+                  <span>Last seen {new Date(session.lastSeenAt).toLocaleString()}</span>
+                </div>
+                <div>
+                  {session.revokedAt
+                    ? <span className="danger-chip">Revoked</span>
+                    : <button className="text-button" disabled={revoke.isPending} onClick={() => revoke.mutate(session.id)}>Revoke</button>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {revoke.isError && <p className="error-text" role="alert">{revoke.error.message}</p>}
+      </section>
+
+      {canViewMemberSessions && (
+        <section className="panel">
+          <div className="panel-heading">
+            <div><p className="eyebrow">Administrator session control</p><h3>Other member sessions</h3></div>
+          </div>
+          <p className="muted small">Requires Users View and Sessions View. Sessions Manage additionally enables revocation. Your own membership is excluded here; manage your own sessions above.</p>
+          {members.isPending ? <LoadingLine /> : members.isError ? <ErrorLine error={members.error} /> : (
+            <>
+              <label>
+                Tenant member
+                <select value={selectedMembershipId} onChange={event => setSelectedMembershipId(event.target.value)}>
+                  <option value="">Select a member</option>
+                  {manageableMembers.map(member => (
+                    <option key={member.membershipId} value={member.membershipId}>
+                      {member.displayName} · {member.membershipStatus}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {manageableMembers.length === 0 && <p className="muted">No other tenant memberships are available.</p>}
+              {selectedMembershipId && (
+                memberSessions.isPending ? <LoadingLine /> : memberSessions.isError ? <ErrorLine error={memberSessions.error} /> : (
+                  <div className="session-list">
+                    {memberSessions.data.items.length === 0 && <p className="muted">No observed platform sessions for this member.</p>}
+                    {memberSessions.data.items.map(session => (
+                      <div className="session-row" key={session.id}>
+                        <div>
+                          <strong>Member session · {shortId(session.id)}</strong>
+                          <span>Last seen {new Date(session.lastSeenAt).toLocaleString()}</span>
+                          {session.expiresAt && <span>Expires {new Date(session.expiresAt).toLocaleString()}</span>}
+                          {session.revocationReason && <span>Reason: {session.revocationReason}</span>}
+                        </div>
+                        <div>
+                          {session.revokedAt
+                            ? <span className="danger-chip">Revoked</span>
+                            : canManageMemberSessions
+                              ? <button className="text-button" disabled={adminRevoke.isPending} onClick={() => {
+                                  if (window.confirm('Revoke this member session? The member will need to authenticate again.')) {
+                                    adminRevoke.mutate({ sessionId: session.id, reason: 'Administrator revoked session from the Security workspace' })
+                                  }
+                                }}>Revoke member session</button>
+                              : <span className="muted small">Read only</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+              {adminRevoke.isError && <p className="error-text" role="alert">{adminRevoke.error.message}</p>}
+            </>
+          )}
+        </section>
+      )}
+    </div>
+  )
 }
 
 function Metric({ label, value }: { label: string; value: string }) { return <div className="metric"><span>{label}</span><strong>{value}</strong></div> }

@@ -48,6 +48,20 @@ test('membership role assignments use authenticated tenant-scoped API operations
   assert.ok(appSource.includes('Select a branch before assigning a branch-scoped role.'))
 })
 
+test('administrator session controls use authenticated tenant-scoped list/revoke endpoints and separate permissions', () => {
+  assert.match(apiCore, /export const fetchMemberSessions=/)
+  assert.ok(apiCore.includes('/api/v1/identity/sessions/memberships/'))
+  assert.match(apiCore, /export function revokeMemberSession/)
+  assert.ok(apiCore.includes("method:'DELETE'"))
+  assert.ok(appSource.includes("canViewMemberSessions = has(me, 'USERS_VIEW') && has(me, 'SESSIONS_VIEW')"))
+  assert.ok(appSource.includes("canManageMemberSessions = canViewMemberSessions && has(me, 'SESSIONS_MANAGE')"))
+  assert.ok(appSource.includes('fetchMemberSessions(selectedMembershipId)'))
+  assert.ok(appSource.includes('revokeMemberSession(sessionId, reason)'))
+  assert.ok(appSource.includes('Other member sessions'))
+  assert.ok(appSource.includes('Revoke member session'))
+  assert.ok(appSource.includes('member.membershipId !== me.membershipId'))
+})
+
 test('custom role CRUD uses authenticated PUT/DELETE, optimistic versions and the complete permission catalog', () => {
   assert.match(apiCore, /export function updateRole/)
   assert.ok(apiCore.includes("method:'PUT'"))

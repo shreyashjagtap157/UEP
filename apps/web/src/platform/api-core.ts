@@ -78,6 +78,7 @@ export const fetchRoles=()=>request<PageResult<RoleView>>('/api/v1/identity/role
 export const fetchBranches=()=>request<PageResult<BranchView>>('/api/v1/organization/branches?size=100')
 export const fetchOrganizationSettings=()=>request<OrganizationSettings>('/api/v1/organization/settings')
 export const fetchMySessions=()=>request<PageResult<SessionView>>('/api/v1/identity/sessions/me?size=100')
+export const fetchMemberSessions=(membershipId:string)=>request<PageResult<SessionView>>(`/api/v1/identity/sessions/memberships/${encodeURIComponent(membershipId)}?size=100`)
 export function provisionMembership(input:{subject:string;email?:string;displayName:string;roleIds:string[]}):Promise<MemberView>{
   return request('/api/v1/identity/memberships',{method:'POST',body:JSON.stringify(input)})
 }
@@ -107,5 +108,8 @@ export function updateOrganizationSettings(input:OrganizationSettings):Promise<O
   return request('/api/v1/organization/settings',{method:'PUT',body:JSON.stringify({defaultTimezone:input.defaultTimezone,defaultLocale:input.defaultLocale,weekStartsOn:input.weekStartsOn,supportEmail:input.supportEmail,supportUrl:input.supportUrl,expectedVersion:input.version})})
 }
 export function revokeOwnSession(sessionId:string):Promise<void>{
-  return request(`/api/v1/identity/sessions/me/${sessionId}`,{method:'DELETE'})
+  return request(`/api/v1/identity/sessions/me/${encodeURIComponent(sessionId)}`,{method:'DELETE'})
+}
+export function revokeMemberSession(sessionId:string,reason:string):Promise<void>{
+  return request(`/api/v1/identity/sessions/${encodeURIComponent(sessionId)}`,{method:'DELETE',body:JSON.stringify({reason})})
 }
