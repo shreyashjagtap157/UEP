@@ -503,8 +503,7 @@ class RecordingService {
     @Transactional
     void purgeDue(Recording candidate) {
         // The scheduled worker supplied a detached snapshot. Reload it inside a transaction and
-        // serialize purge attempts for the tenant; otherwise the remote objects may be deleted
-        // while the database row remains READY/ARCHIVED and gets purged on every poll.
+        // serialize purge attempts for the tenant before inspecting the current state.
         workerLock.acquire(candidate.tenantId());
         Recording recording = recordings.findByTenantIdAndId(candidate.tenantId(), candidate.id()).orElse(null);
         if (recording == null
@@ -521,49 +520,49 @@ class RecordingService {
 
         List<RecordingAsset> recordingAssets = assets.findAllByTenantIdAndRecordingId(
                 recording.tenantId(), recording.id());
-        try {
-            Set<String> deletedObjects = new HashSet<>();
-            Set<UUID> reservationsToRelease = new HashSet<>();
-            if (recording.storageLocator() != null) {
-                if (recording.quotaReservationId() == null) {
-                    throw new IllegalStateException("Recording master has no quota reservation; refusing unaccounted deletion");
-                }
-                String identity = recording.storageProvider() + ":" + recording.storageLocator();
-                if (deletedObjects.add(identity)) {
-                    storageQuota.authorizeDelete(recording.tenantId(), recording.storageProvider());
-                    storageQuota.consumeProviderDeleteOperations(recording.tenantId(), recording.storageProvider(),
-                            StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
-                    adapters.require(recording.storageProvider()).delete(recording.storageLocator());
-                }
-                reservationsToRelease.add(recording.quotaReservationId());
-            }
-            for (RecordingAsset asset : recordingAssets) {
-                String identity = asset.provider() + ":" + asset.locator();
-                if (!deletedObjects.add(identity)) continue;
-                if (asset.quotaReservationId() == null) {
-                    throw new IllegalStateException("Recording asset has no quota reservation; refusing unaccounted deletion");
-                }
-                storageQuota.authorizeDelete(recording.tenantId(), asset.provider());
-                storageQuota.consumeProviderDeleteOperations(recording.tenantId(), asset.provider(),
-                        StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
-                adapters.require(asset.provider()).delete(asset.locator());
-                reservationsToRelease.add(asset.quotaReservationId());
-            }
-            for (UUID reservationId : reservationsToRelease) {
-                storageQuota.release(recording.tenantId(), reservationId);
-            }
 
-            // Metadata is committed only after all provider deletes and quota releases succeed.
-            assets.deleteAll(recordingAssets);
-            recording.clearStoragePointer();
-            recording.delete(clock.instant());
-            recordings.save(recording);
-            audit.record(recording.tenantId(), "system", "RECORDING_PURGED", "recording", recording.id().toString());
-        } catch (Exception failure) {
-            log.warn("Recording retention purge failed for tenant {} recording {}; retrying on a later poll",
-                    recording.tenantId(), recording.id(), failure);
+        // Provider deletes cannot be rolled back. Enqueue one durable cleanup job per unique
+        // object in this transaction, then retire the recording metadata in the same commit.
+        // The independent StorageCleanupWorker owns provider I/O, quota release, and retry backoff.
+        Map<String, PendingRecordingObject> pendingDeletes = new LinkedHashMap<>();
+        if (recording.storageLocator() != null) {
+            addPendingRecordingObject(pendingDeletes, recording.storageProvider(), recording.storageLocator(),
+                    recording.objectKey(), recording.quotaReservationId());
+        }
+        for (RecordingAsset asset : recordingAssets) {
+            addPendingRecordingObject(pendingDeletes, asset.provider(), asset.locator(),
+                    asset.objectKey(), asset.quotaReservationId());
+        }
+        for (PendingRecordingObject pending : pendingDeletes.values()) {
+            cleanupQueue.enqueueWithinCurrentTransaction(recording.tenantId(), pending.provider(),
+                    pending.locator(), pending.objectKey(), pending.reservationId(), null);
+        }
+
+        assets.deleteAll(recordingAssets);
+        recording.clearStoragePointer();
+        recording.delete(clock.instant());
+        recordings.save(recording);
+        audit.record(recording.tenantId(), "system", "RECORDING_PURGE_QUEUED", "recording", recording.id().toString());
+    }
+
+    private static void addPendingRecordingObject(Map<String, PendingRecordingObject> pendingDeletes,
+                                                  StorageProviderType provider, String locator,
+                                                  String objectKey, UUID reservationId) {
+        if (provider == null || locator == null || locator.isBlank()
+                || objectKey == null || objectKey.isBlank() || reservationId == null) {
+            throw new IllegalStateException("Recording storage object has incomplete cleanup identity; refusing untracked deletion");
+        }
+        String identity = provider.name() + ":" + locator;
+        PendingRecordingObject requested = new PendingRecordingObject(provider, locator, objectKey, reservationId);
+        PendingRecordingObject existing = pendingDeletes.putIfAbsent(identity, requested);
+        if (existing != null && (!existing.reservationId().equals(reservationId)
+                || !existing.objectKey().equals(objectKey))) {
+            throw new IllegalStateException("Duplicate recording storage locator has inconsistent cleanup metadata");
         }
     }
+
+    private record PendingRecordingObject(StorageProviderType provider, String locator,
+                                           String objectKey, UUID reservationId) {}
 
     private void finalizeFile(Recording r, Path video, long duration) {
         try {

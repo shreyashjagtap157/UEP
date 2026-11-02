@@ -22,6 +22,18 @@ public class StorageCleanupOutboxService implements StorageCleanupQueue {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void enqueue(UUID tenantId, StorageProviderType provider, String locator,
                         String objectKey, UUID reservationId, Throwable reason) {
+        enqueueJob(tenantId, provider, locator, objectKey, reservationId);
+    }
+
+    @Override
+    @Transactional
+    public void enqueueWithinCurrentTransaction(UUID tenantId, StorageProviderType provider, String locator,
+                                                String objectKey, UUID reservationId, Throwable reason) {
+        enqueueJob(tenantId, provider, locator, objectKey, reservationId);
+    }
+
+    private void enqueueJob(UUID tenantId, StorageProviderType provider, String locator,
+                            String objectKey, UUID reservationId) {
         if (tenantId == null || provider == null || locator == null || locator.isBlank()
                 || objectKey == null || objectKey.isBlank() || reservationId == null) {
             throw new IllegalArgumentException("Complete storage cleanup identity is required");

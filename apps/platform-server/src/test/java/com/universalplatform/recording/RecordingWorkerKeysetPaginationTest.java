@@ -3,6 +3,7 @@ package com.universalplatform.recording;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -110,6 +111,24 @@ class RecordingWorkerKeysetPaginationTest {
         verify(service, times(CANDIDATE_COUNT)).purgeDue(any(Recording.class));
         verify(recordings, times(3)).findPurgeCandidatesAfter(
                 anyCollection(), any(Instant.class), any(UUID.class), any(Pageable.class));
+    }
+
+    @Test
+    void failedPurgeCandidateDoesNotBlockLaterRecordingsInTheSamePage() {
+        Recording first = candidates.get(0);
+        Recording second = candidates.get(1);
+        Recording third = candidates.get(2);
+        when(recordings.findPurgeCandidatesAfter(
+                anyCollection(), any(Instant.class), any(UUID.class), any(Pageable.class)))
+                .thenReturn(List.of(first, second, third));
+        doThrow(new IllegalStateException("cleanup outbox unavailable"))
+                .when(service).purgeDue(first);
+
+        worker.purge();
+
+        verify(service).purgeDue(first);
+        verify(service).purgeDue(second);
+        verify(service).purgeDue(third);
     }
 
     private Recording recording(int index) {

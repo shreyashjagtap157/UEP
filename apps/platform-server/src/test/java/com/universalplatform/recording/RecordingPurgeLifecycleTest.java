@@ -215,36 +215,45 @@ class RecordingPurgeLifecycleTest {
     }
 
     @Test
-    void purgeReloadsAndPersistsDeletedStateOnlyAfterAllProviderObjectsDelete() throws Exception {
+    void purgeEnqueuesUniqueProviderCleanupAndRetiresMetadataAtomically() {
         UUID masterReservationId = recording.quotaReservationId;
         UUID thumbnailReservationId = thumbnail.quotaReservationId();
+
         service.purgeDue(recording);
 
         assertThat(recording.status()).isEqualTo(RecordingProcessingStatus.DELETED);
         assertThat(recording.storageLocator()).isNull();
         assertThat(recording.objectKey()).isNull();
         verify(workerLock).acquire(tenantId);
-        verify(localStorage).delete("master-locator");
-        verify(localStorage).delete("thumbnail-locator");
+        // The master is also represented by its MASTER asset. It must produce one cleanup job.
+        verify(cleanupQueue).enqueueWithinCurrentTransaction(tenantId, StorageProviderType.LOCAL,
+                "master-locator", "master-object-key", masterReservationId, null);
+        verify(cleanupQueue).enqueueWithinCurrentTransaction(tenantId, StorageProviderType.LOCAL,
+                "thumbnail-locator", "thumbnail-object-key", thumbnailReservationId, null);
         verify(assets).deleteAll(List.of(master, thumbnail));
         verify(recordings).save(recording);
-        verify(audit).record(tenantId, "system", "RECORDING_PURGED", "recording", recordingId.toString());
-        verify(storageQuota).release(tenantId, masterReservationId);
-        verify(storageQuota).release(tenantId, thumbnailReservationId);
+        verify(audit).record(tenantId, "system", "RECORDING_PURGE_QUEUED", "recording", recordingId.toString());
+        verify(localStorage, never()).delete(anyString());
+        verify(storageQuota, never()).release(tenantId, masterReservationId);
+        verify(storageQuota, never()).release(tenantId, thumbnailReservationId);
     }
 
     @Test
-    void providerFailureLeavesRecordingAndAssetMetadataEligibleForRetry() throws Exception {
-        lenient().doThrow(new IOException("provider unavailable")).when(localStorage).delete("thumbnail-locator");
+    void cleanupOutboxFailurePreventsRecordingMetadataRetirement() {
+        doThrow(new IllegalStateException("cleanup outbox unavailable"))
+                .when(cleanupQueue).enqueueWithinCurrentTransaction(tenantId, StorageProviderType.LOCAL,
+                        "thumbnail-locator", "thumbnail-object-key", thumbnail.quotaReservationId(), null);
 
-        service.purgeDue(recording);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.purgeDue(recording))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("cleanup outbox unavailable");
 
         assertThat(recording.status()).isEqualTo(RecordingProcessingStatus.READY);
         assertThat(recording.storageLocator()).isEqualTo("master-locator");
-        assertThat(recording.objectKey()).isEqualTo("master-object-key");
         verify(assets, never()).deleteAll(org.mockito.ArgumentMatchers.<RecordingAsset>anyList());
         verify(recordings, never()).save(recording);
-        verify(audit, never()).record(tenantId, "system", "RECORDING_PURGED", "recording", recordingId.toString());
+        verify(audit, never()).record(tenantId, "system", "RECORDING_PURGE_QUEUED", "recording", recordingId.toString());
+        verify(localStorage, never()).delete(anyString());
     }
 
     @Test

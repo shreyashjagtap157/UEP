@@ -28,6 +28,9 @@ Playback uses short-lived, membership-bound signed tokens. The browser receives 
 
 Retention is enforced by a background worker. Deletion is represented by durable metadata state and object deletion after the configured grace period.
 
+
+Recording retention retires the logical recording and enqueues physical object deletion in the same database transaction. Provider deletion and quota release are performed by the shared durable storage-cleanup worker, which persists independent retry backoff. This avoids partial inline multi-object deletion leaving an otherwise READY recording with a missing master object.
+
 ## Consequences
 
 The recording API remains responsive regardless of recording duration. Provider changes can be isolated behind two interfaces: media capture and object storage. Lifecycle operations become observable and auditable, while tenant isolation stays server-authoritative.

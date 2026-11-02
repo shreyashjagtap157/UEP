@@ -29,6 +29,8 @@ The default policy keeps new media in `HOT` storage for 14 days, moves it to `CA
 
 Master and thumbnail assets migrate together. Cross-provider migration is copy-then-delete: the destination object is written and the metadata locator is updated before the old object is deleted. The recording remains in its prior usable state when a migration fails. Retention is separate from archival and marks metadata `DELETED` only after the configured retention period plus deleted-object grace period.
 
+Retention is separate from archival and retires recording metadata only after the configured retention period plus deleted-object grace period. The metadata retirement and one durable storage-cleanup outbox job per unique provider object commit in the same database transaction. A separate cleanup worker performs provider deletion and quota release with independent retry backoff; a provider failure therefore cannot leave a still-READY recording pointing at an object already deleted earlier in a multi-object purge.
+
 ## Playback protection
 
 Playback is never an unprotected storage locator. The server checks tenant ownership, recording readiness, the current membership, and `RECORDINGS_VIEW`, then issues a five-minute HMAC-signed token bound to both recording and membership. Unless the caller has `RECORDINGS_MANAGE`, direct recording details and playback are restricted to recordings for the caller's active batches, matching the list endpoint. The stream endpoint rechecks that batch access as well as the token, so enrollment revocation after token issuance blocks subsequent stream opens.
