@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -74,10 +73,6 @@ class UploadFinalizationCompensationTest {
         session.receivedBytes = FILE_BYTES.length;
         session.quotaReservationId = UUID.randomUUID();
         session.status = UploadStatus.UPLOADING;
-        lenient().doNothing().when(storageQuota).commit(org.mockito.ArgumentMatchers.eq(tenantId),
-                org.mockito.ArgumentMatchers.eq(session.quotaReservationId), org.mockito.ArgumentMatchers.eq((long) FILE_BYTES.length),
-                org.mockito.ArgumentMatchers.eq("remote-locator"), org.mockito.ArgumentMatchers.anyString());
-
         service = new UploadService(tenants, actors, auth, uploads, objects, adapters, storageQuota, storageBindings, audit,
                 malwareScanner, cleanupOutbox, stagingCleanup, tempDir.toString(), 1024, true);
 

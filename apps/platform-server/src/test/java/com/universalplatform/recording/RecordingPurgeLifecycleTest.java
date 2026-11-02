@@ -143,6 +143,8 @@ class RecordingPurgeLifecycleTest {
 
     @Test
     void purgeReloadsAndPersistsDeletedStateOnlyAfterAllProviderObjectsDelete() throws Exception {
+        UUID masterReservationId = recording.quotaReservationId;
+        UUID thumbnailReservationId = thumbnail.quotaReservationId();
         service.purgeDue(recording);
 
         assertThat(recording.status()).isEqualTo(RecordingProcessingStatus.DELETED);
@@ -154,8 +156,8 @@ class RecordingPurgeLifecycleTest {
         verify(assets).deleteAll(List.of(master, thumbnail));
         verify(recordings).save(recording);
         verify(audit).record(tenantId, "system", "RECORDING_PURGED", "recording", recordingId.toString());
-        verify(storageQuota).release(tenantId, recording.quotaReservationId);
-        verify(storageQuota).release(tenantId, thumbnail.quotaReservationId());
+        verify(storageQuota).release(tenantId, masterReservationId);
+        verify(storageQuota).release(tenantId, thumbnailReservationId);
     }
 
     @Test
