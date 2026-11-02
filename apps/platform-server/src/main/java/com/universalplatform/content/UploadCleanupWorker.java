@@ -40,8 +40,10 @@ class UploadCleanupWorker {
                 UploadStatus.VERIFYING,
                 UploadStatus.EXPIRED,
                 UploadStatus.ABORTED);
-        Instant afterExpiresAt = null;
-        UUID afterId = null;
+        // PostgreSQL cannot type a nullable parameter used first in an IS NULL predicate.
+        // A supported timestamp lower bound and zero UUID provide a stable first-page cursor.
+        Instant afterExpiresAt = Instant.parse("0001-01-01T00:00:00Z");
+        UUID afterId = new UUID(0L, 0L);
 
         // Keyset pagination is important here: a failed file deletion remains eligible.
         // Offset pagination would repeatedly select the same first page and starve later rows.
@@ -68,8 +70,8 @@ class UploadCleanupWorker {
         // Completed uploads retain a durable staging path when after-commit cleanup fails.
         // Keyset pagination ensures one persistent filesystem failure cannot starve newer rows.
         Instant completedBefore = now.minus(Duration.ofHours(1));
-        Instant afterCompletedAt = null;
-        afterId = null;
+        Instant afterCompletedAt = Instant.parse("0001-01-01T00:00:00Z");
+        afterId = new UUID(0L, 0L);
         while (true) {
             List<UploadSession> batch = uploads.findCompletedWithUncleanedStaging(
                     UploadStatus.COMPLETED, completedBefore, afterCompletedAt, afterId,
