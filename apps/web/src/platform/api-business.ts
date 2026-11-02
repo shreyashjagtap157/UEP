@@ -1,4 +1,4 @@
-import { request } from './api-core'
+import { request, requestText } from './api-core'
 export interface FinanceFee{id:string;name:string;amount:number;currency:string;status:'ACTIVE'|'INACTIVE';version:number}
 export interface FinanceInstallment{id:string;sequenceNo:number;amount:number;dueOn:string;status:string;version:number}
 export interface FinanceInvoice{id:string;membershipId:string;invoiceNumber:string;totalAmount:number;paidAmount:number;currency:string;status:string;issuedOn?:string;dueOn:string;version:number;installments:FinanceInstallment[]}
@@ -14,7 +14,7 @@ export interface AnalyticsForecast{generatedAt:string;historyDays:number;recentB
 const rangeQuery=(from?:string,to?:string)=>{const p=new URLSearchParams();if(from)p.set('from',from);if(to)p.set('to',to);const q=p.toString();return q?`?${q}`:''}
 export const getAnalyticsOverview=(from?:string,to?:string)=>request<AnalyticsOverview>(`/api/v1/analytics/overview${rangeQuery(from,to)}`)
 export const getAnalyticsForecast=()=>request<AnalyticsForecast>('/api/v1/analytics/forecast')
-export const exportAnalytics=async(report:string,from?:string,to?:string)=>{const response=await fetch(`/api/v1/analytics/exports/${encodeURIComponent(report)}${rangeQuery(from,to)}`);if(!response.ok)throw new Error(await response.text());return response.text()}
+export const exportAnalytics=(report:string,from?:string,to?:string)=>requestText(`/api/v1/analytics/exports/${encodeURIComponent(report)}${rangeQuery(from,to)}`)
 export interface LearningOutcomeView{id:string;code:string;name:string;description?:string;status:string;version:number}
 export interface LearningPathView{id:string;code:string;name:string;description?:string;status:string;version:number}
 export interface CredentialTemplateView{id:string;code:string;name:string;description?:string;credentialType:string;version:number}
