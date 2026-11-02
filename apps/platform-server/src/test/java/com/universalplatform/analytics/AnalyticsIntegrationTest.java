@@ -59,14 +59,13 @@ class AnalyticsIntegrationTest {
     }
 
     @Test
-    void csvExportRequiresBothExportAndAnalyticsPermissions() throws Exception {
+    void csvExportRequiresExportPermission() throws Exception {
         mvc.perform(get("/api/v1/analytics/exports/attendance")
                         .param("from", "2026-10-01T00:00:00Z")
                         .param("to", "2026-11-01T00:00:00Z")
                         .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT.toString()))))
                 .andExpect(status().isForbidden());
 
-        jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'ANALYTICS_VIEW')", ROLE);
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'REPORTS_EXPORT')", ROLE);
 
         mvc.perform(get("/api/v1/analytics/exports/attendance")
