@@ -355,6 +355,7 @@ class RecordingService {
         if (!TransactionSynchronizationManager.isSynchronizationActive()
                 || !TransactionSynchronizationManager.isActualTransactionActive()) {
             try {
+                storageQuota.consumeProviderDeleteOperations(tenantId, provider, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
                 adapter.delete(locator);
                 storageQuota.releaseDurable(tenantId, reservationId);
             } catch (Exception failure) {
@@ -367,6 +368,7 @@ class RecordingService {
             public void afterCompletion(int status) {
                 if (status == STATUS_COMMITTED) return;
                 try {
+                    storageQuota.consumeProviderDeleteOperations(tenantId, provider, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
                     adapter.delete(locator);
                     storageQuota.releaseDurable(tenantId, reservationId);
                 } catch (Exception failure) {
@@ -390,6 +392,7 @@ class RecordingService {
             public void afterCommit() {
                 try {
                     storageQuota.authorizeDelete(tenantId, provider);
+                    storageQuota.consumeProviderDeleteOperations(tenantId, provider, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
                     adapter.delete(locator);
                     storageQuota.releaseDurable(tenantId, reservationId);
                 } catch (Exception failure) {
@@ -472,6 +475,7 @@ class RecordingService {
                                                  StorageAdapter destination, Exception cause) {
         try {
             storageQuota.authorizeDelete(tenantId, provider);
+            storageQuota.consumeProviderDeleteOperations(tenantId, provider, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
             destination.delete(locator);
             storageQuota.releaseDurable(tenantId, reservationId);
             return true;
@@ -521,6 +525,8 @@ class RecordingService {
                 String identity = recording.storageProvider() + ":" + recording.storageLocator();
                 if (deletedObjects.add(identity)) {
                     storageQuota.authorizeDelete(recording.tenantId(), recording.storageProvider());
+                    storageQuota.consumeProviderDeleteOperations(recording.tenantId(), recording.storageProvider(),
+                            StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
                     adapters.require(recording.storageProvider()).delete(recording.storageLocator());
                 }
                 reservationsToRelease.add(recording.quotaReservationId());
@@ -532,6 +538,8 @@ class RecordingService {
                     throw new IllegalStateException("Recording asset has no quota reservation; refusing unaccounted deletion");
                 }
                 storageQuota.authorizeDelete(recording.tenantId(), asset.provider());
+                storageQuota.consumeProviderDeleteOperations(recording.tenantId(), asset.provider(),
+                        StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
                 adapters.require(asset.provider()).delete(asset.locator());
                 reservationsToRelease.add(asset.quotaReservationId());
             }
