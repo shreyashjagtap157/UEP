@@ -23,6 +23,7 @@ Thumbs.db
 secrets/
 
 # Runtime data
+.uep-local/
 .data/
 logs/
 coverage/
