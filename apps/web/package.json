@@ -5,12 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/guard-vercel-build.mjs && tsc -b && vite build",
+    "build": "tsc -b && vite build",
     "lint": "oxlint .",
     "preview": "vite preview",
     "test": "node --experimental-strip-types --test test/LocalDemoStore.test.mjs test/backendUrl.test.mjs test/deployment-env.test.mjs",
     "test:e2e": "playwright test",
-    "build:vercel": "node scripts/verify-deployment-env.mjs && npm run build"
+    "build:production": "node scripts/verify-production-env.mjs && npm run build"
   },
   "dependencies": {
     "@tanstack/react-query": "5.104.5",
