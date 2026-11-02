@@ -61,7 +61,7 @@ class WebhookEventFanoutWorker {
                     if (event.processedAt() == null && event.deadLetteredAt() == null) {
                         int attempt = event.attemptCount() + 1;
                         long seconds = Math.min(3600, 5L << Math.min(attempt, 9));
-                        event.failed(exception.getMessage(), clock.instant(), clock.instant().plusSeconds(seconds));
+                        event.failed(exception.getClass().getSimpleName(), clock.instant(), clock.instant().plusSeconds(seconds));
                     }
                 }));
             } catch (RuntimeException failureRecordingException) {

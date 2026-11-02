@@ -81,6 +81,7 @@ class WebhookEventOutbox {
     Instant processedAt() { return processedAt; }
     Instant deadLetteredAt() { return deadLetteredAt; }
     int attemptCount() { return attemptCount; }
+    String lastError() { return lastError; }
 
     void processed(Instant now) {
         processedAt = now;
@@ -89,12 +90,16 @@ class WebhookEventOutbox {
 
     void failed(String message, Instant failedAt, Instant retryAt) {
         attemptCount++;
-        lastError = message == null ? "Webhook fan-out failed"
-                : message.substring(0, Math.min(1000, message.length()));
+        lastError = safeFailureType(message);
         if (attemptCount >= 12) {
             deadLetteredAt = failedAt;
         } else {
             availableAt = retryAt;
         }
+    }
+
+    private static String safeFailureType(String value) {
+        return value != null && value.matches("[A-Za-z0-9_$]{1,160}")
+                ? value : "WebhookFanoutFailure";
     }
 }

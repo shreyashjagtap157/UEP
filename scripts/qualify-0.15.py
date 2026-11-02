@@ -1000,6 +1000,35 @@ for rel in failure_log_sources:
         if last_argument in throwable_names:
             errors.append(f'{rel} must not attach raw throwable {last_argument} to an operational log')
 
+# Notification email and webhook fan-out retry state must store only safe exception categories.
+notification_delivery = text('apps/platform-server/src/main/java/com/universalplatform/notification/NotificationDelivery.java')
+notification_email_worker = text('apps/platform-server/src/main/java/com/universalplatform/notification/NotificationEmailWorker.java')
+webhook_event_outbox = text('apps/platform-server/src/main/java/com/universalplatform/integration/WebhookEventOutbox.java')
+webhook_fanout_worker = text('apps/platform-server/src/main/java/com/universalplatform/integration/WebhookEventFanoutWorker.java')
+for required in ['safeFailureType(error)', 'EmailDeliveryFailure', 'value.matches("[A-Za-z0-9_$]{1,160}")']:
+    if required not in notification_delivery:
+        errors.append(f'notification delivery failure persistence is not redacted: {required}')
+if 'delivery.failed(exception.getClass().getSimpleName(), now, now.plusSeconds(seconds))' not in notification_email_worker:
+    errors.append('notification email worker must persist exception category rather than SMTP message')
+if 'exception.getMessage()' in notification_email_worker:
+    errors.append('notification email worker must not persist raw SMTP exception messages')
+for required in ['safeFailureType(message)', 'WebhookFanoutFailure', 'value.matches("[A-Za-z0-9_$]{1,160}")']:
+    if required not in webhook_event_outbox:
+        errors.append(f'webhook fan-out failure persistence is not redacted: {required}')
+if 'event.failed(exception.getClass().getSimpleName(), clock.instant()' not in webhook_fanout_worker:
+    errors.append('webhook fan-out worker must persist exception category rather than callback/transport message')
+if 'exception.getMessage()' in webhook_fanout_worker:
+    errors.append('webhook fan-out worker must not persist raw transport exception messages')
+for rel, test_name in [
+    ('apps/platform-server/src/test/java/com/universalplatform/notification/NotificationDeliveryFailurePrivacyTest.java',
+     'failedEmailDeliveryPersistsOnlyAnExceptionCategory'),
+    ('apps/platform-server/src/test/java/com/universalplatform/integration/WebhookEventOutboxFailurePrivacyTest.java',
+     'failedFanoutPersistsOnlyAnExceptionCategory'),
+]:
+    test_source = text(rel)
+    if test_name not in test_source:
+        errors.append(f'missing persistence redaction regression: {test_name}')
+
 # PII/secret response anti-patterns in controllers.
 for p in (ROOT/'apps/platform-server/src/main/java/com/universalplatform').rglob('*Controller.java'):
     s=p.read_text(encoding='utf-8')

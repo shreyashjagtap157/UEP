@@ -65,6 +65,8 @@ A scheduled processor materializes per-recipient notifications and delivery reco
 
 Outbox failures use bounded exponential retry. After 12 processing failures an outbox record becomes dead-lettered instead of retrying forever. Email delivery uses a separate bounded retry worker. After eight failed SMTP attempts the delivery becomes `DEAD_LETTERED`; deployments with email disabled explicitly record it as `SKIPPED`, while in-app delivery remains operational. SMTP is treated as at-least-once transport: a remote server can accept a message immediately before a local transaction failure, so the platform does not claim impossible database-to-SMTP exactly-once semantics.
 
+Notification email and webhook fan-out retry metadata stores only a validated exception-class category. Raw SMTP responses, recipient addresses, callback URLs, query-string credentials and provider response bodies are neither retained in `last_error` nor attached to worker log events.
+
 Tenant ownership is enforced through composite tenant/outbox and tenant/notification foreign keys. Operational backlog counters are tenant-scoped and require `NOTIFICATION_OPERATIONS_VIEW`.
 
 ## Notification preferences
