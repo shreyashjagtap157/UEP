@@ -40,6 +40,8 @@ class RecordingService {
     private final RecordingMediaProvider media;
     private final RecordingThumbnailService thumbnails;
     private final StorageAdapterRegistry adapters;
+    private final StorageQuotaService storageQuota;
+    private final StorageCleanupQueue cleanupQueue;
     private final RecordingWorkerLock workerLock;
     private final TransactionTemplate claimTemplate;
     private final AuditService audit;
@@ -54,7 +56,8 @@ class RecordingService {
             MembershipDirectory memberships, EnrollmentDirectory enrollment, LiveClassDirectory liveClasses,
             RecordingRepository recordings,
             RecordingAssetRepository assets, RecordingStoragePolicyRepository policies, RecordingMediaProvider media,
-            RecordingThumbnailService thumbnails, StorageAdapterRegistry adapters, RecordingWorkerLock workerLock,
+            RecordingThumbnailService thumbnails, StorageAdapterRegistry adapters, StorageQuotaService storageQuota,
+            StorageCleanupQueue cleanupQueue, RecordingWorkerLock workerLock,
             PlatformTransactionManager transactions,
             AuditService audit, NotificationPublisher notifications,
             @Value("${platform.recording.processing-root:./var/recordings}") String processingRoot,
@@ -71,6 +74,8 @@ class RecordingService {
         this.media = media;
         this.thumbnails = thumbnails;
         this.adapters = adapters;
+        this.storageQuota = storageQuota;
+        this.cleanupQueue = cleanupQueue;
         this.workerLock = workerLock;
         this.claimTemplate = new TransactionTemplate(transactions);
         this.audit = audit;
@@ -91,6 +96,7 @@ class RecordingService {
                 .filter(r -> r.status() != RecordingProcessingStatus.DELETED).isPresent())
             throw new IllegalStateException("A recording already exists for this live class");
         var policy = policies.findById(t).orElseGet(() -> new RecordingStoragePolicy(t, clock.instant()));
+        storageQuota.authorizeWrite(t, policy.hotProvider);
         Recording r = recordings.save(new Recording(UUID.randomUUID(), t, liveClassId, lc.classSessionId(),
                 lc.roomName(), quality == null ? RecordingQualityPreset.BALANCED : quality, policy.hotProvider,
                 clock.instant()));
@@ -149,6 +155,7 @@ class RecordingService {
         if (!(r.status() == RecordingProcessingStatus.READY || r.status() == RecordingProcessingStatus.ARCHIVED)) throw new IllegalStateException("Recording is not ready");
         PlaybackToken parsed = parseToken(token);
         if (!parsed.recordingId().equals(id) || !parsed.membershipId().equals(memberships.current().membershipId()) || parsed.expiresAt() < clock.instant().toEpochMilli()) throw new SecurityException("Playback token is invalid or expired");
+        storageQuota.authorizeRead(r.tenantId(), r.storageProvider());
         return adapters.require(r.storageProvider()).open(r.storageLocator());
     }
 
@@ -169,6 +176,9 @@ class RecordingService {
         if (p.version() != expectedVersion && policies.existsById(t)) throw new IllegalStateException("Recording storage policy was modified");
         if (hotDays < 0 || cacheDays < 0 || retentionDays != null && retentionDays < 1 || grace < 0) throw new IllegalArgumentException("Invalid recording retention policy");
         adapters.require(hotProvider); adapters.require(cacheProvider); adapters.require(archiveProvider);
+        storageQuota.authorizeWrite(t, hotProvider);
+        storageQuota.authorizeWrite(t, cacheProvider);
+        storageQuota.authorizeWrite(t, archiveProvider);
         p.update(hotDays, cacheDays, retentionDays, hotProvider, cacheProvider, archiveProvider, grace, clock.instant());
         policies.save(p);
         audit.record(t, actors.requireSubject(), "RECORDING_STORAGE_POLICY_UPDATED", "recording-storage-policy", t.toString());
@@ -222,6 +232,7 @@ class RecordingService {
 
     private static String normalizeEgressStatus(String raw) { return raw == null ? "" : raw.strip().toUpperCase(Locale.ROOT).replace("EGRESS_STATUS_", ""); }
 
+    @Transactional
     void archiveDue(Recording r) {
         if (r.status() != RecordingProcessingStatus.READY && r.status() != RecordingProcessingStatus.ARCHIVING) return;
         RecordingStoragePolicy p = policies.findById(r.tenantId()).orElse(null);
@@ -266,38 +277,129 @@ class RecordingService {
     private void migrateToTier(Recording r, StorageProviderType targetType, RecordingStorageTier tier, Instant now) throws java.io.IOException {
         boolean toArchive = tier == RecordingStorageTier.ARCHIVE;
         if (r.storageProvider() == targetType) {
-            if (toArchive) r.archived(targetType, r.storageLocator(), r.objectKey(), now); else r.cached(targetType, r.storageLocator(), r.objectKey(), now);
-            recordings.save(r); return;
+            if (toArchive) r.archived(targetType, r.storageLocator(), r.objectKey(), r.quotaReservationId(), now);
+            else r.cached(targetType, r.storageLocator(), r.objectKey(), r.quotaReservationId(), now);
+            recordings.save(r);
+            return;
         }
+
         migrateAssets(r, targetType);
-        String newLocator = masterLocatorOnTarget(r, targetType);
-        StorageAdapter source = adapters.require(r.storageProvider());
-        String old = r.storageLocator();
-        if (toArchive) r.archived(targetType, newLocator, r.objectKey(), now); else r.cached(targetType, newLocator, r.objectKey(), now);
-        recordings.save(r); deleteQuietly(source, old, newLocator);
+        MasterCopy master = masterLocatorOnTarget(r, targetType);
+        if (toArchive) r.archived(targetType, master.locator(), r.objectKey(), master.reservationId(), now);
+        else r.cached(targetType, master.locator(), r.objectKey(), master.reservationId(), now);
+        recordings.save(r);
     }
 
-    private String masterLocatorOnTarget(Recording r, StorageProviderType targetType) throws java.io.IOException {
+    private MasterCopy masterLocatorOnTarget(Recording r, StorageProviderType targetType) throws java.io.IOException {
         RecordingAsset master = assets.findByTenantIdAndRecordingIdAndKind(r.tenantId(), r.id(), RecordingAssetKind.MASTER).orElse(null);
-        if (master != null && master.provider() == targetType && master.locator() != null) return master.locator();
-        StorageAdapter src = adapters.require(r.storageProvider()); StorageAdapter dst = adapters.require(targetType);
-        try (InputStream in = src.open(r.storageLocator())) { return dst.put(r.objectKey(), in, r.sizeBytes() == null ? 0 : r.sizeBytes(), "video/mp4"); }
-    }
-
-    private void deleteQuietly(StorageAdapter source, String oldLocator, String newLocator) {
-        if (source == null || oldLocator == null || oldLocator.equals(newLocator)) return;
-        try { source.delete(oldLocator); } catch (Exception ignored) {}
+        if (master != null && master.provider() == targetType && master.locator() != null
+                && master.quotaReservationId() != null) {
+            return new MasterCopy(master.locator(), master.quotaReservationId());
+        }
+        if (master != null) {
+            throw new IllegalStateException("Recording master migration did not produce a destination reservation");
+        }
+        if (r.quotaReservationId() == null || r.storageLocator() == null) {
+            throw new IllegalStateException("Recording master has no quota reservation; refusing unaccounted migration");
+        }
+        StorageAdapter source = adapters.require(r.storageProvider());
+        StorageAdapter destination = adapters.require(targetType);
+        storageQuota.authorizeRead(r.tenantId(), r.storageProvider());
+        long bytes = r.sizeBytes() == null ? 0 : r.sizeBytes();
+        UUID reservationId = storageQuota.reserveDurable(r.tenantId(), targetType,
+                "migration:" + r.quotaReservationId() + ":" + targetType, r.objectKey(), bytes);
+        String newLocator;
+        try (InputStream in = source.open(r.storageLocator())) {
+            newLocator = destination.put(r.objectKey(), in, bytes, "video/mp4");
+        }
+        registerProviderObjectCompensation(r.tenantId(), reservationId, targetType, newLocator,
+                r.objectKey(), destination);
+        storageQuota.commit(r.tenantId(), reservationId, bytes, newLocator, r.objectKey());
+        deleteSourceAfterCommit(r.tenantId(), r.storageProvider(), r.storageLocator(), r.objectKey(),
+                r.quotaReservationId(), source);
+        return new MasterCopy(newLocator, reservationId);
     }
 
     private void migrateAssets(Recording r, StorageProviderType targetType) throws java.io.IOException {
-        for (RecordingAsset a : assets.findAllByTenantIdAndRecordingId(r.tenantId(), r.id())) {
-            if (a.provider() == targetType) continue;
-            StorageAdapter src = adapters.require(a.provider()); StorageAdapter dst = adapters.require(targetType);
-            try (InputStream in = src.open(a.locator())) {
-                String loc = dst.put(a.objectKey(), in, a.sizeBytes(), a.mimeType()); String old = a.locator(); a.migrateTo(targetType, loc); assets.save(a); deleteQuietly(src, old, loc);
+        for (RecordingAsset asset : assets.findAllByTenantIdAndRecordingId(r.tenantId(), r.id())) {
+            if (asset.provider() == targetType) continue;
+            if (asset.quotaReservationId() == null) {
+                throw new IllegalStateException("Recording asset has no quota reservation; refusing unaccounted migration");
             }
+            StorageAdapter source = adapters.require(asset.provider());
+            StorageAdapter destination = adapters.require(targetType);
+            storageQuota.authorizeRead(r.tenantId(), asset.provider());
+            UUID newReservation = storageQuota.reserveDurable(r.tenantId(), targetType,
+                    "migration:" + asset.quotaReservationId() + ":" + targetType,
+                    asset.objectKey(), asset.sizeBytes());
+            String newLocator;
+            try (InputStream in = source.open(asset.locator())) {
+                newLocator = destination.put(asset.objectKey(), in, asset.sizeBytes(), asset.mimeType());
+            }
+            registerProviderObjectCompensation(r.tenantId(), newReservation, targetType, newLocator,
+                    asset.objectKey(), destination);
+            storageQuota.commit(r.tenantId(), newReservation, asset.sizeBytes(), newLocator, asset.objectKey());
+            UUID oldReservation = asset.quotaReservationId();
+            String oldLocator = asset.locator();
+            StorageProviderType oldProvider = asset.provider();
+            asset.migrateTo(targetType, newLocator, newReservation);
+            assets.save(asset);
+            deleteSourceAfterCommit(r.tenantId(), oldProvider, oldLocator, asset.objectKey(), oldReservation, source);
         }
     }
+
+    private void registerProviderObjectCompensation(UUID tenantId, UUID reservationId,
+                                                    StorageProviderType provider, String locator,
+                                                    String objectKey, StorageAdapter adapter) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            try {
+                adapter.delete(locator);
+                storageQuota.release(tenantId, reservationId);
+            } catch (Exception failure) {
+                cleanupQueue.enqueue(tenantId, provider, locator, objectKey, reservationId, failure);
+            }
+            throw new IllegalStateException("Recording storage writes require an active database transaction");
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) return;
+                try {
+                    adapter.delete(locator);
+                    storageQuota.release(tenantId, reservationId);
+                } catch (Exception failure) {
+                    cleanupQueue.enqueue(tenantId, provider, locator, objectKey, reservationId, failure);
+                }
+            }
+        });
+    }
+
+    private void deleteSourceAfterCommit(UUID tenantId, StorageProviderType provider, String locator,
+                                         String objectKey, UUID reservationId, StorageAdapter adapter) {
+        if (locator == null || reservationId == null) {
+            throw new IllegalStateException("Source storage object has no quota reservation; refusing untracked deletion");
+        }
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Recording migrations require an active database transaction");
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    storageQuota.authorizeDelete(tenantId, provider);
+                    adapter.delete(locator);
+                    storageQuota.release(tenantId, reservationId);
+                } catch (Exception failure) {
+                    cleanupQueue.enqueue(tenantId, provider, locator, objectKey, reservationId, failure);
+                }
+            }
+        });
+    }
+
+    private record MasterCopy(String locator, UUID reservationId) {}
+
 
     @Transactional
     void purgeDue(Recording candidate) {
@@ -321,21 +423,34 @@ class RecordingService {
         List<RecordingAsset> recordingAssets = assets.findAllByTenantIdAndRecordingId(
                 recording.tenantId(), recording.id());
         try {
+            Set<String> deletedObjects = new HashSet<>();
+            Set<UUID> reservationsToRelease = new HashSet<>();
             if (recording.storageLocator() != null) {
-                adapters.require(recording.storageProvider()).delete(recording.storageLocator());
+                if (recording.quotaReservationId() == null) {
+                    throw new IllegalStateException("Recording master has no quota reservation; refusing unaccounted deletion");
+                }
+                String identity = recording.storageProvider() + ":" + recording.storageLocator();
+                if (deletedObjects.add(identity)) {
+                    storageQuota.authorizeDelete(recording.tenantId(), recording.storageProvider());
+                    adapters.require(recording.storageProvider()).delete(recording.storageLocator());
+                }
+                reservationsToRelease.add(recording.quotaReservationId());
             }
             for (RecordingAsset asset : recordingAssets) {
-                // The MASTER asset usually points at the same object as recording.storageLocator.
-                // Avoid issuing duplicate provider deletes for this canonical object.
-                if (asset.provider() == recording.storageProvider()
-                        && Objects.equals(asset.locator(), recording.storageLocator())) {
-                    continue;
+                String identity = asset.provider() + ":" + asset.locator();
+                if (!deletedObjects.add(identity)) continue;
+                if (asset.quotaReservationId() == null) {
+                    throw new IllegalStateException("Recording asset has no quota reservation; refusing unaccounted deletion");
                 }
+                storageQuota.authorizeDelete(recording.tenantId(), asset.provider());
                 adapters.require(asset.provider()).delete(asset.locator());
+                reservationsToRelease.add(asset.quotaReservationId());
+            }
+            for (UUID reservationId : reservationsToRelease) {
+                storageQuota.release(recording.tenantId(), reservationId);
             }
 
-            // Commit metadata only after every provider delete succeeded. If a later delete fails,
-            // leave the recording eligible for retry. Provider delete operations must be idempotent.
+            // Metadata is committed only after all provider deletes and quota releases succeed.
             assets.deleteAll(recordingAssets);
             recording.clearStoragePointer();
             recording.delete(clock.instant());
@@ -349,23 +464,53 @@ class RecordingService {
 
     private void finalizeFile(Recording r, Path video, long duration) {
         try {
-            long bytes = Files.size(video); String hash = RecordingThumbnailService.sha256(video); String key = r.tenantId() + "/recordings/" + r.id() + "/master.mp4"; StorageAdapter target = adapters.require(r.storageProvider());
+            long bytes = Files.size(video);
+            String hash = RecordingThumbnailService.sha256(video);
+            String key = r.tenantId() + "/recordings/" + r.id() + "/master.mp4";
+            StorageAdapter target = adapters.require(r.storageProvider());
+            UUID reservationId = storageQuota.reserveDurable(r.tenantId(), r.storageProvider(),
+                    "recording:" + r.id() + ":MASTER", key, bytes);
+            String locator;
             try (InputStream in = Files.newInputStream(video)) {
-                String loc = target.put(key, in, bytes, "video/mp4"); r.ready(loc, key, hash, bytes, duration, clock.instant());
-                assets.save(new RecordingAsset(UUID.randomUUID(), r.tenantId(), r.id(), RecordingAssetKind.MASTER, r.storageProvider(), loc, key, "video/mp4", bytes, hash, clock.instant()));
-                createThumbnail(r, video, target, key);
+                locator = target.put(key, in, bytes, "video/mp4");
             }
-            Files.deleteIfExists(video); Files.deleteIfExists(video.getParent()); notifyReady(r);
-        } catch (Exception e) { r.fail(trim(e.getMessage())); }
+            registerProviderObjectCompensation(r.tenantId(), reservationId, r.storageProvider(), locator, key, target);
+            storageQuota.commit(r.tenantId(), reservationId, bytes, locator, key);
+            r.ready(locator, key, hash, bytes, duration, clock.instant());
+            r.quotaReservationId = reservationId;
+            assets.save(new RecordingAsset(UUID.randomUUID(), r.tenantId(), r.id(), RecordingAssetKind.MASTER,
+                    r.storageProvider(), locator, key, "video/mp4", bytes, hash, clock.instant(), reservationId));
+            createThumbnail(r, video, target);
+            Files.deleteIfExists(video);
+            Files.deleteIfExists(video.getParent());
+            notifyReady(r);
+        } catch (Exception e) {
+            r.fail(trim(e.getMessage()));
+        }
     }
 
-    private void createThumbnail(Recording r, Path video, StorageAdapter target, String masterKey) {
+    private void createThumbnail(Recording r, Path video, StorageAdapter target) {
         Path thumb = video.resolveSibling("thumbnail.jpg");
         try {
-            thumbnails.create(video, thumb); long b = Files.size(thumb); String h = RecordingThumbnailService.sha256(thumb); String key = r.tenantId() + "/recordings/" + r.id() + "/thumbnail.jpg";
-            try (InputStream in = Files.newInputStream(thumb)) { String loc = target.put(key, in, b, "image/jpeg"); assets.save(new RecordingAsset(UUID.randomUUID(), r.tenantId(), r.id(), RecordingAssetKind.THUMBNAIL, r.storageProvider(), loc, key, "image/jpeg", b, h, clock.instant())); }
+            thumbnails.create(video, thumb);
+            long bytes = Files.size(thumb);
+            String hash = RecordingThumbnailService.sha256(thumb);
+            String key = r.tenantId() + "/recordings/" + r.id() + "/thumbnail.jpg";
+            UUID reservationId = storageQuota.reserveDurable(r.tenantId(), r.storageProvider(),
+                    "recording:" + r.id() + ":THUMBNAIL", key, bytes);
+            String locator;
+            try (InputStream in = Files.newInputStream(thumb)) {
+                locator = target.put(key, in, bytes, "image/jpeg");
+            }
+            registerProviderObjectCompensation(r.tenantId(), reservationId, r.storageProvider(), locator, key, target);
+            storageQuota.commit(r.tenantId(), reservationId, bytes, locator, key);
+            assets.save(new RecordingAsset(UUID.randomUUID(), r.tenantId(), r.id(), RecordingAssetKind.THUMBNAIL,
+                    r.storageProvider(), locator, key, "image/jpeg", bytes, hash, clock.instant(), reservationId));
             Files.deleteIfExists(thumb);
-        } catch (Exception ignored) {}
+        } catch (Exception failure) {
+            log.warn("Recording thumbnail storage failed for tenant {} recording {}; continuing without thumbnail",
+                    r.tenantId(), r.id(), failure);
+        }
     }
 
     private void notifyReady(Recording r) {
