@@ -103,6 +103,7 @@ class IdentityAuthorizationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.membershipStatus").value("SUSPENDED"))
                 .andExpect(jsonPath("$.externalReference").value("NATIVE-PATCH-QUALIFICATION"));
+                .andExpect(jsonPath("$.version").value(1));
     }
 
     @Test
