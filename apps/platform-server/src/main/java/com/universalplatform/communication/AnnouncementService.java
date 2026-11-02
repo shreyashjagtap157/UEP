@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -170,7 +171,8 @@ class AnnouncementService {
         Announcement announcement = announcements.lockById(id).orElse(null);
         if (announcement == null || announcement.status() != AnnouncementStatus.SCHEDULED) return;
         Instant now = clock.instant();
-        if (announcement.publishAt() == null || announcement.publishAt().isAfter(now)) return;
+        if (announcement.publishAt() == null || announcement.publishAt().isAfter(now)
+                || announcement.publishAvailableAt().isAfter(now) || announcement.publishDeadLetteredAt() != null) return;
         publishInternal(announcement, now, announcement.createdBySubject());
     }
 
@@ -179,7 +181,83 @@ class AnnouncementService {
         Announcement announcement = announcements.lockById(id).orElse(null);
         if (announcement == null || announcement.status() != AnnouncementStatus.PUBLISHED) return;
         Instant now = clock.instant();
-        if (announcement.expiresAt() != null && !announcement.expiresAt().isAfter(now)) announcement.expire(now);
+        if (announcement.expiresAt() != null && !announcement.expiresAt().isAfter(now)
+                && !announcement.expiryAvailableAt().isAfter(now) && announcement.expiryDeadLetteredAt() == null) {
+            announcement.expire(now);
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordPublicationFailure(UUID id, String failureType) {
+        Announcement announcement = announcements.lockById(id).orElse(null);
+        Instant now = clock.instant();
+        if (announcement == null || announcement.status() != AnnouncementStatus.SCHEDULED
+                || announcement.publishAt() == null || announcement.publishAt().isAfter(now)
+                || announcement.publishAvailableAt().isAfter(now) || announcement.publishDeadLetteredAt() != null) return;
+        announcement.failPublication(now, failureType);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordExpiryFailure(UUID id, String failureType) {
+        Announcement announcement = announcements.lockById(id).orElse(null);
+        Instant now = clock.instant();
+        if (announcement == null || announcement.status() != AnnouncementStatus.PUBLISHED
+                || announcement.expiresAt() == null || announcement.expiresAt().isAfter(now)
+                || announcement.expiryAvailableAt().isAfter(now) || announcement.expiryDeadLetteredAt() != null) return;
+        announcement.failExpiry(now, failureType);
+    }
+
+    @Transactional(readOnly = true)
+    List<AnnouncementWorkerFailureView> workerFailures() {
+        UUID tenantId = tenantContext.requireTenantId();
+        AuthorizationService.AccessScope scope = authorization.currentScope(PermissionKey.ANNOUNCEMENTS_MANAGE);
+        if (!scope.tenantWide() && scope.branchIds().isEmpty()) {
+            throw new AccessDeniedException("Announcement management permission is required");
+        }
+
+        List<AnnouncementWorkerFailureView> failures = new ArrayList<>();
+        List<Announcement> publishFailures = scope.tenantWide()
+                ? announcements.findTop100ByTenantIdAndPublishDeadLetteredAtIsNotNullOrderByPublishDeadLetteredAtAsc(tenantId)
+                : announcements.findTop100ByTenantIdAndAuthorizationBranchIdInAndPublishDeadLetteredAtIsNotNullOrderByPublishDeadLetteredAtAsc(tenantId, scope.branchIds());
+        List<Announcement> expiryFailures = scope.tenantWide()
+                ? announcements.findTop100ByTenantIdAndExpiryDeadLetteredAtIsNotNullOrderByExpiryDeadLetteredAtAsc(tenantId)
+                : announcements.findTop100ByTenantIdAndAuthorizationBranchIdInAndExpiryDeadLetteredAtIsNotNullOrderByExpiryDeadLetteredAtAsc(tenantId, scope.branchIds());
+
+        publishFailures.forEach(item -> failures.add(new AnnouncementWorkerFailureView(
+                item.id(), item.title(), AnnouncementWorkerOperation.PUBLISH, item.publishAttemptCount(),
+                item.publishLastError(), item.publishDeadLetteredAt())));
+        expiryFailures.forEach(item -> failures.add(new AnnouncementWorkerFailureView(
+                item.id(), item.title(), AnnouncementWorkerOperation.EXPIRE, item.expiryAttemptCount(),
+                item.expiryLastError(), item.expiryDeadLetteredAt())));
+        return failures.stream()
+                .sorted(Comparator.comparing(AnnouncementWorkerFailureView::deadLetteredAt)
+                        .thenComparing(AnnouncementWorkerFailureView::id))
+                .limit(200)
+                .toList();
+    }
+
+    @Transactional
+    AnnouncementView requeueWorkerFailure(UUID id, AnnouncementWorkerOperation operation) {
+        if (operation == null) throw new IllegalArgumentException("Announcement worker operation is required");
+        UUID tenantId = tenantContext.requireTenantId();
+        Announcement announcement = announcement(tenantId, id);
+        authorization.require(PermissionKey.ANNOUNCEMENTS_MANAGE, announcement.authorizationBranchId());
+        Instant now = clock.instant();
+        if (operation == AnnouncementWorkerOperation.PUBLISH) {
+            if (announcement.status() != AnnouncementStatus.SCHEDULED || announcement.publishDeadLetteredAt() == null) {
+                throw new CommunicationConflictException("Announcement has no dead-lettered publication failure");
+            }
+            announcement.requeuePublication(now);
+        } else {
+            if (announcement.status() != AnnouncementStatus.PUBLISHED || announcement.expiryDeadLetteredAt() == null) {
+                throw new CommunicationConflictException("Announcement has no dead-lettered expiry failure");
+            }
+            announcement.requeueExpiry(now);
+        }
+        audit.record(tenantId, actorContext.requireSubject(), "ANNOUNCEMENT_WORKER_FAILURE_REQUEUED",
+                "announcement", id + ":" + operation.name());
+        announcements.flush();
+        return view(announcement, targetList(tenantId, id), null);
     }
 
     private void publishInternal(Announcement announcement, Instant now, String actorSubject) {
@@ -190,6 +268,7 @@ class AnnouncementService {
         recipients.deleteAllByTenantIdAndIdAnnouncementId(tenantId, announcement.id());
         recipients.saveAll(audience.stream().map(member -> new AnnouncementRecipient(tenantId, announcement.id(), member, now)).toList());
         announcement.publish(now);
+        announcement.clearPublicationFailures(now);
         Map<UUID, MembershipDirectory.MembershipReference> refs = memberships.references(audience);
         Set<NotificationPublisher.Recipient> notificationRecipients = refs.values().stream().map(ref -> new NotificationPublisher.Recipient(ref.membershipId(), ref.email())).collect(java.util.stream.Collectors.toUnmodifiableSet());
         notifications.enqueue(new NotificationPublisher.NotificationRequest(tenantId, NotificationEventType.ANNOUNCEMENT_PUBLISHED, "announcement", announcement.id(), announcement.title(), notificationBody(announcement.body()), priority(announcement.priority()), "announcement", announcement.id(), "ANNOUNCEMENT_PUBLISHED:" + announcement.id() + ":" + announcement.version(), null, notificationRecipients));
@@ -282,5 +361,7 @@ class AnnouncementService {
     record UpdateCommand(String title, String body, AnnouncementPriority priority, Instant publishAt, Instant expiresAt, boolean acknowledgementRequired, List<AnnouncementTarget.Target> targets, long expectedVersion) {}
     record ValidatedTargets(List<AnnouncementTarget.Target> targets, UUID authorizationBranchId) {}
     record AnnouncementView(UUID id, String title, String body, AnnouncementPriority priority, AnnouncementStatus status, Instant publishAt, Instant expiresAt, boolean acknowledgementRequired, Instant publishedAt, Instant createdAt, long version, List<AnnouncementTarget.Target> targets, Instant acknowledgedAt) {}
+    record AnnouncementWorkerFailureView(UUID id, String title, AnnouncementWorkerOperation operation,
+                                          int attemptCount, String lastError, Instant deadLetteredAt) {}
     record AnnouncementPage<T>(List<T> items, int page, int size, long totalElements, int totalPages) {}
 }

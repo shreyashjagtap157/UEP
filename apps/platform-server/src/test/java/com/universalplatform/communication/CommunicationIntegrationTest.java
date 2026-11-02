@@ -48,6 +48,7 @@ class CommunicationIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired AnnouncementService announcements;
+    @Autowired AnnouncementRepository announcementRepository;
     @Autowired TenantExecutionContext tenantExecution;
     @Autowired EntityManager entityManager;
     @Autowired ObjectMapper objectMapper;
@@ -102,6 +103,61 @@ class CommunicationIntegrationTest {
         Integer outboxRecipientCount = jdbc.queryForObject("SELECT count(*) FROM notification_outbox_recipient r JOIN notification_outbox o ON o.id = r.outbox_id WHERE o.tenant_id = ? AND o.aggregate_id = ?", Integer.class, TENANT, announcementId);
         org.assertj.core.api.Assertions.assertThat(recipientCount).isEqualTo(2);
         org.assertj.core.api.Assertions.assertThat(outboxRecipientCount).isEqualTo(2);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void deadLetteredPublicationIsExcludedAndTenantAdministratorCanReplayIt() throws Exception {
+        String response = mvc.perform(post("/api/v1/announcements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Retry me\",\"body\":\"Scheduled content\",\"priority\":\"NORMAL\","
+                                + "\"publishAt\":\"2099-01-01T00:00:00Z\",\"acknowledgementRequired\":false,"
+                                + "\"publishNow\":false,\"targets\":[{\"kind\":\"BATCH\",\"id\":\"" + BATCH + "\"}]}")
+                        .with(jwt().jwt(token -> token.subject(ADMIN_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID announcementId = UUID.fromString(objectMapper.readTree(response).get("id").asText());
+
+        jdbc.update("""
+                UPDATE announcement
+                SET publish_at = CURRENT_TIMESTAMP - interval '1 second',
+                    publish_available_at = CURRENT_TIMESTAMP,
+                    publish_attempt_count = 12,
+                    publish_dead_lettered_at = CURRENT_TIMESTAMP,
+                    publish_last_error = 'IllegalStateException'
+                WHERE tenant_id = ? AND id = ?
+                """, TENANT, announcementId);
+
+        org.assertj.core.api.Assertions.assertThat(announcementRepository.findDuePublishIds(
+                java.time.Instant.now(), org.springframework.data.domain.PageRequest.of(0, 50)))
+                .doesNotContain(announcementId);
+
+        mvc.perform(get("/api/v1/announcements/operations/failed")
+                        .with(jwt().jwt(token -> token.subject(ADMIN_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(announcementId.toString()))
+                .andExpect(jsonPath("$[0].operation").value("PUBLISH"))
+                .andExpect(jsonPath("$[0].attemptCount").value(12));
+
+        mvc.perform(get("/api/v1/announcements/operations/failed")
+                        .with(jwt().jwt(token -> token.subject(LEARNER1_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(post("/api/v1/announcements/" + announcementId + "/worker-retry")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"operation\":\"PUBLISH\"}")
+                        .with(jwt().jwt(token -> token.subject(ADMIN_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk());
+
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("""
+                SELECT publish_attempt_count FROM announcement WHERE tenant_id = ? AND id = ?
+                """, Integer.class, TENANT, announcementId)).isZero();
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("""
+                SELECT publish_dead_lettered_at IS NULL FROM announcement WHERE tenant_id = ? AND id = ?
+                """, Boolean.class, TENANT, announcementId)).isTrue();
+        org.assertj.core.api.Assertions.assertThat(announcementRepository.findDuePublishIds(
+                java.time.Instant.now(), org.springframework.data.domain.PageRequest.of(0, 50)))
+                .contains(announcementId);
     }
 
     @AfterEach

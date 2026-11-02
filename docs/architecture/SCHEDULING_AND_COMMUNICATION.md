@@ -53,6 +53,8 @@ Published recipient membership IDs are stored in `announcement_recipient`, provi
 
 Branch-scoped announcement administrators are authorized against both the announcement's existing administrative branch and its proposed target scope. A guessed UUID therefore cannot be used to retarget another branch's draft.
 
+Scheduled publication and expiry workers persist separate retry state. Failed operations use exponential backoff capped at one hour and are dead-lettered after 12 attempts, removing poison announcements from the head of fixed-size polling batches. Tenant- or branch-authorized announcement administrators can inspect dead-lettered operations and explicitly requeue them. Only a validated exception type is persisted; exception messages, payloads, and provider details are not retained.
+
 Announcement attachments remain an explicit integration point for milestone 0.5 because uploaded objects, MIME validation, storage providers, malware scanning, and resource-version lifecycle belong to the Learning Content/storage subsystem rather than being duplicated here.
 
 ## Durable notifications
@@ -83,7 +85,7 @@ The browser composes Today as the primary application surface, but date range, t
 
 - SMTP unavailable: outbox/business transaction succeeds; email retries independently and dead-letters after the bounded attempt budget.
 - Email disabled: in-app notification remains available and email is recorded as skipped.
-- Announcement publisher restarts: scheduled announcements remain persisted and are retried by the poller.
+- Announcement publisher restarts: scheduled announcements remain persisted and are retried by the poller with durable backoff; after 12 failures an administrator can inspect and replay a dead-lettered operation.
 - Notification materializer repeatedly fails: the event becomes dead-lettered and visible to notification operations.
 - Media services unavailable: schedule/class-session state remains valid because scheduling is not coupled to LiveKit/Jitsi.
 

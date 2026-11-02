@@ -21,7 +21,9 @@ interface AnnouncementRepository extends JpaRepository<Announcement, UUID> {
             select a.id from Announcement a
             where a.status = com.universalplatform.communication.AnnouncementStatus.SCHEDULED
               and a.publishAt <= :now
-            order by a.publishAt asc
+              and a.publishAvailableAt <= :now
+              and a.publishDeadLetteredAt is null
+            order by a.publishAt asc, a.id asc
             """)
     List<UUID> findDuePublishIds(@Param("now") Instant now, Pageable pageable);
 
@@ -29,9 +31,18 @@ interface AnnouncementRepository extends JpaRepository<Announcement, UUID> {
             select a.id from Announcement a
             where a.status = com.universalplatform.communication.AnnouncementStatus.PUBLISHED
               and a.expiresAt is not null and a.expiresAt <= :now
-            order by a.expiresAt asc
+              and a.expiryAvailableAt <= :now
+              and a.expiryDeadLetteredAt is null
+            order by a.expiresAt asc, a.id asc
             """)
     List<UUID> findDueExpiryIds(@Param("now") Instant now, Pageable pageable);
+
+    List<Announcement> findTop100ByTenantIdAndPublishDeadLetteredAtIsNotNullOrderByPublishDeadLetteredAtAsc(UUID tenantId);
+    List<Announcement> findTop100ByTenantIdAndAuthorizationBranchIdInAndPublishDeadLetteredAtIsNotNullOrderByPublishDeadLetteredAtAsc(
+            UUID tenantId, java.util.Collection<UUID> branchIds);
+    List<Announcement> findTop100ByTenantIdAndExpiryDeadLetteredAtIsNotNullOrderByExpiryDeadLetteredAtAsc(UUID tenantId);
+    List<Announcement> findTop100ByTenantIdAndAuthorizationBranchIdInAndExpiryDeadLetteredAtIsNotNullOrderByExpiryDeadLetteredAtAsc(
+            UUID tenantId, java.util.Collection<UUID> branchIds);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from Announcement a where a.id = :id")

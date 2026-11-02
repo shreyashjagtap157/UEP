@@ -30,11 +30,10 @@ class AnnouncementPublishingWorker {
         Instant now = clock.instant();
         for (UUID id : announcements.findDuePublishIds(now, PageRequest.of(0, 50))) {
             try {
-                announcements.findById(id).ifPresent(item ->
-                        tenantExecution.run(item.tenantId(), () -> service.publishScheduled(id)));
+                Announcement item = announcements.findById(id).orElse(null);
+                if (item != null) tenantExecution.run(item.tenantId(), () -> service.publishScheduled(id));
             } catch (RuntimeException failure) {
-                // One invalid announcement must not prevent later due announcements from publishing.
-                log.error("Scheduled announcement publication failed for {}", id, failure);
+                recordPublicationFailure(id, failure);
             }
         }
     }
@@ -44,12 +43,49 @@ class AnnouncementPublishingWorker {
         Instant now = clock.instant();
         for (UUID id : announcements.findDueExpiryIds(now, PageRequest.of(0, 100))) {
             try {
-                announcements.findById(id).ifPresent(item ->
-                        tenantExecution.run(item.tenantId(), () -> service.expireScheduled(id)));
+                Announcement item = announcements.findById(id).orElse(null);
+                if (item != null) tenantExecution.run(item.tenantId(), () -> service.expireScheduled(id));
             } catch (RuntimeException failure) {
-                // Preserve batch progress when one announcement cannot be expired.
-                log.error("Scheduled announcement expiry failed for {}", id, failure);
+                recordExpiryFailure(id, failure);
             }
+        }
+    }
+
+    private void recordPublicationFailure(UUID id, RuntimeException failure) {
+        log.error("Scheduled announcement publication failed for {} ({})",
+                id, failure.getClass().getSimpleName());
+        try {
+            announcements.findById(id).ifPresent(item -> {
+                try {
+                    tenantExecution.run(item.tenantId(),
+                            () -> service.recordPublicationFailure(id, failure.getClass().getSimpleName()));
+                } catch (RuntimeException persistenceFailure) {
+                    log.error("Could not persist announcement publication retry for {} ({})",
+                            id, persistenceFailure.getClass().getSimpleName());
+                }
+            });
+        } catch (RuntimeException lookupFailure) {
+            log.error("Could not locate announcement publication retry state for {} ({})",
+                    id, lookupFailure.getClass().getSimpleName());
+        }
+    }
+
+    private void recordExpiryFailure(UUID id, RuntimeException failure) {
+        log.error("Scheduled announcement expiry failed for {} ({})",
+                id, failure.getClass().getSimpleName());
+        try {
+            announcements.findById(id).ifPresent(item -> {
+                try {
+                    tenantExecution.run(item.tenantId(),
+                            () -> service.recordExpiryFailure(id, failure.getClass().getSimpleName()));
+                } catch (RuntimeException persistenceFailure) {
+                    log.error("Could not persist announcement expiry retry for {} ({})",
+                            id, persistenceFailure.getClass().getSimpleName());
+                }
+            });
+        } catch (RuntimeException lookupFailure) {
+            log.error("Could not locate announcement expiry retry state for {} ({})",
+                    id, lookupFailure.getClass().getSimpleName());
         }
     }
 }

@@ -52,6 +52,7 @@ class AnnouncementPublishingWorkerTest {
         worker.publishDue();
 
         verify(service).publishScheduled(firstId);
+        verify(service).recordPublicationFailure(firstId, "IllegalStateException");
         verify(service).publishScheduled(secondId);
         verify(service).publishScheduled(thirdId);
     }
@@ -73,6 +74,7 @@ class AnnouncementPublishingWorkerTest {
         worker.expireDue();
 
         verify(service).expireScheduled(firstId);
+        verify(service).recordExpiryFailure(firstId, "IllegalStateException");
         verify(service).expireScheduled(secondId);
         verify(service).expireScheduled(thirdId);
     }

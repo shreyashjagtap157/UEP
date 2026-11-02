@@ -953,6 +953,36 @@ for required in [
     if required not in review_access_test:
         errors.append(f'missing answer-revision scope regression test: {required}')
 
+# Scheduled announcement workers must use durable retry/backoff and authorized dead-letter replay.
+announcement_entity = text('apps/platform-server/src/main/java/com/universalplatform/communication/Announcement.java')
+announcement_repo = text('apps/platform-server/src/main/java/com/universalplatform/communication/AnnouncementRepository.java')
+announcement_service = text('apps/platform-server/src/main/java/com/universalplatform/communication/AnnouncementService.java')
+announcement_worker = text('apps/platform-server/src/main/java/com/universalplatform/communication/AnnouncementPublishingWorker.java')
+announcement_controller = text('apps/platform-server/src/main/java/com/universalplatform/communication/AnnouncementController.java')
+announcement_migration = text('apps/platform-server/src/main/resources/db/migration/V049__announcement_worker_retry_and_dead_letter.sql')
+for required in ['publishDeadLetteredAt', 'expiryDeadLetteredAt', 'MAX_WORKER_ATTEMPTS = 12', 'retryDelaySeconds']:
+    if required not in announcement_entity:
+        errors.append(f'announcement retry model is missing: {required}')
+for required in ['publishAvailableAt <= :now', 'publishDeadLetteredAt is null', 'expiryAvailableAt <= :now', 'expiryDeadLetteredAt is null', 'a.id asc']:
+    if required not in announcement_repo:
+        errors.append(f'announcement due query lacks backoff/dead-letter/stable ordering: {required}')
+for required in ['recordPublicationFailure', 'recordExpiryFailure', 'requeueWorkerFailure', 'currentScope(PermissionKey.ANNOUNCEMENTS_MANAGE)']:
+    if required not in announcement_service:
+        errors.append(f'announcement worker service contract is missing: {required}')
+for required in ['recordPublicationFailure(id, failure.getClass().getSimpleName())', 'recordExpiryFailure(id, failure.getClass().getSimpleName())']:
+    if required not in announcement_worker:
+        errors.append(f'announcement worker must persist safe failure type: {required}')
+for required in ['/operations/failed', '/{id}/worker-retry']:
+    if required not in announcement_controller:
+        errors.append(f'announcement controller lacks scoped retry endpoint: {required}')
+for required in ['publish_dead_lettered_at', 'expiry_dead_lettered_at', 'ix_announcement_publish_worker_due', 'ix_announcement_expiry_worker_due']:
+    if required not in announcement_migration:
+        errors.append(f'V049 retry migration is missing invariant: {required}')
+if 'deadLetteredPublicationIsExcludedAndTenantAdministratorCanReplayIt' not in text('apps/platform-server/src/test/java/com/universalplatform/communication/CommunicationIntegrationTest.java'):
+    errors.append('missing announcement dead-letter filtering and authorized replay integration test')
+if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/communication/AnnouncementRetryStateTest.java').exists():
+    errors.append('missing announcement retry/dead-letter state-machine tests')
+
 # Draft and final submission paths must enforce identical published-assignment and active-batch eligibility.
 assignment_service = text('apps/platform-server/src/main/java/com/universalplatform/assignment/AssignmentService.java')
 if assignment_service.count('requirePublishedAndAssignedToLearner(a, tid, mid);') < 2:

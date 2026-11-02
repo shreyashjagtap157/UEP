@@ -61,6 +61,17 @@ class AnnouncementController {
     @PostMapping("/{id}/acknowledge")
     AnnouncementService.AnnouncementView acknowledge(@PathVariable UUID id) { return service.acknowledge(id); }
 
+    @GetMapping("/operations/failed")
+    List<AnnouncementService.AnnouncementWorkerFailureView> workerFailures() {
+        return service.workerFailures();
+    }
+
+    @PostMapping("/{id}/worker-retry")
+    AnnouncementService.AnnouncementView retryWorkerFailure(@PathVariable UUID id,
+                                                              @Valid @RequestBody WorkerRetryRequest request) {
+        return service.requeueWorkerFailure(id, request.operation());
+    }
+
     private static List<AnnouncementTarget.Target> targets(List<TargetRequest> requests) {
         return requests.stream().map(item -> new AnnouncementTarget.Target(item.kind(), item.id())).toList();
     }
@@ -76,4 +87,5 @@ class AnnouncementController {
                          @NotEmpty @Size(max = 100) List<@Valid TargetRequest> targets, long expectedVersion) {}
     record VersionRequest(long expectedVersion) {}
     record CancelRequest(@NotBlank @Size(max = 500) String reason, long expectedVersion) {}
+    record WorkerRetryRequest(@NotNull AnnouncementWorkerOperation operation) {}
 }
