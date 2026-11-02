@@ -1,6 +1,6 @@
 # UEP — Cloudflare Pages + Fly.io + Supabase staging deployment
 
-**Status: provider access and account-specific cost review pending. No Fly Machines have been started and no UEP migrations have been applied.**  
+**Status: BLOCKED — owner-reported Fly API machine is stopped after exhausting 10 restarts; the Keycloak Fly app does not exist; no UEP database migrations have been applied. The owner requires zero additional charges, so no machine start/replacement, Keycloak provisioning, paid upgrade, or metered resource creation is permitted.**  
 **Last reviewed: 2026-11-02**
 
 This is the active staging deployment runbook. It separates repository readiness, provider access, database initialization, machine provisioning, and product acceptance. A successful container build is not a deployed/working product.
@@ -38,10 +38,10 @@ The browser talks to Cloudflare Pages and the Fly-hosted API/Keycloak only. It m
 Observed during the 2026-11-02 audit:
 
 - Cloudflare account is connected. The existing Pages project uep-frontend-testing is GitHub-linked to shreyashjagtap157/UEP / main, uses root apps/web, build command npm ci --ignore-scripts && npm run build, output dist, and Node 22.22.0. Production/preview Git deployment switches are disabled.
-- That Pages project currently points VITE_BACKEND_URL at https://uep-backend-testing.fly.dev, has VITE_LOCAL_MODE=false, client ID platform-web, realm education, but lacks VITE_KEYCLOAK_URL. Its latest ad-hoc deployment was built from a dirty, stale commit and is not accepted.
+- The connected Cloudflare Pages testing project's production and preview settings include VITE_BACKEND_URL=https://uep-backend-testing.fly.dev, VITE_KEYCLOAK_URL=https://uep-keycloak-testing.fly.dev, VITE_KEYCLOAK_CLIENT_ID=platform-web, VITE_KEYCLOAK_REALM=education, and VITE_LOCAL_MODE=false. However, the currently served JavaScript bundle does not contain the Keycloak hostname; the latest observed deployment is stale (commit c9352ea789cf5a3e9e6938e46d9803881a990a5, not current main) and is not accepted. Do not modify or redeploy it while the API and identity endpoints are unavailable.
 - The separate uep-frontend-demo Pages project is local/demo mode. Do not change it or treat it as a deployed product.
 - Supabase organization is on the Free plan. Existing project UEP, ref rykmwcslbzmkzmnnzvxm, region ap-southeast-1, is active/healthy. Its public schema has no UEP application tables and no Flyway history; no UEP migrations have been run. The project is suitable only for a controlled staging trial until its backup/availability and quota limits are acceptable.
-- Fly account sign-in and live app/machine/volume inventory were not yet available at the time of this review. The repository contains historical app names uep-backend-testing and uep-keycloak-testing, but their live existence, machine state, regions, volumes, payment method, and cost must be inspected before reuse. Do not assume the old Sydney (syd) settings remain valid.
+- Owner-provided Fly dashboard inventory (2026-11-02): Personal Organization contains app uep-backend-testing with one machine d89565db307d58, stopped, in Sydney (syd), shared-cpu-2x / 2048 MB, created for release v7 on 2026-11-01 10:27 UTC. It exhausted the maximum 10 restart attempts. No backend volumes are attached. The machine image is registry.fly.io/uep-backend-testing:deployment-01M691PHC8BCZKJ9800EBTN505. Previous-start logs show Spring Boot failing during context initialization: ModuleObservabilityAutoConfiguration cannot find ApplicationModulesRuntime, so the app exits before binding port 8080. The owner confirms the uep-keycloak-testing app does not exist. The live machine is syd while the current API manifest targets sin; this regional mismatch is unresolved. Do not start, destroy, resize, replace, move, or deploy the existing machine, and do not create Keycloak, under the zero-additional-charge constraint.
 - GitHub Actions run #939 passed all six CI jobs on source commit e6acf6d4d80c057b5f601fcb4c637ee586b15847; run #941 passed all six jobs on the latest documentation-only main commit. These are repository checks, not provider deployments.
 - Existing CORS configuration already allows https://uep-frontend-testing.pages.dev. Do not widen CORS to arbitrary origins.
 
@@ -51,7 +51,7 @@ Observed during the 2026-11-02 audit:
 
 Fly Machines are billed by the second while running; volumes are charged on provisioned capacity and network egress is separate. The Fly pricing page lists a shared-CPU 2x/2 GB example at approximately US$11.83/month in one region table, but regional markups apply and this is not a Singapore quote. Volumes are listed at US$0.15/GB-month; Asia-Pacific egress is US$0.04/GB; a dedicated IPv4 is US$2/month, while shared IPv4 and Anycast IPv6 are included. See [Fly resource pricing](https://fly.io/docs/about/pricing/) and [the 2026 pricing update](https://fly.io/pricing-update/).
 
-The initial design has two always-on machines (API and Keycloak). Background workers and OIDC sign-in make scale-to-zero undesirable for this stage. Before creating or starting either machine:
+The proposed topology requires an always-on API machine and a separate Keycloak machine. That topology is not operable at zero additional infrastructure cost. Under the owner's hard zero-charge constraint, treat both Fly services as unavailable: do not start the stopped API machine and do not create the missing Keycloak app. Keep this staging target blocked rather than creating an incomplete or billable deployment. If the cost constraint changes later, re-open the approval gate below before any machine operation.
 
 1. Sign in to Fly.io and inspect the organization, billing plan, current apps, current machines, regions, volumes, and existing usage.
 2. Reuse existing apps only after confirming their ownership and contents; do not delete/stop/move an unknown machine or volume.
