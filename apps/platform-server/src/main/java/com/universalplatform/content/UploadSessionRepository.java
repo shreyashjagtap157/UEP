@@ -21,7 +21,7 @@ interface UploadSessionRepository extends JpaRepository<UploadSession, UUID> {
             select u from UploadSession u
             where u.status in :statuses
               and u.stagingCleanedAt is null
-              and u.expiresAt < :before
+              and (u.expiresAt < :before or u.status = :abortedStatus)
               and (
                     :afterExpiresAt is null
                     or u.expiresAt > :afterExpiresAt
@@ -32,6 +32,7 @@ interface UploadSessionRepository extends JpaRepository<UploadSession, UUID> {
     List<UploadSession> findExpiredWithUncleanedStaging(
             @Param("statuses") Collection<UploadStatus> statuses,
             @Param("before") Instant before,
+            @Param("abortedStatus") UploadStatus abortedStatus,
             @Param("afterExpiresAt") Instant afterExpiresAt,
             @Param("afterId") UUID afterId,
             Pageable pageable);
