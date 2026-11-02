@@ -33,6 +33,7 @@ python3 scripts/verify-source-structure.py
 python3 scripts/verify-contract-parity.py
 python3 scripts/qualify-0.15.py
 python3 scripts/verify-staging-workflow.py
+python3 scripts/verify-local-native-launcher.py
 
 git diff --check
 printf 'repository policy checks passed for %s\n' "$version"
