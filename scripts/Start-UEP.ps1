@@ -367,7 +367,7 @@ function Wait-ForHttp([string]$Url, [int]$TimeoutSeconds = 120, [string]$Name = 
     while ((Get-Date) -lt $deadline) {
         try {
             $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 4
-            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) { return $true }
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) { return $true }
         } catch {}
         Start-Sleep -Seconds 2
     }
@@ -443,6 +443,8 @@ function Ensure-RealIdentity {
     if (-not $State.TenantId) {
         $tenant = Invoke-Api 'Post' '/api/v1/tenants' $localAdminToken @{ slug = 'uep-local'; displayName = 'UEP Local Test Institution'; subscriptionTier = 'free' }
         $State.TenantId = [string]$tenant.id
+        # Mark the tenant record as a local development environment, not a hosted Fly deployment.
+        Invoke-Api 'Patch' ("/api/v1/tenants/" + $State.TenantId + '/deployment?platform=local&status=active') $localAdminToken | Out-Null
         Save-State
     }
     $localAdmin = Ensure-KeycloakUser $State.LocalAdminUsername 'admin@local.uep' 'UEP' 'Local Administrator' $State.LocalAdminPassword $State.TenantId $adminToken
