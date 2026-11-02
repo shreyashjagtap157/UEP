@@ -4,7 +4,7 @@ This milestone is a hardening release; it does not introduce a major business fe
 
 ## Evidence boundary — 2 November 2026
 
-The current source-bearing `main` commit is `e6acf6d4d80c057b5f601fcb4c637ee586b15847`. The latest fully completed all-green main-branch CI run is [#935](https://github.com/shreyashjagtap157/UEP/actions/runs/41406036125), which covered the previous code-bearing commit `a29485b7b73f522a553a94e769a8318d5b774702`.
+The current source-bearing `main` commit is `e6acf6d4d80c057b5f601fcb4c637ee586b15847`. The latest fully completed all-green main-branch CI run is [#936](https://github.com/shreyashjagtap157/UEP/actions/runs/41424440276) on documentation-only commit `8132e74b135c23a6e0b67c2870f72d54ba351dcb`; all six jobs passed. Its executable source was unchanged from the previously green code-bearing commit `a29485b7b73f522a553a94e769a8318d5b774702` validated in run #935.
 
 [Run #939](https://github.com/shreyashjagtap157/UEP/actions/runs/41425009098) is running against the current source commit. Web lint/tests/build, repository-policy/0.15 qualification, dependency scanning, and Keycloak OCI/ARM64 validation have passed. Both backend matrices have passed Maven verification (including the new notification/webhook persistence privacy tests), PostgreSQL migration callback checks, least-privilege database-grant checks and native-architecture API image builds. Backend ARM64 image smoke and packaged-server startup/health checks remain in progress; #939 must not be described as fully green until terminal-success.
 

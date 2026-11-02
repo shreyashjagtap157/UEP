@@ -2,7 +2,7 @@
 
 ## Current verified state — 2026-11-02
 
-The current source-bearing `main` commit is `e6acf6d4d80c057b5f601fcb4c637ee586b15847`. The latest fully completed all-green main-branch CI run is [UEP CI #935](https://github.com/shreyashjagtap157/UEP/actions/runs/41406036125), which passed all six jobs on the earlier code-bearing commit `a29485b7b73f522a553a94e769a8318d5b774702`.
+The current source-bearing `main` commit is `e6acf6d4d80c057b5f601fcb4c637ee586b15847`. The latest fully completed all-green main-branch CI run is [UEP CI #936](https://github.com/shreyashjagtap157/UEP/actions/runs/41424440276) on documentation-only commit `8132e74b135c23a6e0b67c2870f72d54ba351dcb`. All six jobs passed; that commit did not change executable source from the code-bearing commit `a29485b7b73f522a553a94e769a8318d5b774702`, which was also green in run #935.
 
 [UEP CI #939](https://github.com/shreyashjagtap157/UEP/actions/runs/41425009098) is running on the current source commit. Confirmed passed jobs: web lint/demo workflow tests/production build, repository policy and 0.15 qualification, Java/web dependency scanning, and Keycloak OCI/ARM64 validation. Within both backend matrices, Maven verification (including the new failure-persistence model tests), PostgreSQL migration callback checks, least-privilege runtime grants/function ACL checks, and native-architecture API image builds have passed. Backend ARM64 API image smoke and packaged-server startup/health steps have not yet reached a terminal result. Therefore #939 is not yet a completed full-CI qualification.
 

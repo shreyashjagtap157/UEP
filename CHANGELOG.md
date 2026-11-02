@@ -14,6 +14,7 @@
 
 ### Verification
 - GitHub Actions [UEP CI run #935](https://github.com/shreyashjagtap157/UEP/actions/runs/41406036125) passed all six jobs on source commit `a29485b7b73f522a553a94e769a8318d5b774702`.
+- GitHub Actions [UEP CI run #936](https://github.com/shreyashjagtap157/UEP/actions/runs/41424440276) passed all six jobs on documentation-only commit `8132e74b135c23a6e0b67c2870f72d54ba351dcb`; the executable source was unchanged from the #935 baseline.
 - GitHub Actions [UEP CI run #939](https://github.com/shreyashjagtap157/UEP/actions/runs/41425009098) is running on the current source commit `e6acf6d4d80c057b5f601fcb4c637ee586b15847`. Web, repository-policy/qualification, vulnerability-scan and Keycloak-container jobs have passed; both backend Maven verification and DB checks passed; backend ARM64 image smoke and packaged-server health smoke are not yet terminal.
 - GitHub Actions [UEP CI run #932](https://github.com/shreyashjagtap157/UEP/actions/runs/41404638692) passed all six jobs on the announcement fixture restoration commit.
 
