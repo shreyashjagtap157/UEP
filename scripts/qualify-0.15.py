@@ -501,15 +501,44 @@ recording_service_storage = text('apps/platform-server/src/main/java/com/univers
 upload_service_storage = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
 retention_worker_storage = text('apps/platform-server/src/main/java/com/universalplatform/content/ContentRetentionWorker.java')
 cleanup_worker_storage = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java')
+# RecordingService retains four direct provider-delete charges for tier-migration and
+# compensation paths. Retention purge now enqueues each unique object transactionally;
+# StorageCleanupWorker owns the fifth/sixth deletion paths and their quota charges.
 for rel, source, expected_deletes in [
-    ('RecordingService.java', recording_service_storage, 6),
+    ('RecordingService.java', recording_service_storage, 4),
     ('UploadService.java', upload_service_storage, 2),
     ('ContentRetentionWorker.java', retention_worker_storage, 1),
     ('StorageCleanupWorker.java', cleanup_worker_storage, 1),
 ]:
     charged_deletes = source.count('consumeProviderDeleteOperations(')
     if charged_deletes != expected_deletes:
-        errors.append(f'{rel} must charge each provider deletion; expected {expected_deletes}, found {charged_deletes}')
+        errors.append(f'{rel} must charge each inline provider deletion; expected {expected_deletes}, found {charged_deletes}')
+
+recording_cleanup_queue = text('apps/platform-server/src/main/java/com/universalplatform/storage/StorageCleanupQueue.java')
+recording_cleanup_outbox = text('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupOutboxService.java')
+for required in [
+    'enqueueWithinCurrentTransaction(UUID tenantId, StorageProviderType provider, String locator,',
+    'cleanupQueue.enqueueWithinCurrentTransaction(recording.tenantId(), pending.provider(),',
+]:
+    if required not in recording_cleanup_queue + recording_service_storage:
+        errors.append(f'recording purge must enqueue durable object deletion transactionally: {required}')
+if '@Transactional\\n    public void enqueueWithinCurrentTransaction(' not in recording_cleanup_outbox:
+    errors.append('recording cleanup outbox must join the caller transaction for atomic metadata retirement')
+for required in [
+    'storageQuota.authorizeDelete(job.tenantId(), job.provider())',
+    'storageQuota.consumeProviderDeleteOperations(job.tenantId(), job.provider(),',
+    'adapters.require(job.provider()).delete(job.locator())',
+    'storageQuota.release(job.tenantId(), job.quotaReservationId())',
+]:
+    if required not in cleanup_worker_storage:
+        errors.append(f'durable storage cleanup worker is missing provider deletion/quota contract: {required}')
+recording_purge_test = text('apps/platform-server/src/test/java/com/universalplatform/recording/RecordingPurgeLifecycleTest.java')
+for test_name in [
+    'purgeEnqueuesUniqueProviderCleanupAndRetiresMetadataAtomically',
+    'cleanupOutboxFailurePreventsRecordingMetadataRetirement',
+]:
+    if test_name not in recording_purge_test:
+        errors.append(f'missing recording retention outbox regression test: {test_name}')
 
 upload_service_quota = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
 for required in ['storageQuota.reserve(', 'storageQuota.commit(', 'storageQuota.release(',

@@ -215,7 +215,7 @@ class RecordingPurgeLifecycleTest {
     }
 
     @Test
-    void purgeEnqueuesUniqueProviderCleanupAndRetiresMetadataAtomically() {
+    void purgeEnqueuesUniqueProviderCleanupAndRetiresMetadataAtomically() throws Exception {
         UUID masterReservationId = recording.quotaReservationId;
         UUID thumbnailReservationId = thumbnail.quotaReservationId();
 
@@ -239,7 +239,7 @@ class RecordingPurgeLifecycleTest {
     }
 
     @Test
-    void cleanupOutboxFailurePreventsRecordingMetadataRetirement() {
+    void cleanupOutboxFailurePreventsRecordingMetadataRetirement() throws Exception {
         doThrow(new IllegalStateException("cleanup outbox unavailable"))
                 .when(cleanupQueue).enqueueWithinCurrentTransaction(tenantId, StorageProviderType.LOCAL,
                         "thumbnail-locator", "thumbnail-object-key", thumbnail.quotaReservationId(), null);
