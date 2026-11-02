@@ -94,6 +94,35 @@ class StorageCleanupWorkerIntegrationTest {
         assertThat(deletes).hasValue(1);
     }
 
+    @Test
+    void quotaFailurePersistsBackoffInIndependentTransaction() {
+        jdbc.update("""
+                UPDATE storage_provider_quota
+                SET class_a_daily_limit = 0
+                WHERE provider = 'LOCAL'
+                """);
+        AtomicInteger deletes = new AtomicInteger();
+        StorageCleanupWorker worker = worker(adapter(locator -> deletes.incrementAndGet()));
+        UUID jobId = saveDueJob("quota-budget-locator");
+
+        try {
+            worker.processOne(jobId);
+
+            StorageCleanupJob failed = jobs.findById(jobId).orElseThrow();
+            assertThat(failed.deletedAt()).isNull();
+            assertThat(failed.attemptCount()).isEqualTo(1);
+            assertThat(failed.nextAttemptAt()).isAfter(Instant.now());
+            assertThat(failed.lastError()).isEqualTo("StorageQuotaException");
+            assertThat(deletes).hasValue(0);
+        } finally {
+            jdbc.update("""
+                    UPDATE storage_provider_quota
+                    SET class_a_daily_limit = NULL
+                    WHERE provider = 'LOCAL'
+                    """);
+        }
+    }
+
     private UUID saveDueJob(String locator) {
         UUID id = UUID.randomUUID();
         String objectKey = "cleanup/" + id;
