@@ -310,7 +310,13 @@ $uep_local_roles$;
             if ($LASTEXITCODE -ne 0) { throw "Local database migration failed (Maven exit code $LASTEXITCODE)." }
         } finally { Pop-Location }
     } finally {
-        foreach ($key in $previous.Keys) { Set-Item -Path ("Env:" + $key) -Value $previous[$key] }
+        foreach ($key in $previous.Keys) {
+            if ($null -eq $previous[$key]) {
+                Remove-Item -Path ("Env:" + $key) -ErrorAction SilentlyContinue
+            } else {
+                Set-Item -Path ("Env:" + $key) -Value $previous[$key]
+            }
+        }
     }
     $dbResult = Invoke-Psql $State.RuntimeUser $State.RuntimePassword $State.DatabaseName "SELECT current_database() || '|' || current_user || '|' || count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'"
     Write-Status 'Database' ("OK — " + $dbResult.Trim() + ' (database|runtime-role|public-table-count)') Green
@@ -520,7 +526,9 @@ function Test-PortAvailable([int]$Port) {
     }
 }
 function Stop-ManagedProcesses {
-    foreach ($entry in @($script:Processes | Select-Object -Reverse)) {
+    $entries = @($script:Processes.ToArray())
+    [array]::Reverse($entries)
+    foreach ($entry in $entries) {
         try { & taskkill.exe /PID $entry.ProcessId /T /F *> $null } catch {}
     }
     if ($script:PostgresServiceStartedByScript -and $script:PostgresServiceName) {
