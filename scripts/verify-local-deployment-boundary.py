@@ -40,23 +40,23 @@ checks = {
         and "Keycloak app uep-keycloak-testing: does not exist" in runbook
     ),
     "retirement record confirms the Supabase project was paused": (
-        "status INACTIVE" in runbook and "successfully paused" in runbook
+        "reported INACTIVE" in runbook and "pause operation returned success" in runbook
     ),
     "retirement record is honest about remaining provider-side deletion": (
-        "Deletion of the stopped Fly machine and Fly app record" in runbook
-        and "Permanent deletion of the paused Supabase project" in runbook
+        "stopped machine and app record still exist" in runbook
+        and "project is paused, not permanently deleted" in runbook
     ),
     "native Windows guide is the active replacement": (
         LOCAL_GUIDE.is_file()
         and "scripts/Start-UEP.ps1" in local
-        and "No Docker" in local
+        and "does not use Docker" in local.lower()
     ),
     "Real frontend proxies API requests over IPv4 loopback": (
         "'/api'" in vite and "target: 'http://127.0.0.1:8080'" in vite
     ),
     "Cloudflare guide describes a frontend-only offline demo": (
         "VITE_LOCAL_MODE=true" in cloudflare
-        and "does not require" in cloudflare.lower()
+        and "offline" in cloudflare.lower() and "does not deploy or provision" in cloudflare.lower()
         and "backend" in cloudflare.lower()
     ),
     "the frontend no longer advertises a retired Vercel build command": (
