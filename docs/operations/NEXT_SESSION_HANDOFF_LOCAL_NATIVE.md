@@ -252,3 +252,17 @@ The live repository was rechecked after the previous continuation. The main-line
 - CI run #1036 was queued for `e3bed7fa33b51606f15def7770d348b76f58e794` after strengthening the dual-permission integration test. These are not final green results. Fetch the live main SHA and latest workflow status before claiming validation.
 
 Windows-native runtime remains unexecuted in this ChatGPT environment. The launcher, local Keycloak, Spring Boot, Vite, browser-to-API path, database writes/readbacks and restart behavior must still be qualified on the user's actual Windows machine. Never infer these passes from CI or source inspection.
+
+### Continuation update — membership PATCH UI integration
+
+- The frontend API layer now exports `updateMembership`, which sends PATCH to `/api/v1/identity/memberships/{membershipId}` through the same bearer-authenticated `request()` transport.
+- The People workspace now exposes membership editing for users with `USERS_MANAGE`: membership status, primary branch (when the user also has `BRANCHES_VIEW` and branch data is loaded), and tenant-local external reference. It sends the current optimistic `expectedVersion`, preserves the existing branch when the user cannot select branches, and refreshes the member directory after success.
+- `apps/web/test/api-client-contract.test.mjs` guards the PATCH helper and People UI wiring. The web CI job for commit `0d5e53cd335ce2d8c2f343b107c908c78868117f` passed with 41 frontend tests, Playwright native test discovery (one test), and production build; the later contract-test addition is queued in CI and must still be checked on current main.
+- `IdentityAuthorizationIntegrationTest` already protects the final-active-owner invariant and now also covers an owner successfully changing a non-owner membership's status and tenant-local metadata through PATCH. CI for this test addition is pending.
+- The native acceptance prompt now explicitly includes the People-workspace PATCH flow and the owner-invariant check.
+
+### Remaining UI/API coverage gaps found during the method inventory
+
+The OpenAPI file currently defines 225 operations: 94 GET, 97 POST, 25 PUT, 1 PATCH and 8 DELETE. The frontend API layer uses a shared authenticated transport, but not every documented operation has a UI action yet. In particular, role-assignment list/add/remove is not yet exposed as a dedicated UI workflow (initial role selection during membership provisioning is available); custom-role update/delete and administrator revocation of another member's sessions also need a deliberate UI coverage decision. Continue mapping actual controllers, authorization rules and current UI before implementing these. Do not claim all 225 operations are wired or end-to-end tested.
+
+At this checkpoint, the live main SHA before this handoff update was `f2bdb1c751ccd46c7cb927606b1120ecab49b0d9`. CI runs #1042–#1045 were queued/in progress; fetch the latest head and workflow status before relying on any result. Windows-native startup and browser-to-PostgreSQL runtime qualification remain unperformed in this environment.
