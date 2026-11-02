@@ -79,6 +79,15 @@ Inspect browser and build artifacts for leaked secrets. No database username/pas
 
 Use browser automation and browser network instrumentation.
 
+Start with the committed native Real smoke suite after the launcher reports all four local services ready:
+
+    npm --prefix apps/web exec -- playwright install chromium
+    npm --prefix apps/web run test:e2e:native
+
+This test must run on the same Windows account that initialized the protected local state. It signs in through local Keycloak, checks authenticated API calls from the Vite origin, downloads the attendance CSV, creates a uniquely prefixed branch through the UI, reloads the browser and reads the branch back. It also uses `psql` with the protected `uep_local_runtime` credentials to verify the row and the database role's no-CREATE/no-Flyway-history boundary. It deliberately does not print credentials or tokens. Its branch row is annotated and retained because the API currently has no branch-delete operation.
+
+A successful run is evidence for this specific end-to-end path only; continue with the wider method, workflow and tenant/branch isolation matrix below.
+
 For every major visible data area available to the authenticated owner/admin:
 
 - Record the UI action.

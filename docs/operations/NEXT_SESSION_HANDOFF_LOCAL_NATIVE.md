@@ -227,7 +227,7 @@ The original handoff instructions remain authoritative. Continue by fetching the
 
 These changes are committed source and automated-test additions. They are not evidence that Windows services have launched on the owner's machine. Do not report PostgreSQL initialization, Keycloak login, the Spring Boot datasource, browser proxying, persisted application writes, role/tenant isolation or restart persistence as passing until the corresponding local commands, browser requests and PostgreSQL readbacks have actually run. CI statuses must be read from the resulting current `main` SHA; queued or older runs are not passes.
 
-The first native Playwright smoke covers one authenticated read/export path only. Continue with full browser-to-API-to-PostgreSQL write/readback workflows and tenant/branch/role negative tests described in `LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md`.
+The native Playwright smoke now covers owner OIDC, same-origin authenticated analytics/export calls, a UI-created tenant branch, reload/API readback, and a direct PostgreSQL query as `uep_local_runtime` with negative CREATE/Flyway-history checks. It retains one annotated `NATIVE-E2E-<timestamp>` branch per run because no branch-delete API exists. CI only discovers/parses this test; it does not start the Windows services or execute the local browser/database flow. Run the suite on the actual Windows machine, then continue with the wider browser-to-API-to-PostgreSQL workflows and tenant/branch/role negative tests described in `LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md`.
 
 
 ### Clean-checkout migration runner requirement

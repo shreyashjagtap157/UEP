@@ -69,9 +69,13 @@ After starting the environment with `.\scripts\Start-UEP.ps1 -Mode Real -NoBrows
     npm --prefix apps/web exec -- playwright install chromium
     npm --prefix apps/web run test:e2e:native
 
-The test reads only the owner username/password from the protected current-user LocalAppData state file into process memory; it never prints, copies, attaches or persists credentials or tokens. Traces, screenshots and video are disabled. Its current coverage is limited to local Keycloak owner sign-in, the authenticated `/api/v1/me` and analytics overview requests, and a bearer-authenticated attendance CSV download through the Vite origin.
+The test reads the local owner credentials and the separate PostgreSQL runtime role credentials from the protected current-user LocalAppData state file into process memory only. It never prints, attaches, uploads or persists passwords or access tokens. The database password is passed only in the child `psql` process environment; it is not included in command-line arguments or test output. Traces, screenshots and video are disabled.
 
-This test is an initial Real-mode browser integration smoke, not a substitute for the full workflow, database-write/readback, tenant-isolation, or restart-persistence acceptance plan. A pass must not be reported as proof of those broader capabilities.
+It verifies local Keycloak owner sign-in, tenant/role claims from `/api/v1/me`, authenticated same-origin analytics reads, a bearer-authenticated attendance CSV download, and a real branch creation from the Organization UI. It watches the Vite-origin POST, reloads the browser to discard React Query's in-memory cache, and checks the branch again from the API. It then queries that exact row directly from PostgreSQL as `uep_local_runtime`, confirms the connected database user is the restricted runtime role, and verifies that this role cannot create public-schema tables or read `flyway_schema_history`.
+
+Each run creates a uniquely named `NATIVE-E2E-<timestamp>` branch and records its code and ID in the Playwright test annotation. The branch is intentionally retained: the current branch API has no delete operation, and the test will not bypass application authorization with destructive SQL. Traces, screenshots and video remain disabled.
+
+This is a focused native Real integration qualification, not proof of every UEP domain workflow, multi-tenant/branch isolation across all modules, restart recovery or long-running reliability. Those remain separate phases in `LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md`. A source change or CI test-discovery pass is not a Windows runtime pass; run this command on the actual Windows machine and preserve its test output as evidence.
 
 ## Real-mode request and data path
 

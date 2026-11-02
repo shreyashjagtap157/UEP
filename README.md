@@ -115,7 +115,7 @@ npm --prefix apps/web exec -- playwright install chromium
 npm --prefix apps/web run test:e2e:native
 ```
 
-This narrowly verifies owner OIDC sign-in, same-origin authenticated API requests and CSV export. It does not replace database write/readback, role/tenant isolation, or restart-persistence acceptance.
+This verifies owner OIDC sign-in, same-origin authenticated API requests, CSV export, a branch write through the UI, reload/readback, and a direct PostgreSQL check performed as the restricted runtime role. It also verifies that the runtime role cannot create public-schema tables or read Flyway history. Each run retains one annotated `NATIVE-E2E-<timestamp>` branch because no branch-delete API exists. It does not replace the wider multi-tenant/branch isolation matrix, all business workflows, or restart-persistence acceptance.
 
 ## Licensing
 
