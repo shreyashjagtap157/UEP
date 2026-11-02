@@ -3,6 +3,7 @@ package com.universalplatform.analytics;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.UUID;
@@ -56,4 +57,25 @@ class AnalyticsIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.notificationDeadLetters").value(1));
     }
+
+    @Test
+    void csvExportRequiresBothExportAndAnalyticsPermissions() throws Exception {
+        var exportRequest = get("/api/v1/analytics/exports/attendance")
+                .param("from", "2026-10-01T00:00:00Z")
+                .param("to", "2026-11-01T00:00:00Z")
+                .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT.toString())));
+
+        mvc.perform(exportRequest)
+                .andExpect(status().isForbidden());
+
+        jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'ANALYTICS_VIEW')", ROLE);
+        jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'REPORTS_EXPORT')", ROLE);
+
+        mvc.perform(exportRequest)
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/csv"))
+                .andExpect(content().string(org.hamcrest.Matchers.startsWith("report,from,to\\n")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("present,partial,absent,excused,present_seconds")));
+    }
+
 }
