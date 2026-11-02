@@ -187,6 +187,14 @@ jobs:
           LIVEKIT_API_KEY: "uep-ci-livekit-key-2026"
           LIVEKIT_API_SECRET: "uep-ci-livekit-api-secret-2026-11-01"
           PLATFORM_DEV_MODE: "false"
+          # Mirror the Fly production profile. Fly disables automatic runtime
+          # migrations; CI enables Flyway only for its disposable smoke database.
+          SPRING_PROFILES_ACTIVE: production
+          SPRING_FLYWAY_ENABLED: "true"
+          PLATFORM_BACKGROUND_WORKERS_ENABLED: "true"
+          PLATFORM_LIVEKIT_ENABLED: "false"
+          PLATFORM_UPLOAD_STAGING_ENABLED: "false"
+          PLATFORM_CLAMAV_ENABLED: "false"
         run: |
           set -euo pipefail
           PGPASSWORD="$UEP_CI_DB_PASSWORD" psql "postgresql://education@localhost:5432/postgres" -X -v ON_ERROR_STOP=1 \
@@ -214,9 +222,11 @@ jobs:
           done
           if [ "$ready" != "true" ]; then
             tail -n 200 /tmp/uep-platform-server.log
-            echo "Packaged server did not become healthy in 120 seconds" >&2
+            echo "Packaged production-profile server did not become healthy in 120 seconds" >&2
             exit 1
           fi
+          echo "Packaged production-profile server startup log (last 120 lines):"
+          tail -n 120 /tmp/uep-platform-server.log
           python3 scripts/load-smoke.py http://localhost:8080/actuator/health 30 6 2500 4000
 
   web:
