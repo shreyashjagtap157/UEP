@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -406,6 +407,112 @@ class IdentityAuthorizationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("managed-service-key"))
                 .andExpect(jsonPath("$.secret").value(org.hamcrest.Matchers.startsWith("upk_live_")));
+    }
+
+    @Test
+    void ownerCanUpdateCustomRoleWithFreshVersionThenDeleteIt() throws Exception {
+        String createBody = """
+                {"name":"Lab Coordinator","description":"Initial role","permissions":["USERS_VIEW"],"expectedVersion":0}
+                """;
+        mvc.perform(post("/api/v1/identity/roles")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(0));
+
+        UUID roleId = jdbc.queryForObject(
+                "SELECT id FROM role_definition WHERE tenant_id = ? AND name = 'Lab Coordinator'",
+                UUID.class, TENANT);
+
+        mvc.perform(put("/api/v1/identity/roles/{roleId}", roleId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Lab Operations Lead","description":"Updated role","permissions":["BRANCHES_VIEW","ANALYTICS_VIEW"],"expectedVersion":0}
+                                """)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Lab Operations Lead"))
+                .andExpect(jsonPath("$.description").value("Updated role"))
+                .andExpect(jsonPath("$.version").value(1))
+                .andExpect(jsonPath("$.permissions", hasItem("ANALYTICS_VIEW")));
+
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT version FROM role_definition WHERE id = ?", Long.class, roleId)).isEqualTo(1L);
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM role_permission WHERE role_id = ? AND permission_key = 'ANALYTICS_VIEW'",
+                Integer.class, roleId)).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM role_permission WHERE role_id = ? AND permission_key = 'USERS_VIEW'",
+                Integer.class, roleId)).isZero();
+
+        mvc.perform(put("/api/v1/identity/roles/{roleId}", roleId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Stale Role Update","description":"Must not win","permissions":[],"expectedVersion":0}
+                                """)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDENTITY_CONFLICT"));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT name FROM role_definition WHERE id = ?", String.class, roleId))
+                .isEqualTo("Lab Operations Lead");
+
+        mvc.perform(delete("/api/v1/identity/roles/{roleId}", roleId)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isNoContent());
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM role_definition WHERE id = ?", Integer.class, roleId)).isZero();
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM role_permission WHERE role_id = ?", Integer.class, roleId)).isZero();
+    }
+
+    @Test
+    void roleManagementCannotChangeSystemRolesOrDeleteAssignedCustomRoles() throws Exception {
+        mvc.perform(put("/api/v1/identity/roles/{roleId}", OWNER_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Changed Owner","description":"Must remain system managed","permissions":[],"expectedVersion":0}
+                                """)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDENTITY_CONFLICT"));
+
+        mvc.perform(delete("/api/v1/identity/roles/{roleId}", OWNER_ROLE)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDENTITY_CONFLICT"));
+
+        mvc.perform(delete("/api/v1/identity/roles/{roleId}", DELEGATED_ADMIN_ROLE)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDENTITY_CONFLICT"));
+
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM role_definition WHERE id = ?", Integer.class, OWNER_ROLE)).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM role_definition WHERE id = ?", Integer.class, DELEGATED_ADMIN_ROLE)).isEqualTo(1);
+    }
+
+    @Test
+    void roleUpdateAndDeletionRequireRoleManagementPermission() throws Exception {
+        mvc.perform(put("/api/v1/identity/roles/{roleId}", DELEGATED_ADMIN_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Escalated Role","description":"No permission","permissions":[],"expectedVersion":0}
+                                """)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+
+        mvc.perform(delete("/api/v1/identity/roles/{roleId}", DELEGATED_ADMIN_ROLE)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT name FROM role_definition WHERE id = ?", String.class, DELEGATED_ADMIN_ROLE))
+                .isEqualTo("Delegated Administrator");
     }
 
     @Test

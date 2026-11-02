@@ -308,6 +308,113 @@ test('real OIDC owner proves authenticated analytics, branch and membership pers
   const persistedRow = runAsRuntimeRole(psql, runtimeDatabase, persistedBranchSql)
   expect(persistedRow).toBe(branchCode + '|' + branchName + '|ACTIVE')
 
+  // Qualify custom-role create/update/delete through the real Roles workspace.
+  await page.getByRole('button', { name: 'Roles', exact: true }).click()
+  const customRoleName = 'NATIVE-CUSTOM-' + Date.now().toString()
+  const updatedCustomRoleName = customRoleName + '-UPDATED'
+  const createRoleForm = page.locator('section.panel').first().locator('form')
+  await createRoleForm.locator('input[name="name"]').fill(customRoleName)
+  await createRoleForm.locator('textarea[name="description"]').fill('Native custom role CRUD qualification')
+  await createRoleForm.locator('input[name="USERS_VIEW"]').check()
+
+  const createRolePromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/identity/roles'
+      && response.request().method() === 'POST'
+  })
+  await createRoleForm.getByRole('button', { name: 'Create custom role', exact: true }).click()
+  const createRoleResponse = await createRolePromise
+  expect(createRoleResponse.status()).toBe(200)
+  const createdRole = await createRoleResponse.json() as {
+    id: string
+    name: string
+    systemManaged: boolean
+    permissions: string[]
+    version: number
+  }
+  expect(createdRole.id).toMatch(/^[0-9a-f-]{36}$/i)
+  expect(createdRole.name).toBe(customRoleName)
+  expect(createdRole.systemManaged).toBe(false)
+  expect(createdRole.permissions).toContain('USERS_VIEW')
+  expect(createdRole.version).toBe(0)
+  const customRoleCard = page.locator('.mini-card[data-role-id="' + createdRole.id + '"]')
+  await expect(customRoleCard).toBeVisible()
+
+  const initialCustomRoleSql = [
+    "SELECT r.name || '|' || r.version::text || '|' || count(rp.permission_key)::text",
+    'FROM public.role_definition r LEFT JOIN public.role_permission rp',
+    "ON rp.role_id = r.id AND rp.permission_key = 'USERS_VIEW'",
+    "WHERE r.id = '" + createdRole.id + "'::uuid",
+    "AND r.tenant_id = '" + identity.tenantId + "'::uuid",
+    'GROUP BY r.id',
+  ].join(' ')
+  expect(runAsRuntimeRole(psql, runtimeDatabase, initialCustomRoleSql)).toBe(customRoleName + '|0|1')
+
+  await customRoleCard.getByText('Edit custom role', { exact: true }).click()
+  const roleEditor = customRoleCard.locator('form')
+  await roleEditor.locator('input[name="name"]').fill(updatedCustomRoleName)
+  await roleEditor.locator('textarea[name="description"]').fill('Updated native custom role')
+  await roleEditor.locator('input[name="USERS_VIEW"]').uncheck()
+  await roleEditor.locator('input[name="ANALYTICS_VIEW"]').check()
+
+  const updateRolePromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/identity/roles/' + createdRole.id
+      && response.request().method() === 'PUT'
+  })
+  await roleEditor.getByRole('button', { name: 'Save role changes', exact: true }).click()
+  const updateRoleResponse = await updateRolePromise
+  expect(updateRoleResponse.status()).toBe(200)
+  const updatedRole = await updateRoleResponse.json() as {
+    id: string
+    name: string
+    description: string
+    permissions: string[]
+    version: number
+  }
+  expect(updatedRole.id).toBe(createdRole.id)
+  expect(updatedRole.name).toBe(updatedCustomRoleName)
+  expect(updatedRole.description).toBe('Updated native custom role')
+  expect(updatedRole.permissions).toContain('ANALYTICS_VIEW')
+  expect(updatedRole.permissions).not.toContain('USERS_VIEW')
+  expect(updatedRole.version).toBe(1)
+
+  const updatedCustomRoleSql = [
+    "SELECT r.name || '|' || r.version::text || '|'",
+    "|| count(*) FILTER (WHERE rp.permission_key = 'ANALYTICS_VIEW')::text || '|'",
+    "|| count(*) FILTER (WHERE rp.permission_key = 'USERS_VIEW')::text",
+    'FROM public.role_definition r LEFT JOIN public.role_permission rp ON rp.role_id = r.id',
+    "WHERE r.id = '" + createdRole.id + "'::uuid",
+    "AND r.tenant_id = '" + identity.tenantId + "'::uuid",
+    'GROUP BY r.id',
+  ].join(' ')
+  expect(runAsRuntimeRole(psql, runtimeDatabase, updatedCustomRoleSql)).toBe(updatedCustomRoleName + '|1|1|0')
+
+  page.once('dialog', dialog => dialog.accept())
+  const deleteRolePromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/identity/roles/' + createdRole.id
+      && response.request().method() === 'DELETE'
+  })
+  await roleEditor.getByRole('button', { name: 'Delete custom role', exact: true }).click()
+  const deleteRoleResponse = await deleteRolePromise
+  expect(deleteRoleResponse.status()).toBe(204)
+  await expect(customRoleCard).toHaveCount(0)
+
+  const deletedCustomRoleSql = [
+    "SELECT (SELECT count(*) FROM public.role_definition WHERE id = '" + createdRole.id + "'::uuid",
+    "AND tenant_id = '" + identity.tenantId + "'::uuid)::text || '|' ||",
+    "(SELECT count(*) FROM public.role_permission WHERE role_id = '" + createdRole.id + "'::uuid)::text",
+  ].join(' ')
+  expect(runAsRuntimeRole(psql, runtimeDatabase, deletedCustomRoleSql)).toBe('0|0')
+  test.info().annotations.push({
+    type: 'custom-role-crud',
+    description: customRoleName + ' / ' + createdRole.id + ' (created, updated version 0→1, permissions replaced and API deletion verified in PostgreSQL)',
+  })
+
   // Provision a synthetic, role-free tenant membership through the People UI,
   // update it through the authenticated PATCH path, and verify the committed row.
   const membershipSubject = 'native-e2e-' + Date.now().toString()

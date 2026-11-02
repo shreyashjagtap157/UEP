@@ -340,3 +340,18 @@ Next: inspect CI #1080; if web fails, read full job logs and fix the actual caus
 - Added commits after the prior handoff update: 5b87ea26c88b8e26db4af23a7023d44e162a20df (branch-scope native test), 8bdce4fbaf9723eb1b8526f67ecfcbd529beca9f (contract guard), and e8408585e8e307bae64fe8837d48656fc5d51195 (acceptance prompt).
 - At the last check, run #1082 on 73096ecab22c3e9b8cd34a352d6293dac0f20852 had web and repository-policy passed; backend PostgreSQL 17.11/18.4, Keycloak and vulnerability scan were still running. Later commits #1083–#1085 were queued. Recheck latest main CI before asserting success.
 - Current native coverage is still unexecuted on Windows. CI's Playwright discovery does not run the local Keycloak/Vite/Spring/PostgreSQL scenario.
+
+## 2026-11-03 follow-up — custom role lifecycle implementation
+
+Base repository state inspected: `main` at `6192caf51c765a6678ea3a4b4cce48f843c37c0e`.
+
+Implementation added in this follow-up:
+
+- The Roles workspace exposes edit/delete controls only for custom roles when the authenticated identity has `ROLES_MANAGE`. System-managed roles remain read-only in the UI.
+- The custom-role editor exposes all 83 `PermissionKey` values from `apps/web/src/platform/api.ts`; a web contract test enforces exact parity so new API permission values cannot silently disappear from the editor.
+- Authenticated frontend API helpers cover `PUT /api/v1/identity/roles/{roleId}` and `DELETE /api/v1/identity/roles/{roleId}`. Updates send the role's optimistic `expectedVersion`; role queries are invalidated after successful updates/deletes.
+- Backend custom-role updates and deletions flush repository changes before returning, ensuring the returned JPA version is current and deletion is persisted before subsequent reads.
+- Backend integration tests cover version 0 → 1 update, permission replacement, stale-version conflict, successful deletion with cascading permission cleanup, non-manager 403 responses, immutable system-managed roles and rejection of deletion while a custom role is assigned.
+- Native Real Playwright acceptance creates, updates and deletes a uniquely named custom role through the browser/API and checks the corresponding `role_definition` and `role_permission` rows using the restricted PostgreSQL runtime account. The custom role is deleted through the API, not by direct SQL.
+
+Validation status at handoff authoring: source-level permission parity was checked (83/83). Backend integration, web test/build, CI on this commit and native Windows execution remain pending until actual results are collected. Do not treat a newly added test as a passing test. The existing native local runtime remains unqualified in this session.

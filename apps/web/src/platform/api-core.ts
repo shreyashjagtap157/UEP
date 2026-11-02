@@ -94,6 +94,12 @@ export function unassignRole(assignmentId:string):Promise<void>{
 export function createRole(input:{name:string;description?:string;permissions:PermissionKey[]}):Promise<RoleView>{
   return request('/api/v1/identity/roles',{method:'POST',body:JSON.stringify({...input,expectedVersion:0})})
 }
+export function updateRole(roleId:string,input:{name:string;description?:string;permissions:PermissionKey[];expectedVersion:number}):Promise<RoleView>{
+  return request(`/api/v1/identity/roles/${encodeURIComponent(roleId)}`,{method:'PUT',body:JSON.stringify(input)})
+}
+export function deleteRole(roleId:string):Promise<void>{
+  return request(`/api/v1/identity/roles/${encodeURIComponent(roleId)}`,{method:'DELETE'})
+}
 export function createBranch(input:{code:string;displayName:string;timezone:string}):Promise<BranchView>{
   return request('/api/v1/organization/branches',{method:'POST',body:JSON.stringify(input)})
 }

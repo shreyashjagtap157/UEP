@@ -33,6 +33,7 @@ import {
   assignRole,
   createBranch,
   createRole,
+  deleteRole,
   fetchBranches,
   fetchCurrentIdentity,
   fetchMembers,
@@ -45,6 +46,7 @@ import {
   revokeOwnSession,
   updateOrganizationSettings,
   updateMembership,
+  updateRole,
   unassignRole,
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, MemberView, OrganizationSettings, PermissionKey, RoleAssignmentView, RoleView } from '../platform/api'
@@ -60,7 +62,12 @@ const permissionOptions: PermissionKey[] = [
   'SCHEDULE_VIEW', 'SCHEDULE_MANAGE', 'SCHEDULE_CONFLICT_OVERRIDE',
   'ANNOUNCEMENTS_VIEW', 'ANNOUNCEMENTS_MANAGE', 'NOTIFICATION_OPERATIONS_VIEW', 'CONTENT_VIEW', 'CONTENT_MANAGE',
   'ASSESSMENTS_VIEW', 'ASSESSMENTS_MANAGE', 'ASSESSMENTS_TAKE', 'GRADING_VIEW', 'GRADING_MANAGE', 'REVIEW_VIEW', 'REVIEW_SUBMIT', 'REVIEW_MANAGE',
-  'ASSIGNMENTS_VIEW', 'ASSIGNMENTS_MANAGE', 'ASSIGNMENTS_TAKE', 'GRADEBOOK_VIEW', 'GRADEBOOK_MANAGE', 'API_VIEW', 'API_MANAGE', 'WEBHOOKS_VIEW', 'WEBHOOKS_MANAGE', 'FEDERATION_VIEW', 'FEDERATION_MANAGE', 'INTEROPERABILITY_VIEW', 'INTEROPERABILITY_MANAGE', 'EXTERNAL_STORAGE_MANAGE', 'EXTERNAL_NOTIFICATIONS_MANAGE', 'FINANCE_VIEW', 'FINANCE_MANAGE', 'COMMERCIAL_VIEW', 'COMMERCIAL_MANAGE', 'PAYMENTS_MANAGE', 'ANALYTICS_VIEW', 'ANALYTICS_MANAGE', 'REPORTS_EXPORT', 'OPERATIONS_VIEW', 'OPERATIONS_MANAGE', 'AUDIT_VIEW',
+  'ASSIGNMENTS_VIEW', 'ASSIGNMENTS_MANAGE', 'ASSIGNMENTS_TAKE', 'GRADEBOOK_VIEW', 'GRADEBOOK_MANAGE',
+  'LIVE_CLASS_VIEW', 'LIVE_CLASS_MANAGE', 'LIVE_CLASS_MODERATE', 'LIVE_CLASS_CHAT',
+  'PRESENCE_VIEW', 'PRESENCE_MANAGE', 'ATTENDANCE_VIEW', 'ATTENDANCE_MANAGE',
+  'RECORDINGS_VIEW', 'RECORDINGS_MANAGE', 'LEARNING_OUTCOMES_VIEW', 'LEARNING_OUTCOMES_MANAGE',
+  'CREDENTIALS_VIEW', 'CREDENTIALS_MANAGE', 'CREDENTIALS_VERIFY', 'MENTORING_VIEW', 'MENTORING_MANAGE',
+  'SURVEYS_VIEW', 'SURVEYS_MANAGE', 'FEEDBACK_VIEW', 'FEEDBACK_MANAGE', 'MESSAGING_MODERATE', 'API_VIEW', 'API_MANAGE', 'WEBHOOKS_VIEW', 'WEBHOOKS_MANAGE', 'FEDERATION_VIEW', 'FEDERATION_MANAGE', 'INTEROPERABILITY_VIEW', 'INTEROPERABILITY_MANAGE', 'EXTERNAL_STORAGE_MANAGE', 'EXTERNAL_NOTIFICATIONS_MANAGE', 'FINANCE_VIEW', 'FINANCE_MANAGE', 'COMMERCIAL_VIEW', 'COMMERCIAL_MANAGE', 'PAYMENTS_MANAGE', 'ANALYTICS_VIEW', 'ANALYTICS_MANAGE', 'REPORTS_EXPORT', 'OPERATIONS_VIEW', 'OPERATIONS_MANAGE', 'AUDIT_VIEW',
 ]
 
 export function App() {
@@ -522,14 +529,73 @@ function Roles({ me }: { me: CurrentIdentity }) {
       )}
       <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">Authorization catalog</p><h3>Roles</h3></div><span className="count-badge">{roles.data?.totalElements ?? 0}</span></div>
-        {roles.isPending ? <LoadingLine /> : roles.isError ? <ErrorLine error={roles.error} /> : <RoleCards roles={roles.data.items} />}
+        {roles.isPending ? <LoadingLine /> : roles.isError ? <ErrorLine error={roles.error} /> : <RoleCards roles={roles.data.items} canManage={has(me, 'ROLES_MANAGE')} />}
       </section>
     </div>
   )
 }
 
-function RoleCards({ roles }: { roles: RoleView[] }) {
-  return <div className="card-grid">{roles.map(role => <article className="mini-card" key={role.id}><div className="mini-card-title"><strong>{role.name}</strong><span>{role.systemManaged ? 'System' : 'Custom'}</span></div><p>{role.description ?? 'No description'}</p><div className="chip-row compact">{role.permissions.map(permission => <span className="chip" key={permission}>{humanize(permission)}</span>)}</div></article>)}</div>
+function RoleCards({ roles, canManage }: { roles: RoleView[]; canManage: boolean }) {
+  return <div className="card-grid">{roles.map(role => <RoleCard key={role.id} role={role} canManage={canManage} />)}</div>
+}
+
+function RoleCard({ role, canManage }: { role: RoleView; canManage: boolean }) {
+  const queryClient = useQueryClient()
+  const updateMutation = useMutation({
+    mutationFn: (input: { name: string; description?: string; permissions: PermissionKey[]; expectedVersion: number }) => updateRole(role.id, input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['roles'] }),
+  })
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteRole(role.id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['roles'] }),
+  })
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const permissions = permissionOptions.filter(permission => data.get(permission) === 'on')
+    updateMutation.mutate({
+      name: String(data.get('name') ?? ''),
+      description: String(data.get('description') ?? '') || undefined,
+      permissions,
+      expectedVersion: role.version,
+    })
+  }
+
+  return (
+    <article className="mini-card" data-role-id={role.id}>
+      <div className="mini-card-title"><strong>{role.name}</strong><span>{role.systemManaged ? 'System' : 'Custom'}</span></div>
+      <p>{role.description ?? 'No description'}</p>
+      <div className="chip-row compact">{role.permissions.map(permission => <span className="chip" key={permission}>{humanize(permission)}</span>)}</div>
+      {canManage && !role.systemManaged && (
+        <details className="content-stack">
+          <summary>Edit custom role</summary>
+          <form key={`${role.id}:${role.version}`} className="form-grid" onSubmit={submit}>
+            <label>Role name<input name="name" required maxLength={120} defaultValue={role.name} /></label>
+            <label className="wide">Description<textarea name="description" maxLength={500} rows={2} defaultValue={role.description ?? ''} /></label>
+            <fieldset className="wide permission-grid">
+              <legend>Permissions</legend>
+              {permissionOptions.map(permission => (
+                <label className="check-row" key={permission}>
+                  <input type="checkbox" name={permission} defaultChecked={role.permissions.includes(permission)} />
+                  {humanize(permission)}
+                </label>
+              ))}
+            </fieldset>
+            <div className="form-actions">
+              <button className="primary-button" disabled={updateMutation.isPending || deleteMutation.isPending}>Save role changes</button>
+              <button type="button" className="secondary-button" disabled={updateMutation.isPending || deleteMutation.isPending} onClick={() => {
+                if (window.confirm(`Delete custom role "${role.name}"? This cannot be undone.`)) deleteMutation.mutate()
+              }}>Delete custom role</button>
+            </div>
+            <p className="muted small">A custom role must be unassigned from every membership before it can be deleted.</p>
+            {updateMutation.isError && <p className="error-text" role="alert">{updateMutation.error.message}</p>}
+            {deleteMutation.isError && <p className="error-text" role="alert">{deleteMutation.error.message}</p>}
+          </form>
+        </details>
+      )}
+    </article>
+  )
 }
 
 function Organization({ me }: { me: CurrentIdentity }) {

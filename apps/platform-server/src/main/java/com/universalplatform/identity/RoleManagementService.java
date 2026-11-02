@@ -99,6 +99,8 @@ class RoleManagementService {
         }
         role.updateCustom(normalizedName, normalizeNullable(description, 500), clock.instant());
         replacePermissions(role.id(), requestedPermissions);
+        // Flush so the JPA @Version increment is reflected in the response DTO.
+        roles.flush();
         audit.record(tenantId, actorContext.requireSubject(), "CUSTOM_ROLE_UPDATED", "role_definition", role.id().toString());
         return toView(role);
     }
@@ -111,6 +113,7 @@ class RoleManagementService {
         if (role.systemManaged()) throw new IdentityConflictException("System-managed roles cannot be deleted");
         if (assignments.countByRoleId(role.id()) != 0) throw new IdentityConflictException("Role is still assigned to users");
         roles.delete(role);
+        roles.flush();
         audit.record(tenantId, actorContext.requireSubject(), "CUSTOM_ROLE_DELETED", "role_definition", role.id().toString());
     }
 

@@ -5,6 +5,7 @@ import test from 'node:test'
 
 const apiCore = readFileSync(fileURLToPath(new URL('../src/platform/api-core.ts', import.meta.url)), 'utf8')
 const apiBusiness = readFileSync(fileURLToPath(new URL('../src/platform/api-business.ts', import.meta.url)), 'utf8')
+const apiTypes = readFileSync(fileURLToPath(new URL('../src/platform/api.ts', import.meta.url)), 'utf8')
 const nativeSmoke = readFileSync(fileURLToPath(new URL('./native/real-analytics-export.native.spec.ts', import.meta.url)), 'utf8')
 const appSource = readFileSync(fileURLToPath(new URL('../src/app/App.tsx', import.meta.url)), 'utf8')
 
@@ -45,6 +46,29 @@ test('membership role assignments use authenticated tenant-scoped API operations
   assert.ok(appSource.includes("has(me, 'ROLES_ASSIGN')"))
   assert.ok(appSource.includes("scopeKind === 'BRANCH' && !scopeId"))
   assert.ok(appSource.includes('Select a branch before assigning a branch-scoped role.'))
+})
+
+test('custom role CRUD uses authenticated PUT/DELETE, optimistic versions and the complete permission catalog', () => {
+  assert.match(apiCore, /export function updateRole/)
+  assert.ok(apiCore.includes("method:'PUT'"))
+  assert.ok(apiCore.includes('/api/v1/identity/roles/'))
+  assert.match(apiCore, /export function deleteRole/)
+  assert.ok(apiCore.includes("method:'DELETE'"))
+  assert.ok(appSource.includes('updateRole'))
+  assert.ok(appSource.includes('deleteRole'))
+  assert.ok(appSource.includes('expectedVersion: role.version'))
+  assert.ok(appSource.includes('canManage && !role.systemManaged'))
+  assert.ok(appSource.includes('Save role changes'))
+  assert.ok(appSource.includes('Delete custom role'))
+  assert.ok(appSource.includes('deleteMutation.isError'))
+
+  const permissionType = apiTypes.split('export type PermissionKey =')[1]?.split('export type NotificationEventType')[0]
+  assert.ok(permissionType, 'PermissionKey type must remain explicit')
+  const declaredPermissions = [...permissionType.matchAll(/'([A-Z][A-Z0-9_]*)'/g)].map(match => match[1])
+  const permissionOptionsBlock = appSource.split('const permissionOptions: PermissionKey[] = [')[1]?.split('\n]')[0]
+  assert.ok(permissionOptionsBlock, 'role editor must declare its editable permission catalog')
+  const editablePermissions = [...permissionOptionsBlock.matchAll(/'([A-Z][A-Z0-9_]*)'/g)].map(match => match[1])
+  assert.deepEqual([...editablePermissions].sort(), [...declaredPermissions].sort())
 })
 
 test('native Real browser smoke proves API persistence and database-role boundaries', () => {
