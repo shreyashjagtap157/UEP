@@ -101,7 +101,7 @@ Cover all supported method classes:
 - GET: list, details, current identity, settings, dashboard and health/read-only resources.
 - POST: create resources, assignments, submissions and actions that create records.
 - PUT: full updates where the endpoint defines them.
-- PATCH: partial state transitions where the endpoint defines them.
+- PATCH: update membership status, primary branch and tenant-local external reference from the People workspace. Use a non-owner test membership, preserve its current branch when branch selection is unavailable, verify optimistic `expectedVersion` handling, and confirm the final-active-owner invariant remains enforced.
 - DELETE: authorized removal/revocation operations where the endpoint defines them.
 
 Do not create fake tests to satisfy method coverage. Discover actual operations from docs/api/openapi.yaml and Spring controllers. If the product currently has no real frontend method for an implemented API operation, record that as a UI integration gap.
