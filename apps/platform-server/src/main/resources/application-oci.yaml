@@ -1,0 +1,7 @@
+# OCI API runtime profile.
+# Database schema changes are applied explicitly by DatabaseMigrationRunner
+# with a separate schema-owner credential before the request-serving API starts.
+# The runtime datasource must use the restricted application login only.
+spring:
+  flyway:
+    enabled: false
