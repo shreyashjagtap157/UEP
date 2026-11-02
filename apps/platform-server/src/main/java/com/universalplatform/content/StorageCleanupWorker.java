@@ -66,16 +66,38 @@ class StorageCleanupWorker {
                     adapters.require(job.provider()).delete(job.locator());
                     storageQuota.release(job.tenantId(), job.quotaReservationId());
                     job.markDeleted(clock.instant());
-                } catch (Exception exception) {
-                    // Marking failed is committed inside this transaction; external deletion is
-                    // idempotent, so an ambiguous commit can safely be retried.
-                    job.failed(exception.getClass().getSimpleName(), clock.instant());
-                    log.warn("Storage cleanup failed for tenant {} cleanup-job {} (provider {})",
-                            job.tenantId(), job.id(), job.provider(), exception);
+                } catch (Exception failure) {
+                    // Roll back the processing transaction before persisting retry metadata.
+                    // A REQUIRED quota-ledger exception can mark this transaction rollback-only
+                    // even when caught, so the backoff write must use its own transaction.
+                    status.setRollbackOnly();
+                    throw new StorageCleanupProcessingException(failure);
                 }
             });
         } catch (RuntimeException transactionFailure) {
-            log.error("Storage cleanup transaction failed for job {}", id, transactionFailure);
+            Throwable reason = transactionFailure instanceof StorageCleanupProcessingException
+                    && transactionFailure.getCause() != null
+                    ? transactionFailure.getCause() : transactionFailure;
+            try {
+                failureTransaction.executeWithoutResult(status -> {
+                    StorageCleanupJob job = jobs.lockById(id).orElse(null);
+                    if (job == null || job.deletedAt() != null || job.nextAttemptAt().isAfter(clock.instant())) {
+                        return;
+                    }
+                    job.failed(reason.getClass().getSimpleName(), clock.instant());
+                });
+            } catch (RuntimeException persistenceFailure) {
+                transactionFailure.addSuppressed(persistenceFailure);
+                log.error("Could not persist storage cleanup backoff for job {}", id, transactionFailure);
+            }
+            log.warn("Storage cleanup failed for job {} ({}); retry metadata is handled independently",
+                    id, reason.getClass().getSimpleName(), reason);
+        }
+    }
+
+    private static final class StorageCleanupProcessingException extends RuntimeException {
+        private StorageCleanupProcessingException(Exception cause) {
+            super(cause.getClass().getSimpleName(), cause);
         }
     }
 }
