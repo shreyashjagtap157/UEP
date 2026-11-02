@@ -1,39 +1,42 @@
 #!/usr/bin/env python3
-"""Fail closed if privileged staging or database-migration workflows weaken their trust boundaries."""
+"""Verify retired hosted deployment entry points and the remaining staging test boundary."""
 from pathlib import Path
 import sys
 
 root = Path(__file__).resolve().parents[1]
-workflow = (root / ".github/workflows/staging-e2e.yml").read_text(encoding="utf-8")
-migration = (root / ".github/workflows/database-migration.yml").read_text(encoding="utf-8")
+staging = (root / ".github/workflows/staging-e2e.yml").read_text(encoding="utf-8")
 playwright = (root / "apps/web/playwright.staging.config.ts").read_text(encoding="utf-8")
-identity_test = (root / "apps/web/test/staging/identity.staging.spec.ts").read_text(encoding="utf-8")
 runbook = (root / "docs/operations/FLY_SUPABASE_STAGING.md").read_text(encoding="utf-8")
+local_guide = (root / "docs/operations/LOCAL_NATIVE_WINDOWS.md").read_text(encoding="utf-8")
+migration_workflow = root / ".github/workflows/database-migration.yml"
+api_fly_manifest = root / "apps/platform-server/fly.toml"
+keycloak_fly_manifest = root / "infra/keycloak/fly.toml"
 
 checks = {
-    "database migration is manual-dispatch-only": "workflow_dispatch:" in migration and "workflow_run:" not in migration,
-    "database migration is constrained to main": "github.ref == 'refs/heads/main'" in migration,
-    "database migration checkout is pinned to main": "ref: main" in migration,
-    "database migration requires explicit confirmation": "inputs.confirm_database_migration == 'yes'" in migration,
-    "database migration secrets are not job-global": "secrets." not in migration.split("    steps:", 1)[0],
-    "Supabase database migration Environment is protected": "environment: supabase-database-migrations" in migration,
-    "manual dispatch remains available": "workflow_dispatch:" in workflow,
-    "automatic workflow_run trigger is absent": "workflow_run:" not in workflow,
-    "pull-request-target trigger is absent": "pull_request_target:" not in workflow,
-    "dispatch is constrained to main": "github.ref == 'refs/heads/main'" in workflow,
-    "checkout is pinned to main": "ref: main" in workflow,
-    "staging Environment is used": "environment: staging" in workflow,
-    "staging secrets are not job-global": "secrets." not in workflow.split("    steps:", 1)[0],
-    "artifact retention is short": "retention-days: 7" in workflow,
-    "browser traces are disabled": "trace: 'off'" in playwright,
-    "failure screenshots are disabled": "screenshot: 'off'" in playwright,
-    "browser video is disabled": "video: 'off'" in playwright,
-    "tenant UUID assertion is report-safe": (
-        "expect(identity.tenantId === account.tenantId" in identity_test
-        and "expect(identity.tenantId).toBe(account.tenantId)" not in identity_test
+    "hosted database migration workflow is removed": not migration_workflow.exists(),
+    "Fly API deployment manifest is removed": not api_fly_manifest.exists(),
+    "Fly Keycloak deployment manifest is removed": not keycloak_fly_manifest.exists(),
+    "hosted staging runbook is explicitly retired": "STATUS: RETIRED" in runbook and "NOT DEPLOYABLE" in runbook,
+    "runbook records Supabase as inactive": "status INACTIVE" in runbook,
+    "runbook records stopped Fly machine and missing Keycloak app": (
+        "d89565db307d58" in runbook and "Keycloak app uep-keycloak-testing: does not exist" in runbook
     ),
-    "independent GitHub Environment branch restriction is documented": (
-        "GitHub Environment" in runbook and "main-only" in runbook
+    "runbook directs users to local native path": "LOCAL_NATIVE_WINDOWS.md" in runbook,
+    "local native guide is present": (root / "scripts/Start-UEP.ps1").is_file() and local_guide,
+    "remaining remote staging workflow is manual only": (
+        "workflow_dispatch:" in staging
+        and "on:\n  push:" not in staging
+        and "pull_request:" not in staging
+        and "workflow_run:" not in staging
+    ),
+    "remaining staging workflow only launches Playwright tests": (
+        "npx playwright test" in staging
+        and "fly deploy" not in staging.lower()
+        and "supabase db push" not in staging.lower()
+    ),
+    "staging Playwright traces are disabled": "trace: 'off'" in playwright,
+    "staging screenshots and video are disabled": (
+        "screenshot: 'off'" in playwright and "video: 'off'" in playwright
     ),
 }
 
@@ -41,6 +44,6 @@ failed = [name for name, passed in checks.items() if not passed]
 for name, passed in checks.items():
     print(f"{'PASS' if passed else 'FAIL'}: {name}")
 if failed:
-    print(f"Staging workflow security contract failed ({len(failed)} checks).", file=sys.stderr)
+    print(f"Hosted retirement contract failed ({len(failed)} checks).", file=sys.stderr)
     raise SystemExit(1)
-print(f"Staging workflow security contract passed ({len(checks)} checks).")
+print(f"Hosted retirement contract passed ({len(checks)} checks).")
