@@ -522,7 +522,8 @@ for required in [
 ]:
     if required not in recording_cleanup_queue + recording_service_storage:
         errors.append(f'recording purge must enqueue durable object deletion transactionally: {required}')
-if not re.search(r'@Transactional\\s+public void enqueueWithinCurrentTransaction\\(', recording_cleanup_outbox):
+recording_cleanup_outbox_normalized = ' '.join(recording_cleanup_outbox.split())
+if '@Transactional public void enqueueWithinCurrentTransaction(' not in recording_cleanup_outbox_normalized:
     errors.append('recording cleanup outbox must join the caller transaction for atomic metadata retirement')
 for required in [
     'storageQuota.authorizeDelete(job.tenantId(), job.provider())',
