@@ -118,6 +118,31 @@ checks = {
     ),
 }
 
+# Regression guards for defects found during native launcher source review.
+checks.update({
+    "launcher defines each process/readiness helper exactly once": all(
+        len(re.findall(rf"(?m)^function\\s+{name}\\s*\\(", launcher)) == 1
+        for name in ("Start-ManagedProcess", "Write-CommandFile", "Wait-ForHttp")
+    ),
+    "service readiness requires a successful 2xx response": (
+        "$response.StatusCode -ge 200 -and $response.StatusCode -lt 300" in launcher
+        and "$response.StatusCode -lt 500" not in launcher
+    ),
+    "PostgreSQL discovery selects supported majors numerically": (
+        "major -notin @(17, 18)" in launcher
+        and "Sort-Object -Property Major -Descending" in launcher
+        and "Get-PostgresService" in launcher
+        and "Sort-Object Name -Descending" not in launcher
+    ),
+    "credential-bearing local files receive explicit file ACLs": (
+        "function Protect-File" in launcher
+        and launcher.count("Protect-File") >= 6
+        and "Protect-File $StateFile" in launcher
+        and "Protect-File $rolesFile" in launcher
+        and "Protect-File $accountsFile" in launcher
+    ),
+})
+
 failed = [name for name, passed in checks.items() if not passed]
 for name, passed in checks.items():
     print(f"{'PASS' if passed else 'FAIL'}: {name}")
