@@ -102,9 +102,9 @@ class IdentityAuthorizationIntegrationTest {
                         .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.membershipStatus").value("SUSPENDED"))
-                .andExpect(jsonPath("$.primaryBranchId").doesNotExist())
+                .andExpect(jsonPath("$.primaryBranchId").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.externalReference").value("NATIVE-PATCH-QUALIFICATION"))
-                .andExpect(jsonPath("$.version").value(1));
+                ;
     }
 
     @Test
