@@ -30,6 +30,7 @@ import { AdvancedAcademicWorkspace } from '../advanced/AdvancedAcademicWorkspace
 import { IntegrationWorkspace } from '../integration/IntegrationWorkspace'
 import { LocalExperience } from '../dashboard/LocalExperience'
 import {
+  assignRole,
   createBranch,
   createRole,
   fetchBranches,
@@ -39,12 +40,14 @@ import {
   fetchOrganizationSettings,
   fetchPlatformVersion,
   fetchRoles,
+  fetchRoleAssignments,
   provisionMembership,
   revokeOwnSession,
   updateOrganizationSettings,
   updateMembership,
+  unassignRole,
 } from '../platform/api'
-import type { BranchView, CurrentIdentity, OrganizationSettings, PermissionKey, RoleView } from '../platform/api'
+import type { BranchView, CurrentIdentity, MemberView, OrganizationSettings, PermissionKey, RoleAssignmentView, RoleView } from '../platform/api'
 
 type Section = 'overview' | 'advanced' | 'integrations' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
 
@@ -362,12 +365,123 @@ function People({ me }: { me: CurrentIdentity }) {
                   <button className="primary-button" disabled={updateMutation.isPending}>Save membership</button>
                   {updateMutation.isError && updateMutation.variables?.membershipId === member.membershipId && <p className="error-text" role="alert">{updateMutation.error.message}</p>}
                 </form>
+                <MembershipRoleAssignments
+                  member={member}
+                  me={me}
+                  roles={roles.data?.items ?? []}
+                  branches={branches.data?.items ?? []}
+                />
               </td>}
             </tr>)}
           </tbody></table></div>
         )}
       </section>
     </div>
+  )
+}
+
+
+function MembershipRoleAssignments({
+  member,
+  me,
+  roles,
+  branches,
+}: {
+  member: MemberView
+  me: CurrentIdentity
+  roles: RoleView[]
+  branches: BranchView[]
+}) {
+  const queryClient = useQueryClient()
+  const canViewAssignments = has(me, 'ROLES_VIEW')
+  const canAssign = has(me, 'ROLES_ASSIGN') && canViewAssignments
+  const assignments = useQuery({
+    queryKey: ['role-assignments', member.membershipId],
+    queryFn: () => fetchRoleAssignments(member.membershipId),
+    enabled: canViewAssignments,
+  })
+  const assignMutation = useMutation({
+    mutationFn: assignRole,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['role-assignments', member.membershipId] })
+      void queryClient.invalidateQueries({ queryKey: ['members'] })
+    },
+  })
+  const unassignMutation = useMutation({
+    mutationFn: unassignRole,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['role-assignments', member.membershipId] })
+      void queryClient.invalidateQueries({ queryKey: ['members'] })
+    },
+  })
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const scopeKind = String(data.get('scopeKind')) === 'BRANCH' ? 'BRANCH' : 'TENANT'
+    const scopeId = String(data.get('scopeId') ?? '')
+    if (scopeKind === 'BRANCH' && !scopeId) {
+      assignMutation.reset()
+      return
+    }
+    assignMutation.mutate({
+      membershipId: member.membershipId,
+      roleId: String(data.get('roleId') ?? ''),
+      scopeKind,
+      ...(scopeKind === 'BRANCH' ? { scopeId } : {}),
+    })
+  }
+
+  if (!canViewAssignments && !has(me, 'ROLES_ASSIGN')) return null
+
+  return (
+    <section className="content-stack">
+      <p className="eyebrow">Role assignments</p>
+      {canViewAssignments && (
+        assignments.isPending ? <LoadingLine /> : assignments.isError ? <ErrorLine error={assignments.error} /> : (
+          <div className="chip-row">
+            {assignments.data.items.length ? assignments.data.items.map((assignment: RoleAssignmentView) => (
+              <span className="chip" key={assignment.id}>
+                {assignment.roleName} · {assignment.scopeKind === 'TENANT' ? 'Tenant-wide' : `Branch ${shortId(assignment.scopeId ?? '')}`}
+                {has(me, 'ROLES_ASSIGN') && (
+                  <button
+                    type="button"
+                    className="quiet-button"
+                    aria-label={`Remove ${assignment.roleName} assignment`}
+                    disabled={unassignMutation.isPending}
+                    onClick={() => unassignMutation.mutate(assignment.id)}
+                  >Remove</button>
+                )}
+              </span>
+            )) : <span className="muted">No role assignments.</span>}
+          </div>
+        )
+      )}
+      {canAssign && roles.length > 0 && member.membershipStatus !== 'ENDED' && (
+        <form className="form-grid" onSubmit={submit}>
+          <label>Assign role<select name="roleId" required defaultValue="">
+            <option value="" disabled>Select a role</option>
+            {roles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
+          </select></label>
+          <label>Assignment scope<select name="scopeKind" defaultValue="TENANT">
+            <option value="TENANT">Entire tenant</option>
+            {has(me, 'BRANCHES_VIEW') && branches.length > 0 && <option value="BRANCH">One branch</option>}
+          </select></label>
+          {has(me, 'BRANCHES_VIEW') && branches.length > 0 && (
+            <label>Branch<select name="scopeId" defaultValue="">
+              <option value="">Select branch for branch scope</option>
+              {branches.map(branch => <option key={branch.id} value={branch.id}>{branch.displayName}</option>)}
+            </select></label>
+          )}
+          <button className="primary-button" disabled={assignMutation.isPending}>Assign role</button>
+          {assignMutation.isError && <p className="error-text" role="alert">{assignMutation.error.message}</p>}
+        </form>
+      )}
+      {has(me, 'ROLES_ASSIGN') && !canViewAssignments && (
+        <p className="muted">Role assignment listing requires ROLES_VIEW; this account currently has assignment permission without view permission.</p>
+      )}
+      {unassignMutation.isError && <p className="error-text" role="alert">{unassignMutation.error.message}</p>}
+    </section>
   )
 }
 
