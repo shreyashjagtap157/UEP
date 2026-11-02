@@ -13,6 +13,7 @@ import java.nio.file.*;
 import java.security.MessageDigest;
 import java.time.*;
 import java.util.*;
+import java.util.function.Consumer;
 import org.springframework.data.domain.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.slf4j.Logger;
@@ -312,17 +313,11 @@ class RecordingService {
         storageQuota.consumeProviderOperations(r.tenantId(), r.storageProvider(),
                 StorageQuotaService.OperationClass.CLASS_B, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
         long bytes = r.sizeBytes() == null ? 0 : r.sizeBytes();
-        UUID reservationId = storageQuota.reserveDurable(r.tenantId(), targetType,
-                "migration:" + r.quotaReservationId() + ":" + targetType, r.objectKey(), bytes);
-        String newLocator;
-        storageQuota.consumeProviderOperations(r.tenantId(), targetType,
-                StorageQuotaService.OperationClass.CLASS_A, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
-        try (InputStream in = source.open(r.storageLocator())) {
-            newLocator = destination.put(r.objectKey(), in, bytes, "video/mp4");
-        }
-        registerProviderObjectCompensation(r.tenantId(), reservationId, targetType, newLocator,
-                r.objectKey(), destination);
-        storageQuota.commit(r.tenantId(), reservationId, bytes, newLocator, r.objectKey());
+        StorageObjectWrite write = writeReservedObject(r.tenantId(), targetType,
+                "migration:" + r.quotaReservationId() + ":" + targetType, r.objectKey(), bytes,
+                "video/mp4", () -> source.open(r.storageLocator()), destination, ignored -> {});
+        String newLocator = write.locator();
+        UUID reservationId = write.reservationId();
         deleteSourceAfterCommit(r.tenantId(), r.storageProvider(), r.storageLocator(), r.objectKey(),
                 r.quotaReservationId(), source);
         return new MasterCopy(newLocator, reservationId);
@@ -339,18 +334,12 @@ class RecordingService {
             storageQuota.authorizeRead(r.tenantId(), asset.provider());
             storageQuota.consumeProviderOperations(r.tenantId(), asset.provider(),
                     StorageQuotaService.OperationClass.CLASS_B, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
-            UUID newReservation = storageQuota.reserveDurable(r.tenantId(), targetType,
+            StorageObjectWrite write = writeReservedObject(r.tenantId(), targetType,
                     "migration:" + asset.quotaReservationId() + ":" + targetType,
-                    asset.objectKey(), asset.sizeBytes());
-            String newLocator;
-            storageQuota.consumeProviderOperations(r.tenantId(), targetType,
-                    StorageQuotaService.OperationClass.CLASS_A, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
-            try (InputStream in = source.open(asset.locator())) {
-                newLocator = destination.put(asset.objectKey(), in, asset.sizeBytes(), asset.mimeType());
-            }
-            registerProviderObjectCompensation(r.tenantId(), newReservation, targetType, newLocator,
-                    asset.objectKey(), destination);
-            storageQuota.commit(r.tenantId(), newReservation, asset.sizeBytes(), newLocator, asset.objectKey());
+                    asset.objectKey(), asset.sizeBytes(), asset.mimeType(),
+                    () -> source.open(asset.locator()), destination, ignored -> {});
+            String newLocator = write.locator();
+            UUID newReservation = write.reservationId();
             UUID oldReservation = asset.quotaReservationId();
             String oldLocator = asset.locator();
             StorageProviderType oldProvider = asset.provider();
@@ -412,6 +401,94 @@ class RecordingService {
 
     private record MasterCopy(String locator, UUID reservationId) {}
 
+    private record StorageObjectWrite(String locator, UUID reservationId) {}
+
+    @FunctionalInterface
+    private interface RecordingInputStream {
+        InputStream open() throws java.io.IOException;
+    }
+
+    /**
+     * Reserves capacity before the destination request. A failure before PUT starts is safe to
+     * release; a failure after PUT starts but before a locator is returned is ambiguous and must
+     * remain charged for operator reconciliation. Once a locator is known, failed finalization
+     * compensates it immediately (or persists a cleanup outbox job).
+     */
+    StorageObjectWrite writeReservedObject(UUID tenantId, StorageProviderType provider,
+                                           String reservationKey, String objectKey, long bytes,
+                                           String mimeType, RecordingInputStream input,
+                                           StorageAdapter destination, Consumer<UUID> reservationChanged)
+            throws java.io.IOException {
+        UUID reservationId = storageQuota.reserveDurable(
+                tenantId, provider, reservationKey, objectKey, bytes);
+        reservationChanged.accept(reservationId);
+        boolean putStarted = false;
+        String locator = null;
+        try (InputStream source = input.open()) {
+            storageQuota.consumeProviderOperations(tenantId, provider,
+                    StorageQuotaService.OperationClass.CLASS_A,
+                    StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
+            putStarted = true;
+            locator = destination.put(objectKey, source, bytes, mimeType);
+            registerProviderObjectCompensation(
+                    tenantId, reservationId, provider, locator, objectKey, destination);
+            storageQuota.commit(tenantId, reservationId, bytes, locator, objectKey);
+            return new StorageObjectWrite(locator, reservationId);
+        } catch (Exception failure) {
+            if (!putStarted) {
+                releaseBeforeProviderWrite(tenantId, reservationId, reservationChanged, failure);
+            } else if (locator != null) {
+                if (compensateKnownProviderWrite(tenantId, provider, reservationId,
+                        locator, objectKey, destination, failure)) {
+                    reservationChanged.accept(null);
+                }
+            } else {
+                // The provider may have accepted the object before the client lost its response.
+                // Keep the durable reservation charged; the reconciliation worker surfaces it.
+                log.error("Recording provider write outcome is unknown; quota reservation {} remains charged "
+                                + "for tenant {} provider {} object key {}",
+                        reservationId, tenantId, provider, objectKey, failure);
+            }
+            if (failure instanceof java.io.IOException ioFailure) throw ioFailure;
+            if (failure instanceof RuntimeException runtimeFailure) throw runtimeFailure;
+            throw new java.io.IOException("Recording storage write failed", failure);
+        }
+    }
+
+    private void releaseBeforeProviderWrite(UUID tenantId, UUID reservationId,
+                                            Consumer<UUID> reservationChanged, Exception cause) {
+        try {
+            storageQuota.releaseDurable(tenantId, reservationId);
+            reservationChanged.accept(null);
+        } catch (Exception releaseFailure) {
+            cause.addSuppressed(releaseFailure);
+            log.error("Could not release pre-write recording reservation {} for tenant {}",
+                    reservationId, tenantId, releaseFailure);
+        }
+    }
+
+    private boolean compensateKnownProviderWrite(UUID tenantId, StorageProviderType provider,
+                                                 UUID reservationId, String locator, String objectKey,
+                                                 StorageAdapter destination, Exception cause) {
+        try {
+            storageQuota.authorizeDelete(tenantId, provider);
+            destination.delete(locator);
+            storageQuota.releaseDurable(tenantId, reservationId);
+            return true;
+        } catch (Exception cleanupFailure) {
+            cause.addSuppressed(cleanupFailure);
+            try {
+                cleanupQueue.enqueue(tenantId, provider, locator, objectKey, reservationId, cleanupFailure);
+            } catch (Exception enqueueFailure) {
+                cleanupFailure.addSuppressed(enqueueFailure);
+                log.error("Could not enqueue compensation for recording storage object {} reservation {}",
+                        locator, reservationId, enqueueFailure);
+            }
+            log.error("Recording storage compensation is pending for tenant {} provider {} reservation {}",
+                    tenantId, provider, reservationId, cleanupFailure);
+            return false;
+        }
+    }
 
     @Transactional
     void purgeDue(Recording candidate) {
@@ -480,16 +557,11 @@ class RecordingService {
             String hash = RecordingThumbnailService.sha256(video);
             String key = r.tenantId() + "/recordings/" + r.id() + "/master.mp4";
             StorageAdapter target = adapters.require(r.storageProvider());
-            UUID reservationId = storageQuota.reserveDurable(r.tenantId(), r.storageProvider(),
-                    "recording:" + r.id() + ":MASTER", key, bytes);
-            String locator;
-            storageQuota.consumeProviderOperations(r.tenantId(), r.storageProvider(),
-                    StorageQuotaService.OperationClass.CLASS_A, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
-            try (InputStream in = Files.newInputStream(video)) {
-                locator = target.put(key, in, bytes, "video/mp4");
-            }
-            registerProviderObjectCompensation(r.tenantId(), reservationId, r.storageProvider(), locator, key, target);
-            storageQuota.commit(r.tenantId(), reservationId, bytes, locator, key);
+            StorageObjectWrite write = writeReservedObject(r.tenantId(), r.storageProvider(),
+                    "recording:" + r.id() + ":MASTER", key, bytes, "video/mp4",
+                    () -> Files.newInputStream(video), target, reservationId -> r.quotaReservationId = reservationId);
+            String locator = write.locator();
+            UUID reservationId = write.reservationId();
             r.ready(locator, key, hash, bytes, duration, clock.instant());
             r.quotaReservationId = reservationId;
             assets.save(new RecordingAsset(UUID.randomUUID(), r.tenantId(), r.id(), RecordingAssetKind.MASTER,
@@ -510,16 +582,11 @@ class RecordingService {
             long bytes = Files.size(thumb);
             String hash = RecordingThumbnailService.sha256(thumb);
             String key = r.tenantId() + "/recordings/" + r.id() + "/thumbnail.jpg";
-            UUID reservationId = storageQuota.reserveDurable(r.tenantId(), r.storageProvider(),
-                    "recording:" + r.id() + ":THUMBNAIL", key, bytes);
-            String locator;
-            storageQuota.consumeProviderOperations(r.tenantId(), r.storageProvider(),
-                    StorageQuotaService.OperationClass.CLASS_A, StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
-            try (InputStream in = Files.newInputStream(thumb)) {
-                locator = target.put(key, in, bytes, "image/jpeg");
-            }
-            registerProviderObjectCompensation(r.tenantId(), reservationId, r.storageProvider(), locator, key, target);
-            storageQuota.commit(r.tenantId(), reservationId, bytes, locator, key);
+            StorageObjectWrite write = writeReservedObject(r.tenantId(), r.storageProvider(),
+                    "recording:" + r.id() + ":THUMBNAIL", key, bytes, "image/jpeg",
+                    () -> Files.newInputStream(thumb), target, ignored -> {});
+            String locator = write.locator();
+            UUID reservationId = write.reservationId();
             assets.save(new RecordingAsset(UUID.randomUUID(), r.tenantId(), r.id(), RecordingAssetKind.THUMBNAIL,
                     r.storageProvider(), locator, key, "image/jpeg", bytes, hash, clock.instant(), reservationId));
             Files.deleteIfExists(thumb);
