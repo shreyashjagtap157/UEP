@@ -123,8 +123,8 @@ class StorageQuotaServiceIntegrationTest {
     }
 
     private long committedBytes() {
-        Long value = jdbc.queryForObject("SELECT committed_bytes FROM storage_tenant_usage WHERE tenant_id = ?",
-                Long.class, tenantId);
-        return value == null ? 0 : value;
+        return jdbc.queryForObject("""
+                SELECT COALESCE((SELECT committed_bytes FROM storage_tenant_usage WHERE tenant_id = ?), 0)
+                """, Long.class, tenantId);
     }
 }
