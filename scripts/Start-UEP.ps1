@@ -26,6 +26,48 @@ $MavenCmd = $null
 $KeycloakHome = $null
 $State = $null
 
+function Show-RequirementInventory {
+    Write-Section 'Requirement inventory — before installation or startup'
+    $requiredFiles = @(
+        @{ Name='Frontend package'; Path=(Join-Path $WebDir 'package.json') },
+        @{ Name='Frontend lockfile'; Path=(Join-Path $WebDir 'package-lock.json') },
+        @{ Name='Frontend Vite entry'; Path=(Join-Path $WebDir 'vite.config.ts') },
+        @{ Name='Backend Maven project'; Path=(Join-Path $ApiDir 'pom.xml') },
+        @{ Name='Backend application'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\PlatformServerApplication.java') },
+        @{ Name='Database migration runner'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\DatabaseMigrationRunner.java') },
+        @{ Name='Database migrations'; Path=(Join-Path $ApiDir 'src\main\resources\db\migration') },
+        @{ Name='Keycloak local realm'; Path=(Join-Path $RepoRoot 'infra\keycloak\education-realm.json') }
+    )
+    foreach ($item in $requiredFiles) {
+        if (Test-Path -LiteralPath $item.Path) {
+            Write-Status $item.Name 'PRESENT' Green
+        } else {
+            Write-Status $item.Name 'MISSING' Red
+            throw "Required UEP project component is missing: $($item.Path)"
+        }
+    }
+
+    $node = Get-Command 'node.exe' -ErrorAction SilentlyContinue
+    $npm = Get-Command 'npm.cmd' -ErrorAction SilentlyContinue
+    Write-Status 'Node.js' $(if ($node) { 'PRESENT' } else { 'MISSING — installer will be offered' }) $(if ($node) { 'Green' } else { 'Yellow' })
+    Write-Status 'npm' $(if ($npm) { 'PRESENT' } else { 'MISSING — installer will be offered' }) $(if ($npm) { 'Green' } else { 'Yellow' })
+
+    if ($Mode -ne 'Demo') {
+        $java = Find-Java
+        $maven = Get-Command 'mvn.cmd' -ErrorAction SilentlyContinue
+        Find-PostgresTools
+        $pgService = Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^postgresql-x64-\d+' } | Sort-Object Name -Descending | Select-Object -First 1
+        $keycloak = Join-Path $ToolDir 'keycloak-26.7.0\bin\kc.bat'
+        Write-Status 'JDK 21+' $(if ($java) { 'PRESENT' } else { 'MISSING — installer will be offered' }) $(if ($java) { 'Green' } else { 'Yellow' })
+        Write-Status 'Maven 3.9+' $(if ($maven -or (Test-Path (Join-Path $ToolDir 'apache-maven-3.10.0\bin\mvn.cmd'))) { 'PRESENT' } else { 'MISSING — download will be offered' }) $(if ($maven -or (Test-Path (Join-Path $ToolDir 'apache-maven-3.10.0\bin\mvn.cmd'))) { 'Green' } else { 'Yellow' })
+        Write-Status 'PostgreSQL tools' $(if ($script:Psql) { 'PRESENT' } else { 'MISSING — installer will be offered' }) $(if ($script:Psql) { 'Green' } else { 'Yellow' })
+        Write-Status 'PostgreSQL service' $(if ($pgService) { $pgService.Status.ToString() } else { 'MISSING — install PostgreSQL service' }) $(if ($pgService -and $pgService.Status -eq 'Running') { 'Green' } else { 'Yellow' })
+        Write-Status 'Keycloak 26.7' $(if (Test-Path $keycloak) { 'PRESENT' } else { 'MISSING — verified download will be performed' }) $(if (Test-Path $keycloak) { 'Green' } else { 'Yellow' })
+        Write-Status 'Local state' $(if (Test-Path $StateFile) { 'PRESENT — existing local credentials/database identity will be reused' } else { 'NOT INITIALIZED — first-run bootstrap required' }) $(if (Test-Path $StateFile) { 'Green' } else { 'Yellow' })
+        Write-Status 'Frontend node_modules' $(if (Test-Path (Join-Path $WebDir 'node_modules')) { 'PRESENT — npm ci will still verify lockfile' } else { 'MISSING — npm ci will install it' }) $(if (Test-Path (Join-Path $WebDir 'node_modules')) { 'Green' } else { 'Yellow' })
+    }
+}
+
 function Write-Section([string]$Message) {
     Write-Host ''
     Write-Host ('=' * 76) -ForegroundColor DarkCyan
@@ -301,7 +343,7 @@ $uep_local_roles$;
         $roleSql = $roleSql.Replace('__MIGRATION_USER__', $State.MigrationUser).Replace('__MIGRATION_PASSWORD__', $State.MigrationPassword)
         $roleSql = $roleSql.Replace('__RUNTIME_USER__', $State.RuntimeUser).Replace('__RUNTIME_PASSWORD__', $State.RuntimePassword)
         $roleSql = $roleSql.Replace('__KEYCLOAK_USER__', $State.KeycloakUser).Replace('__KEYCLOAK_PASSWORD__', $State.KeycloakPassword)
-        $roleSql | Set-Content -LiteralPath $rolesFile -Encoding UTF8
+        $roleSql | Set-Content -LiteralPath $rolesFile -Encoding ASCII
         Protect-Directory $LocalDir
         Invoke-Psql 'postgres' $adminPassword 'postgres' '' $rolesFile
         $exists = Invoke-Psql 'postgres' $adminPassword 'postgres' "SELECT 1 FROM pg_database WHERE datname = '$($State.DatabaseName)'"
@@ -711,6 +753,7 @@ try {
     Write-Host 'No Docker, Podman, containers, cloud databases, or paid execution services are used.'
     Write-Host ('Repository: ' + $RepoRoot)
     Write-Host ('Mode: ' + $Mode)
+    Show-RequirementInventory
     Ensure-Node
 
     if ($Mode -ne 'Demo') {
@@ -718,12 +761,12 @@ try {
         Ensure-Maven
         Ensure-Postgres
         Ensure-Keycloak
-        Initialize-LocalState
-        Initialize-LocalDatabase
         Test-PortAvailable 8080
         Test-PortAvailable 8081
         Test-PortAvailable 5173
         if ($Mode -eq 'Both') { Test-PortAvailable 5174 }
+        Initialize-LocalState
+        Initialize-LocalDatabase
         Write-RuntimeCommandFiles -RunReal -RunDemo:($Mode -eq 'Both')
         Ensure-RealIdentity
     } else {
