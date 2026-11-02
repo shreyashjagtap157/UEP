@@ -167,7 +167,7 @@ jobs:
           done
 
       - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build API container image for the current runner architecture
         run: docker build --pull --tag uep-platform-api:ci apps/platform-server
       - name: Build and smoke-test OCI ARM64 API container image
@@ -376,7 +376,7 @@ jobs:
           print("Keycloak realm and OCI container contract passed.")
           PY
       - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build optimized staging Keycloak image for the current runner
         run: docker build --pull --tag uep-keycloak-staging:ci infra/keycloak
       - name: Build and smoke-test OCI ARM64 Keycloak image
