@@ -193,14 +193,18 @@ public class StorageQuotaService {
                     ) VALUES (?, ?, ?, ?, 0)
                     ON CONFLICT (tenant_id, provider, operation_class, period_start) DO NOTHING
                     """, tenantId, provider.name(), operationClass.name(), java.sql.Date.valueOf(today));
-            requireOne(jdbc.update("""
+            if (requestAttempts > tenantDailyLimit) {
+                throw StorageQuotaException.capacityExceeded(
+                        "tenant " + operationClass + " daily operation budget");
+            }
+            int updated = jdbc.update("""
                     UPDATE storage_tenant_operation_counter
                     SET consumed = consumed + ?, updated_at = CURRENT_TIMESTAMP
                     WHERE tenant_id = ? AND provider = ? AND operation_class = ?
                       AND period_start = ? AND consumed <= ? - ?
                     """, requestAttempts, tenantId, provider.name(), operationClass.name(),
-                    java.sql.Date.valueOf(today), tenantDailyLimit, requestAttempts),
-                    "tenant " + operationClass + " daily operation budget");
+                    java.sql.Date.valueOf(today), tenantDailyLimit, requestAttempts);
+            requireWithinBudget(updated, "tenant " + operationClass + " daily operation budget");
         }
     }
 
@@ -213,14 +217,17 @@ public class StorageQuotaService {
                 ON CONFLICT (provider, operation_class, period_kind, period_start) DO NOTHING
                 """, provider.name(), operationClass.name(), periodKind,
                 java.sql.Date.valueOf(periodStart));
-        requireOne(jdbc.update("""
+        String budget = "provider " + operationClass + " "
+                + periodKind.toLowerCase(java.util.Locale.ROOT) + " operation budget";
+        if (units > limit) throw StorageQuotaException.capacityExceeded(budget);
+        int updated = jdbc.update("""
                 UPDATE storage_provider_operation_counter
                 SET consumed = consumed + ?, updated_at = CURRENT_TIMESTAMP
                 WHERE provider = ? AND operation_class = ? AND period_kind = ?
                   AND period_start = ? AND consumed <= ? - ?
                 """, units, provider.name(), operationClass.name(), periodKind,
-                java.sql.Date.valueOf(periodStart), limit, units),
-                "provider " + operationClass + " " + periodKind.toLowerCase(java.util.Locale.ROOT) + " operation budget");
+                java.sql.Date.valueOf(periodStart), limit, units);
+        requireWithinBudget(updated, budget);
     }
 
     public enum OperationClass {
@@ -424,6 +431,17 @@ public class StorageQuotaService {
                 tenantId, reservationId);
         if (rows.isEmpty()) throw StorageQuotaException.invalidReservation("reservation does not exist");
         return rows.getFirst();
+    }
+
+    /**
+     * An atomic conditional quota update intentionally affects zero rows when the limit is
+     * exhausted. That is a domain rejection, not a ledger-corruption condition.
+     */
+    private static void requireWithinBudget(int updatedRows, String budget) {
+        if (updatedRows == 0) throw StorageQuotaException.capacityExceeded(budget);
+        if (updatedRows != 1) {
+            throw new IllegalStateException("Storage quota invariant failed: expected one row for " + budget);
+        }
     }
 
     private static void requireOne(int rows, String operation) {
