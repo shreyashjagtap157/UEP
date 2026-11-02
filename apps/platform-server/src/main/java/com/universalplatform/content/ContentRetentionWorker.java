@@ -7,6 +7,9 @@ import com.universalplatform.storage.StorageQuotaService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,12 +54,30 @@ class ContentRetentionWorker {
         this.audit = audit;
     }
 
+    private static final int RETENTION_BATCH_SIZE = 100;
+    private static final Instant FIRST_CURSOR = Instant.parse("0001-01-01T00:00:00Z");
+    private static final UUID FIRST_ID = new UUID(0L, 0L);
+
     @Scheduled(fixedDelayString = "${platform.storage.retention-poll-ms:3600000}")
     @Transactional
     void purgeExpired() {
         Instant now = clock.instant();
-        for (LearningResource r : resources.findTop100ByExpiresAtBeforeAndPurgedAtIsNullOrderByExpiresAtAsc(now)) {
-            purgeResource(r, now);
+        Instant afterExpiresAt = FIRST_CURSOR;
+        UUID afterId = FIRST_ID;
+
+        // Advance the cursor even when a resource is intentionally retained or a provider
+        // delete fails. Otherwise the same oldest 100 resources can starve all later rows.
+        while (true) {
+            List<LearningResource> batch = resources.findExpiredForPurgeAfter(
+                    now, afterExpiresAt, afterId, PageRequest.of(0, RETENTION_BATCH_SIZE));
+            if (batch.isEmpty()) break;
+
+            for (LearningResource resource : batch) {
+                afterExpiresAt = resource.expiresAt;
+                afterId = resource.id;
+                purgeResource(resource, now);
+            }
+            if (batch.size() < RETENTION_BATCH_SIZE) break;
         }
     }
 
