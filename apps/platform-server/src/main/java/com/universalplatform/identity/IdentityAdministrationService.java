@@ -129,6 +129,9 @@ class IdentityAdministrationService {
         membership.update(command.primaryBranchId(), normalizeNullable(command.externalReference(), 160));
         if (membership.status() != command.status()) membership.changeStatus(command.status(), clock.instant());
         audit.record(tenantId, actorContext.requireSubject(), "MEMBERSHIP_UPDATED", "tenant_membership", membership.id().toString());
+        // Flush the @Version update before building the response DTO so clients
+        // receive the new optimistic-lock version rather than the stale value.
+        memberships.flush();
         UserAccount user = users.findById(membership.userId())
                 .orElseThrow(() -> new IdentityNotFoundException("User account not found"));
         return memberView(membership, user, rolesForMembership(tenantId, membership.id()));
