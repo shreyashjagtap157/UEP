@@ -17,7 +17,7 @@ class Recording {
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 16) RecordingStorageTier storageTier;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 32) com.universalplatform.storage.StorageProviderType storageProvider;
     @Column(length = 2048) String storageLocator;
-    @Column(length = 1024) String objectKey;
+    @Column(length = 1024) String objectKey; UUID quotaReservationId;
     @Column(length = 64) String sha256;
     Long sizeBytes;
     Long durationSeconds;
@@ -40,7 +40,7 @@ class Recording {
     UUID id(){return id;} UUID tenantId(){return tenantId;} UUID liveClassId(){return liveClassId;} UUID classSessionId(){return classSessionId;}
     String roomName(){return roomName;} RecordingQualityPreset qualityPreset(){return qualityPreset;} RecordingProcessingStatus status(){return status;}
     RecordingStorageTier storageTier(){return storageTier;} com.universalplatform.storage.StorageProviderType storageProvider(){return storageProvider;}
-    String storageLocator(){return storageLocator;} String objectKey(){return objectKey;} String sha256(){return sha256;} Long sizeBytes(){return sizeBytes;}
+    String storageLocator(){return storageLocator;} String objectKey(){return objectKey;} UUID quotaReservationId(){return quotaReservationId;} String sha256(){return sha256;} Long sizeBytes(){return sizeBytes;}
     Long durationSeconds(){return durationSeconds;} String egressId(){return egressId;} Instant requestedAt(){return requestedAt;} Instant startedAt(){return startedAt;}
     Instant endedAt(){return endedAt;} Instant readyAt(){return readyAt;} Instant archivedAt(){return archivedAt;} long version(){return version;}
     void markStarting(Instant now){if(status!=RecordingProcessingStatus.REQUESTED)throw new IllegalStateException("Recording cannot start from "+status);status=RecordingProcessingStatus.STARTING;failureReason=null;}
@@ -51,11 +51,11 @@ class Recording {
         else throw new IllegalStateException("Recording cannot finalize from "+status);
     }
     void ready(String locator,String key,String hash,long bytes,long duration,Instant now){this.storageLocator=locator;this.objectKey=key;this.sha256=hash;this.sizeBytes=bytes;this.durationSeconds=Math.max(0,duration);this.status=RecordingProcessingStatus.READY;this.readyAt=now;}
-    void cached(com.universalplatform.storage.StorageProviderType provider,String locator,String key,Instant now){this.storageProvider=provider;this.storageLocator=locator;this.objectKey=key;this.storageTier=RecordingStorageTier.CACHE;this.status=RecordingProcessingStatus.READY;}
-    void archived(com.universalplatform.storage.StorageProviderType provider,String locator,String key,Instant now){this.storageProvider=provider;this.storageLocator=locator;this.objectKey=key;this.storageTier=RecordingStorageTier.ARCHIVE;this.status=RecordingProcessingStatus.ARCHIVED;this.archivedAt=now;}
+    void cached(com.universalplatform.storage.StorageProviderType provider,String locator,String key,Instant now){cached(provider,locator,key,quotaReservationId,now);} void cached(com.universalplatform.storage.StorageProviderType provider,String locator,String key,UUID reservationId,Instant now){this.storageProvider=provider;this.storageLocator=locator;this.objectKey=key;this.quotaReservationId=reservationId;this.storageTier=RecordingStorageTier.CACHE;this.status=RecordingProcessingStatus.READY;}
+    void archived(com.universalplatform.storage.StorageProviderType provider,String locator,String key,Instant now){archived(provider,locator,key,quotaReservationId,now);} void archived(com.universalplatform.storage.StorageProviderType provider,String locator,String key,UUID reservationId,Instant now){this.storageProvider=provider;this.storageLocator=locator;this.objectKey=key;this.quotaReservationId=reservationId;this.storageTier=RecordingStorageTier.ARCHIVE;this.status=RecordingProcessingStatus.ARCHIVED;this.archivedAt=now;}
     void fail(String reason){this.status=RecordingProcessingStatus.FAILED;this.failureReason=reason;}
     void markArchiving(){if(status==RecordingProcessingStatus.READY)status=RecordingProcessingStatus.ARCHIVING;}
     void restoreReady(){if(status==RecordingProcessingStatus.ARCHIVING)status=RecordingProcessingStatus.READY;}
-    void clearStoragePointer(){this.storageLocator=null;this.objectKey=null;}
+    void clearStoragePointer(){this.storageLocator=null;this.objectKey=null;this.quotaReservationId=null;}
     void delete(Instant now){this.status=RecordingProcessingStatus.DELETED;this.deletedAt=now;}
 }

@@ -121,6 +121,16 @@ public class StorageQuotaService {
     }
 
     @Transactional(readOnly = true)
+    public void authorizeWrite(UUID tenantId, StorageProviderType provider) {
+        List<Boolean> enabled = jdbc.query("""
+                SELECT writes_enabled FROM storage_provider_quota WHERE provider = ?
+                """, (rs, row) -> rs.getBoolean(1), provider.name());
+        if (enabled.isEmpty() || !enabled.getFirst()) {
+            throw StorageQuotaException.providerUnavailable(provider.name());
+        }
+    }
+
+    @Transactional(readOnly = true)
     public void authorizeRead(UUID tenantId, StorageProviderType provider) {
         List<Boolean> enabled = jdbc.query("""
                 SELECT reads_enabled FROM storage_provider_quota WHERE provider = ?
