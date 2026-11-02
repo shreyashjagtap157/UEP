@@ -327,7 +327,7 @@ function People({ me }: { me: CurrentIdentity }) {
       <section className="panel">
         <div className="panel-heading"><div><p className="eyebrow">Directory</p><h3>Tenant people</h3></div><span className="count-badge">{members.data?.totalElements ?? 0}</span></div>
         {members.isPending ? <LoadingLine /> : members.isError ? <ErrorLine error={members.error} /> : (
-          <div className="table-wrap"><table aria-label="Tenant member directory"><thead><tr><th>Name</th><th>Status</th><th>Roles</th><th>Identity subject</th>{has(me, 'USERS_MANAGE') && <th>Manage membership</th>}</tr></thead><tbody>
+          <div className="table-wrap"><table aria-label="Tenant member directory"><thead><tr><th>Name</th><th>Status</th><th>Roles</th><th>Identity subject</th>{has(me, 'USERS_MANAGE') && <th>Manage membership</th>}{(has(me, 'ROLES_VIEW') || has(me, 'ROLES_ASSIGN')) && <th>Role assignments</th>}</tr></thead><tbody>
             {members.data.items.map(member => <tr key={member.membershipId}>
               <td><strong>{member.displayName}</strong><span>{member.email ?? 'No email'}</span></td>
               <td>{member.membershipStatus}</td>
@@ -365,6 +365,8 @@ function People({ me }: { me: CurrentIdentity }) {
                   <button className="primary-button" disabled={updateMutation.isPending}>Save membership</button>
                   {updateMutation.isError && updateMutation.variables?.membershipId === member.membershipId && <p className="error-text" role="alert">{updateMutation.error.message}</p>}
                 </form>
+              </td>}
+              {(has(me, 'ROLES_VIEW') || has(me, 'ROLES_ASSIGN')) && <td>
                 <MembershipRoleAssignments
                   member={member}
                   me={me}
