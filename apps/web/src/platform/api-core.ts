@@ -80,6 +80,9 @@ export const fetchMySessions=()=>request<PageResult<SessionView>>('/api/v1/ident
 export function provisionMembership(input:{subject:string;email?:string;displayName:string;roleIds:string[]}):Promise<MemberView>{
   return request('/api/v1/identity/memberships',{method:'POST',body:JSON.stringify(input)})
 }
+export function updateMembership(membershipId:string,input:{status:MemberView['membershipStatus'];primaryBranchId?:string|null;externalReference?:string|null;expectedVersion:number}):Promise<MemberView>{
+  return request(`/api/v1/identity/memberships/${encodeURIComponent(membershipId)}`,{method:'PATCH',body:JSON.stringify(input)})
+}
 export function createRole(input:{name:string;description?:string;permissions:PermissionKey[]}):Promise<RoleView>{
   return request('/api/v1/identity/roles',{method:'POST',body:JSON.stringify({...input,expectedVersion:0})})
 }
