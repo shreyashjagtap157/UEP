@@ -143,8 +143,19 @@ test('real OIDC owner exports analytics and persists a branch through Vite, Spri
       && url.pathname === '/api/v1/me'
       && response.request().method() === 'GET'
   })
+  const authorizationRequestPromise = page.waitForRequest(request => {
+    const url = new URL(request.url())
+    return url.origin === 'http://localhost:8081'
+      && url.pathname === '/realms/education/protocol/openid-connect/auth'
+  })
 
   await page.goto(frontend)
+  const authorizationRequest = await authorizationRequestPromise
+  const authorizationUrl = new URL(authorizationRequest.url())
+  expect(authorizationUrl.searchParams.get('client_id')).toBe('platform-web')
+  expect(authorizationUrl.searchParams.get('response_type')).toBe('code')
+  expect(authorizationUrl.searchParams.get('code_challenge_method')).toBe('S256')
+  expect(authorizationUrl.searchParams.get('code_challenge')).toBeTruthy()
   const username = page.locator('input[name="username"]')
   const password = page.locator('input[name="password"]')
   await expect(username, 'Real mode must redirect to the local Keycloak login form').toBeVisible()
