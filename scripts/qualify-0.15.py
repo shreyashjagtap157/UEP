@@ -550,9 +550,12 @@ for required in [
     'PageRequest.of(0, CLEANUP_BATCH_SIZE)',
     'afterExpiresAt',
     'afterCompletedAt',
+    'Instant.parse("0001-01-01T00:00:00Z")',
 ]:
     if required not in upload_cleanup_worker:
         errors.append(f'upload cleanup worker is missing starvation-safe cleanup contract: {required}')
+if ':afterExpiresAt is null' in upload_repository or ':afterCompletedAt is null' in upload_repository:
+    errors.append('upload keyset pagination must not rely on untyped nullable PostgreSQL cursor parameters')
 upload_cleanup_test = text('apps/platform-server/src/test/java/com/universalplatform/content/UploadCleanupWorkerIntegrationTest.java')
 if 'failedOldFilesDoNotStarveLaterCleanupAndAbortedSessionsStayAborted' not in upload_cleanup_test:
     errors.append('missing upload staging cleanup pagination/abort regression test')
