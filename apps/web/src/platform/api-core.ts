@@ -12,6 +12,7 @@ export interface RoleView{id:string;systemKey?:string;name:string;description?:s
 export interface BranchView{id:string;code:string;displayName:string;timezone:string;status:'ACTIVE'|'INACTIVE'|'CLOSED';createdAt:string;version:number}
 export interface OrganizationSettings{tenantId:string;defaultTimezone:string;defaultLocale:string;weekStartsOn:number;supportEmail?:string;supportUrl?:string;version:number}
 export interface SessionView{id:string;startedAt:string;lastSeenAt:string;expiresAt?:string;revokedAt?:string;revocationReason?:string;current:boolean}
+export interface RoleAssignmentView{id:string;membershipId:string;roleId:string;roleName:string;scopeKind:'TENANT'|'BRANCH';scopeId?:string}
 export interface DeploymentInfo { platform: string; status: string; url: string; lastChecked: string }
 export class PlatformApiError extends Error{readonly status:number;readonly problemDetail:unknown;constructor(status:number,message:string,problemDetail?:unknown){super(message);this.status=status;this.problemDetail=problemDetail}}
 function extractServerMessage(body:unknown,fallback:string):string{if(body&&typeof body==='object'){const detail=(body as {detail?:unknown}).detail;const message=(body as {message?:unknown}).message;const title=(body as {title?:unknown}).title;if(typeof detail==='string'&&detail.trim())return detail;if(typeof message==='string'&&message.trim())return message;if(typeof title==='string'&&title.trim())return title}return fallback}
@@ -82,6 +83,13 @@ export function provisionMembership(input:{subject:string;email?:string;displayN
 }
 export function updateMembership(membershipId:string,input:{status:MemberView['membershipStatus'];primaryBranchId?:string|null;externalReference?:string|null;expectedVersion:number}):Promise<MemberView>{
   return request(`/api/v1/identity/memberships/${encodeURIComponent(membershipId)}`,{method:'PATCH',body:JSON.stringify(input)})
+}
+export const fetchRoleAssignments=(membershipId:string)=>request<PageResult<RoleAssignmentView>>(`/api/v1/identity/roles/memberships/${encodeURIComponent(membershipId)}?size=100`)
+export function assignRole(input:{membershipId:string;roleId:string;scopeKind:'TENANT'|'BRANCH';scopeId?:string|null}):Promise<RoleAssignmentView>{
+  return request('/api/v1/identity/roles/assignments',{method:'POST',body:JSON.stringify(input)})
+}
+export function unassignRole(assignmentId:string):Promise<void>{
+  return request(`/api/v1/identity/roles/assignments/${encodeURIComponent(assignmentId)}`,{method:'DELETE'})
 }
 export function createRole(input:{name:string;description?:string;permissions:PermissionKey[]}):Promise<RoleView>{
   return request('/api/v1/identity/roles',{method:'POST',body:JSON.stringify({...input,expectedVersion:0})})
