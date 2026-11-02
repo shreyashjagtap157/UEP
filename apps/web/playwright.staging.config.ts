@@ -100,8 +100,9 @@ export default defineConfig({
   outputDir: 'e2e-staging-results/test-output',
   use: {
     baseURL: baseUrl,
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
+    trace: 'off',
+    screenshot: 'off',
+    video: 'off',
     viewport: { width: 1440, height: 900 },
   },
 })
