@@ -1,97 +1,63 @@
-# Retired hosted staging target — historical status and decommission record
+# Retired hosted staging target — decommission record
 
-**STATUS: RETIRED / NOT DEPLOYABLE FROM THIS BRANCH.**
-**Last verified: 2026-11-02.** Use [LOCAL_NATIVE_WINDOWS.md](LOCAL_NATIVE_WINDOWS.md) for the supported no-container local environment and [LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md](LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) for integration qualification.
+**STATUS: RETIRED / NOT DEPLOYABLE.** This file is an audit record, not a runbook. Do not provision, start, deploy, migrate, move or resize any Fly, Supabase, OCI or Vercel resource using historical values. The supported replacement is [LOCAL_NATIVE_WINDOWS.md](LOCAL_NATIVE_WINDOWS.md).
 
-This file is retained as an audit record only. It is not an active deployment runbook. Do not provision, start, move, resize, recreate or migrate any Fly/Supabase resource using historical values in this document.
-
-## Verified hosted state
+## Verified hosted state (2 November 2026)
 
 ### Fly.io
+- Owner-reported Personal Organization app: uep-backend-testing.
+- Machine: d89565db307d58, Sydney (syd), shared-cpu-2x / 2048 MB.
+- Machine status: stopped after exhausting the maximum 10 restart attempts.
+- No backend volume was attached.
+- Last known machine image: release v7.
+- The Keycloak app uep-keycloak-testing does not exist.
+- The owner-provided machine logs show Spring Boot failing during context initialization before binding port 8080. Current CI has since qualified the current source's production-profile JAR startup, but no current image has been deployed to Fly.
 
-The owner inspected the Personal Organization in the Fly dashboard and provided this machine inventory:
-
-- App: uep-backend-testing.
-- Machine: d89565db307d58.
-- Region: Sydney (syd).
-- State: stopped; maximum 10 restart attempts exhausted.
-- Resources shown: shared-cpu-2x, 2048 MB.
-- Attached backend volumes: none.
-- Last known release: v7.
-- Keycloak app uep-keycloak-testing: does not exist.
-
-The old machine logs show Spring Boot failed during application-context initialization with a missing Spring Modulith ApplicationModulesRuntime dependency, before port 8080 became available. The current API source was subsequently verified by GitHub CI using the production profile, but no Fly image has been deployed from that verification.
-
-The account is not connected to an authenticated Fly management tool in this session. Therefore:
-
-- No machine was started, resized, moved or destroyed.
-- No new Fly app or machine was created.
-- The existing Fly machine is still a stopped resource record.
-- Deleting the machine and app records themselves remains an owner action in the Fly dashboard. Inspect the stopped machine and then use the dashboard's destroy controls if complete Fly-side removal is required.
-- A stopped Fly resource may still have account-specific storage/billing consequences; confirm the final resource list and billing summary after dashboard deletion.
-
-The Fly deployment manifests have been removed from this repository so a normal sync no longer carries the API or Keycloak Fly app configurations.
+No Fly control-plane credential or management connector was available in this session. No Fly machine was started, replaced, moved, resized or destroyed. The stopped machine and app record still exist and require the owner to use the Fly dashboard to destroy them after checking the resource and billing inventory. Do not claim permanent deletion.
 
 ### Supabase
+- Connected UEP project ref: rykmwcslbzmkzmnnzvxm.
+- Region: ap-southeast-1; plan: Free; PostgreSQL 17.11.
+- Before pause, the public and keycloak schemas had no UEP tables and no Flyway history.
+- No UEP migrations were applied.
+- The Supabase pause operation returned success; a later project inspection reported INACTIVE.
 
-The only connected Supabase project was:
-
-- Project: UEP.
-- Ref: rykmwcslbzmkzmnnzvxm.
-- Region: ap-southeast-1.
-- Plan: Free.
-- PostgreSQL engine: 17.11.
-
-The project was inspected before deactivation. The public and keycloak schemas contained no UEP application tables and no Flyway history. No UEP migration was applied to this hosted project.
-
-On 2026-11-02 the Supabase pause operation succeeded. A subsequent get-project check reported status INACTIVE. This means the hosted project is paused, not deleted. The project can be restored from the Supabase dashboard. Complete deletion, should the owner choose it, must be performed there after checking for unrelated retained data; this session did not delete the project.
-
-The GitHub database-migration workflow has been removed. No database migration action is available from this branch for the hosted project.
+The project is paused, not permanently deleted. The owner may delete it from the Supabase dashboard after checking for data or resources that should be retained. No project deletion is claimed.
 
 ### Cloudflare Pages
+The two static Pages projects are independent of the API/database retirement. The last inspected uep-frontend-testing bundle was stale and referenced retired service configuration; it is not a qualified connected product. uep-frontend-demo is an offline fixture-based presentation frontend and was not modified. Cloudflare Pages does not host the UEP Spring API, Keycloak or PostgreSQL.
 
-The Cloudflare Pages frontend projects remain separate from the API/database retirement:
+## Repository retirement
 
-- uep-frontend-testing remains GitHub-linked but its last inspected bundle was stale and referenced the retired Fly services.
-- Automatic/preview Git deployments were disabled at the time of inspection.
-- uep-frontend-demo is a separate offline/demo project and was not modified.
+Removed from main:
+- Fly API deployment manifest apps/platform-server/fly.toml.
+- Fly Keycloak deployment manifest infra/keycloak/fly.toml.
+- Hosted Supabase database migration workflow .github/workflows/database-migration.yml.
+- Remote staging E2E workflow .github/workflows/staging-e2e.yml.
+- Vercel multi-service configuration, backend runtime profile and Vercel-specific backend/build configuration.
 
-No API, Keycloak or database service is deployed by Cloudflare Pages. Do not treat the stale testing frontend as a connected product.
+CI still performs source, unit, integration, database compatibility and build qualification on GitHub-hosted public-repository runners. Those checks build/test artifacts only; they do not deploy backend or database infrastructure. Dockerfiles remain solely for CI container-build/smoke qualification and are not used by the native Windows launcher.
 
-## Repository retirement changes
-
-The following deployment entry points have been removed from main:
-
-- apps/platform-server/fly.toml
-- infra/keycloak/fly.toml
-- .github/workflows/database-migration.yml
-
-The staging browser-test workflow remains a manually enabled test workflow only; it does not provision or deploy backend, Keycloak or database resources. The repository policy verifier rejects the retired deployment artifacts if they are reintroduced.
-
-Dockerfiles and OCI container smoke checks may remain as build/CI qualification artifacts. They are not a local runtime requirement and are not used by the native Windows launcher.
-
-## Supported replacement
-
-Use the native Windows path:
+## Supported local replacement
 
 - scripts/Start-UEP.ps1 — Demo, Real and Both modes.
-- docs/operations/LOCAL_NATIVE_WINDOWS.md — setup, URLs, database ownership and operations.
-- docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md — full browser/API/PostgreSQL acceptance prompt.
+- LOCAL_NATIVE_WINDOWS.md — requirements, local URLs, database ownership and operations.
+- LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md — full browser/API/PostgreSQL acceptance prompt.
 
-The Real local path uses native PostgreSQL, Keycloak and Spring Boot processes. The Demo path is intentionally offline and fixture-backed. Neither mode calls the retired hosted backend or database.
+Real mode uses native PostgreSQL, Keycloak and Spring Boot processes. The real browser uses the Vite /api proxy, Spring Boot connects to PostgreSQL using uep_local_runtime, and schema changes are applied separately through the local DatabaseMigrationRunner as uep_local_migrator. Demo mode is intentionally offline and fixture-backed.
 
-## Decommission boundary — do not overstate completion
+## Completion boundary
 
-Completed and verified:
-- Existing Fly API machine was reported stopped and has no attached volumes.
-- No Keycloak Fly app exists.
-- Supabase pause succeeded and the project subsequently reported INACTIVE.
-- UEP Fly manifests and hosted database-migration workflow are removed from main.
-- No hosted UEP database migrations were applied.
+Completed:
+- Fly backend machine confirmed stopped by the owner; no attached backend volume.
+- Keycloak Fly app confirmed absent.
+- Supabase project successfully paused and subsequently observed as INACTIVE.
+- Fly manifests, hosted migration workflow, remote staging E2E workflow and Vercel backend configuration removed from main.
+- No hosted UEP database migrations applied.
 
-Not completed because account-level delete permission was unavailable:
-- Deletion of the stopped Fly machine and Fly app record.
-- Permanent deletion of the paused Supabase project.
-- Any change to the existing Cloudflare Pages projects.
+Not completed:
+- Permanent deletion of Fly machine and app record (owner dashboard action still required).
+- Permanent deletion of the paused Supabase project (owner dashboard action still required).
+- Changes/deletion of Cloudflare Pages projects.
 
-These remaining provider actions are intentionally not simulated or reported as complete.
+These boundaries are deliberate. No provider-side deletion is simulated or reported as complete.
