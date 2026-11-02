@@ -142,6 +142,57 @@ class RecordingPurgeLifecycleTest {
     }
 
     @Test
+    void failedOperationBudgetReleasesReservationBeforeProviderPut() throws Exception {
+        UUID reservationId = UUID.randomUUID();
+        AtomicReference<UUID> reservationState = new AtomicReference<>();
+        when(storageQuota.reserveDurable(tenantId, StorageProviderType.LOCAL,
+                "recording:failed-budget:MASTER", "object-key", 128)).thenReturn(reservationId);
+        doThrow(new IllegalStateException("operation budget exhausted"))
+                .when(storageQuota).consumeProviderOperations(
+                        tenantId, StorageProviderType.LOCAL,
+                        StorageQuotaService.OperationClass.CLASS_A,
+                        StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS);
+
+        assertThatThrownBy(() -> service.writeReservedObject(
+                tenantId, StorageProviderType.LOCAL,
+                "recording:failed-budget:MASTER", "object-key", 128, "video/mp4",
+                () -> new ByteArrayInputStream(new byte[128]), localStorage, reservationState::set))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("operation budget exhausted");
+
+        assertThat(reservationState.get()).isNull();
+        verify(storageQuota).releaseDurable(tenantId, reservationId);
+        verify(localStorage, never()).put(anyString(), any(),
+                org.mockito.ArgumentMatchers.eq(128L), anyString());
+    }
+
+    @Test
+    void ambiguousProviderPutFailureKeepsReservationChargedForReconciliation() throws Exception {
+        UUID reservationId = UUID.randomUUID();
+        AtomicReference<UUID> reservationState = new AtomicReference<>();
+        when(storageQuota.reserveDurable(tenantId, StorageProviderType.LOCAL,
+                "recording:ambiguous-put:MASTER", "object-key", 128)).thenReturn(reservationId);
+        doThrow(new IOException("provider response lost after write"))
+                .when(localStorage).put(anyString(), any(),
+                        org.mockito.ArgumentMatchers.eq(128L), anyString());
+
+        assertThatThrownBy(() -> service.writeReservedObject(
+                tenantId, StorageProviderType.LOCAL,
+                "recording:ambiguous-put:MASTER", "object-key", 128, "video/mp4",
+                () -> new ByteArrayInputStream(new byte[128]), localStorage, reservationState::set))
+                .isInstanceOf(IOException.class)
+                .hasMessage("provider response lost after write");
+
+        assertThat(reservationState.get()).isEqualTo(reservationId);
+        verify(storageQuota, never()).releaseDurable(tenantId, reservationId);
+        verify(cleanupQueue, never()).enqueue(
+                org.mockito.ArgumentMatchers.eq(tenantId),
+                org.mockito.ArgumentMatchers.eq(StorageProviderType.LOCAL),
+                anyString(), anyString(),
+                org.mockito.ArgumentMatchers.eq(reservationId), any());
+    }
+
+    @Test
     void purgeReloadsAndPersistsDeletedStateOnlyAfterAllProviderObjectsDelete() throws Exception {
         UUID masterReservationId = recording.quotaReservationId;
         UUID thumbnailReservationId = thumbnail.quotaReservationId();
