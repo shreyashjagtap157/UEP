@@ -107,6 +107,49 @@ class IdentityAuthorizationIntegrationTest {
     }
 
     @Test
+    void membershipUpdateRejectsStaleOptimisticVersion() throws Exception {
+        String firstUpdate = """
+                {"status":"ACTIVE","primaryBranchId":null,"externalReference":"FIRST-UPDATE","expectedVersion":0}
+                """;
+        mvc.perform(patch("/api/v1/identity/memberships/{membershipId}", DUAL_MEMBERSHIP)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(firstUpdate)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(1));
+
+        mvc.perform(patch("/api/v1/identity/memberships/{membershipId}", DUAL_MEMBERSHIP)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"ACTIVE","primaryBranchId":null,"externalReference":"STALE-UPDATE","expectedVersion":0}
+                                """)
+                        .with(jwt().jwt(token -> token.subject(OWNER_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDENTITY_CONFLICT"));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT external_reference FROM tenant_membership WHERE id = ?", String.class, DUAL_MEMBERSHIP))
+                .isEqualTo("FIRST-UPDATE");
+    }
+
+    @Test
+    void membershipUpdateRequiresUsersManagePermission() throws Exception {
+        jdbc.update("DELETE FROM role_assignment WHERE tenant_id = ? AND membership_id = ? AND role_id = ?",
+                TENANT, DUAL_MEMBERSHIP, DELEGATED_ADMIN_ROLE);
+
+        mvc.perform(patch("/api/v1/identity/memberships/{membershipId}", DUAL_MEMBERSHIP)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"SUSPENDED","primaryBranchId":null,"externalReference":"UNAUTHORIZED","expectedVersion":0}
+                                """)
+                        .with(jwt().jwt(token -> token.subject(DUAL_SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("IDENTITY_ACCESS_DENIED"));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+                "SELECT status FROM tenant_membership WHERE id = ?", String.class, DUAL_MEMBERSHIP))
+                .isEqualTo("ACTIVE");
+    }
+
+    @Test
     void finalActiveOrganizationOwnerCannotBeSuspended() throws Exception {
         mvc.perform(patch("/api/v1/identity/memberships/{membershipId}", OWNER_MEMBERSHIP)
                         .contentType(MediaType.APPLICATION_JSON)
