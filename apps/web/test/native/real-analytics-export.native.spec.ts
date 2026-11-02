@@ -200,7 +200,7 @@ test('real OIDC owner exports analytics and persists a branch through Vite, Spri
   // Create a real tenant branch from the authenticated UI, then prove the same
   // committed row survives a browser reload and is readable with the API runtime role.
   await page.getByRole('button', { name: 'Organization', exact: true }).click()
-  const branchCode = 'NATIVE' + Date.now().toString()
+  const branchCode = 'NATIVE-E2E-' + Date.now().toString()
   const branchName = 'Native persistence qualification ' + branchCode
 
   await page.getByLabel('Code').fill(branchCode)
@@ -227,6 +227,10 @@ test('real OIDC owner exports analytics and persists a branch through Vite, Spri
   expect(createdBranch.displayName).toBe(branchName)
   expect(createdBranch.status).toBe('ACTIVE')
   expect(createdBranch.id).toMatch(/^[0-9a-f-]{36}$/i)
+  test.info().annotations.push({
+    type: 'created-branch',
+    description: branchCode + ' / ' + createdBranch.id + ' (retained: no branch delete API exists)',
+  })
 
   const createHeaders = await createBranchResponse.request().allHeaders()
   expect(createHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
