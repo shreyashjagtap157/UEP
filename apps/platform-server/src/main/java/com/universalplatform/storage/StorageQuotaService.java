@@ -110,7 +110,7 @@ public class StorageQuotaService {
                 ) VALUES (?, ?, ?, ?, 'RESERVED', ?, 0, ?, ?, ?)
                 """, reservationId, tenantId, provider.name(), reservationKey, expectedBytes,
                 objectKey, Timestamp.from(now), Timestamp.from(now));
-        jdbc.update("""
+        requireOne(jdbc.update("""
                 UPDATE storage_tenant_usage
                 SET reserved_bytes = reserved_bytes + ?, row_version = row_version + 1
                 WHERE tenant_id = ?
