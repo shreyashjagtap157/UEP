@@ -48,6 +48,20 @@ class UploadStorageBindingTest {
     @Mock StorageAdapter adapter;
 
     @Test
+    void chunkLengthValidationRejectsOverflowAndInvalidOffsets() {
+        assertThat(UploadService.chunkExceedsExpectedLength(12, Long.MAX_VALUE, 100)).isTrue();
+        assertThat(UploadService.chunkExceedsExpectedLength(12, -1, 100)).isTrue();
+        assertThat(UploadService.chunkExceedsExpectedLength(-1, 1, 100)).isTrue();
+        assertThat(UploadService.chunkExceedsExpectedLength(101, 0, 100)).isTrue();
+    }
+
+    @Test
+    void chunkLengthValidationAllowsExactlyTheRemainingBytes() {
+        assertThat(UploadService.chunkExceedsExpectedLength(12, 88, 100)).isFalse();
+        assertThat(UploadService.chunkExceedsExpectedLength(0, 0, 0)).isFalse();
+    }
+
+    @Test
     void uploadUsesTenantConfiguredS3ProviderAndSnapshotsPrefix() throws Exception {
         when(actors.requireSubject()).thenReturn("staging-owner");
         UploadService service = service(false);
