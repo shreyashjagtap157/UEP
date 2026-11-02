@@ -43,7 +43,6 @@ class StorageQuotaServiceIntegrationTest {
         jdbc.update("DELETE FROM storage_provider_operation_counter WHERE provider = 'S3_COMPATIBLE'");
         jdbc.update("DELETE FROM storage_tenant_operation_counter WHERE provider = 'S3_COMPATIBLE'");
         resetS3OperationLimits();
-        resetS3OperationLimits();
     }
 
     @AfterEach
