@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_database_migration:
-        description: Confirm applying pending V001–V046 migrations to the configured database
+        description: Confirm applying pending UEP migrations to the configured database
         required: true
         type: choice
         options:
@@ -21,23 +21,28 @@ concurrency:
 
 jobs:
   migrate:
-    if: ${{ inputs.confirm_database_migration == 'yes' }}
+    # Defense in depth only. The vercel-database-migrations Environment must
+    # independently restrict deployments to main and require an authorized reviewer.
+    if: ${{ github.ref == 'refs/heads/main' && inputs.confirm_database_migration == 'yes' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: vercel-database-migrations
-    env:
-      UEP_DATABASE_MIGRATION_JDBC_URL: ${{ secrets.UEP_DATABASE_MIGRATION_JDBC_URL }}
-      UEP_DATABASE_MIGRATION_USERNAME: ${{ secrets.UEP_DATABASE_MIGRATION_USERNAME }}
-      UEP_DATABASE_MIGRATION_PASSWORD: ${{ secrets.UEP_DATABASE_MIGRATION_PASSWORD }}
-      UEP_DATABASE_RUNTIME_USERNAME: ${{ vars.UEP_DATABASE_RUNTIME_USERNAME }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
       - name: Verify migration credentials are present without revealing values
+        env:
+          UEP_DATABASE_MIGRATION_JDBC_URL: ${{ secrets.UEP_DATABASE_MIGRATION_JDBC_URL }}
+          UEP_DATABASE_MIGRATION_USERNAME: ${{ secrets.UEP_DATABASE_MIGRATION_USERNAME }}
+          UEP_DATABASE_MIGRATION_PASSWORD: ${{ secrets.UEP_DATABASE_MIGRATION_PASSWORD }}
+          UEP_DATABASE_RUNTIME_USERNAME: ${{ vars.UEP_DATABASE_RUNTIME_USERNAME }}
         shell: bash
         run: |
           set -euo pipefail
@@ -49,9 +54,18 @@ jobs:
             jdbc:postgresql://*) ;;
             *) echo "Migration URL must use jdbc:postgresql://" >&2; exit 1 ;;
           esac
+          if [ "$UEP_DATABASE_MIGRATION_USERNAME" = "$UEP_DATABASE_RUNTIME_USERNAME" ]; then
+            echo "Migration and runtime database identities must be distinct." >&2
+            exit 1
+          fi
       - name: Compile the migration runner
         run: mvn -B -f apps/platform-server/pom.xml -DskipTests package
       - name: Apply and validate pending Flyway migrations
+        env:
+          UEP_DATABASE_MIGRATION_JDBC_URL: ${{ secrets.UEP_DATABASE_MIGRATION_JDBC_URL }}
+          UEP_DATABASE_MIGRATION_USERNAME: ${{ secrets.UEP_DATABASE_MIGRATION_USERNAME }}
+          UEP_DATABASE_MIGRATION_PASSWORD: ${{ secrets.UEP_DATABASE_MIGRATION_PASSWORD }}
+          UEP_DATABASE_RUNTIME_USERNAME: ${{ vars.UEP_DATABASE_RUNTIME_USERNAME }}
         run: >-
           mvn -B -f apps/platform-server/pom.xml
           org.codehaus.mojo:exec-maven-plugin:3.5.0:java
