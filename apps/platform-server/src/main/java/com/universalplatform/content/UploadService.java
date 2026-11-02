@@ -174,7 +174,7 @@ class UploadService {
                 || contentLength > expectedBytes - receivedBytes;
     }
 
-    @Transactional(rollbackFor = IOException.class)
+    @Transactional(rollbackFor = IOException.class, noRollbackFor = ResponseStatusException.class)
     UploadView append(UUID id, long offset, InputStream body, long contentLength) throws IOException {
         auth.require(PermissionKey.CONTENT_MANAGE);
         requireUploadStagingEnabled();
@@ -194,7 +194,26 @@ class UploadService {
             throw new IllegalArgumentException("Chunk exceeds expected file length");
         }
         Path path = Path.of(u.stagingPath);
-        realignIfStagingIsAheadOfCommittedOffset(path, u.receivedBytes);
+        try {
+            realignIfStagingIsAheadOfCommittedOffset(path, u.receivedBytes);
+        } catch (IOException stagingCorruption) {
+            u.status = UploadStatus.ABORTED;
+            if (u.quotaReservationId != null) {
+                storageQuota.release(u.tenantId, u.quotaReservationId);
+            }
+            try {
+                Files.deleteIfExists(path);
+                u.stagingCleanedAt = clock.instant();
+            } catch (IOException cleanupFailure) {
+                stagingCorruption.addSuppressed(cleanupFailure);
+                log.warn("Could not remove corrupted upload staging file for tenant {} upload {}",
+                        u.tenantId, u.id, cleanupFailure);
+            }
+            audit.record(u.tenantId, actors.requireSubject(),
+                    "UPLOAD_ABORTED_STAGING_CORRUPTION", "upload_session", u.id.toString());
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Upload staging data is corrupted; restart the upload", stagingCorruption);
+        }
         try (OutputStream out = Files.newOutputStream(path, StandardOpenOption.APPEND); body) {
             body.transferTo(out);
         }
