@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -121,6 +122,39 @@ class NotificationIntegrationTest {
                 .andExpect(jsonPath("$.pendingOutboxEvents").value(0))
                 .andExpect(jsonPath("$.pendingOrFailedEmailDeliveries").value(0))
                 .andExpect(jsonPath("$.deadLetteredEmailDeliveries").value(1));
+    }
+
+    @Test
+    void invalidOutboxEventPersistsRetryBackoffOutsideFailedProcessingTransaction() {
+        publisher.enqueue(new NotificationPublisher.NotificationRequest(
+                TENANT, NotificationEventType.CLASS_SCHEDULED, "class_session", RESOURCE,
+                "Poison event", "Invalid event type after legacy/corrupt row update", NotificationPriority.NORMAL,
+                "class_session", RESOURCE, "test:poison:" + RESOURCE, null,
+                List.of(new NotificationPublisher.Recipient(MEMBER, "learner@example.test"))));
+        UUID outboxId = jdbc.queryForObject(
+                "SELECT id FROM notification_outbox WHERE deduplication_key = ?",
+                UUID.class, "test:poison:" + RESOURCE);
+        jdbc.update("UPDATE notification_outbox SET event_type = 'INVALID_EVENT' WHERE id = ?", outboxId);
+        Instant before = Instant.now();
+
+        processor.processOne(outboxId);
+
+        Integer attempts = jdbc.queryForObject(
+                "SELECT attempt_count FROM notification_outbox WHERE id = ?", Integer.class, outboxId);
+        String lastError = jdbc.queryForObject(
+                "SELECT last_error FROM notification_outbox WHERE id = ?", String.class, outboxId);
+        Instant availableAt = jdbc.queryForObject(
+                "SELECT available_at FROM notification_outbox WHERE id = ?", (rs, row) -> rs.getTimestamp(1).toInstant(), outboxId);
+        Instant processedAt = jdbc.queryForObject(
+                "SELECT processed_at FROM notification_outbox WHERE id = ?", (rs, row) -> {
+                    var timestamp = rs.getTimestamp(1);
+                    return timestamp == null ? null : timestamp.toInstant();
+                }, outboxId);
+
+        org.assertj.core.api.Assertions.assertThat(attempts).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(lastError).isEqualTo("IllegalArgumentException");
+        org.assertj.core.api.Assertions.assertThat(availableAt).isAfter(before);
+        org.assertj.core.api.Assertions.assertThat(processedAt).isNull();
     }
 
     @Test
