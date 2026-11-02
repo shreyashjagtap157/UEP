@@ -239,7 +239,7 @@ class UploadFinalizationCompensationTest {
         when(uploads.lock(tenantId, uploadId)).thenReturn(Optional.of(session));
     }
 
-    private void stubCleanScan() {
+    private void stubCleanScan() throws IOException {
         when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.CLEAN);
     }
 

@@ -298,8 +298,11 @@ if 'rollbackFor = {IOException.class, GeneralSecurityException.class}' not in up
     errors.append('upload finalization must roll back checked I/O and security failures')
 if 'noRollbackFor = UploadRejectedException.class' not in upload_service_for_rejection:
     errors.append('malware rejection must commit the ABORTED upload state')
-if upload_service_for_rejection.count('@Transactional(rollbackFor = IOException.class)') < 2:
-    errors.append('upload initiation and append must roll back checked I/O failures')
+if '@Transactional(rollbackFor = IOException.class)\\n    UploadView initiate(' not in upload_service_for_rejection:
+    errors.append('upload initiation must roll back checked I/O failures')
+if ('@Transactional(rollbackFor = IOException.class, noRollbackFor = ResponseStatusException.class)\\n'
+        '    UploadView append(') not in upload_service_for_rejection:
+    errors.append('upload append must roll back checked I/O while committing terminal conflict state')
 if 'throw new UploadRejectedException("Upload rejected by malware scanner")' not in upload_service_for_rejection:
     errors.append('malware rejection must throw the non-rollback terminal exception')
 if not (ROOT / 'apps/platform-server/src/main/java/com/universalplatform/content/UploadRejectedException.java').exists():
