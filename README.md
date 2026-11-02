@@ -91,13 +91,22 @@ npm --prefix apps/web test
 npm --prefix apps/web run build
 ```
 
-Development services can be started with `infra/compose.yaml` on a machine with
-Docker Compose or compatible Podman tooling.
+## Native Windows local development
 
-Local development boots must opt out of the production-secret guard by setting
-`PLATFORM_DEV_MODE=true` (see `.env.example`), or by providing real values for
-`DATABASE_PASSWORD`, `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`,
-`PLATFORM_RECORDING_PLAYBACK_SECRET`, and `PLATFORM_INTEGRATION_SECRET_KEY`.
+No container runtime is required. The launcher checks prerequisites, starts PostgreSQL, Keycloak, Spring Boot and Vite as native Windows services/processes, runs Flyway separately with the local migrator role, then starts the API with the restricted runtime role.
+
+```powershell
+# Run the real application and the offline demo side by side
+.\scripts\Start-UEP.ps1 -Mode Both
+
+# Real only or offline demo only
+.\scripts\Start-UEP.ps1 -Mode Real
+.\scripts\Start-UEP.ps1 -Mode Demo
+```
+
+See [Native Windows local development](docs/operations/LOCAL_NATIVE_WINDOWS.md) for requirements, URLs, database roles, startup/stop behavior and local credentials. See [the local integration acceptance prompt](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) for browser-to-API-to-PostgreSQL qualification.
+
+The launcher uses `PLATFORM_DEV_MODE=true` only for local non-production execution. Never enable this setting with a production Spring profile.
 
 ## Licensing
 
