@@ -30,7 +30,21 @@ if 'enabled: ${EMAIL_NOTIFICATIONS_ENABLED:false}' not in app:
 
 # OCI API instances must never run Flyway as the restricted runtime database role.
 oci_profile = text('apps/platform-server/src/main/resources/application-oci.yaml')
-if not re.search(r'(?m)^spring:\\s*\\n(?:[ \\t].*\\n)*?[ \\t]+flyway:\\s*\\n[ \\t]+enabled:\\s*false\\s*
+for required in ['spring:', '  flyway:', '    enabled: false']:
+    if required not in oci_profile:
+        errors.append(f'OCI runtime profile must set spring.flyway.enabled=false: {required}')
+migration_runner = text('apps/platform-server/src/main/java/com/universalplatform/DatabaseMigrationRunner.java')
+for required in [
+    'UEP_DATABASE_MIGRATION_JDBC_URL',
+    'UEP_DATABASE_MIGRATION_USERNAME',
+    'UEP_DATABASE_MIGRATION_PASSWORD',
+    'UEP_DATABASE_RUNTIME_USERNAME',
+    'flyway.migrate()',
+    'flyway.validate()',
+]:
+    if required not in migration_runner:
+        errors.append(f'OCI migration path is missing the explicit least-privilege migration contract: {required}')
+
 guard = text('apps/platform-server/src/main/java/com/universalplatform/security/ProductionSecretGuard.java')
 required_guard_contract = [
     'validateProductionSecrets(environment)',
