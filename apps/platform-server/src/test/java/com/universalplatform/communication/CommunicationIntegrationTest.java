@@ -167,7 +167,15 @@ class CommunicationIntegrationTest {
     }
 
     private void seedUser(UUID userId, UUID membershipId, String subject, String name, String email, UUID branchId) {
-        jdbc.update("INSERT INTO user_account(id, oidc_subject, email, display_name, status) VALUES (?, ?, ?, ?, 'ACTIVE')", userId, subject, email, name);
+        jdbc.update("""
+                INSERT INTO user_account(id, oidc_subject, email, display_name, status)
+                VALUES (?, ?, ?, ?, 'ACTIVE')
+                ON CONFLICT (id) DO UPDATE SET
+                    oidc_subject = EXCLUDED.oidc_subject,
+                    email = EXCLUDED.email,
+                    display_name = EXCLUDED.display_name,
+                    status = EXCLUDED.status
+                """, userId, subject, email, name);
         jdbc.update("INSERT INTO tenant_membership(id, tenant_id, user_id, primary_branch_id, status) VALUES (?, ?, ?, ?, 'ACTIVE')", membershipId, TENANT, userId, branchId);
     }
 

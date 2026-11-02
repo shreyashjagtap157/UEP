@@ -89,13 +89,14 @@ class StorageCleanupWorkerIntegrationTest {
         Instant now = Instant.now();
         TransactionTemplate claimTransaction = new TransactionTemplate(transactionManager);
 
-        assertThat(claimTransaction.execute(status ->
-                jobs.claimIfAvailable(jobId, firstToken, now, now.plusSeconds(300)))).isEqualTo(1);
+        Integer firstClaim = claimTransaction.execute(status ->
+                jobs.claimIfAvailable(jobId, firstToken, now, now.plusSeconds(300)));
+        assertThat(firstClaim).isEqualTo(1);
         assertThat(jobs.findDueIds(Instant.now(), org.springframework.data.domain.PageRequest.of(0, 20)))
                 .doesNotContain(jobId);
-        assertThat(claimTransaction.execute(status ->
-                jobs.claimIfAvailable(jobId, secondToken, Instant.now(), Instant.now().plusSeconds(300))))
-                .isZero();
+        Integer overlappingClaim = claimTransaction.execute(status ->
+                jobs.claimIfAvailable(jobId, secondToken, Instant.now(), Instant.now().plusSeconds(300)));
+        assertThat(overlappingClaim).isZero();
 
         jdbc.update("""
                 UPDATE storage_cleanup_outbox
@@ -105,9 +106,9 @@ class StorageCleanupWorkerIntegrationTest {
 
         assertThat(jobs.findDueIds(Instant.now(), org.springframework.data.domain.PageRequest.of(0, 20)))
                 .contains(jobId);
-        assertThat(claimTransaction.execute(status ->
-                jobs.claimIfAvailable(jobId, secondToken, Instant.now(), Instant.now().plusSeconds(300))))
-                .isEqualTo(1);
+        Integer recoveredClaim = claimTransaction.execute(status ->
+                jobs.claimIfAvailable(jobId, secondToken, Instant.now(), Instant.now().plusSeconds(300)));
+        assertThat(recoveredClaim).isEqualTo(1);
         assertThat(jobs.findById(jobId).orElseThrow().processingToken()).isEqualTo(secondToken);
     }
 
