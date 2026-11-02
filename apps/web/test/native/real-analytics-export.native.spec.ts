@@ -371,6 +371,14 @@ test('real OIDC owner proves authenticated analytics, branch and membership pers
   expect(createdAssignment.membershipId).toBe(createdMembership.membershipId)
   expect(createdAssignment.roleName).toBe('Student')
   expect(createdAssignment.scopeKind).toBe('TENANT')
+
+  const persistedAssignmentSql = [
+    "SELECT count(*)::text || '|' || COALESCE(max(scope_kind), '')",
+    'FROM public.role_assignment',
+    "WHERE id = '" + createdAssignment.id + "'::uuid",
+    "AND tenant_id = '" + identity.tenantId + "'::uuid",
+  ].join(' ')
+  expect(runAsRuntimeRole(psql, runtimeDatabase, persistedAssignmentSql)).toBe('1|TENANT')
   const assignHeaders = await assignRoleResponse.request().allHeaders()
   expect(assignHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
   await expect(membershipRow).toContainText('Student')
@@ -384,6 +392,7 @@ test('real OIDC owner proves authenticated analytics, branch and membership pers
   await membershipRow.getByRole('button', { name: 'Remove Student assignment', exact: true }).click()
   const unassignRoleResponse = await unassignRolePromise
   expect(unassignRoleResponse.status()).toBe(204)
+  expect(runAsRuntimeRole(psql, runtimeDatabase, persistedAssignmentSql)).toBe('0|')
   const unassignHeaders = await unassignRoleResponse.request().allHeaders()
   expect(unassignHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
   await expect(membershipRow).not.toContainText('Student')
