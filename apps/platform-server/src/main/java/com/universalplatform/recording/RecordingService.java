@@ -404,7 +404,7 @@ class RecordingService {
 
     private record MasterCopy(String locator, UUID reservationId) {}
 
-    private record StorageObjectWrite(String locator, UUID reservationId) {}
+    record StorageObjectWrite(String locator, UUID reservationId) {}
 
     @FunctionalInterface
     interface RecordingInputStream {
