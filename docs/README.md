@@ -22,7 +22,9 @@ Tenancy and security → `TENANCY_AND_SECURITY.md` · Identity/organization → 
 - `OFFLINE_LICENSE_FORMAT.md` — Ed25519 signed offline license envelope (planned milestone).
 
 ## Operations (`operations/`)
+- `FLY_SUPABASE_STAGING.md` — active Cloudflare Pages + Fly.io + Supabase staging runbook.
 - `IDENTITY_BOOTSTRAP.md` — first-owner bootstrap and session incident response.
+- `OCI_CLOUDFLARE_STAGING.md` and `ACTUAL_STAGING_DEPLOYMENT.md` — superseded topology/verification history only.
 
 ## API
 - `api/openapi.yaml` — OpenAPI 3.1 contract (server base `/api/v1`).

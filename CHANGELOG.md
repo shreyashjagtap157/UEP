@@ -2,6 +2,11 @@
 
 ## Unreleased — 2026-11-02
 
+### Deployment preparation
+- establish Cloudflare Pages + Fly.io (Spring Boot API and Keycloak) + Supabase PostgreSQL as the active staging target, with a gated provider runbook;
+- switch the one-shot Flyway migration workflow and static trust-boundary verifier to the dedicated supabase-database-migrations GitHub Environment;
+- prepare Singapore Fly app configuration with Flyway disabled in the API runtime, HTTPS health checks, and upload/live-media features disabled until their external dependencies and cost boundaries are qualified.
+
 ### Added
 - durable scheduled-announcement publication and expiry retry state with bounded exponential backoff, terminal dead-lettering after 12 attempts, and authorized tenant/branch-scoped failure inspection and replay;
 - regression coverage for announcement audience resolution at publication time, dead-letter exclusion/replay authorization, retry-state reset, and per-item worker isolation so one invalid item does not stop later due work.
