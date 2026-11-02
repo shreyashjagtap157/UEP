@@ -980,6 +980,12 @@ for required in ['publish_dead_lettered_at', 'expiry_dead_lettered_at', 'ix_anno
         errors.append(f'V049 retry migration is missing invariant: {required}')
 if 'deadLetteredPublicationIsExcludedAndTenantAdministratorCanReplayIt' not in text('apps/platform-server/src/test/java/com/universalplatform/communication/CommunicationIntegrationTest.java'):
     errors.append('missing announcement dead-letter filtering and authorized replay integration test')
+if 'ON CONFLICT (id) DO UPDATE SET' not in text('apps/platform-server/src/test/java/com/universalplatform/communication/CommunicationIntegrationTest.java'):
+    errors.append('communication integration test identity fixture must be idempotent across multiple test methods')
+if 'expiryAvailableAt()).isEqualTo(start.plusSeconds(11))' not in text('apps/platform-server/src/test/java/com/universalplatform/communication/AnnouncementRetryStateTest.java'):
+    errors.append('announcement expiry backoff test must account for its start-plus-one-second attempt time')
+if 'expiryAvailableAt()).isEqualTo(attemptAt.plusSeconds(3600))' not in text('apps/platform-server/src/test/java/com/universalplatform/communication/AnnouncementRetryStateTest.java'):
+    errors.append('announcement expiry retry test must assert the expiry backoff field, not publication state')
 if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/communication/AnnouncementRetryStateTest.java').exists():
     errors.append('missing announcement retry/dead-letter state-machine tests')
 
