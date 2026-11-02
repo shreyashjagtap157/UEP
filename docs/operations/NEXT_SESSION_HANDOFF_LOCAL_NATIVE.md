@@ -330,3 +330,13 @@ Next work: inspect current-head CI and any failures; then continue a method-by-m
 - The native role-assignment test now verifies API POST/DELETE responses, authenticated bearer presence, UI changes, and actual PostgreSQL row insertion/removal. It still has not been executed on the user's native Windows machine.
 
 Next: inspect CI #1080; if web fails, read full job logs and fix the actual cause. Continue permission matrix review and native run. Keep main-only, preserve DB data, and do not report source-contract tests as real runtime proof.
+
+## Follow-up — branch-scoped assignment lifecycle
+
+- The native Real Playwright test now exercises both tenant-scoped and branch-scoped Student role assignment against the synthetic membership.
+- For tenant scope, it reads `public.role_assignment` with the restricted runtime role after POST and asserts one TENANT row, then asserts zero rows after authenticated DELETE.
+- For branch scope, it uses the branch created earlier in the same browser test, asserts the API response contains the exact branch UUID, reads back `scope_kind=BRANCH` and the matching `scope_id` from PostgreSQL, then asserts the row is absent after DELETE.
+- The local Windows acceptance prompt now explicitly documents both assignment scopes and the direct PostgreSQL readbacks.
+- Added commits after the prior handoff update: 5b87ea26c88b8e26db4af23a7023d44e162a20df (branch-scope native test), 8bdce4fbaf9723eb1b8526f67ecfcbd529beca9f (contract guard), and e8408585e8e307bae64fe8837d48656fc5d51195 (acceptance prompt).
+- At the last check, run #1082 on 73096ecab22c3e9b8cd34a352d6293dac0f20852 had web and repository-policy passed; backend PostgreSQL 17.11/18.4, Keycloak and vulnerability scan were still running. Later commits #1083–#1085 were queued. Recheck latest main CI before asserting success.
+- Current native coverage is still unexecuted on Windows. CI's Playwright discovery does not run the local Keycloak/Vite/Spring/PostgreSQL scenario.
