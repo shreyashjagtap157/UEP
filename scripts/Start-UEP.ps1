@@ -443,7 +443,7 @@ $uep_local_roles$;
         Write-Host 'Applying tracked Flyway migrations to the dedicated local database...' -ForegroundColor Yellow
         Push-Location $RepoRoot
         try {
-            & $script:MavenCmd -B -f (Join-Path $ApiDir 'pom.xml') org.codehaus.mojo:exec-maven-plugin:3.5.0:java
+            & $script:MavenCmd -B -f (Join-Path $ApiDir 'pom.xml') compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java
             if ($LASTEXITCODE -ne 0) { throw "Local database migration failed (Maven exit code $LASTEXITCODE)." }
         } finally { Pop-Location }
     } finally {

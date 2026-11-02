@@ -114,7 +114,7 @@ The local database is uep_local_native, with these identities:
 | uep_local_runtime | Spring Boot API | Standalone least-privilege login; no schema/database creation, role membership, superuser or RLS bypass |
 | uep_local_keycloak | Keycloak persistence | Owns only schema keycloak; separate from UEP public application data |
 
-On first initialization the launcher creates these local roles and the keycloak schema. It then invokes the repository's DatabaseMigrationRunner with the required UEP_DATABASE_MIGRATION_* variables. Flyway validates/applies the tracked migrations and grants the application runtime role its intended privileges.
+On first initialization the launcher creates these local roles and the keycloak schema. It then runs Maven's `compile` phase before invoking the repository's `DatabaseMigrationRunner` with the required UEP_DATABASE_MIGRATION_* variables. This is required on a clean checkout because the runner is a Java main class in the project source tree. Flyway validates/applies the tracked migrations and grants the application runtime role its intended privileges.
 
 After this one-shot migration finishes, Spring Boot starts with SPRING_FLYWAY_ENABLED=false and connects only as uep_local_runtime. Keycloak connects as uep_local_keycloak with KC_DB_SCHEMA=keycloak. The launcher never points the local app at Supabase or any other remote database.
 

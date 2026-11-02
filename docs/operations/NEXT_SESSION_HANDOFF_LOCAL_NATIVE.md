@@ -228,3 +228,8 @@ The original handoff instructions remain authoritative. Continue by fetching the
 These changes are committed source and automated-test additions. They are not evidence that Windows services have launched on the owner's machine. Do not report PostgreSQL initialization, Keycloak login, the Spring Boot datasource, browser proxying, persisted application writes, role/tenant isolation or restart persistence as passing until the corresponding local commands, browser requests and PostgreSQL readbacks have actually run. CI statuses must be read from the resulting current `main` SHA; queued or older runs are not passes.
 
 The first native Playwright smoke covers one authenticated read/export path only. Continue with full browser-to-API-to-PostgreSQL write/readback workflows and tenant/branch/role negative tests described in `LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md`.
+
+
+### Clean-checkout migration runner requirement
+
+The native launcher's one-shot migration command now executes Maven `compile` before `org.codehaus.mojo:exec-maven-plugin:3.5.0:java`. The CI least-privilege migration probe uses `clean compile` before invoking the same runner, so a previously populated `target/classes` directory cannot mask a missing compile step. Preserve this ordering if the launcher or migration command is refactored.

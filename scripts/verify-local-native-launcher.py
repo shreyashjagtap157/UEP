@@ -64,6 +64,9 @@ checks = {
     ),
     "Keycloak owns a separate schema": "KC_DB_SCHEMA=keycloak" in launcher
         and "CREATE SCHEMA keycloak AUTHORIZATION " in launcher,
+    "database migration runner is compiled before execution": (
+        "compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java" in launcher
+    ),
     "database migrations use the explicit runner": (
         "org.codehaus.mojo:exec-maven-plugin:3.5.0:java" in launcher
         and all(name in launcher for name in (
