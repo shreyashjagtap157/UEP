@@ -1,4 +1,14 @@
 -- Persistent storage accounting. Daily usage_counter rows are intentionally not used for byte capacity.
+-- A pre-ledger compensation job represents a physical object whose size and reservation
+-- cannot be reconstructed from the current metadata. Drain these jobs before backfilling so
+-- the provider-wide capacity baseline is never understated.
+DO $
+BEGIN
+    IF EXISTS (SELECT 1 FROM storage_cleanup_outbox WHERE deleted_at IS NULL) THEN
+        RAISE EXCEPTION 'Storage quota migration blocked: drain pending storage_cleanup_outbox jobs before applying V047';
+    END IF;
+END $;
+
 CREATE TABLE storage_provider_quota (
     provider varchar(32) PRIMARY KEY,
     reads_enabled boolean NOT NULL,
@@ -38,21 +48,23 @@ CREATE TABLE storage_quota_reservation (
     state varchar(16) NOT NULL CHECK (state IN ('RESERVED', 'COMMITTED', 'RELEASED')),
     reserved_bytes bigint NOT NULL DEFAULT 0 CHECK (reserved_bytes >= 0),
     committed_bytes bigint NOT NULL DEFAULT 0 CHECK (committed_bytes >= 0),
+    released_bytes bigint NOT NULL DEFAULT 0 CHECK (released_bytes >= 0),
     object_locator varchar(2048),
     object_key varchar(1024),
     created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     released_at timestamptz,
     CONSTRAINT uq_storage_reservation_key UNIQUE (tenant_id, reservation_key),
+    CONSTRAINT uq_storage_reservation_tenant_provider_id UNIQUE (tenant_id, provider, id),
     CONSTRAINT ck_storage_reservation_state CHECK (
-        (state = 'RESERVED' AND committed_bytes = 0 AND released_at IS NULL)
-        OR (state = 'COMMITTED' AND reserved_bytes = 0 AND object_locator IS NOT NULL AND released_at IS NULL)
+        (state = 'RESERVED' AND committed_bytes = 0 AND released_bytes = 0 AND released_at IS NULL)
+        OR (state = 'COMMITTED' AND reserved_bytes = 0 AND released_bytes = 0 AND object_locator IS NOT NULL AND released_at IS NULL)
         OR (state = 'RELEASED' AND reserved_bytes = 0 AND committed_bytes = 0 AND released_at IS NOT NULL)
     )
 );
 
 CREATE UNIQUE INDEX uq_storage_reservation_live_object
-    ON storage_quota_reservation(tenant_id, provider, object_locator)
+    ON storage_quota_reservation(provider, object_locator)
     WHERE state = 'COMMITTED' AND object_locator IS NOT NULL;
 CREATE INDEX ix_storage_reservation_provider_state
     ON storage_quota_reservation(provider, state);
@@ -226,16 +238,21 @@ WHERE quota.provider = usage.provider;
 
 ALTER TABLE upload_session
     ADD CONSTRAINT fk_upload_quota_reservation
-    FOREIGN KEY (quota_reservation_id) REFERENCES storage_quota_reservation(id) ON DELETE RESTRICT;
+    FOREIGN KEY (tenant_id, provider, quota_reservation_id)
+    REFERENCES storage_quota_reservation(tenant_id, provider, id) ON DELETE RESTRICT;
 ALTER TABLE storage_object
     ADD CONSTRAINT fk_storage_object_quota_reservation
-    FOREIGN KEY (quota_reservation_id) REFERENCES storage_quota_reservation(id) ON DELETE RESTRICT;
+    FOREIGN KEY (tenant_id, provider, quota_reservation_id)
+    REFERENCES storage_quota_reservation(tenant_id, provider, id) ON DELETE RESTRICT;
 ALTER TABLE recording
     ADD CONSTRAINT fk_recording_quota_reservation
-    FOREIGN KEY (quota_reservation_id) REFERENCES storage_quota_reservation(id) ON DELETE RESTRICT;
+    FOREIGN KEY (tenant_id, storage_provider, quota_reservation_id)
+    REFERENCES storage_quota_reservation(tenant_id, provider, id) ON DELETE RESTRICT;
 ALTER TABLE recording_asset
     ADD CONSTRAINT fk_recording_asset_quota_reservation
-    FOREIGN KEY (quota_reservation_id) REFERENCES storage_quota_reservation(id) ON DELETE RESTRICT;
+    FOREIGN KEY (tenant_id, provider, quota_reservation_id)
+    REFERENCES storage_quota_reservation(tenant_id, provider, id) ON DELETE RESTRICT;
 ALTER TABLE storage_cleanup_outbox
     ADD CONSTRAINT fk_storage_cleanup_quota_reservation
-    FOREIGN KEY (quota_reservation_id) REFERENCES storage_quota_reservation(id) ON DELETE RESTRICT;
+    FOREIGN KEY (tenant_id, provider, quota_reservation_id)
+    REFERENCES storage_quota_reservation(tenant_id, provider, id) ON DELETE RESTRICT;
