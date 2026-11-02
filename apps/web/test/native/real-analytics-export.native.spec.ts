@@ -231,16 +231,17 @@ test('real OIDC owner exports analytics and persists a branch through Vite, Spri
   const createHeaders = await createBranchResponse.request().allHeaders()
   expect(createHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
 
-  // A reload discards React Query's in-memory cache; the following GET is a database readback.
-  await page.reload()
+  // Register the response waiter before reload so a fast local response cannot be missed.
   const reloadedIdentityPromise = page.waitForResponse(response => {
     const url = new URL(response.url())
     return url.origin === frontend
       && url.pathname === '/api/v1/me'
       && response.request().method() === 'GET'
   })
+  await page.reload()
   const reloadedIdentity = await reloadedIdentityPromise
   expect(reloadedIdentity.status()).toBe(200)
+  await expect(page.locator('.app-frame')).toBeVisible()
 
   const branchReadbackPromise = page.waitForResponse(response => {
     const url = new URL(response.url())
