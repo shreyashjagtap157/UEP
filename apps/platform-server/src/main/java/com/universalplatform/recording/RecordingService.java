@@ -369,7 +369,7 @@ class RecordingService {
                 if (status == STATUS_COMMITTED) return;
                 try {
                     adapter.delete(locator);
-                    storageQuota.release(tenantId, reservationId);
+                    storageQuota.releaseDurable(tenantId, reservationId);
                 } catch (Exception failure) {
                     cleanupQueue.enqueue(tenantId, provider, locator, objectKey, reservationId, failure);
                 }
