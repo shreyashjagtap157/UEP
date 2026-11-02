@@ -397,6 +397,50 @@ test('real OIDC owner proves authenticated analytics, branch and membership pers
   expect(unassignHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
   await expect(membershipRow).not.toContainText('Student')
 
+  // Repeat at branch scope to verify tenant-bound branch assignment integrity.
+  const branchAssignmentPromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/identity/roles/assignments'
+      && response.request().method() === 'POST'
+  })
+  await membershipRow.locator('select[name="roleId"]').selectOption({ label: 'Student' })
+  await membershipRow.locator('select[name="scopeKind"]').selectOption('BRANCH')
+  await membershipRow.locator('select[name="scopeId"]').selectOption(createdBranch.id)
+  await membershipRow.getByRole('button', { name: 'Assign role', exact: true }).click()
+  const branchAssignmentResponse = await branchAssignmentPromise
+  expect(branchAssignmentResponse.status()).toBe(200)
+  const branchAssignment = await branchAssignmentResponse.json() as {
+    id: string
+    membershipId: string
+    roleName: string
+    scopeKind: string
+    scopeId: string
+  }
+  expect(branchAssignment.membershipId).toBe(createdMembership.membershipId)
+  expect(branchAssignment.roleName).toBe('Student')
+  expect(branchAssignment.scopeKind).toBe('BRANCH')
+  expect(branchAssignment.scopeId).toBe(createdBranch.id)
+  const persistedBranchAssignmentSql = [
+    "SELECT count(*)::text || '|' || COALESCE(max(scope_kind), '') || '|' || COALESCE(max(scope_id::text), '')",
+    'FROM public.role_assignment',
+    "WHERE id = '" + branchAssignment.id + "'::uuid",
+    "AND tenant_id = '" + identity.tenantId + "'::uuid",
+  ].join(' ')
+  expect(runAsRuntimeRole(psql, runtimeDatabase, persistedBranchAssignmentSql)).toBe('1|BRANCH|' + createdBranch.id)
+
+  const unassignBranchPromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/identity/roles/assignments/' + branchAssignment.id
+      && response.request().method() === 'DELETE'
+  })
+  await membershipRow.getByRole('button', { name: 'Remove Student assignment', exact: true }).click()
+  const unassignBranchResponse = await unassignBranchPromise
+  expect(unassignBranchResponse.status()).toBe(204)
+  expect(runAsRuntimeRole(psql, runtimeDatabase, persistedBranchAssignmentSql)).toBe('0||')
+
+  await membershipRow.locator('select[name="scopeKind"]').selectOption('TENANT')
   await membershipRow.locator('select[name="status"]').selectOption('SUSPENDED')
   await membershipRow.locator('input[name="externalReference"]').fill(membershipReference)
 
