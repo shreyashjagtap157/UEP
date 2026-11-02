@@ -1,6 +1,6 @@
 # UEP — OCI + Cloudflare Pages + R2 staging deployment
 
-**Status: target architecture prepared; no provider deployment has been performed.**  
+**Status: OCI backend/database/Keycloak and R2 are not deployed. The existing Cloudflare Pages testing project has an unqualified ad-hoc deployment and stale Fly.io API configuration; it is not an accepted staging release.**  
 **Last reviewed: 2026-11-02**
 
 This runbook supersedes the historical Fly.io + Supabase topology for the next
@@ -75,12 +75,21 @@ may be reclaimed. Do not promise an uptime SLA from this design.
 Verified during the 2026-11-02 audit:
 
 - Cloudflare account is connected. The **uep-frontend-testing** project exists,
-  is linked to **shreyashjagtap157/UEP** / **main**, uses **apps/web**, builds
-  to **dist**, and has Git production/preview deployments disabled.
-- The current testing Pages configuration still points
-  **VITE_BACKEND_URL** at the old Fly hostname and is missing a verified
-  **VITE_KEYCLOAK_URL**. Its latest deployed bundle is stale and must not be
-  treated as a qualified staging release.
+  is linked to **shreyashjagtap157/UEP** / **main**, includes **apps/web/** paths,
+  uses root **apps/web**, build command **npm ci --ignore-scripts && npm run build**,
+  and output directory **dist**. Git deployments are disabled
+  (`deployments_enabled=false`, `production_deployments_enabled=false`,
+  preview setting `none`); only explicitly uploaded/ad-hoc deployments are
+  currently possible.
+- The production and preview project variables still set
+  **VITE_BACKEND_URL=https://uep-backend-testing.fly.dev**, a retired/unqualified
+  Fly.io target. **VITE_KEYCLOAK_URL** is not configured in the project
+  variables. **VITE_LOCAL_MODE=false** is configured, but that does not make
+  the bundle a real staging deployment without verified API and OIDC origins.
+- The latest Pages deployment observed at **2026-11-01 06:11:18 UTC** was an
+  ad-hoc production deployment from commit **c9352ea789cf5a3e9e6938e46d9803881a990a5b**
+  with `commit_dirty=true`. Its build/deploy metadata does not establish a
+  clean, audited release. Treat its bundle as stale and unqualified.
 - **uep-frontend-demo** is a separate local/demo project. Do not alter it or
   use it as evidence for the real product.
 - The account has no Cloudflare DNS zones attached. A custom domain has not
@@ -414,10 +423,14 @@ A real staging deployment is accepted only when all are true:
 3. **Stable HTTPS hostname:** no Cloudflare DNS zone or custom domain has
    been verified. Qualify domain or IP-certificate renewal before configuring
    OIDC.
-4. **ARM64 image qualification:** Dockerfiles have not yet been built/tested
-   on ARM64 by CI.
-5. **R2 no-charge protection:** R2 is not enabled; hard account-wide quota and
-   operation-rate safeguards must be implemented before activation.
+4. **ARM64 image qualification:** Keycloak ARM64 build/smoke has passed on
+   CI run #886; backend ARM64 image smoke and a full CI run on the current
+   source head remain outstanding.
+5. **R2 no-charge qualification:** provider byte/operation reservation
+   safeguards exist in source and default to disabled. They must pass CI on
+   the exact release SHA, be applied to the approved database, and be proven
+   against real provider/billing usage before activation. Application counters
+   are not Cloudflare account-wide hard spending caps.
 6. **GitHub staging Environment:** its server-side main-only deployment-branch rule and required-reviewer policy have not been independently verified in repository settings.\n7. **Staging test identities:** the real 14-role test account matrix is not
    configured; staging E2E is skipped, not passed.
 
