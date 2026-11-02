@@ -64,7 +64,11 @@ class UploadCleanupWorkerIntegrationTest {
             Files.writeString(blockedDirectory.resolve("keep.txt"), "prevent directory deletion");
             UploadSession upload = session(id, blockedDirectory, olderExpiry, now.minus(Duration.ofDays(5)));
             upload.status = index % 2 == 0 ? UploadStatus.ABORTED : UploadStatus.UPLOADING;
-            if (upload.status == UploadStatus.ABORTED) abortedIds.add(id);
+            if (upload.status == UploadStatus.ABORTED) {
+                abortedIds.add(id);
+                // Aborted sessions must be retried immediately, even before their original expiry.
+                upload.expiresAt = now.plus(Duration.ofDays(1));
+            }
             rows.add(upload);
             failedCleanupIds.add(id);
             sessionIds.add(id);
