@@ -123,6 +123,19 @@ class UploadService {
         return view(u);
     }
 
+    /**
+     * Checks a chunk against the remaining upload length without adding untrusted
+     * byte counts. Addition can overflow a signed long and turn an oversized
+     * chunk into a negative value that passes a naive upper-bound check.
+     */
+    static boolean chunkExceedsExpectedLength(long receivedBytes, long contentLength, long expectedBytes) {
+        return expectedBytes < 0
+                || receivedBytes < 0
+                || receivedBytes > expectedBytes
+                || contentLength < 0
+                || contentLength > expectedBytes - receivedBytes;
+    }
+
     @Transactional
     UploadView append(UUID id, long offset, InputStream body, long contentLength) throws IOException {
         auth.require(PermissionKey.CONTENT_MANAGE);
@@ -139,7 +152,7 @@ class UploadService {
         if (offset != u.receivedBytes) {
             throw new IllegalArgumentException("Upload offset mismatch; expected " + u.receivedBytes);
         }
-        if (contentLength < 0 || u.receivedBytes + contentLength > u.expectedBytes) {
+        if (chunkExceedsExpectedLength(u.receivedBytes, contentLength, u.expectedBytes)) {
             throw new IllegalArgumentException("Chunk exceeds expected file length");
         }
         Path path = Path.of(u.stagingPath);
