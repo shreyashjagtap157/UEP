@@ -348,6 +348,46 @@ test('real OIDC owner proves authenticated analytics, branch and membership pers
 
   const membershipRow = page.getByRole('row').filter({ hasText: membershipSubject })
   await expect(membershipRow).toBeVisible()
+
+  // Exercise assignment listing, tenant-scoped role assignment and removal.
+  const assignRolePromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/identity/roles/assignments'
+      && response.request().method() === 'POST'
+  })
+  await membershipRow.locator('select[name="roleId"]').selectOption({ label: 'Student' })
+  await membershipRow.getByRole('button', { name: 'Assign role', exact: true }).click()
+  const assignRoleResponse = await assignRolePromise
+  expect(assignRoleResponse.status()).toBe(200)
+  const createdAssignment = await assignRoleResponse.json() as {
+    id: string
+    membershipId: string
+    roleId: string
+    roleName: string
+    scopeKind: string
+  }
+  expect(createdAssignment.id).toMatch(/^[0-9a-f-]{36}$/i)
+  expect(createdAssignment.membershipId).toBe(createdMembership.membershipId)
+  expect(createdAssignment.roleName).toBe('Student')
+  expect(createdAssignment.scopeKind).toBe('TENANT')
+  const assignHeaders = await assignRoleResponse.request().allHeaders()
+  expect(assignHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
+  await expect(membershipRow).toContainText('Student')
+
+  const unassignRolePromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/identity/roles/assignments/' + createdAssignment.id
+      && response.request().method() === 'DELETE'
+  })
+  await membershipRow.getByRole('button', { name: 'Remove Student assignment', exact: true }).click()
+  const unassignRoleResponse = await unassignRolePromise
+  expect(unassignRoleResponse.status()).toBe(204)
+  const unassignHeaders = await unassignRoleResponse.request().allHeaders()
+  expect(unassignHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
+  await expect(membershipRow).not.toContainText('Student')
+
   await membershipRow.locator('select[name="status"]').selectOption('SUSPENDED')
   await membershipRow.locator('input[name="externalReference"]').fill(membershipReference)
 
