@@ -166,6 +166,26 @@ class StorageQuotaServiceIntegrationTest {
     }
 
     @Test
+    void providerDeleteOperationsRemainBudgetedWhenReadsAndWritesAreDisabled() {
+        setS3OperationLimits(3, 3, 30, 300, 30, 300);
+        jdbc.update("""
+                UPDATE storage_provider_quota
+                SET reads_enabled = false, writes_enabled = false
+                WHERE provider = 'S3_COMPATIBLE'
+                """);
+
+        quota.consumeProviderDeleteOperations(tenantId, StorageProviderType.S3_COMPATIBLE, 3);
+
+        assertThat(providerOperations("CLASS_A", "DAILY")).isEqualTo(3);
+        assertThat(providerOperations("CLASS_A", "MONTHLY")).isEqualTo(3);
+        assertThat(tenantOperations("CLASS_A")).isEqualTo(3);
+        assertThatThrownBy(() -> quota.consumeProviderDeleteOperations(
+                tenantId, StorageProviderType.S3_COMPATIBLE, 3))
+                .isInstanceOf(StorageQuotaException.class)
+                .hasMessageContaining("daily operation budget");
+    }
+
+    @Test
     void providerDailyOperationBudgetIsEnforcedAtomically() {
         setS3OperationLimits(6, 90, 100, 1000, 90, 900);
 
