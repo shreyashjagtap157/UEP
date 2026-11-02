@@ -248,8 +248,8 @@ function Initialize-LocalState {
     }
     Save-State
 }
-function Assert-PostgresServerVersion([string]$User, [string]$Password) {
-    $serverVersionNumber = Invoke-Psql $User $Password 'postgres' 'SHOW server_version_num'
+function Assert-PostgresServerVersion([string]$User, [string]$Password, [string]$Database = 'postgres') {
+    $serverVersionNumber = Invoke-Psql $User $Password $Database 'SHOW server_version_num'
     $parsedNumber = 0
     if (-not [int]::TryParse($serverVersionNumber.Trim(), [ref]$parsedNumber)) {
         throw 'Could not determine the PostgreSQL server version; refusing to initialize the local database.'
@@ -267,7 +267,7 @@ function Initialize-LocalDatabase {
         $migrationCheck = [bool]$result
     } catch { $migrationCheck = $false }
     if ($migrationCheck) {
-        Assert-PostgresServerVersion $State.MigrationUser $State.MigrationPassword
+        Assert-PostgresServerVersion $State.MigrationUser $State.MigrationPassword $State.DatabaseName
     }
     if (-not $migrationCheck) {
         Write-Host 'Enter the PostgreSQL superuser password set during installation. It is not stored.' -ForegroundColor Yellow
