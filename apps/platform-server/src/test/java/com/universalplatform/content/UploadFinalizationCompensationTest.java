@@ -149,7 +149,7 @@ class UploadFinalizationCompensationTest {
         completeSynchronizations(TransactionSynchronization.STATUS_COMMITTED);
 
         verify(adapter, never()).delete("remote-locator");
-        verify(cleanupOutbox, never()).enqueue(any(), any(), anyString(), anyString(), any());
+        verify(cleanupOutbox, never()).enqueue(any(), any(), anyString(), anyString(), any(), any());
         verify(stagingCleanup).markCleaned(tenantId, uploadId);
         assertThat(Files.exists(stagingFile)).isFalse();
         assertThat(session.status).isEqualTo(UploadStatus.COMPLETED);

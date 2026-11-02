@@ -16,8 +16,6 @@ import com.universalplatform.security.TenantContext;
 import com.universalplatform.storage.StorageAdapterRegistry;
 import com.universalplatform.storage.StorageQuotaService;
 import com.universalplatform.storage.StorageCleanupQueue;
-import com.universalplatform.storage.StorageQuotaService;
-import com.universalplatform.storage.StorageCleanupQueue;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -38,8 +36,6 @@ class RecordingServiceFeatureGateTest {
     private final RecordingMediaProvider media = mock(RecordingMediaProvider.class);
     private final RecordingThumbnailService thumbnails = mock(RecordingThumbnailService.class);
     private final StorageAdapterRegistry adapters = mock(StorageAdapterRegistry.class);
-    private final StorageQuotaService storageQuota = mock(StorageQuotaService.class);
-    private final StorageCleanupQueue cleanupQueue = mock(StorageCleanupQueue.class);
     private final StorageQuotaService storageQuota = mock(StorageQuotaService.class);
     private final StorageCleanupQueue cleanupQueue = mock(StorageCleanupQueue.class);
     private final RecordingWorkerLock workerLock = mock(RecordingWorkerLock.class);
