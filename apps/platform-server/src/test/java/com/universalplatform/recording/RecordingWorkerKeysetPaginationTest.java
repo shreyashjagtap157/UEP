@@ -60,10 +60,13 @@ class RecordingWorkerKeysetPaginationTest {
 
     @Test
     void processVisitsEveryCandidateAcrossMoreThanTwoPages() {
+        candidates.forEach(recording -> recording.status = RecordingProcessingStatus.REQUESTED);
         when(recordings.findProcessableAfter(anyCollection(), any(Instant.class), any(UUID.class), any(Pageable.class)))
-                .thenAnswer(invocation -> page(
-                        invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3),
-                        Recording::requestedAt, ignored -> true, null));
+                .thenAnswer(invocation -> {
+                    List<RecordingProcessingStatus> statuses = invocation.getArgument(0);
+                    return page(invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3),
+                            Recording::requestedAt, recording -> statuses.contains(recording.status), null);
+                });
 
         worker.process();
 
@@ -76,9 +79,13 @@ class RecordingWorkerKeysetPaginationTest {
     void archiveVisitsEveryCandidateAcrossMoreThanTwoPages() {
         when(recordings.findArchiveCandidatesAfter(
                 anyCollection(), any(Instant.class), any(Instant.class), any(UUID.class), any(Pageable.class)))
-                .thenAnswer(invocation -> page(
-                        invocation.getArgument(2), invocation.getArgument(3), invocation.getArgument(4),
-                        Recording::readyAt, recording -> recording.readyAt().isBefore(invocation.getArgument(1)), null));
+                .thenAnswer(invocation -> {
+                    List<RecordingProcessingStatus> statuses = invocation.getArgument(0);
+                    Instant before = invocation.getArgument(1);
+                    return page(invocation.getArgument(2), invocation.getArgument(3), invocation.getArgument(4),
+                            Recording::readyAt, recording -> statuses.contains(recording.status())
+                                    && recording.readyAt().isBefore(before), null);
+                });
 
         worker.archive();
 
@@ -91,9 +98,11 @@ class RecordingWorkerKeysetPaginationTest {
     void purgeVisitsEveryCandidateAcrossMoreThanTwoPages() {
         when(recordings.findPurgeCandidatesAfter(
                 anyCollection(), any(Instant.class), any(UUID.class), any(Pageable.class)))
-                .thenAnswer(invocation -> page(
-                        invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3),
-                        Recording::readyAt, ignored -> true, null));
+                .thenAnswer(invocation -> {
+                    List<RecordingProcessingStatus> statuses = invocation.getArgument(0);
+                    return page(invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3),
+                            Recording::readyAt, recording -> statuses.contains(recording.status()), null);
+                });
 
         worker.purge();
 
