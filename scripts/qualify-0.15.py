@@ -436,11 +436,47 @@ upload_service = text('apps/platform-server/src/main/java/com/universalplatform/
 for required in [
     'registerProviderObjectCompensation',
     'TransactionSynchronizationManager.registerSynchronization',
-    'storageCleanupOutbox.enqueue(tenantId, provider, locator, objectKey, cleanupFailure)',
+    'storageCleanupOutbox.enqueue(tenantId, provider, locator, objectKey, reservationId, cleanupFailure)',
     'STATUS_COMMITTED',
 ]:
     if required not in upload_service:
         errors.append(f'upload finalization is missing rollback compensation contract: {required}')
+storage_quota_migration = text('apps/platform-server/src/main/resources/db/migration/V047__persistent_storage_quota_ledger.sql')
+for required in [
+    'CREATE TABLE storage_provider_quota',
+    'CREATE TABLE storage_tenant_usage',
+    'CREATE TABLE storage_quota_reservation',
+    "('S3_COMPATIBLE', false, false",
+    'uq_storage_reservation_live_object',
+    'Storage quota backfill stopped',
+]:
+    if required not in storage_quota_migration:
+        errors.append(f'persistent storage quota migration is missing invariant: {required}')
+
+storage_quota_service = text('apps/platform-server/src/main/java/com/universalplatform/storage/StorageQuotaService.java')
+for required in ['FOR UPDATE', 'public UUID reserve(', 'public void commit(', 'public void release(',
+                 'reconciliationDrift()', 'Math.addExact']:
+    if required not in storage_quota_service:
+        errors.append(f'persistent storage quota service is missing contract: {required}')
+
+upload_service_quota = text('apps/platform-server/src/main/java/com/universalplatform/content/UploadService.java')
+for required in ['storageQuota.reserve(', 'storageQuota.commit(', 'storageQuota.release(',
+                 'quotaReservationId', 'reservationId, cleanupFailure']:
+    if required not in upload_service_quota:
+        errors.append(f'upload lifecycle is missing persistent quota integration: {required}')
+
+for rel, required in [
+    ('apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java',
+     ['storageQuota.release(', 'adapters.require(job.provider()).delete(job.locator())']),
+    ('apps/platform-server/src/main/java/com/universalplatform/content/ContentRetentionWorker.java',
+     ['storageQuota.release(', 'quotaReservationId']),
+    ('apps/platform-server/src/main/java/com/universalplatform/content/UploadCleanupWorker.java',
+     ['storageQuota.release(', 'UploadStatus.EXPIRED']),
+]:
+    source = text(rel)
+    for contract in required:
+        if contract not in source:
+            errors.append(f'{rel} is missing storage quota contract: {contract}')
 if 'UploadStatus.EXPIRED' not in text('apps/platform-server/src/main/java/com/universalplatform/content/UploadCleanupWorker.java'):
     errors.append('staging cleanup must retry files left behind by previously expired sessions')
 

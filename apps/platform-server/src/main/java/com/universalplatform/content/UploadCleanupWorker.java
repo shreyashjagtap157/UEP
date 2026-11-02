@@ -1,5 +1,7 @@
 package com.universalplatform.content;
 
+import com.universalplatform.storage.StorageQuotaService;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,10 +18,12 @@ import org.springframework.transaction.annotation.Transactional;
 class UploadCleanupWorker {
     private static final Logger log = LoggerFactory.getLogger(UploadCleanupWorker.class);
     private final UploadSessionRepository uploads;
+    private final StorageQuotaService storageQuota;
     private final Clock clock = Clock.systemUTC();
 
-    UploadCleanupWorker(UploadSessionRepository uploads) {
+    UploadCleanupWorker(UploadSessionRepository uploads, StorageQuotaService storageQuota) {
         this.uploads = uploads;
+        this.storageQuota = storageQuota;
     }
 
     @Scheduled(fixedDelayString = "${platform.storage.upload-cleanup-poll-ms:3600000}")
@@ -29,6 +33,9 @@ class UploadCleanupWorker {
         for (UploadSession upload : uploads.findTop100ByStatusInAndStagingCleanedAtIsNullAndExpiresAtBeforeOrderByExpiresAtAsc(
                 List.of(UploadStatus.INITIATED, UploadStatus.UPLOADING, UploadStatus.VERIFYING, UploadStatus.EXPIRED), now)) {
             upload.status = UploadStatus.EXPIRED;
+            if (upload.quotaReservationId != null) {
+                storageQuota.release(upload.tenantId, upload.quotaReservationId);
+            }
             deleteStaging(upload, "expired upload");
         }
 
