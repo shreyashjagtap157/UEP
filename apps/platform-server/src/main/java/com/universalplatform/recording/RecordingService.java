@@ -23,6 +23,8 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 class RecordingService {
@@ -355,7 +357,7 @@ class RecordingService {
                 || !TransactionSynchronizationManager.isActualTransactionActive()) {
             try {
                 adapter.delete(locator);
-                storageQuota.release(tenantId, reservationId);
+                storageQuota.releaseDurable(tenantId, reservationId);
             } catch (Exception failure) {
                 cleanupQueue.enqueue(tenantId, provider, locator, objectKey, reservationId, failure);
             }

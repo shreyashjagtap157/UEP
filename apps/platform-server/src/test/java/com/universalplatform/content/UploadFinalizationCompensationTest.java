@@ -74,7 +74,7 @@ class UploadFinalizationCompensationTest {
         session.receivedBytes = FILE_BYTES.length;
         session.quotaReservationId = UUID.randomUUID();
         session.status = UploadStatus.UPLOADING;
-        org.mockito.Mockito.doNothing().when(storageQuota).commit(org.mockito.ArgumentMatchers.eq(tenantId),
+        lenient().doNothing().when(storageQuota).commit(org.mockito.ArgumentMatchers.eq(tenantId),
                 org.mockito.ArgumentMatchers.eq(session.quotaReservationId), org.mockito.ArgumentMatchers.eq((long) FILE_BYTES.length),
                 org.mockito.ArgumentMatchers.eq("remote-locator"), org.mockito.ArgumentMatchers.anyString());
 
