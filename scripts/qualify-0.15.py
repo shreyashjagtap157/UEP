@@ -1020,6 +1020,8 @@ if 'event.failed(exception.getClass().getSimpleName(), clock.instant()' not in w
 if 'exception.getMessage()' in webhook_fanout_worker:
     errors.append('webhook fan-out worker must not persist raw transport exception messages')
 for rel, test_name in [
+    ('apps/platform-server/src/test/java/com/universalplatform/integration/WebhookFailurePersistencePrivacyTest.java',
+     'webhookDeliveryCannotPersistRawProviderFailureText'),
     ('apps/platform-server/src/test/java/com/universalplatform/notification/NotificationOutboxFailurePrivacyTest.java',
      'failedOutboxFailurePersistsOnlyAnExceptionCategory'),
     ('apps/platform-server/src/test/java/com/universalplatform/notification/NotificationDeliveryFailurePrivacyTest.java',
@@ -1036,6 +1038,19 @@ notification_outbox = text('apps/platform-server/src/main/java/com/universalplat
 for required in ['safeFailureType(message)', 'NotificationOutboxFailure', 'value.matches("[A-Za-z0-9_$]{1,160}")']:
     if required not in notification_outbox:
         errors.append(f'notification outbox failure persistence is not redacted: {required}')
+
+# Outbound webhook delivery and subscription retry state enforce safe error persistence at the entity boundary.
+webhook_delivery = text('apps/platform-server/src/main/java/com/universalplatform/integration/WebhookDelivery.java')
+webhook_subscription = text('apps/platform-server/src/main/java/com/universalplatform/integration/WebhookSubscription.java')
+for rel, source, fallback in [
+    ('webhook delivery', webhook_delivery, 'WebhookDeliveryFailure'),
+    ('webhook subscription', webhook_subscription, 'WebhookSubscriptionFailure'),
+]:
+    for required in ['safeFailure(error)', fallback, 'value.matches("[A-Za-z0-9_$]{1,160}")']:
+        if required not in source:
+            errors.append(f'{rel} failure persistence is not redacted: {required}')
+    if 'SAFE_FAILURE_MESSAGES' not in source or 'Webhook HTTP [1-5][0-9]{2}' not in source:
+        errors.append(f'{rel} must retain only documented safe operational failure categories')
 
 # PII/secret response anti-patterns in controllers.
 for p in (ROOT/'apps/platform-server/src/main/java/com/universalplatform').rglob('*Controller.java'):
