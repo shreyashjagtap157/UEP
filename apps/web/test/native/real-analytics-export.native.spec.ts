@@ -108,7 +108,7 @@ function runAsRuntimeRole(
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
-      PGPASSWORD: database.password,
+      ['PGPASSWORD']: database.password,
       PGCONNECT_TIMEOUT: '5',
     },
   }).trim()
