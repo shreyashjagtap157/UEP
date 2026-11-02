@@ -206,13 +206,15 @@ API instance's scheduled workers enabled only while exactly one instance is
 running; multiple API replicas would otherwise need a distributed worker
 lease/leader mechanism to avoid duplicate pollers.
 
-The chunked upload handler stages temporary files on local disk. Mount its
-staging root to the persistent OCI volume and set
-**PLATFORM_STORAGE_STAGING_ROOT** accordingly. Keep the staging volume
-permission-restricted, monitor free space, and configure a conservative
-**PLATFORM_MAX_UPLOAD_BYTES** until R2 limits and application-wide storage
-quotas are qualified. Keep LiveKit/Egress disabled until separately
-provisioned and tested.
+The chunked upload handler stages temporary files on local disk. The API
+container runs as non-root UID/GID **10001:10001**. Mount its staging root to
+the persistent OCI volume and set **PLATFORM_STORAGE_STAGING_ROOT**; provision
+the host directory with ownership/permissions that allow UID/GID 10001 to
+read and write it. Do not run the API as root to work around a volume
+permission error. Keep the staging volume permission-restricted, monitor free
+space, and configure **PLATFORM_MAX_UPLOAD_BYTES** to a conservative value
+that does not exceed the provider quota. Keep LiveKit/Egress disabled until
+separately provisioned and tested.
 
 ## 7. Keycloak and HTTPS routing
 
@@ -281,15 +283,34 @@ continue through the authenticated backend and tenant authorization path.
 An active tenant administrator must configure the tenant storage binding as
 **S3_COMPATIBLE** before that tenant can upload.
 
-**Do not enable R2 yet.** The account is not activated for R2, and the
-application currently has a 5 GiB per-file default but no verified
-account-wide 10 GB storage reservation/quota plus operation-rate ceiling.
-That is insufficient protection against R2 metered overages. Before enabling
-R2, implement and test an atomic tenant/account storage quota, ensure deletes
-and retention release quota correctly, cap per-object size, rate-limit upload
-and retrieval operations, and verify actual R2 usage after load tests. If
-those safeguards or no-charge activation cannot be established, keep uploads
-disabled rather than risking an invoice.
+**Do not enable R2 yet.** The safeguards now exist in source but have not
+been qualified on the exact current `main` head or applied to a qualified
+staging database:
+
+- Migration **V047** adds a persistent provider-wide byte ledger, per-tenant
+  byte accounting, and provider/tenant operation counters. The seeded
+  `S3_COMPATIBLE` limits are 8,000,000,000 total bytes, 1,000,000,000 bytes
+  per object, 25,000 Class A operations/day, 750,000/month, 250,000 Class B
+  operations/day, 7,500,000/month, plus tenant-level daily operation limits.
+- **V048** allows a released reservation key to be reused while preserving
+  historical release rows.
+- The `S3_COMPATIBLE` provider is seeded with reads and writes **disabled**.
+  The application reserves up to three provider attempts per operation,
+  matching the configured S3 client retry ceiling. Tenant and provider
+  budgets are enforced by the backend; they are not a Cloudflare billing
+  hard cap and do not account for R2 usage generated outside UEP.
+
+Before enabling R2, require a complete green CI run for the exact current
+`main` SHA, validate V047/V048 on a fresh disposable PostgreSQL database,
+and test reservation/commit/release/retry, concurrency, deletion and retention,
+operation-budget exhaustion, rollback compensation, and cross-tenant
+isolation. Only then apply migrations through the protected migration
+workflow to the approved staging database and re-run provider tests against
+the real R2 bucket. The owner must separately verify R2 activation, existing
+account-wide usage, and the billing screen. If no-charge activation and
+remaining free-tier headroom cannot be established, leave provider reads and
+writes disabled and keep external uploads disabled rather than risking an
+invoice.
 
 ## 9. Cloudflare Pages staging frontend
 
