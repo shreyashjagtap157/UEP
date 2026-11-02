@@ -17,8 +17,8 @@ export class PlatformApiError extends Error{readonly status:number;readonly prob
 function extractServerMessage(body:unknown,fallback:string):string{if(body&&typeof body==='object'){const detail=(body as {detail?:unknown}).detail;const message=(body as {message?:unknown}).message;const title=(body as {title?:unknown}).title;if(typeof detail==='string'&&detail.trim())return detail;if(typeof message==='string'&&message.trim())return message;if(typeof title==='string'&&title.trim())return title}return fallback}
 export const localMode = import.meta.env.VITE_LOCAL_MODE === 'true'
 // Prefer explicitly‑set backend URL; fall back to per‑mode defaults only if omitted.
-// In a Vercel multi-service deployment, an empty base URL keeps requests
-// same-origin and lets Vercel route /api/* to the backend service.
+// An empty base URL keeps requests same-origin so the active reverse proxy
+// (the local Vite development proxy in Real mode) can route /api/* to Spring Boot.
 export const backendUrl = () => resolveBackendBaseUrl(
   import.meta.env.VITE_BACKEND_URL,
   localMode,
