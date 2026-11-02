@@ -8,7 +8,7 @@
 
 > **Remote deployment controls retired in Git:** Fly app manifests and the hosted database-migration workflow have been removed from main. The Cloudflare Pages frontend projects remain separate; the last inspected testing bundle was stale and must not be treated as a connected product. No remote API or OIDC service is currently qualified.
 
-> **Supported local path:** use [scripts/Start-UEP.ps1](scripts/Start-UEP.ps1) with Demo, Real or Both mode. It runs the real React/Vite frontend, Spring Boot API, Keycloak 26.7.0 and PostgreSQL natively on Windows without Docker/Podman or hosted resources. Real mode connects the browser to the API through Vite's /api proxy and connects the API to local PostgreSQL using a least-privilege runtime role. Demo mode is intentionally offline and uses local UI fixtures only.
+> **Supported local path:** use [scripts/Start-UEP.ps1](scripts/Start-UEP.ps1) with Demo, Real or Both mode. It runs the real React/Vite frontend, Spring Boot API, Keycloak 26.7.5 and PostgreSQL natively on Windows without Docker/Podman or hosted resources. Real mode connects the browser to the API through Vite's /api proxy and connects the API to local PostgreSQL using a least-privilege runtime role. Demo mode is intentionally offline and uses local UI fixtures only.
 
 > The current 0.15.0.0-SNAPSHOT source contains tenant-scoped RBAC, academic workflows, assessments, assignments, grading, communication, storage, live-learning and operational modules. **Feature completeness is not equivalent to local acceptance:** run the test plan in [LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) and record actual browser, API, database and isolation evidence before making product-readiness claims.
 
@@ -107,6 +107,15 @@ No container runtime is required. The launcher checks prerequisites, starts Post
 See [Native Windows local development](docs/operations/LOCAL_NATIVE_WINDOWS.md) for requirements, URLs, database roles, startup/stop behavior and local credentials. See [the local integration acceptance prompt](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) for browser-to-API-to-PostgreSQL qualification.
 
 The launcher uses `PLATFORM_DEV_MODE=true` only for local non-production execution. Never enable this setting with a production Spring profile.
+
+After starting Real mode with `.\scripts\Start-UEP.ps1 -Mode Real -NoBrowser`, run the dedicated real OIDC/API browser smoke from a second PowerShell window (install Chromium once as needed):
+
+```powershell
+npm --prefix apps/web exec -- playwright install chromium
+npm --prefix apps/web run test:e2e:native
+```
+
+This narrowly verifies owner OIDC sign-in, same-origin authenticated API requests and CSV export. It does not replace database write/readback, role/tenant isolation, or restart-persistence acceptance.
 
 ## Licensing
 

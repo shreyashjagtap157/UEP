@@ -39,3 +39,6 @@ artifacts/
 apps/web/install_output.txt
 apps/web/test-results/
 apps/web/playwright-report/
+
+# Native Real Playwright output
+apps/web/e2e-native-results/

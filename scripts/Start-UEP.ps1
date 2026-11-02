@@ -58,7 +58,7 @@ function Show-RequirementInventory {
         $maven = Get-Command 'mvn.cmd' -ErrorAction SilentlyContinue
         Find-PostgresTools
         $pgService = Get-PostgresService
-        $keycloak = Join-Path $ToolDir 'keycloak-26.7.0\bin\kc.bat'
+        $keycloak = Join-Path $ToolDir 'keycloak-26.7.5\bin\kc.bat'
         Write-Status 'JDK 21+' $(if ($java) { 'PRESENT' } else { 'MISSING — installer will be offered' }) $(if ($java) { 'Green' } else { 'Yellow' })
         Write-Status 'Maven 3.9+' $(if ($maven -or (Test-Path (Join-Path $ToolDir 'apache-maven-3.10.0\bin\mvn.cmd'))) { 'PRESENT' } else { 'MISSING — download will be offered' }) $(if ($maven -or (Test-Path (Join-Path $ToolDir 'apache-maven-3.10.0\bin\mvn.cmd'))) { 'Green' } else { 'Yellow' })
         Write-Status 'PostgreSQL tools' $(if ($script:Psql) { 'PRESENT' } else { 'MISSING — installer will be offered' }) $(if ($script:Psql) { 'Green' } else { 'Yellow' })
@@ -300,28 +300,28 @@ function Ensure-Postgres {
     Write-Status 'PostgreSQL' 'OK — localhost:5432' Green
 }
 function Ensure-Keycloak {
-    $home = Join-Path $ToolDir 'keycloak-26.7.0'
+    $home = Join-Path $ToolDir 'keycloak-26.7.5'
     $kcBat = Join-Path $home 'bin\kc.bat'
     if (-not (Test-Path $kcBat)) {
         Protect-Directory $ToolDir
-        $zip = Join-Path $ToolDir 'keycloak-26.7.0.zip'
-        $url = 'https://github.com/keycloak/keycloak/releases/download/26.7.0/keycloak-26.7.0.zip'
-        $expected = 'e63bd0167199c0092b8a4d22cc137e6b7a70e0089070f6f7799b1be504b69a8a'
-        Write-Host 'Downloading Keycloak 26.7.0...' -ForegroundColor Yellow
+        $zip = Join-Path $ToolDir 'keycloak-26.7.5.zip'
+        $url = 'https://github.com/keycloak/keycloak/releases/download/26.7.5/keycloak-26.7.5.zip'
+        $expected = '30ef87fb7101c43d29688d1ae80c0588ff4a151b3330e9f664bf9692d398658a'
+        Write-Host 'Downloading Keycloak 26.7.5...' -ForegroundColor Yellow
         Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
         $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($actual -ne $expected) { Remove-Item $zip -Force; throw 'Keycloak SHA-256 verification failed.' }
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $ToolDir)
     }
-    if (-not (Test-Path $kcBat)) { throw 'Keycloak 26.7.0 could not be extracted.' }
+    if (-not (Test-Path $kcBat)) { throw 'Keycloak 26.7.5 could not be extracted.' }
     $realmSource = Join-Path $RepoRoot 'infra\keycloak\education-realm.json'
     if (-not (Test-Path $realmSource)) { throw 'The tracked education Keycloak realm file is missing.' }
     $importDir = Join-Path $home 'data\import'
     New-Item -ItemType Directory -Path $importDir -Force | Out-Null
     Copy-Item -LiteralPath $realmSource -Destination (Join-Path $importDir 'education-realm.json') -Force
     $script:KeycloakHome = $home
-    Write-Status 'Keycloak' 'OK — 26.7.0, realm import prepared' Green
+    Write-Status 'Keycloak' 'OK — 26.7.5, realm import prepared' Green
 }
 function Invoke-Psql([string]$User, [string]$Password, [string]$Database, [string]$Sql, [string]$File = '') {
     $previous = $env:PGPASSWORD

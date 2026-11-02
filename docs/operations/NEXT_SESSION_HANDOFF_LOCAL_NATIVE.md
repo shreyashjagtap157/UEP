@@ -206,3 +206,25 @@ Do not call UEP locally qualified until all of these are evidenced:
 - Frontend lint/tests/build, backend Maven verify, PowerShell parsing, launcher static checks and repository policy all pass on the exact current main SHA.
 
 Start by syncing and checking the live repository/CI. Do not ask the user to repeat anything already present in this handoff or in the repository.
+
+
+---
+
+## Continuation update — 2 November 2026
+
+The original handoff instructions remain authoritative. Continue by fetching the live `main` head and reviewing the latest CI run before making further changes.
+
+### Engineering changes after the original handoff snapshot
+
+- Removed duplicate `Start-ManagedProcess`, `Write-CommandFile` and `Wait-ForHttp` definitions from the native launcher. The single retained HTTP waiter accepts only HTTP 2xx responses; a 4xx response is not readiness.
+- PostgreSQL tool/service discovery now selects only supported major versions 17 and 18 by numeric version, and prefers an already-running supported service over lexicographic directory-name ordering.
+- Explicit current-user-only file ACLs are applied to local state, temporary database-role bootstrap SQL, generated command files containing service environment values, and the local account file.
+- The frontend analytics CSV request now uses the same API transport as JSON requests, including the refreshed Keycloak bearer token, same-origin Vite proxy path and consistent API error handling.
+- Added a frontend request-contract test and backend CSV export authorization/response integration test. Added an isolated native Real Playwright smoke configuration and test for the local owner OIDC login, authenticated `/api/v1/me`, analytics overview and CSV export flow.
+- The native Keycloak distribution pin is now 26.7.5 in the same 26.7 release line. The official release asset SHA-256 is pinned and verified before extraction.
+
+### Validation boundary
+
+These changes are committed source and automated-test additions. They are not evidence that Windows services have launched on the owner's machine. Do not report PostgreSQL initialization, Keycloak login, the Spring Boot datasource, browser proxying, persisted application writes, role/tenant isolation or restart persistence as passing until the corresponding local commands, browser requests and PostgreSQL readbacks have actually run. CI statuses must be read from the resulting current `main` SHA; queued or older runs are not passes.
+
+The first native Playwright smoke covers one authenticated read/export path only. Continue with full browser-to-API-to-PostgreSQL write/readback workflows and tenant/branch/role negative tests described in `LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md`.

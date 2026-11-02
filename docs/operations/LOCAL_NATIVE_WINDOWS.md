@@ -25,7 +25,7 @@ The launcher checks for the required toolchain before starting application proce
 - Node.js 22.22.0 or later and npm.
 - Apache Maven 3.9 or later.
 - PostgreSQL 17 or 18 with psql and pg_isready; the launcher offers the PostgreSQL 18.4 EDB installer through WinGet when missing.
-- Keycloak 26.7.0; the launcher downloads the official native ZIP and verifies its pinned SHA-256 before extracting it.
+- Keycloak 26.7.5; the launcher downloads the official native ZIP and verifies its pinned SHA-256 before extracting it.
 
 When available, WinGet installs missing JDK, Node.js and PostgreSQL prerequisites. The PostgreSQL installer opens interactively so the owner can set a local postgres superuser password. Maven and Keycloak are downloaded into the ignored .uep-local/tools directory. Apache Maven's published SHA-512 and the Keycloak release SHA-256 are checked before extraction.
 
@@ -62,6 +62,17 @@ If script execution policy blocks a local script, use a process-scoped bypass ra
 
 Press Ctrl+C in the launcher window to stop application processes. It preserves local database data, local accounts, logs and downloaded tools. It does not drop, clean, reset or truncate the database.
 
+## Native Real browser smoke test
+
+After starting the environment with `.\scripts\Start-UEP.ps1 -Mode Real -NoBrowser`, open a second PowerShell window in the repository root. Install the Playwright Chromium browser once if it is not already installed, then run the dedicated native Real smoke test:
+
+    npm --prefix apps/web exec -- playwright install chromium
+    npm --prefix apps/web run test:e2e:native
+
+The test reads only the owner username/password from the protected current-user LocalAppData state file into process memory; it never prints, copies, attaches or persists credentials or tokens. Traces, screenshots and video are disabled. Its current coverage is limited to local Keycloak owner sign-in, the authenticated `/api/v1/me` and analytics overview requests, and a bearer-authenticated attendance CSV download through the Vite origin.
+
+This test is an initial Real-mode browser integration smoke, not a substitute for the full workflow, database-write/readback, tenant-isolation, or restart-persistence acceptance plan. A pass must not be reported as proof of those broader capabilities.
+
 ## Real-mode request and data path
 
 The Real web app is built with VITE_LOCAL_MODE=false, an empty VITE_BACKEND_URL, and the repository's Keycloak realm/client configuration. API calls use same-origin relative /api/... paths. Vite proxies those calls to the API on IPv4 loopback:
@@ -84,7 +95,7 @@ The Real web app is built with VITE_LOCAL_MODE=false, an empty VITE_BACKEND_URL,
 
 Authentication is a separate local path:
 
-    React -> Keycloak 26.7.0 at http://localhost:8081
+    React -> Keycloak 26.7.5 at http://localhost:8081
            -> realm education
            -> public browser client platform-web
            -> Authorization Code + PKCE S256

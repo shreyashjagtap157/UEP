@@ -46,7 +46,7 @@ checks = {
         and not re.search(r"\b(?:docker|podman)\s+(?:run|compose|build)\b", launcher, re.I)
     ),
     "Keycloak is run from the native distribution": (
-        "keycloak-26.7.0.zip" in launcher and "kc.bat" in launcher
+        "keycloak-26.7.5.zip" in launcher and "kc.bat" in launcher
         and "start-dev --http-port=8081 --import-realm" in launcher
     ),
     "Maven installation verifies the downloaded SHA-512": (
@@ -54,7 +54,7 @@ checks = {
         and "SHA512" in launcher
     ),
     "Keycloak archive verifies the pinned SHA-256": (
-        "e63bd0167199c0092b8a4d22cc137e6b7a70e0089070f6f7799b1be504b69a8a" in launcher
+        "30ef87fb7101c43d29688d1ae80c0588ff4a151b3330e9f664bf9692d398658a" in launcher
         and "Algorithm SHA256" in launcher
     ),
     "local database uses distinct migrator, runtime and Keycloak roles": (

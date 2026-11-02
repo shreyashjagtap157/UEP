@@ -185,6 +185,11 @@ Repository policy:
     python3 scripts/verify-local-native-launcher.py
 
 Browser:
+- For the native Real environment, install Chromium once when absent and run:
+      npm --prefix apps/web exec -- playwright install chromium
+      npm --prefix apps/web run test:e2e:native
+- The native smoke reads the owner credentials only from the protected LocalAppData state file, keeps them in process memory, and disables trace/screenshot/video output. It verifies OIDC owner login, authenticated same-origin `/api/v1/me`, analytics overview and an authenticated attendance CSV export.
+- Treat that smoke as narrow integration evidence only. It does not prove database write/readback, cross-role/tenant isolation, all UI workflows, or restart persistence; those remain separate mandatory phases below.
 - Discover and run the existing Playwright suite.
 - Add focused Real-mode integration tests only where the current setup supports them.
 - Keep the Demo suite separate; it does not count as Real backend/database qualification.
