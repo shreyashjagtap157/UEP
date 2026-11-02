@@ -7,6 +7,7 @@ import com.universalplatform.identity.AuthorizationService;
 import com.universalplatform.identity.PermissionKey;
 import com.universalplatform.storage.StorageAdapter;
 import com.universalplatform.storage.StorageAdapterRegistry;
+import com.universalplatform.storage.StorageQuotaService;
 import com.universalplatform.storage.StorageProviderType;
 import com.universalplatform.storage.TenantStorageBinding;
 import com.universalplatform.storage.TenantStorageBindingResolver;
@@ -46,6 +47,7 @@ class UploadService {
     private final UploadSessionRepository uploads;
     private final StorageObjectRepository objects;
     private final StorageAdapterRegistry adapters;
+    private final StorageQuotaService storageQuota;
     private final TenantStorageBindingResolver storageBindings;
     private final boolean developmentMode;
     private final AuditService audit;
@@ -64,6 +66,7 @@ class UploadService {
                   UploadSessionRepository uploads,
                   StorageObjectRepository objects,
                   StorageAdapterRegistry adapters,
+                  StorageQuotaService storageQuota,
                   TenantStorageBindingResolver storageBindings,
                   AuditService audit,
                   MalwareScanner malwareScanner,
@@ -78,6 +81,7 @@ class UploadService {
         this.uploads = uploads;
         this.objects = objects;
         this.adapters = adapters;
+        this.storageQuota = storageQuota;
         this.storageBindings = storageBindings;
         this.developmentMode = developmentMode;
         this.audit = audit;
@@ -113,12 +117,15 @@ class UploadService {
         adapters.require(provider);
         String objectPrefix = normalizeObjectPrefix(binding.objectPrefix());
         UUID id = UUID.randomUUID();
+        UUID reservationId = storageQuota.reserve(tenant, provider, "upload:" + id, null, bytes);
         Path dir = staging.resolve(tenant.toString()).normalize();
         Files.createDirectories(dir);
         Path path = dir.resolve(id + ".part");
         Files.createFile(path);
-        UploadSession u = uploads.save(new UploadSession(id, tenant, actors.requireSubject(), safeName(fileName),
-                safeType(contentType), bytes, hash(sha256), provider, objectPrefix, path.toString(), clock.instant()));
+        UploadSession u = new UploadSession(id, tenant, actors.requireSubject(), safeName(fileName),
+                safeType(contentType), bytes, hash(sha256), provider, objectPrefix, path.toString(), clock.instant());
+        u.quotaReservationId = reservationId;
+        uploads.save(u);
         audit.record(tenant, actors.requireSubject(), "UPLOAD_INITIATED", "upload_session", id.toString());
         return view(u);
     }
@@ -215,12 +222,16 @@ class UploadService {
         ScanStatus scan = malwareScanner.scan(path);
         if (scan == ScanStatus.REJECTED) {
             u.status = UploadStatus.ABORTED;
+            if (u.quotaReservationId != null) storageQuota.release(tenant, u.quotaReservationId);
             Files.deleteIfExists(path);
             audit.record(tenant, actors.requireSubject(), "UPLOAD_REJECTED_MALWARE", "upload_session", u.id.toString());
             throw new UploadRejectedException("Upload rejected by malware scanner");
         }
         String prefix = u.objectPrefix == null || u.objectPrefix.isBlank() ? "" : u.objectPrefix + "/";
-        String key = prefix + tenant + "/" + LocalDate.now(ZoneOffset.UTC) + "/" + UUID.randomUUID() + "/" + u.fileName;
+        String key = prefix + tenant + "/" + LocalDate.now(ZoneOffset.UTC) + "/" + u.id + "/" + u.fileName;
+        if (u.quotaReservationId == null) {
+            throw new IllegalStateException("Upload has no persistent storage reservation; retry after operator reconciliation");
+        }
         StorageAdapter adapter = adapters.require(u.provider);
         String locator;
         try (InputStream in = Files.newInputStream(path)) {
@@ -228,9 +239,10 @@ class UploadService {
         }
         // Compensate the external side effect if metadata/audit persistence rolls back.
         // Keep the staging file until commit so the caller can safely retry after a rollback.
-        registerProviderObjectCompensation(tenant, u.id, u.provider, locator, key, path, adapter);
+        registerProviderObjectCompensation(tenant, u.id, u.quotaReservationId, u.provider, locator, key, path, adapter);
+        storageQuota.commit(tenant, u.quotaReservationId, u.expectedBytes, locator, key);
         StorageObject o = objects.save(new StorageObject(UUID.randomUUID(), tenant, u.provider, locator, key,
-                u.contentType, u.expectedBytes, digest, scan, clock.instant()));
+                u.contentType, u.expectedBytes, digest, scan, clock.instant(), u.quotaReservationId));
         u.status = UploadStatus.COMPLETED;
         u.completedAt = clock.instant();
         u.storageObjectId = o.id;
@@ -238,15 +250,16 @@ class UploadService {
         return view(o);
     }
 
-    private void registerProviderObjectCompensation(UUID tenantId, UUID uploadId, StorageProviderType provider,
-                                                    String locator, String objectKey, Path stagingPath,
-                                                    StorageAdapter adapter) {
+    private void registerProviderObjectCompensation(UUID tenantId, UUID uploadId, UUID reservationId,
+                                                    StorageProviderType provider, String locator, String objectKey,
+                                                    Path stagingPath, StorageAdapter adapter) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()
                 || !TransactionSynchronizationManager.isActualTransactionActive()) {
             try {
                 adapter.delete(locator);
+                storageQuota.release(tenantId, reservationId);
             } catch (Exception cleanupFailure) {
-                storageCleanupOutbox.enqueue(tenantId, provider, locator, objectKey, cleanupFailure);
+                storageCleanupOutbox.enqueue(tenantId, provider, locator, objectKey, reservationId, cleanupFailure);
             }
             throw new IllegalStateException("Upload finalization requires an active database transaction");
         }
@@ -269,11 +282,12 @@ class UploadService {
                 // Database state rolled back after the provider accepted the object.
                 try {
                     adapter.delete(locator);
+                    storageQuota.release(tenantId, reservationId);
                 } catch (Exception cleanupFailure) {
                     log.warn("Could not compensate remote object after upload rollback for tenant {} provider {}",
                             tenantId, provider, cleanupFailure);
                     try {
-                        storageCleanupOutbox.enqueue(tenantId, provider, locator, objectKey, cleanupFailure);
+                        storageCleanupOutbox.enqueue(tenantId, provider, locator, objectKey, reservationId, cleanupFailure);
                     } catch (RuntimeException enqueueFailure) {
                         cleanupFailure.addSuppressed(enqueueFailure);
                         log.error("Could not persist remote-object cleanup after upload rollback for tenant {}",
@@ -290,6 +304,7 @@ class UploadService {
         UploadSession u = uploads.lock(tenants.requireTenantId(), id).orElseThrow();
         if (u.status != UploadStatus.COMPLETED) {
             u.status = UploadStatus.ABORTED;
+            if (u.quotaReservationId != null) storageQuota.release(u.tenantId, u.quotaReservationId);
             Files.deleteIfExists(Path.of(u.stagingPath));
         }
     }

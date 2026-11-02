@@ -12,6 +12,7 @@ import com.universalplatform.security.ActorContext;
 import com.universalplatform.security.TenantContext;
 import com.universalplatform.storage.StorageAdapter;
 import com.universalplatform.storage.StorageAdapterRegistry;
+import com.universalplatform.storage.StorageQuotaService;
 import com.universalplatform.storage.StorageProviderType;
 import com.universalplatform.storage.TenantStorageBinding;
 import com.universalplatform.storage.TenantStorageBindingResolver;
@@ -40,6 +41,7 @@ class UploadStorageBindingTest {
     @Mock UploadSessionRepository uploads;
     @Mock StorageObjectRepository objects;
     @Mock StorageAdapterRegistry adapters;
+    @Mock StorageQuotaService storageQuota;
     @Mock TenantStorageBindingResolver bindings;
     @Mock AuditService audit;
     @Mock MalwareScanner scanner;
@@ -68,6 +70,7 @@ class UploadStorageBindingTest {
         when(bindings.findByTenantId(TENANT))
                 .thenReturn(Optional.of(new TenantStorageBinding(StorageProviderType.S3_COMPATIBLE, "course-assets")));
         when(adapters.require(StorageProviderType.S3_COMPATIBLE)).thenReturn(adapter);
+        when(storageQuota.reserve(any(), any(), any(), any(), any(Long.class))).thenReturn(UUID.randomUUID());
         when(uploads.save(any(UploadSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UploadService.UploadView result = service.initiate("lesson.pdf", "application/pdf", 12, null);
@@ -96,6 +99,7 @@ class UploadStorageBindingTest {
         UploadService service = service(true);
         when(bindings.findByTenantId(TENANT)).thenReturn(Optional.empty());
         when(adapters.require(StorageProviderType.LOCAL)).thenReturn(adapter);
+        when(storageQuota.reserve(any(), any(), any(), any(), any(Long.class))).thenReturn(UUID.randomUUID());
         when(uploads.save(any(UploadSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UploadService.UploadView result = service.initiate("lesson.pdf", "application/pdf", 12, null);
@@ -123,7 +127,7 @@ class UploadStorageBindingTest {
     }
 
     private UploadService serviceWithoutTenantStub(boolean developmentMode) {
-        return new UploadService(tenants, actors, auth, uploads, objects, adapters, bindings, audit,
+        return new UploadService(tenants, actors, auth, uploads, objects, adapters, storageQuota, bindings, audit,
                 scanner, cleanup, stagingCleanup, staging.toString(), 1024, developmentMode);
     }
 }

@@ -30,6 +30,7 @@ class UploadSession {
     Instant completedAt;
     Instant stagingCleanedAt;
     UUID storageObjectId;
+    UUID quotaReservationId;
 
     protected UploadSession() {}
 
