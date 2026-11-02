@@ -318,7 +318,39 @@ JavaScript. Verify the emitted bundle contains the correct OCI API and
 Keycloak URLs and has **VITE_LOCAL_MODE=false**. Then test sign-in, token
 issuance, CORS preflight, **/api/v1/me**, and tenant-scoped resource access.
 
-## 10. Release acceptance gates
+## 10. Staging workflow trust boundary
+
+The real staging E2E workflow is privileged: it can read real test-account
+credentials and authenticate against the deployed application. Treat it as a
+secrets-bearing deployment workflow, not as an ordinary PR test.
+
+Before enabling `UEP_STAGING_E2E_ENABLED=true` or adding any staging identity
+secret, configure the repository's GitHub **staging** Environment independently:
+
+- Under **Settings → Environments → staging → Deployment branches and tags**,
+  select only the `main` branch. Do not allow all branches, patterns that
+  include contributor branches, tags, or PR merge refs.
+- Configure at least one required reviewer who is authorized to approve
+  staging access. Disable administrator bypass where the repository policy
+  permits it.
+- Keep the endpoint variables and the real 14-role account matrix scoped to
+  this Environment. Never place them in repository-wide variables/secrets.
+- Protect `main` against unreviewed workflow changes and require the CI checks
+  before changes to the workflow can land.
+
+The workflow is deliberately `workflow_dispatch`-only, checks the selected
+ref is `refs/heads/main`, checks out `main`, and scopes Environment secrets to
+the staging-test steps. Those workflow checks are defense in depth, **not** an
+independent security boundary: GitHub loads a manually dispatched workflow
+definition from the selected ref. The Environment's server-side main-only
+deployment-branch rule is mandatory and must be verified in repository
+settings before staging can be enabled.
+
+The workflow disables Playwright traces, screenshots, and video; the retained
+HTML/JUnit artifact is limited to seven days. Keep test assertions and test
+logs free of credentials and tenant identifiers.
+
+## 11. Release acceptance gates
 
 A real staging deployment is accepted only when all are true:
 
@@ -336,13 +368,13 @@ A real staging deployment is accepted only when all are true:
 - R2 is enabled only after free-tier activation and hard application storage
   and request limits are qualified. Upload, retrieval, deletion, tenant
   isolation, and restart persistence all pass.
-- The 14-role staging identity matrix and cross-role workflows pass, including
+- The GitHub `staging` Environment independently restricts deployments to `main` and requires an authorized reviewer.\n- The 14-role staging identity matrix and cross-role workflows pass, including
   cross-tenant negative tests. Staging E2E remains disabled until test
   accounts and all endpoint variables exist.
 - Backup/restore is tested against a disposable database identity; no restore
   drill may target a production or unknown database.
 
-## 11. Explicit blockers — do not bypass
+## 12. Explicit blockers — do not bypass
 
 1. **OCI account/signup:** no connected OCI tenancy is available. Determine
    whether the user can access OCI through an eligible card-free route such
@@ -356,7 +388,7 @@ A real staging deployment is accepted only when all are true:
    on ARM64 by CI.
 5. **R2 no-charge protection:** R2 is not enabled; hard account-wide quota and
    operation-rate safeguards must be implemented before activation.
-6. **Staging test identities:** the real 14-role test account matrix is not
+6. **GitHub staging Environment:** its server-side main-only deployment-branch rule and required-reviewer policy have not been independently verified in repository settings.\n7. **Staging test identities:** the real 14-role test account matrix is not
    configured; staging E2E is skipped, not passed.
 
 No deployment, R2 activation, database migration, secret creation, or provider
