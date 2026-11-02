@@ -60,7 +60,7 @@ class AnalyticsIntegrationTest {
     }
 
     @Test
-    void csvExportRequiresExportPermission() throws Exception {
+    void csvExportRequiresAnalyticsViewAndExportPermissions() throws Exception {
         mvc.perform(get("/api/v1/analytics/exports/attendance")
                         .param("from", "2026-10-01T00:00:00Z")
                         .param("to", "2026-11-01T00:00:00Z")
@@ -68,6 +68,17 @@ class AnalyticsIntegrationTest {
                 .andExpect(status().isForbidden());
 
         jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'REPORTS_EXPORT')", ROLE);
+
+        // Export permission alone is insufficient: the report's underlying
+        // attendance read remains independently protected by ANALYTICS_VIEW.
+        jdbc.update("DELETE FROM role_permission WHERE role_id = ? AND permission_key = 'ANALYTICS_VIEW'", ROLE);
+        mvc.perform(get("/api/v1/analytics/exports/attendance")
+                        .param("from", "2026-10-01T00:00:00Z")
+                        .param("to", "2026-11-01T00:00:00Z")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT.toString()))))
+                .andExpect(status().isForbidden());
+
+        jdbc.update("INSERT INTO role_permission(role_id, permission_key) VALUES (?, 'ANALYTICS_VIEW')", ROLE);
 
         mvc.perform(get("/api/v1/analytics/exports/attendance")
                         .param("from", "2026-10-01T00:00:00Z")
