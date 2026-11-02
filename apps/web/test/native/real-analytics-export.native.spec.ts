@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const frontend = 'http://localhost:5173'
@@ -8,6 +9,9 @@ const keycloakIssuer = 'http://localhost:8081/realms/education'
 type LocalBootstrapState = {
   LocalAdminUsername?: unknown
   LocalAdminPassword?: unknown
+  DatabaseName?: unknown
+  RuntimeUser?: unknown
+  RuntimePassword?: unknown
 }
 
 type CurrentIdentity = {
@@ -44,7 +48,87 @@ function loadLocalOwnerCredentials(): { username: string; password: string } {
   return { username: state.LocalAdminUsername, password: state.LocalAdminPassword }
 }
 
-test('real OIDC owner exports a database-backed analytics report through the authenticated Vite proxy', async ({ page, request }) => {
+function requireLocalRuntimeDatabase(state: LocalBootstrapState): { database: string; username: string; password: string } {
+  if (
+    typeof state.DatabaseName !== 'string' || !state.DatabaseName ||
+    typeof state.RuntimeUser !== 'string' || !state.RuntimeUser ||
+    typeof state.RuntimePassword !== 'string' || !state.RuntimePassword
+  ) {
+    throw new Error('Protected local PostgreSQL runtime settings are missing. The native launcher must initialize the runtime role first.')
+  }
+  return { database: state.DatabaseName, username: state.RuntimeUser, password: state.RuntimePassword }
+}
+
+function resolvePsql(): string {
+  const candidates: string[] = []
+  const programFiles = process.env.ProgramFiles || 'C:\\Program Files'
+  for (const major of ['18', '17']) {
+    candidates.push(join(programFiles, 'PostgreSQL', major, 'bin', 'psql.exe'))
+  }
+  try {
+    const pathResults = execFileSync('where.exe', ['psql.exe'], {
+      encoding: 'utf8',
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    candidates.push(...pathResults.split(/\r?\n/).map(value => value.trim()).filter(Boolean))
+  } catch {
+    // A PATH lookup is optional; use the supported Program Files installations above.
+  }
+
+  for (const candidate of [...new Set(candidates)]) {
+    if (!existsSync(candidate)) continue
+    try {
+      const version = execFileSync(candidate, ['--version'], {
+        encoding: 'utf8',
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      if (/PostgreSQL\)\s+(?:17|18)\./.test(version)) return candidate
+    } catch {
+      // Continue to the next supported client candidate.
+    }
+  }
+  throw new Error('PostgreSQL 17/18 psql.exe was not found. The native launcher prerequisite check must pass before this test.')
+}
+
+function runAsRuntimeRole(
+  psql: string,
+  database: { database: string; username: string; password: string },
+  sql: string,
+): string {
+  return execFileSync(psql, [
+    '-X', '-v', 'ON_ERROR_STOP=1', '-A', '-t', '-F', '|',
+    '-h', '127.0.0.1', '-p', '5432', '-U', database.username, '-d', database.database,
+    '-c', sql,
+  ], {
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      PGPASSWORD: database.password,
+      PGCONNECT_TIMEOUT: '5',
+    },
+  }).trim()
+}
+
+function expectRuntimeRoleDenial(
+  psql: string,
+  database: { database: string; username: string; password: string },
+  sql: string,
+): void {
+  let denied = false
+  try {
+    runAsRuntimeRole(psql, database, sql)
+  } catch {
+    denied = true
+  }
+  expect(denied, 'the restricted Spring Boot database role must not perform this operation').toBe(true)
+}
+
+test('real OIDC owner exports analytics and persists a branch through Vite, Spring Boot and restricted PostgreSQL', async ({ page, request }) => {
   const credentials = loadLocalOwnerCredentials()
   const browserApiOrigins = new Set<string>()
 
@@ -112,4 +196,104 @@ test('real OIDC owner exports a database-backed analytics report through the aut
   expect(discovery.status()).toBe(200)
   const metadata = await discovery.json() as { issuer?: string }
   expect(metadata.issuer).toBe(keycloakIssuer)
+
+  // Create a real tenant branch from the authenticated UI, then prove the same
+  // committed row survives a browser reload and is readable with the API runtime role.
+  await page.getByRole('button', { name: 'Organization', exact: true }).click()
+  const branchCode = 'NATIVE' + Date.now().toString()
+  const branchName = 'Native persistence qualification ' + branchCode
+
+  await page.getByLabel('Code').fill(branchCode)
+  await page.getByLabel('Display name').fill(branchName)
+  await page.getByLabel('Timezone').fill('Asia/Kolkata')
+
+  const createBranchPromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/organization/branches'
+      && response.request().method() === 'POST'
+  })
+  await page.getByRole('button', { name: 'Create branch', exact: true }).click()
+  const createBranchResponse = await createBranchPromise
+  expect(createBranchResponse.status()).toBe(200)
+  const createdBranch = await createBranchResponse.json() as {
+    id: string
+    code: string
+    displayName: string
+    timezone: string
+    status: string
+  }
+  expect(createdBranch.code).toBe(branchCode)
+  expect(createdBranch.displayName).toBe(branchName)
+  expect(createdBranch.status).toBe('ACTIVE')
+  expect(createdBranch.id).toMatch(/^[0-9a-f-]{36}$/i)
+
+  const createHeaders = await createBranchResponse.request().allHeaders()
+  expect(createHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
+
+  // A reload discards React Query's in-memory cache; the following GET is a database readback.
+  await page.reload()
+  const reloadedIdentityPromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/me'
+      && response.request().method() === 'GET'
+  })
+  const reloadedIdentity = await reloadedIdentityPromise
+  expect(reloadedIdentity.status()).toBe(200)
+
+  const branchReadbackPromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend
+      && url.pathname === '/api/v1/organization/branches'
+      && response.request().method() === 'GET'
+  })
+  await page.getByRole('button', { name: 'Organization', exact: true }).click()
+  const branchReadback = await branchReadbackPromise
+  expect(branchReadback.status()).toBe(200)
+  const branchPage = await branchReadback.json() as {
+    items: Array<{ id: string; code: string; displayName: string; status: string }>
+  }
+  expect(branchPage.items).toContainEqual(expect.objectContaining({
+    id: createdBranch.id,
+    code: branchCode,
+    displayName: branchName,
+    status: 'ACTIVE',
+  }))
+
+  // The direct PostgreSQL check uses only the restricted runtime login from the
+  // protected LocalAppData state. Neither password nor SQL credentials are logged.
+  const localStatePath = join(
+    process.env.LOCALAPPDATA || '',
+    'UEP',
+    'local-native',
+    'state.json',
+  )
+  const localState = JSON.parse(readFileSync(localStatePath, 'utf8').replace(/^\uFEFF/, '')) as LocalBootstrapState
+  const runtimeDatabase = requireLocalRuntimeDatabase(localState)
+  const psql = resolvePsql()
+  const roleBoundarySql = [
+    'SELECT current_user,',
+    '(r.rolcanlogin AND NOT r.rolsuper AND NOT r.rolcreatedb AND NOT r.rolcreaterole',
+    "AND NOT r.rolreplication AND NOT r.rolbypassrls)::text,",
+    "(NOT has_schema_privilege(current_user, 'public', 'CREATE'))::text,",
+    "(NOT has_database_privilege(current_user, current_database(), 'CREATE'))::text",
+    'FROM pg_roles r WHERE r.rolname = current_user',
+  ].join(' ')
+  const roleBoundary = runAsRuntimeRole(psql, runtimeDatabase, roleBoundarySql)
+  expect(roleBoundary).toBe(runtimeDatabase.username + '|true|true|true')
+
+  const persistedBranchSql = [
+    "SELECT code || '|' || display_name || '|' || status",
+    'FROM public.branch',
+    "WHERE id = '" + createdBranch.id + "'::uuid",
+    "AND tenant_id = '" + identity.tenantId + "'::uuid",
+  ].join(' ')
+  const persistedRow = runAsRuntimeRole(psql, runtimeDatabase, persistedBranchSql)
+  expect(persistedRow).toBe(branchCode + '|' + branchName + '|ACTIVE')
+
+  expectRuntimeRoleDenial(psql, runtimeDatabase,
+    'CREATE TABLE public.__uep_native_runtime_forbidden_probe (id integer)')
+  expectRuntimeRoleDenial(psql, runtimeDatabase,
+    'SELECT count(*) FROM public.flyway_schema_history')
 })
