@@ -104,7 +104,7 @@ checks = {
             "function Get-KeycloakAdminToken", "function Ensure-LocalTestAccounts",
             "http://127.0.0.1:8081", "uep_local_keycloak", "__KEYCLOAK_USER__"
         ))
-        and "The local Real startup does not start or contact Keycloak" in launcher
+        and "Keycloak is not started" in launcher
     ),
     "Maven installation verifies the downloaded SHA-512": (
         "apache-maven-3.10.0-bin.zip" in launcher and "Get-FileHash" in launcher
@@ -141,10 +141,11 @@ checks = {
         and "PostgreSQL service" in launcher
         and "SQLite local profile" in launcher
     ),
-    "branch administrator test identity is attached only at branch scope": (
-        "scopeKind = 'BRANCH'" in launcher
-        and "scopeId = $testBranch.id" in launcher
-        and "tenantScoped" in launcher
+    "local-native launcher does not seed OIDC test personas or bypass the persisted owner bootstrap": (
+        "function Ensure-LocalTestAccounts" not in launcher
+        and "function Ensure-RealIdentity" not in launcher
+        and "Test-LocalApiProxy" in launcher
+        and "uep-local-demo-owner" in launcher
     ),
     "backend marks the persisted local tenant as local development": (
         'setDeploymentPlatform("local")' in local_tenant_bootstrap
