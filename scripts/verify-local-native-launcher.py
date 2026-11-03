@@ -22,7 +22,11 @@ pom = pom_path.read_text(encoding="utf-8")
 migration = migration_path.read_text(encoding="utf-8")
 
 checks = {
-    "launcher supports Demo, Real and Both modes": "ValidateSet('Demo', 'Real', 'Both')" in launcher,
+    "launcher supports Demo, Real, Both and Presentation modes": (
+        "ValidateSet('Demo', 'Real', 'Both', 'Presentation')" in launcher
+        and "ValidateSet('Demo', 'Real', 'Both', 'Presentation')" in wrapper
+        and "PRESENTATION MODE" in launcher
+    ),
     "launcher supports SQLite and PostgreSQL local database modes": (
         "ValidateSet('SQLite', 'PostgreSQL')" in launcher
         and "function Initialize-LocalSqliteDatabase" in launcher
@@ -52,8 +56,13 @@ checks = {
     "frontend and backend have explicit local endpoints": (
         "http://localhost:5173" in launcher and "http://localhost:8080" in launcher
     ),
-    "Both mode isolates offline Demo on a separate port": (
-        "5174" in launcher and "set VITE_LOCAL_MODE=true" in launcher
+    "Both and Presentation modes run separately labelled Real and Demo apps": (
+        "5174" in launcher
+        and "set VITE_LOCAL_MODE=false" in launcher
+        and "set VITE_LOCAL_MODE=true" in launcher
+        and "VITE_UEP_PRESENTATION_LABEL=REAL UEP - LOCAL " in launcher
+        and "VITE_UEP_PRESENTATION_LABEL=OFFLINE DEMO - SEEDED BROWSER DATA" in launcher
+        and "Start-Process 'http://localhost:5173'; Start-Process 'http://localhost:5174'" in launcher
     ),
     "PostgreSQL is provisioned without a container engine": (
         "PostgreSQL 18.4" in launcher and "pg_isready.exe" in launcher

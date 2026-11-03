@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_LOCAL_MODE?: string
+  readonly VITE_UEP_PRESENTATION_LABEL?: string
   readonly VITE_KEYCLOAK_URL?: string
   readonly VITE_KEYCLOAK_REALM?: string
   readonly VITE_KEYCLOAK_CLIENT_ID?: string

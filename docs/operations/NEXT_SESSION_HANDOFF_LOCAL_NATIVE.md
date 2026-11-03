@@ -446,3 +446,12 @@ No hosted production deployment was started or modified by these commits. All ch
 - Workflow run [41573298769](https://github.com/shreyashjagtap157/UEP/actions/runs/41573298769), source commit `3c4189b`: web, repository-policy and vulnerability-scan completed successfully; PostgreSQL 18.4 had passed **Verify backend**, while PostgreSQL 17.11 and the remaining container jobs were still running.
 - The successful backend verification stage includes the added `SQLiteLocalQualificationIntegrationTest` in the Maven suite. The earlier test failure from UUID parameter comparison is therefore corrected at the backend verification stage. The native Windows launcher/browser test remains unexecuted.
 - Latest source at the time of this note is later than the cited runs; rerun/finish CI for the exact current main head before release qualification.
+
+
+## 2026-11-03 follow-up — paired Real + Demo presentation
+
+- Added `-Mode Presentation` as the named side-by-side startup mode. It starts Real UEP at `localhost:5173` and the separate offline seeded demo at `localhost:5174`.
+- SQLite remains the default local database for Real mode; PostgreSQL can still be selected explicitly.
+- Real and Demo have persistent, distinct header labels and separate Vite process environments, browser origins, sessions and stores.
+- Added `docs/presentation/UEP_PRESENTATION_RUNBOOK.md` covering the two-environment run of show, the Real OIDC/API/database preview, the seeded Student → Teacher demo, and explicit claim boundaries.
+- CI and actual Windows presentation-mode execution remain pending for this follow-up. The native SQLite browser smoke must be run on the presentation workstation before describing the full real path as verified.

@@ -617,6 +617,31 @@ code {
   color: #64748b;
 }
 
+.environment-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 2rem;
+  padding: .35rem .65rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  color: #1e40af;
+  background: #eff6ff;
+  font-size: .68rem;
+  font-weight: 850;
+  letter-spacing: .035em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.environment-badge-demo {
+  border-color: #f1d29a;
+  color: #80500a;
+  background: #fff7e6;
+}
+@media (max-width: 760px) {
+  .environment-badge { white-space: normal; }
+}
 .version-badge,
 .count-badge {
   display: inline-flex;

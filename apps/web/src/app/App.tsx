@@ -78,6 +78,7 @@ export function App() {
   const [signInPending, setSignInPending] = useState(false)
   const [signInError, setSignInError] = useState<string | null>(null)
   const queryClient = useQueryClient()
+  const presentationLabel = import.meta.env.VITE_UEP_PRESENTATION_LABEL?.trim()
   const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: oidcAuthenticated && !localMode })
   const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated && !localMode })
 
@@ -225,7 +226,9 @@ export function App() {
             <h2>{sectionTitle(section)}</h2>
           </div>
           <div className="workspace-header-actions">
-            <span className="version-badge">{version.data?.version ?? 'Platform'}</span>
+            {presentationLabel
+              ? <span className="environment-badge environment-badge-real">{presentationLabel}</span>
+              : <span className="version-badge">{version.data?.version ?? 'Platform'}</span>}
             <div className="session-chip">
               <span className="session-avatar" aria-hidden="true">{initials}</span>
               <span className="session-meta">

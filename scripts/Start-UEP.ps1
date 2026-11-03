@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Demo', 'Real', 'Both')]
+    [ValidateSet('Demo', 'Real', 'Both', 'Presentation')]
     [string]$Mode = 'Both',
     [ValidateSet('SQLite', 'PostgreSQL')]
     [string]$Database = 'SQLite',
@@ -823,6 +823,7 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
             '@echo off',
             'set VITE_LOCAL_MODE=false',
             'set VITE_BACKEND_URL=',
+            ('set VITE_UEP_PRESENTATION_LABEL=REAL UEP - LOCAL ' + $Database.ToUpperInvariant()),
             'set VITE_KEYCLOAK_URL=http://localhost:8081',
             'set VITE_KEYCLOAK_REALM=education',
             'set VITE_KEYCLOAK_CLIENT_ID=platform-web',
@@ -838,6 +839,7 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
             '@echo off',
             'set VITE_LOCAL_MODE=true',
             'set VITE_BACKEND_URL=',
+            'set VITE_UEP_PRESENTATION_LABEL=OFFLINE DEMO - SEEDED BROWSER DATA',
             ('cd /d "' + $WebDir + '"'),
             ('call "' + $NpmCmd + '" run dev -- --host 127.0.0.1 --port ' + $DemoPort + ' --strictPort')
         )
@@ -854,6 +856,11 @@ try {
     Write-Host 'No Docker, Podman, containers, cloud databases, or paid execution services are used.'
     Write-Host ('Repository: ' + $RepoRoot)
     Write-Host ('Mode: ' + $Mode)
+    if ($Mode -eq 'Presentation') {
+        Write-Host 'PRESENTATION MODE — Real UEP and the offline seeded demo run as separate applications.' -ForegroundColor Cyan
+        Write-Host 'Real UEP uses Keycloak, Spring Boot and the selected local database.'
+        Write-Host 'Offline Demo uses simulated personas and browser-local sample state; it does not call the API.'
+    }
     Show-RequirementInventory
     Ensure-Node
 
@@ -865,32 +872,33 @@ try {
         Test-PortAvailable 8080
         Test-PortAvailable 8081
         Test-PortAvailable 5173
-        if ($Mode -eq 'Both') { Test-PortAvailable 5174 }
+        if ($Mode -in @('Both', 'Presentation')) { Test-PortAvailable 5174 }
         Initialize-LocalState
         if ($Database -eq 'SQLite') {
             Initialize-LocalSqliteDatabase
         } else {
             Initialize-LocalDatabase
         }
-        Write-RuntimeCommandFiles -RunReal -RunDemo:($Mode -eq 'Both')
+        Write-RuntimeCommandFiles -RunReal -RunDemo:($Mode -in @('Both', 'Presentation'))
         Ensure-RealIdentity
     } else {
         Test-PortAvailable 5173
         Write-RuntimeCommandFiles -RunDemo -DemoPort 5173
     }
 
-    if ($Mode -eq 'Both') {
+    if ($Mode -in @('Both', 'Presentation')) {
         Write-Host ''
-        Write-Host 'REAL PROJECT' -ForegroundColor Green
+        Write-Host 'REAL UEP — LOCAL INTEGRATED APPLICATION' -ForegroundColor Green
         Write-Host '  Frontend:  http://localhost:5173'
         Write-Host '  Backend:   http://localhost:8080'
         Write-Host '  Keycloak:  http://localhost:8081'
         Write-Host ('  Database:  ' + $(if ($Database -eq 'SQLite') { 'SQLite / .uep-local/uep-local.sqlite' } else { 'PostgreSQL / uep_local_native / localhost:5432' }))
-        Write-Host 'DEMO (offline fixtures; no API/database requests)' -ForegroundColor Yellow
+        Write-Host 'OFFLINE PRESENTATION DEMO (seeded browser data; no API/Keycloak/database)' -ForegroundColor Yellow
         Write-Host '  Frontend:  http://localhost:5174'
+        Write-Host 'Real and Demo use separate app origins, sessions and data stores.'
     } elseif ($Mode -eq 'Real') {
         Write-Host ''
-        Write-Host 'REAL PROJECT' -ForegroundColor Green
+        Write-Host 'REAL UEP — LOCAL INTEGRATED APPLICATION' -ForegroundColor Green
         Write-Host '  Frontend:  http://localhost:5173'
         Write-Host '  Backend:   http://localhost:8080'
         Write-Host '  Keycloak:  http://localhost:8081'
@@ -917,7 +925,7 @@ try {
         }
     }
     if (-not $NoBrowser) {
-        if ($Mode -eq 'Both') { Start-Process 'http://localhost:5173'; Start-Process 'http://localhost:5174' }
+        if ($Mode -in @('Both', 'Presentation')) { Start-Process 'http://localhost:5173'; Start-Process 'http://localhost:5174' }
         else { Start-Process 'http://localhost:5173' }
     }
 
@@ -945,7 +953,7 @@ try {
             Write-Status 'Database' 'NOT STARTED — offline Demo' Yellow
             Write-Status 'Backend' 'NOT STARTED — offline Demo' Yellow
         }
-        if ($Mode -eq 'Both') {
+        if ($Mode -in @('Both', 'Presentation')) {
             $real = if ((Test-NetConnection 127.0.0.1 -Port 5173 -WarningAction SilentlyContinue).TcpTestSucceeded) { 'LISTENING' } else { 'DOWN' }
             $demo = if ((Test-NetConnection 127.0.0.1 -Port 5174 -WarningAction SilentlyContinue).TcpTestSucceeded) { 'LISTENING' } else { 'DOWN' }
             Write-Status 'Real UI' $real $(if ($real -eq 'LISTENING') { 'Green' } else { 'Red' })

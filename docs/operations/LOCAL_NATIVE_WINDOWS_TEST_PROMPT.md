@@ -264,3 +264,16 @@ npm run test:e2e:native
 ```
 
 The SQLite native test validates OIDC login, authenticated branch creation, browser reload/readback and the SQLite file signature. PostgreSQL role/grant checks are a separate suite and are skipped in SQLite mode. This is a narrow local workflow qualification, not proof that every UEP module supports SQLite. Do not count membership lifecycle, role administration, analytics, scheduling, messaging, finance, notification delivery, or background-worker workflows as SQLite-qualified until their PostgreSQL-specific query and locking paths have dedicated SQLite tests. SQLite does not establish PostgreSQL migration, role/grant, concurrency, backup/restore or production-equivalence qualification.
+
+
+## Paired presentation environment
+
+Start Real UEP and the separate offline demo together:
+
+```powershell
+.\startuep.ps1 -Mode Presentation -Database SQLite
+```
+
+Real UEP runs at `http://localhost:5173`; the offline seeded demo runs at `http://localhost:5174`. Both use separate Vite process environments and visible environment labels. Only Real uses Keycloak, Spring Boot and the selected database. Demo remains browser-fixture-only.
+
+Use `docs/presentation/UEP_PRESENTATION_RUNBOOK.md` for the walkthrough and evidence boundaries.

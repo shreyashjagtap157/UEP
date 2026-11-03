@@ -314,6 +314,7 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
         <header className="workspace-header">
           <div><p className="eyebrow">Local seeded dataset · {profile.label}</p><h2>{nav.find(item => item.id === section)?.label ?? 'Workspace'}</h2></div>
           <div className="workspace-header-actions">
+            <span className="environment-badge environment-badge-demo">OFFLINE DEMO · SEEDED BROWSER DATA</span>
             <span className="version-badge">Demo data · v0.15.0</span>
             <div className="session-chip">
               <span className="session-avatar" aria-hidden="true">{initialsFor(profile.name)}</span>

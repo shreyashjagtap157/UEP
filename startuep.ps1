@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Demo', 'Real', 'Both')]
+    [ValidateSet('Demo', 'Real', 'Both', 'Presentation')]
     [string]$Mode = 'Both',
     [ValidateSet('SQLite', 'PostgreSQL')]
     [string]$Database = 'SQLite',

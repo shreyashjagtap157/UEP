@@ -96,26 +96,26 @@ npm --prefix apps/web run build
 No container runtime is required. The launcher checks prerequisites, starts PostgreSQL, Keycloak, Spring Boot and Vite as native Windows services/processes, runs Flyway separately with the local migrator role, then starts the API with the restricted runtime role.
 
 ```powershell
-# Run the real application and the offline demo side by side
-.\scripts\Start-UEP.ps1 -Mode Both
+# Run the real integrated application and the offline presentation demo side by side
+.\startuep.ps1 -Mode Presentation -Database SQLite
 
 # Real only or offline demo only
-.\scripts\Start-UEP.ps1 -Mode Real
-.\scripts\Start-UEP.ps1 -Mode Demo
+.\startuep.ps1 -Mode Real -Database SQLite
+.\startuep.ps1 -Mode Demo
 ```
 
-See [Native Windows local development](docs/operations/LOCAL_NATIVE_WINDOWS.md) for requirements, URLs, database roles, startup/stop behavior and local credentials. See [the local integration acceptance prompt](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) for browser-to-API-to-PostgreSQL qualification.
+See [Native Windows local development](docs/operations/LOCAL_NATIVE_WINDOWS.md) for requirements, URLs, SQLite/PostgreSQL boundaries, startup/stop behavior and local credentials. See [the UEP presentation runbook](docs/presentation/UEP_PRESENTATION_RUNBOOK.md) for the paired Real + Demo presentation. See [the local integration acceptance prompt](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) for browser-to-API-to-database qualification.
 
 The launcher uses `PLATFORM_DEV_MODE=true` only for local non-production execution. Never enable this setting with a production Spring profile.
 
-After starting Real mode with `.\scripts\Start-UEP.ps1 -Mode Real -NoBrowser`, run the dedicated real OIDC/API browser smoke from a second PowerShell window (install Chromium once as needed):
+After starting Real mode with `.\startuep.ps1 -Mode Real -Database SQLite -NoBrowser` or Presentation mode, run the database-specific native OIDC/API browser smoke from a second PowerShell window (install Chromium once as needed):
 
 ```powershell
 npm --prefix apps/web exec -- playwright install chromium
 npm --prefix apps/web run test:e2e:native
 ```
 
-This verifies owner OIDC sign-in, same-origin authenticated API requests, CSV export, a branch write through the UI, reload/readback, and a direct PostgreSQL check performed as the restricted runtime role. It also verifies that the runtime role cannot create public-schema tables or read Flyway history. Each run retains one annotated `NATIVE-E2E-<timestamp>` branch because no branch-delete API exists. It does not replace the wider multi-tenant/branch isolation matrix, all business workflows, or restart-persistence acceptance.
+The SQLite native spec verifies local owner OIDC sign-in, authenticated identity, a branch write through the UI and API readback after reload, plus the SQLite file signature. The PostgreSQL native spec additionally verifies analytics/CSV, custom-role CRUD, membership/role lifecycle and restricted runtime-role grants. Each database mode has a separate evidence boundary. Each run retains its unique test branch because no branch-delete API exists. These focused checks do not replace the wider multi-tenant/branch isolation matrix, all business workflows or restart-persistence acceptance.
 
 ## Licensing
 

@@ -1,159 +1,133 @@
-# Native Windows local development
+# Native Windows local development and presentation
 
 ## Purpose
 
-This is the supported local fallback when hosted API, identity and database infrastructure is unavailable. It runs the web client, Spring Boot API, Keycloak and PostgreSQL as native Windows processes and services. **It does not use Docker, Podman, Kubernetes, containers, Fly.io, Supabase, a cloud database, or a paid execution service.**
+The native launcher can show either the real integrated UEP application, the curated offline presentation demo, or both side by side. It uses local Windows processes; no hosted database or production deployment is needed.
 
-The root-level startuep.ps1 is a compatibility wrapper. The implementation is scripts/Start-UEP.ps1.
+The two experiences are intentionally separate:
+
+- **Real UEP**: React/Vite → Keycloak OIDC → Spring Boot API → selected local database. API requests use the same-origin Vite proxy. This is the real application path, not a production deployment.
+- **Offline Demo**: seeded role personas and browser-local sample state. It does not call Spring Boot, Keycloak, PostgreSQL or SQLite.
+
+Never present a demo fixture update as a server/database write. Never describe the current Real local SQLite profile as full PostgreSQL or production qualification.
+
+The root-level `startuep.ps1` is a compatibility wrapper for `scripts/Start-UEP.ps1`.
 
 ## Modes
 
 | Mode | Frontend | Backend | Identity | Database | Data boundary |
 |---|---|---|---|---|---|
-| Demo | http://localhost:5173 | Not started | Not started | Not started | Offline UI fixtures only |
-| Real | http://localhost:5173 | http://localhost:8080 | http://localhost:8081 | PostgreSQL uep_local_native on 127.0.0.1:5432 | Real API + persisted local PostgreSQL data |
-| Both | Real: http://localhost:5173; Demo: http://localhost:5174 | http://localhost:8080 | http://localhost:8081 | PostgreSQL uep_local_native on 127.0.0.1:5432 | Separate real and offline demo experiences |
+| `Demo` | Demo: `http://localhost:5173` | Not started | Simulated persona selection | Not started | Seeded browser-side data only |
+| `Real` | Real: `http://localhost:5173` | `http://localhost:8080` | Keycloak: `http://localhost:8081` | SQLite by default; PostgreSQL optional | Authenticated API and local persistence |
+| `Both` | Real: `http://localhost:5173`; Demo: `http://localhost:5174` | `http://localhost:8080` | Keycloak: `http://localhost:8081` | SQLite by default; PostgreSQL optional | Separate Real and offline Demo apps |
+| `Presentation` | Real: `http://localhost:5173`; Demo: `http://localhost:5174` | `http://localhost:8080` | Keycloak: `http://localhost:8081` | SQLite by default; PostgreSQL optional | Presentation-labelled paired apps |
 
-The Demo mode deliberately remains offline. It does not call the API, Keycloak or PostgreSQL and must not be described as a real-data or persistence demo. In Both mode, the Real and Demo Vite servers use separate ports and separate Vite process environments.
+`Presentation` is the recommended command for a walkthrough. It starts two separate Vite processes and opens the Real and Demo URLs independently. Browser storage and sign-in state are origin-scoped; Real and Demo do not share sessions or records.
 
-## Requirements and first-run behavior
+## Requirements
 
-The launcher checks for the required toolchain before starting application processes:
+For `Demo` only: Windows PowerShell, Node.js 22.22.0+, npm and the repository frontend dependencies.
 
-- Windows PowerShell 5.1 or PowerShell 7, x64 Windows.
-- JDK 21 or later.
-- Node.js 22.22.0 or later and npm.
-- Apache Maven 3.9 or later.
-- PostgreSQL 17 or 18 with psql and pg_isready; the launcher offers the PostgreSQL 18.4 EDB installer through WinGet when missing.
-- Keycloak 26.7.5; the launcher downloads the official native ZIP and verifies its pinned SHA-256 before extracting it.
+For `Real`, `Both` or `Presentation`:
 
-When available, WinGet installs missing JDK, Node.js and PostgreSQL prerequisites. The PostgreSQL installer opens interactively so the owner can set a local postgres superuser password. Maven and Keycloak are downloaded into the ignored .uep-local/tools directory. Apache Maven's published SHA-512 and the Keycloak release SHA-256 are checked before extraction.
+- x64 Windows and PowerShell 5.1 or PowerShell 7.
+- JDK 21+ and Maven 3.9+.
+- Node.js 22.22.0+ and npm.
+- Keycloak 26.7.5 (the launcher obtains the official native ZIP and checks its pinned SHA-256).
+- SQLite mode is the default and does not require PostgreSQL, psql, a PostgreSQL service, containers or a cloud database.
+- PostgreSQL 17 or 18 is optional and selected explicitly with `-Database PostgreSQL`.
 
-If Windows requires elevation to start the PostgreSQL service, open PowerShell as Administrator and rerun the launcher. The launcher does not alter an already-running PostgreSQL service. It starts the service only if it is stopped and will stop it on exit only when the launcher itself started it.
+Maven and Keycloak are downloaded into the ignored `.uep-local/tools` directory. The frontend lockfile is installed with `npm ci`. The launcher does not change machine-wide execution policy.
 
-Ports 5173, 5174, 8080, 8081 and 5432 must be available for the selected mode. Demo mode only requires port 5173.
+## Start the paired presentation
 
-## Start it
+From the repository root:
 
-Run these commands from the repository root:
+```powershell
+.\startuep.ps1 -Mode Presentation -Database SQLite
+```
 
-    # Recommended: start the real application and offline demo side by side.
-    .\scripts\Start-UEP.ps1 -Mode Both
+This opens:
 
-    # Start only the real application.
-    .\scripts\Start-UEP.ps1 -Mode Real
+- **Real UEP** — `http://localhost:5173`
+- **Offline Demo** — `http://localhost:5174`
+- **Keycloak** — `http://localhost:8081`
+- **Spring Boot API** — `http://localhost:8080`
 
-    # Start only the offline UI demo.
-    .\scripts\Start-UEP.ps1 -Mode Demo
+The Real UI displays `REAL UEP - LOCAL SQLITE`. The Demo UI displays `OFFLINE DEMO - SEEDED BROWSER DATA`. Keep the two windows separate during the presentation.
 
-    # Do not automatically open browser windows.
-    .\scripts\Start-UEP.ps1 -Mode Both -NoBrowser
+Other supported commands:
 
-    # Start Real without provisioning the additional role personas.
-    .\scripts\Start-UEP.ps1 -Mode Real -SkipAccountSeeding
+```powershell
+.\startuep.ps1 -Mode Real -Database SQLite
+.\startuep.ps1 -Mode Demo
+.\startuep.ps1 -Mode Presentation -Database PostgreSQL
+.\startuep.ps1 -Mode Presentation -Database SQLite -NoBrowser
+```
 
-The older root-level entry point also works:
+Use PostgreSQL only when it is installed and intentionally selected. The PostgreSQL mode retains the primary Flyway migration and separate migration/runtime/Keycloak-role design.
 
-    .\startuep.ps1 -Mode Both
+## SQLite local qualification boundary
 
-If script execution policy blocks a local script, use a process-scoped bypass rather than changing the machine policy:
+SQLite mode:
 
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Start-UEP.ps1 -Mode Both
+- uses `.uep-local\uep-local.sqlite`;
+- selects Spring profile `local-sqlite`;
+- disables Flyway and creates/updates a local schema from JPA entity mappings;
+- uses Keycloak's separate `dev-file` development store;
+- disables background workers that depend on PostgreSQL-specific advisory locks;
+- is intended for constrained local functional qualification, not production deployment.
 
-Press Ctrl+C in the launcher window to stop application processes. It preserves local database data, local accounts, logs and downloaded tools. It does not drop, clean, reset or truncate the database.
+It does **not** run the 50 PostgreSQL Flyway migrations, create PostgreSQL roles/grants, or validate PostgreSQL locking, migration, row-level privilege, concurrency, backup/restore or production behavior. PostgreSQL remains the production and CI database target. Not every UEP module has been qualified against SQLite; avoid claiming otherwise.
 
-## Native Real browser smoke test
+## Real UEP presentation walkthrough
 
-After starting the environment with `.\scripts\Start-UEP.ps1 -Mode Real -NoBrowser`, open a second PowerShell window in the repository root. Install the Playwright Chromium browser once if it is not already installed, then run the dedicated native Real smoke test:
+The Real window is the application with OIDC authentication and API-backed pages. It is not the fixture-based LocalExperience. Recommended sequence:
 
-    npm --prefix apps/web exec -- playwright install chromium
-    npm --prefix apps/web run test:e2e:native
+1. Complete the Keycloak login with the local owner account created by the launcher. Credentials are stored in the protected current-user LocalAppData folder; do not copy them into slides, shared documents or logs.
+2. Show the signed-in identity, tenant context and role-specific navigation. Explain that the browser calls the Spring API through Vite's same-origin `/api` proxy.
+3. Open **Organization** and demonstrate a branch create/readback only after the SQLite native smoke test has passed on this machine.
+4. Show the current identity, role/permission and security surfaces that are available to this account. Only demonstrate actions that you have rehearsed against this SQLite runtime and have seen succeed through the API.
+5. Explain that source modules for announcements, assessments, integrations, analytics and other domains are broader implementation work; source presence or menu visibility alone is not proof that each workflow is SQLite-qualified.
 
-The test reads the local owner credentials and the separate PostgreSQL runtime role credentials from the protected current-user LocalAppData state file into process memory only. It never prints, attaches, uploads or persists passwords or access tokens. The database password is passed only in the child `psql` process environment; it is not included in command-line arguments or test output. Traces, screenshots and video are disabled.
+The checked-in SQLite backend integration test proves Hibernate startup/schema generation, a tenant row write/read and the SQLite-aware tenant existence guard. The dedicated native SQLite Playwright test is intended to prove actual Windows OIDC login, branch API write/readback after reload and the SQLite file signature. CI verifies test discovery but does not execute that native Windows test. Until it has been run locally, mark the real browser/API path **NOT TESTED on this workstation**.
 
-It verifies local Keycloak owner sign-in, tenant/role claims from `/api/v1/me`, authenticated same-origin analytics reads, a bearer-authenticated attendance CSV download, and a real branch creation from the Organization UI. It watches the Vite-origin POST, reloads the browser to discard React Query's in-memory cache, and checks the branch again from the API. It then queries that exact row directly from PostgreSQL as `uep_local_runtime`, confirms the connected database user is the restricted runtime role, and verifies that this role cannot create public-schema tables or read `flyway_schema_history`.
+## Offline demo presentation walkthrough
 
-Each run creates a uniquely named `NATIVE-E2E-<timestamp>` branch and records its code and ID in the Playwright test annotation. The branch is intentionally retained: the current branch API has no delete operation, and the test will not bypass application authorization with destructive SQL. Traces, screenshots and video remain disabled.
+The Demo window is intentionally separate from Real. Use the seeded personas and show only the workflows that exist in the current build:
 
-This is a focused native Real integration qualification, not proof of every UEP domain workflow, multi-tenant/branch isolation across all modules, restart recovery or long-running reliability. Those remain separate phases in `LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md`. A source change or CI test-discovery pass is not a Windows runtime pass; run this command on the actual Windows machine and preserve its test output as evidence.
+1. **Student Today** — role-scoped landing view and sample pending work.
+2. **My Learning and Calendar & classes** — seeded courses, materials, progress and schedule.
+3. **Assignments** — submit one prepared sample assignment. This updates browser-local demo state only.
+4. **Teacher Submission queue** — sign out, select Teacher, and grade the prepared sample submission.
+5. **Student Results & feedback** — return to Student to show the demo result state.
+6. **Attendance or Inbox** — optionally mark sample attendance or show/send direct demo messaging.
 
-## Real-mode request and data path
+The Demo workspace has an always-visible label: `OFFLINE DEMO · SEEDED BROWSER DATA`. Its login is simulated, and its shared data is held in browser storage. Its Inbox is direct messaging, not the official announcement publishing workflow. It does not contain the full question-by-question timed examination flow.
 
-The Real web app is built with VITE_LOCAL_MODE=false, an empty VITE_BACKEND_URL, and the repository's Keycloak realm/client configuration. API calls use same-origin relative /api/... paths. Vite proxies those calls to the API on IPv4 loopback:
+## Test commands
 
-    Browser
-      |
-      | http://localhost:5173
-      v
-    Vite / React
-      |
-      | fetch("/api/v1/...")
-      | Vite proxy -> http://127.0.0.1:8080
-      v
-    Spring Boot API
-      |
-      | JWT validation / tenant context / authorization
-      | JDBC as uep_local_runtime
-      v
-    PostgreSQL 127.0.0.1:5432 / uep_local_native
+For the real local browser smoke, run in a second PowerShell window after the launcher reports services healthy:
 
-Authentication is a separate local path:
+```powershell
+npm --prefix apps/web exec -- playwright install chromium
+npm --prefix apps/web run test:e2e:native
+```
 
-    React -> Keycloak 26.7.5 at http://localhost:8081
-           -> realm education
-           -> public browser client platform-web
-           -> Authorization Code + PKCE S256
-           -> signed access token with tenant_id claim
-           -> Spring Boot API validates issuer/JWKS and tenant context
+The native suite selects the matching database-specific spec from the protected local state:
 
-The browser never connects directly to PostgreSQL and never receives database credentials. Keycloak and the API use separate PostgreSQL users and schemas.
+- SQLite: OIDC login, tenant identity, branch creation, browser reload/readback and the local SQLite file signature.
+- PostgreSQL: OIDC/analytics/CSV, branch persistence, custom-role CRUD, membership/role assignment lifecycle, and restricted runtime-role database checks.
 
-## Database ownership and migration lifecycle
+The SQLite suite is narrower; do not imply that it proves PostgreSQL grants or all business workflows. The native browser run must be performed on the actual Windows machine and the same Windows user profile that initialized UEP.
 
-The local database is uep_local_native, with these identities:
+For broader verification, run `mvn -f apps/platform-server/pom.xml verify`, `npm --prefix apps/web test`, `npm --prefix apps/web run lint` and `npm --prefix apps/web run build`. CI results and local Windows results are separate evidence.
 
-| Identity | Responsibility | Boundary |
-|---|---|---|
-| uep_local_migrator | One-shot Flyway migrations | Owns application schema objects; never used by request-serving API |
-| uep_local_runtime | Spring Boot API | Standalone least-privilege login; no schema/database creation, role membership, superuser or RLS bypass |
-| uep_local_keycloak | Keycloak persistence | Owns only schema keycloak; separate from UEP public application data |
+## Safety and data preservation
 
-On first initialization the launcher creates these local roles and the keycloak schema. It then runs Maven's `compile` phase before invoking the repository's `DatabaseMigrationRunner` with the required UEP_DATABASE_MIGRATION_* variables. This is required on a clean checkout because the runner is a Java main class in the project source tree. Flyway validates/applies the tracked migrations and grants the application runtime role its intended privileges.
-
-After this one-shot migration finishes, Spring Boot starts with SPRING_FLYWAY_ENABLED=false and connects only as uep_local_runtime. Keycloak connects as uep_local_keycloak with KC_DB_SCHEMA=keycloak. The launcher never points the local app at Supabase or any other remote database.
-
-## Local accounts and secrets
-
-Generated local credentials and connection secrets are stored beneath:
-
-    %LOCALAPPDATA%\UEP\local-native\
-
-The launcher restricts that directory's Windows ACL to the current user. state.json stores generated local service credentials and bootstrap state; accounts.txt contains the local test persona credentials. Keep these files private and never commit or upload them. The folder is outside the repository and the .uep-local/ runtime/tool/log directory is git-ignored.
-
-Real mode provisions a local platform super-administrator, one local test tenant and role-scoped OIDC identities for the platform's supported personas. The additional personas can be skipped with -SkipAccountSeeding; the initial local admin bootstrap remains necessary for the real identity path.
-
-## Runtime status and logs
-
-While running, the launcher periodically displays:
-
-- PostgreSQL connection status using the local runtime database role.
-- Keycloak TCP listener status.
-- Spring Boot /actuator/health status.
-- Real and/or Demo Vite listener status.
-
-Logs and generated command files are kept under .uep-local\logs and .uep-local. Inspect those files if a readiness check times out. Error output is emitted when a dependency or process fails to start.
-
-## Verification boundary
-
-A successful launcher startup proves that its configured local services responded to their readiness checks. It does **not** prove every UEP domain workflow, role/tenant isolation rule, or every API operation is correct. Run the acceptance plan in LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md after startup.
-
-The launcher itself is statically checked by scripts/verify-local-native-launcher.py and parsed by PowerShell in CI. Windows runtime qualification still needs to be performed on a Windows workstation; CI cannot claim a local Windows launch on the owner's machine.
-
-## Recovery and safety
-
-- Do not set a production Spring profile for this local development launcher.
-- Do not enable automatic Flyway on the request-serving runtime role.
-- Do not replace local uep_local_runtime with postgres or the migration role.
-- Do not point the local API or Keycloak at the paused hosted Supabase project.
-- Do not drop or reset any database to repair a startup issue. Inspect the error, migration history and role grants first.
-- To stop the environment, press Ctrl+C. Local database contents are preserved.
+- The launcher does not connect to hosted or production databases.
+- SQLite files, local Keycloak state and credentials remain local. Do not commit `.uep-local`.
+- The launcher does not reset or delete user data automatically.
+- Do not expose the protected LocalAppData credentials file.
+- Never use Demo personas to imply real OIDC authentication, server-side RBAC or database persistence.
+- Never use the local Real environment to claim production readiness. It is a development/qualification runtime.
