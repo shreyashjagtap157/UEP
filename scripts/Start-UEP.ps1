@@ -950,7 +950,7 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
                 'set DATABASE_POOL_SIZE=1',
                 'set PORT=8080',
                 ('cd /d "' + $ApiDir + '"'),
-                ('call "' + $MavenCmd + '" -B spring-boot:run -Dspring-boot.run.arguments=--platform.background-workers.enabled=false')
+                ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 clean spring-boot:run -Dspring-boot.run.arguments=--platform.background-workers.enabled=false')
             )
         } else {
             $backendLines = @(
@@ -969,9 +969,19 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
                 'set DATABASE_POOL_SIZE=10',
                 'set PORT=8080',
                 ('cd /d "' + $ApiDir + '"'),
-                ('call "' + $MavenCmd + '" -B spring-boot:run')
+                ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 clean spring-boot:run')
             )
         }
+        # Pin the runtime and compiler to the exact JDK discovered by Ensure-Java.
+        # Maven's forked Spring Boot process inherits this JAVA_HOME and PATH.
+        $javaBin = Join-Path $script:JavaHome 'bin'
+        $backendLines = @(
+            ('set "JAVA_HOME=' + $script:JavaHome + '"'),
+            ('set "PATH=' + $javaBin + ';%PATH%"'),
+            'java -version',
+            'javac -version',
+            ('call "' + $MavenCmd + '" -version')
+        ) + $backendLines
         $apiFile = Write-CommandFile 'run-api' $backendLines
         Start-ManagedProcess 'Backend' $apiFile $ApiDir
         if (-not (Wait-ForHttp 'http://127.0.0.1:8080/actuator/health' 180 'Backend')) { throw 'Backend did not become healthy. Inspect .uep-local\logs\Backend.log.' }
