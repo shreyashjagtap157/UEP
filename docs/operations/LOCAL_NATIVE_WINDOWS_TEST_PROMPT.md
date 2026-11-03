@@ -12,7 +12,8 @@ The system is started natively on Windows by:
 
 Expected local endpoints:
 
-- Frontend: http://localhost:5173
+- Real frontend: http://127.0.0.1:5173
+- Offline Demo frontend (Presentation/Both mode): http://127.0.0.1:5174
 - Backend: http://127.0.0.1:8080
 - Swagger UI: http://127.0.0.1:8080/swagger-ui.html
 - OpenAPI JSON: http://127.0.0.1:8080/v3/api-docs
@@ -42,7 +43,7 @@ Check all prerequisites and statuses:
 - SQLite mode: the SQLite file is created by the backend and has a valid SQLite header. PostgreSQL mode: PostgreSQL accepts local connections.
 - Swagger UI returns HTTP 200 at `/swagger-ui/index.html`; `/v3/api-docs` returns a valid OpenAPI document.
 - Spring Boot actuator health is UP.
-- Frontend page loads from port 5173.
+- Real frontend page loads from port 5173; in paired Presentation/Both mode, the separately labelled Offline Demo page also loads from port 5174.
 - Required ports are bound by the expected local processes.
 
 Record process IDs and log paths without exposing credentials.
@@ -60,14 +61,14 @@ Inspect browser and build artifacts for leaked secrets. No database username/pas
 
 ## Phase 2 — Local API authentication and tenant context
 
-1. Open the actual Real frontend at http://localhost:5173.
-2. Confirm the Real UI stays at the local frontend and never redirects to port 8081.
+1. Open the actual Real frontend at http://127.0.0.1:5173. In paired Presentation/Both mode, separately open the Offline Demo at http://127.0.0.1:5174.
+2. Confirm the Real UI stays at the local frontend and never redirects to port 8081. Confirm the second UI is visibly labelled Offline Demo and remains on the browser-fixture path.
 3. Confirm the browser GET to `/api/v1/me` contains neither `X-UEP-Local-Auth` nor `Authorization`. Confirm the same-origin Vite proxy adds `X-UEP-Local-Auth` upstream, and a direct unauthenticated request to `http://127.0.0.1:8080/api/v1/me` returns HTTP 401.
 4. Confirm `/api/v1/me` returns subject `uep-local-demo-owner`, an active tenant membership and the Organization Owner role.
 5. Confirm the same request without the local header returns 401; an invalid local header also returns 401.
 6. Verify the local authentication header is accepted only by the loopback-bound backend and only for /api routes.
 7. Verify invalid/unknown tenant context and inactive memberships remain denied by the normal tenant and identity services.
-8. Confirm the browser makes no request to port 8081 or any OIDC issuer.
+8. Confirm the Real browser makes no request to port 8081 or any OIDC issuer. Confirm the Offline Demo makes no backend/API request and its sample updates remain browser-local.
 9. Open the backend Swagger UI separately and confirm its OpenAPI JSON loads without an API token.
 
 ## Phase 3 — Browser-to-API request proof
