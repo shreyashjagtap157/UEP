@@ -160,6 +160,11 @@ checks.update({
         "$tenant.PSObject.Properties['id']" in launcher
         and "Tenant bootstrap API response did not include the required id field" in launcher
     ),
+    "Keycloak tenant-attribute repair handles users with no attributes property": (
+        "$user.PSObject.Properties['attributes']" in launcher
+        and "$user.attributes.PSObject.Properties['tenant_id']" in launcher
+        and "Add-Member -NotePropertyName attributes -NotePropertyValue ([pscustomobject]@{}) -Force" in launcher
+    ),
     "launcher avoids shadowing PowerShell automatic HOME and args variables": (
         not re.search(r"(?im)^\s*\$(?:home|args)\s*=", launcher)
         and "$keycloakInstallDir = Join-Path $ToolDir 'keycloak-26.7.5'" in launcher
