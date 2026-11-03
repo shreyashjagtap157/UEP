@@ -29,6 +29,8 @@ class SQLiteLocalQualificationIntegrationTest {
 
     @Test
     void localSqliteProfileDisablesSchedulingAndEveryBackgroundWorker() {
+        assertThat(applicationContext.getEnvironment().getProperty("spring.jpa.properties.hibernate.hbm2ddl.jdbc_metadata_extraction_strategy"))
+                .isEqualTo("individually");
         assertThat(applicationContext.getEnvironment().getProperty("platform.background-workers.enabled", Boolean.class))
                 .isFalse();
         assertThat(applicationContext.getBeansOfType(BackgroundWorkerConfiguration.class)).isEmpty();
