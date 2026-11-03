@@ -21,6 +21,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * and re-send the same email on every poll).
  */
 @Service
+@ConditionalOnProperty(prefix = "platform.background-workers", name = "enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnProperty(prefix = "platform.notifications.email", name = "enabled", havingValue = "true")
 class NotificationEmailWorker {
     private static final Logger log = LoggerFactory.getLogger(NotificationEmailWorker.class);
