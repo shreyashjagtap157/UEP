@@ -5,8 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.universalplatform.BackgroundWorkerConfiguration;
 import com.universalplatform.security.TenantMutationLock;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 import java.time.Instant;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
@@ -22,6 +26,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 })
 class SQLiteLocalQualificationIntegrationTest {
     @Autowired JdbcTemplate jdbc;
+    @Autowired DataSource dataSource;
     @Autowired ApplicationContext applicationContext;
     @Autowired TenantRepository tenants;
     @Autowired TenantMutationLock tenantMutationLock;
@@ -45,6 +50,22 @@ class SQLiteLocalQualificationIntegrationTest {
         assertThat(applicationContext.containsBean("notificationOutboxProcessor")).isFalse();
         assertThat(applicationContext.containsBean("recordingWorker")).isFalse();
         assertThat(applicationContext.containsBean("storageQuotaReconciliationWorker")).isFalse();
+    }
+
+    @Test
+    void existingSqliteSchemaSupportsPerTableColumnMetadataExtraction() throws Exception {
+        try (Connection connection = dataSource.getConnection()) {
+            DatabaseMetaData metadata = connection.getMetaData();
+            var tableNames = jdbc.queryForList(
+                    "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name",
+                    String.class);
+            assertThat(tableNames).hasSizeGreaterThan(50);
+            for (String tableName : tableNames) {
+                try (ResultSet columns = metadata.getColumns(null, null, tableName, null)) {
+                    assertThat(columns.next()).as("SQLite column metadata for existing table %s", tableName).isTrue();
+                }
+            }
+        }
     }
 
     @Test
