@@ -54,12 +54,12 @@ class SQLiteLocalQualificationIntegrationTest {
 
     @Test
     void existingSqliteSchemaSupportsPerTableColumnMetadataExtraction() throws Exception {
+        var tableNames = jdbc.queryForList(
+                "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name",
+                String.class);
+        assertThat(tableNames).hasSizeGreaterThan(50);
         try (Connection connection = dataSource.getConnection()) {
             DatabaseMetaData metadata = connection.getMetaData();
-            var tableNames = jdbc.queryForList(
-                    "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name",
-                    String.class);
-            assertThat(tableNames).hasSizeGreaterThan(50);
             for (String tableName : tableNames) {
                 try (ResultSet columns = metadata.getColumns(null, null, tableName, null)) {
                     assertThat(columns.next()).as("SQLite column metadata for existing table %s", tableName).isTrue();
