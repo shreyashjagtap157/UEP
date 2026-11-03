@@ -79,6 +79,7 @@ const permissionOptions: PermissionKey[] = [
 
 export function App() {
   const [section, setSection] = useState<Section>('overview')
+  const [navFilter, setNavFilter] = useState('')
   const [oidcAuthenticated, setOidcAuthenticated] = useState<boolean>(() => isOidcAuthenticated())
   const [signInPending, setSignInPending] = useState(false)
   const [signInError, setSignInError] = useState<string | null>(null)
@@ -219,28 +220,54 @@ export function App() {
 
   const me = identity.data
   const initials = me.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || 'U'
-  const nav: Array<{ id: Section; label: string; visible: boolean }> = [
-    { id: 'overview', label: 'Today', visible: true },
-    { id: 'analytics', label: 'Analytics & Operations', visible: has(me, 'ANALYTICS_VIEW') },
-    { id: 'integrations', label: 'Integrations', visible: has(me, 'API_VIEW') || has(me, 'WEBHOOKS_VIEW') || has(me, 'FEDERATION_VIEW') || has(me, 'INTEROPERABILITY_VIEW') },
-    { id: 'live', label: 'Live Learning', visible: has(me, 'LIVE_CLASS_VIEW') || has(me, 'LIVE_CLASS_MANAGE') },
-    { id: 'recordings', label: 'Recordings', visible: has(me, 'RECORDINGS_VIEW') || has(me, 'RECORDINGS_MANAGE') },
-    { id: 'finance', label: 'Finance', visible: has(me, 'FINANCE_VIEW') || has(me, 'FINANCE_MANAGE') },
-    { id: 'schedule', label: 'Schedule', visible: hasScoped(me, 'SCHEDULE_VIEW') },
-    { id: 'announcements', label: 'Announcements', visible: hasScoped(me, 'ANNOUNCEMENTS_VIEW') },
-    { id: 'notifications', label: 'Notifications', visible: true },
-    { id: 'assessment', label: 'Assessments', visible: has(me, 'ASSESSMENTS_VIEW') || has(me, 'ASSESSMENTS_TAKE') },
-    { id: 'assignments', label: 'Assignments', visible: has(me, 'ASSIGNMENTS_VIEW') || has(me, 'ASSIGNMENTS_TAKE') || has(me, 'GRADEBOOK_VIEW') },
-    { id: 'content', label: 'Learning Content', visible: has(me, 'CONTENT_VIEW') },
-    { id: 'academics', label: 'Academics', visible: has(me, 'ACADEMICS_VIEW') || has(me, 'CURRICULUM_VIEW') },
-    { id: 'advanced', label: 'Advanced Academics', visible: has(me, 'LEARNING_OUTCOMES_MANAGE') || has(me, 'CREDENTIALS_MANAGE') || has(me, 'MENTORING_MANAGE') || has(me, 'SURVEYS_MANAGE') || has(me, 'LEARNING_OUTCOMES_VIEW') || has(me, 'CREDENTIALS_VIEW') || has(me, 'MENTORING_VIEW') || has(me, 'SURVEYS_VIEW') || has(me, 'FEEDBACK_MANAGE') },
-    { id: 'enrollment', label: 'Enrollment', visible: has(me, 'ENROLLMENTS_VIEW') || has(me, 'TEACHING_ASSIGNMENTS_VIEW') },
-    { id: 'people', label: 'People', visible: has(me, 'USERS_VIEW') },
-    { id: 'roles', label: 'Roles', visible: has(me, 'ROLES_VIEW') },
-    { id: 'organization', label: 'Organization', visible: has(me, 'ORGANIZATION_VIEW') || has(me, 'BRANCHES_VIEW') },
-    { id: 'security', label: 'Security', visible: has(me, 'SESSIONS_VIEW') || has(me, 'SESSIONS_MANAGE') },
-    
+  const navGroups: Array<{ label: string; items: Array<{ id: Section; label: string; visible: boolean }> }> = [
+    {
+      label: 'My workspace',
+      items: [
+        { id: 'overview', label: 'Today', visible: true },
+        { id: 'schedule', label: 'Schedule', visible: hasScoped(me, 'SCHEDULE_VIEW') },
+        { id: 'notifications', label: 'Notifications', visible: true },
+      ],
+    },
+    {
+      label: 'Teaching & learning',
+      items: [
+        { id: 'academics', label: 'Academics', visible: has(me, 'ACADEMICS_VIEW') || has(me, 'CURRICULUM_VIEW') },
+        { id: 'enrollment', label: 'Enrollment', visible: has(me, 'ENROLLMENTS_VIEW') || has(me, 'TEACHING_ASSIGNMENTS_VIEW') },
+        { id: 'content', label: 'Learning Content', visible: has(me, 'CONTENT_VIEW') },
+        { id: 'assignments', label: 'Assignments', visible: has(me, 'ASSIGNMENTS_VIEW') || has(me, 'ASSIGNMENTS_TAKE') || has(me, 'GRADEBOOK_VIEW') },
+        { id: 'assessment', label: 'Assessments', visible: has(me, 'ASSESSMENTS_VIEW') || has(me, 'ASSESSMENTS_TAKE') },
+        { id: 'live', label: 'Live Learning', visible: has(me, 'LIVE_CLASS_VIEW') || has(me, 'LIVE_CLASS_MANAGE') },
+        { id: 'recordings', label: 'Recordings', visible: has(me, 'RECORDINGS_VIEW') || has(me, 'RECORDINGS_MANAGE') },
+        { id: 'advanced', label: 'Advanced Academics', visible: has(me, 'LEARNING_OUTCOMES_MANAGE') || has(me, 'CREDENTIALS_MANAGE') || has(me, 'MENTORING_MANAGE') || has(me, 'SURVEYS_MANAGE') || has(me, 'LEARNING_OUTCOMES_VIEW') || has(me, 'CREDENTIALS_VIEW') || has(me, 'MENTORING_VIEW') || has(me, 'SURVEYS_VIEW') || has(me, 'FEEDBACK_MANAGE') },
+      ],
+    },
+    {
+      label: 'Institution management',
+      items: [
+        { id: 'announcements', label: 'Announcements', visible: hasScoped(me, 'ANNOUNCEMENTS_VIEW') },
+        { id: 'finance', label: 'Finance', visible: has(me, 'FINANCE_VIEW') || has(me, 'FINANCE_MANAGE') },
+        { id: 'people', label: 'People', visible: has(me, 'USERS_VIEW') },
+        { id: 'roles', label: 'Roles', visible: has(me, 'ROLES_VIEW') },
+        { id: 'organization', label: 'Organization', visible: has(me, 'ORGANIZATION_VIEW') || has(me, 'BRANCHES_VIEW') },
+        { id: 'security', label: 'Security', visible: has(me, 'SESSIONS_VIEW') || has(me, 'SESSIONS_MANAGE') },
+      ],
+    },
+    {
+      label: 'Platform & insights',
+      items: [
+        { id: 'analytics', label: 'Analytics & Operations', visible: has(me, 'ANALYTICS_VIEW') },
+        { id: 'integrations', label: 'Integrations', visible: has(me, 'API_VIEW') || has(me, 'WEBHOOKS_VIEW') || has(me, 'FEDERATION_VIEW') || has(me, 'INTEROPERABILITY_VIEW') },
+      ],
+    },
   ]
+  const normalizedNavFilter = navFilter.trim().toLocaleLowerCase()
+  const visibleNavGroups = navGroups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => item.visible && item.label.toLocaleLowerCase().includes(normalizedNavFilter)),
+    }))
+    .filter(group => group.items.length > 0)
 
   return (
     <div className="app-frame">
@@ -249,13 +276,40 @@ export function App() {
           <p className="product-kicker">Universal Education</p>
           <h1 className="product-title">Operations Platform</h1>
         </div>
-        <nav aria-label="Primary navigation" className="nav-list">
-          {nav.filter(item => item.visible).map(item => (
-            <button key={item.id} className={section === item.id ? 'nav-item active' : 'nav-item'} onClick={() => setSection(item.id)}>
-              {item.label}
-            </button>
-          ))}
-        </nav>
+        <div className="sidebar-navigation">
+          <label className="sr-only" htmlFor="workspace-navigation-filter">Filter workspace sections</label>
+          <input
+            id="workspace-navigation-filter"
+            className="nav-filter"
+            type="search"
+            value={navFilter}
+            onChange={event => setNavFilter(event.target.value)}
+            placeholder="Find a section…"
+            autoComplete="off"
+          />
+          <nav aria-label="Primary navigation" className="nav-list">
+            {visibleNavGroups.length > 0 ? visibleNavGroups.map(group => (
+              <section className="nav-group" key={group.label} aria-label={group.label}>
+                <h2 className="nav-group-title">{group.label}</h2>
+                <div className="nav-group-items">
+                  {group.items.map(item => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={section === item.id ? 'nav-item active' : 'nav-item'}
+                      aria-current={section === item.id ? 'page' : undefined}
+                      onClick={() => setSection(item.id)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )) : (
+              <p className="nav-empty" role="status">No sections match “{navFilter.trim()}”.</p>
+            )}
+          </nav>
+        </div>
         <div className="sidebar-footer">
           <p className="signed-in">{me.displayName}</p>
           <p className="muted small">{me.roles.join(' · ') || 'No assigned role'}</p>
