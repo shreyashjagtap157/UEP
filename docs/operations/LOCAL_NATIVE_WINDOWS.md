@@ -41,7 +41,7 @@ For `Real`, `Both` or `Presentation`:
 - SQLite mode is the default and does not require PostgreSQL, psql, a PostgreSQL service, containers or a cloud database.
 - PostgreSQL 17 or 18 is optional and selected explicitly with `-Database PostgreSQL`.
 - Internet access for first-time Maven and npm dependency resolution.
-- Ports 5173 and 8080 available; paired modes also require port 5174.
+- Ports 5173, 5174 and 8080 must be free before startup. The launcher runs `npm ci`, so it deliberately refuses to start if either Vite port is occupied by another UEP process.
 
 ### First-run dependency installation
 
@@ -77,7 +77,7 @@ This opens:
 
 The Real UI displays `REAL UEP - LOCAL SQLITE`. The Demo UI displays `OFFLINE DEMO - SEEDED BROWSER DATA`. Keep the two windows separate during the presentation.
 
-For every Real-mode launch, the backend creates or reuses a real `uep-local` tenant, a local owner account, an active membership and an `Organization Owner` role assignment in the selected database. The browser uses a fresh 12-hour launcher-issued local token accepted only by the backend bound to `127.0.0.1`. In `Both` and `Presentation`, the Offline Demo supplies its own browser-only seeded personas.
+For every Real-mode launch, the backend creates or reuses a real `uep-local` tenant, a local owner account, an active membership and an `Organization Owner` role assignment in the selected database. The launcher generates a fresh 12-hour random local API credential. The protected Real Vite process receives it as the non-`VITE_` environment variable `UEP_LOCAL_AUTH_TOKEN`; Vite injects `X-UEP-Local-Auth` into proxied `/api` requests server-side. The credential is never compiled into browser JavaScript, stored in browser storage or sent as a browser request header. Direct calls to the backend without the Vite proxy remain unauthorized (HTTP 401). In `Both` and `Presentation`, the Offline Demo supplies its own browser-only seeded personas. The Real backend provisions only one persisted local owner for both SQLite and PostgreSQL; no Keycloak or OIDC test-persona bootstrap runs.
 
 Other supported commands:
 
@@ -88,7 +88,7 @@ Other supported commands:
 .\startuep.ps1 -Mode Presentation -Database SQLite -NoBrowser
 ```
 
-Use PostgreSQL only when it is installed and intentionally selected. The PostgreSQL mode retains the primary Flyway migration and separate migration/runtime database-role design. The local Real startup does not start or contact Keycloak.
+Use PostgreSQL only when it is installed and intentionally selected. The PostgreSQL mode retains the primary Flyway migration and separate migration/runtime database-role design; the launcher provisions only `uep_local_migrator` and `uep_local_runtime`. It does not create, alter or drop any Keycloak role/schema. Existing legacy database objects are left untouched. The local Real startup does not start or contact Keycloak.
 
 ### Java bytecode/runtime consistency
 
@@ -159,6 +159,7 @@ For broader verification, run `mvn -f apps/platform-server/pom.xml verify`, `npm
 ## Safety and data preservation
 
 - The launcher does not connect to hosted or production databases.
+- The local token stays in ACL-protected process/command state and the Vite Node process. Never add it to a `VITE_` variable or browser code.
 - SQLite files, local API data and protected launcher state remain local. Do not commit `.uep-local`.
 - The launcher does not reset or delete user data automatically.
 - Do not expose the launcher-issued local session token or the protected `.uep-local` command files.
