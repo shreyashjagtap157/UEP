@@ -398,13 +398,19 @@ function Initialize-LocalState {
         if (-not ($State.PSObject.Properties.Name -contains 'SQLiteDatabasePath')) {
             $State | Add-Member -NotePropertyName SQLiteDatabasePath -NotePropertyValue '' -Force
         }
+        if (-not ($State.PSObject.Properties.Name -contains 'TenantId')) {
+            $State | Add-Member -NotePropertyName TenantId -NotePropertyValue '' -Force
+        }
+        if (-not ($State.PSObject.Properties.Name -contains 'LocalAdminUserId')) {
+            $State | Add-Member -NotePropertyName LocalAdminUserId -NotePropertyValue '' -Force
+        }
         $previousProvider = [string]$State.DatabaseProvider
         $sqlitePath = Join-Path $LocalDir 'uep-local.sqlite'
         $sqliteMissingOrEmpty = -not (Test-Path -LiteralPath $sqlitePath -PathType Leaf)
         if (-not $sqliteMissingOrEmpty) {
             $sqliteMissingOrEmpty = (Get-Item -LiteralPath $sqlitePath).Length -eq 0
         }
-        $providerChanged = -not [string]::Equals($previousProvider, $Database, [StringComparison]::OrdinalIgnoreCase)
+        $providerChanged = -not [string]::Equals($previousProvider, $Database, [System.StringComparison]::OrdinalIgnoreCase)
         $sqliteIdentityMustBeRecreated = ($Database -eq 'SQLite' -and $sqliteMissingOrEmpty)
         if ($providerChanged -or $sqliteIdentityMustBeRecreated) {
             $reason = if ($providerChanged) { "database provider changed from $previousProvider to $Database" } else { 'the local SQLite database file is missing or empty' }
