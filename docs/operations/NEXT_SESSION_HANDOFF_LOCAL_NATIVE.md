@@ -1,510 +1,263 @@
-# Next-session handoff — UEP native Windows full-stack qualification
+# UEP next-session handoff — local Real implementation + offline Demo
 
-Use this prompt as the first message in a new ChatGPT conversation.
+Repository: https://github.com/shreyashjagtap157/UEP
 
----
+Last reviewed: 3 November 2026  
+Release: `0.15.0.0-SNAPSHOT`  
+Local launcher: `scripts/Start-UEP.ps1`  
+Root entry point: `startuep.ps1`
 
 ## Mission
 
-Continue engineering and qualify the Universal Education Platform repository:
+Continue engineering and qualifying the actual Universal Education Platform (UEP) implementation on the user's Windows workstation.
 
-https://github.com/shreyashjagtap157/UEP
+The immediate local target is a reliable paired presentation environment:
 
-Act as the principal engineer, Windows PowerShell engineer, Spring Boot/API engineer, PostgreSQL engineer, OIDC/Keycloak engineer, frontend integration engineer, security tester and release verifier.
+- **Real UEP** — React/Vite frontend connected to the actual Spring Boot backend and the selected local database.
+- **Offline Demo** — separate seeded, browser-local sample experience, used for the simulated Student/Teacher walkthrough.
+- **Backend API documentation** — separate Swagger UI and OpenAPI JSON served by the local Spring Boot process.
 
-The immediate goal is to get the **actual Real UEP application** running locally on Windows without Docker/Podman or any hosted backend/database service, then prove the real browser → API → PostgreSQL request/data path.
+The default launcher command starts Real + Demo together. These are separate applications and data stores. Never present Demo fixture behavior as proof of Real API or database functionality.
 
-Do not spend the session repeating the work already committed. Inspect the live repository at the exact current main SHA first, inspect current CI, and continue from the implementation below.
+## Non-negotiable operating constraints
 
-## Hard operating constraints
+1. Inspect the live GitHub `main` branch and exact current commit before editing anything. This handoff can become stale; source and CI evidence take priority.
+2. Keep the direct-main workflow. Do not create branches, force-push, rewrite history, or discard user changes.
+3. Do not use or start Keycloak for the current local-native walkthrough. Do not probe port 8081, configure an external issuer, or create Keycloak users/database roles. Standard OIDC support remains a separate product integration; it is not part of this local launcher path.
+4. Do not use Docker, Podman, Kubernetes, containers, paid agents, hosted databases, hosted compute, paid upgrades or metered services.
+5. Do not start or deploy cloud services. Do not resume the paused hosted database or start old Fly machines.
+6. Never request, print, commit, upload or expose `state.json`, account files, environment files, database passwords, launcher tokens, service credentials, private keys or credential-bearing JDBC URLs. Ask only for suitably redacted logs.
+7. Preserve local user data. Never drop/reset SQLite files, PostgreSQL databases or schemas; never run Flyway clean, destructive restore, truncation or broad cleanup. Do not delete old PostgreSQL Keycloak schema/roles: the new launcher leaves legacy objects untouched.
+8. Separate verified facts, source changes, tests actually run, CI results, local Windows execution, blockers, proposals and unresolved questions. Source inspection is not runtime proof.
+9. Before pausing work, leave the project runnable through the documented launcher and verify the available startup paths. If workstation access is unavailable, state that actual Windows execution remains outstanding.
+10. Do not declare 0.15 complete or production-ready from green CI alone. Production release gates remain broader than local presentation acceptance.
 
-1. Use only tools/resources that are genuinely free and will not incur charges.
-2. Do not use TinyFish, paid agents, paid runners, paid databases, cloud compute, paid upgrades or metered infrastructure.
-3. Do not create/restart/resize/deploy Fly machines, do not restore the paused Supabase project, do not create a new Supabase project, and do not provision OCI, Vercel or other hosted backend/database infrastructure.
-4. Do not use Docker, Podman or containers on the user's Windows machine. The intended local runtime is native PowerShell + Java + Maven + PostgreSQL + Keycloak + Node/Vite.
-5. Do not expose or request the contents of state.json, accounts.txt, .env files, database passwords, OIDC tokens, service credentials or private keys. Only request redacted logs.
-6. Do not use force-push, reset/rewrite shared history, or work on side branches. Preserve the repository's direct-main workflow.
-7. Read the current repository and CI output. Separate verified facts, code changes, actual validation, blockers and outstanding work.
-8. Never claim Windows runtime success unless the script has actually been executed on the user's Windows machine and the required API, database and OIDC tests have passed.
+## Current local architecture
 
-## Already implemented on main
+### Default launch
 
-Inspect these exact paths before making changes:
+From the repository root in PowerShell:
 
-- scripts/Start-UEP.ps1 — native Windows launcher with Demo, Real and Both modes.
-- startuep.ps1 — compatibility wrapper to the new launcher; no old machine-specific path.
-- scripts/verify-local-native-launcher.py — static launcher contract checks.
-- scripts/verify-local-deployment-boundary.py — verifies hosted backend/database deployment entry points remain retired.
-- docs/operations/LOCAL_NATIVE_WINDOWS.md — local setup and operations guide.
-- docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md — full browser/API/PostgreSQL acceptance plan.
-- docs/operations/FLY_SUPABASE_STAGING.md — retired hosted deployment and honest decommission record.
-- docs/operations/ACTUAL_STAGING_DEPLOYMENT.md — historical/retired notice.
-- docs/operations/OCI_CLOUDFLARE_STAGING.md — historical/retired notice.
-- docs/operations/VERCEL_DEPLOYMENT_READINESS.md — historical/retired notice.
-- docs/CLOUDFLARE_DEMO_DEPLOY.md — frontend-only offline demo description.
-- README.md — current local-first status and commands.
-- apps/web/vite.config.ts — /api proxy points to http://127.0.0.1:8080.
-- apps/web/src/platform/api-core.ts — authenticated fetch helper, with same-origin API path in Real mode.
-- apps/platform-server/src/main/java/com/universalplatform/DatabaseMigrationRunner.java — explicit one-shot Flyway migration runner.
-- infra/keycloak/education-realm.json — local education realm and platform-web client.
+```powershell
+.\startuep.ps1
+```
 
-The launcher performs an initial prerequisite inventory before installation or startup. It checks repository files, Node/npm, JDK, Maven, PostgreSQL tools/service, Keycloak distribution and local state; then installs/offers missing free prerequisites through WinGet or official downloads, verifies Maven SHA-512 and Keycloak SHA-256, initializes a dedicated local PostgreSQL database/roles, runs the migration runner, starts Keycloak/API/Vite, prints URLs and live statuses, and stops only the processes/services it started. It preserves local database contents.
+This is equivalent to paired Presentation mode with SQLite:
 
-## Launcher modes and endpoints
+```powershell
+.\startuep.ps1 -Mode Presentation -Database SQLite
+```
 
-From the repository root:
+Add `-NoBrowser` to keep the browser closed while services start. To run only one environment:
 
-- Both: .\scripts\Start-UEP.ps1 -Mode Both
-- Real: .\scripts\Start-UEP.ps1 -Mode Real
-- Demo: .\scripts\Start-UEP.ps1 -Mode Demo
-- No automatic browser opening: add -NoBrowser
-- Skip additional test-persona creation: add -SkipAccountSeeding
-
-Real mode:
-
-- Frontend: http://localhost:5173
-- Backend: http://localhost:8080
-- Keycloak: http://localhost:8081
-- PostgreSQL: 127.0.0.1:5432, database uep_local_native
-
-Both mode additionally starts the offline Demo frontend at http://localhost:5174.
-
-Demo mode is deliberately offline and fixture-backed. It does not start or use the API, Keycloak or PostgreSQL. It is not evidence of a real-data workflow.
-
-## Intended Real-mode data path
-
-Browser at localhost:5173
-→ React/Vite
-→ same-origin fetch calls to /api/...
-→ Vite proxy to 127.0.0.1:8080
-→ Spring Boot authentication/tenant/authorization/domain services
-→ PostgreSQL uep_local_native as uep_local_runtime.
-
-Authentication is separate:
-
-React/Vite
-→ Keycloak 26.7.5 at localhost:8081
-→ realm education, browser client platform-web
-→ Authorization Code + PKCE S256
-→ signed JWT with tenant_id
-→ Spring Boot verifies issuer/JWKS and tenant context.
-
-Database roles:
-- uep_local_migrator — one-shot migrations/schema owner only.
-- uep_local_runtime — restricted Spring API login; no DDL, superuser, RLS bypass, role membership or object ownership.
-- uep_local_keycloak — Keycloak login, own keycloak schema only.
-
-Spring runtime must use SPRING_FLYWAY_ENABLED=false after the one-shot DatabaseMigrationRunner has applied and validated migrations. Do not run the API as postgres or the migration role.
-
-Local generated credentials are stored outside Git under %LOCALAPPDATA%\UEP\local-native\. Generated command files/logs/tools are under the ignored .uep-local directory. Do not ask the user to paste credential files.
-
-## Current hosted-resource decommission boundary
-
-Verified state from the previous session:
-
-- Fly app uep-backend-testing has a user-reported Sydney machine d89565db307d58, stopped after 10 failed starts, with no backend volume. It has **not** been permanently deleted from the Fly account.
-- Fly Keycloak app uep-keycloak-testing does not exist.
-- Supabase UEP project ref rykmwcslbzmkzmnnzvxm was paused successfully and a subsequent check reported INACTIVE. It is paused, not permanently deleted.
-- No UEP database migrations were applied to that hosted database.
-- Cloudflare Pages projects remain separate frontend-only projects. The last observed testing bundle was stale/unqualified; the demo project is offline fixture-based.
-- Fly API/Keycloak manifests, hosted Supabase database-migration workflow, remote staging E2E workflow, Vercel multi-service configuration, Vercel backend profile and Vercel-specific build scripts have been removed from main. Dockerfiles remain only for CI container-build/smoke qualification; the local launcher does not use them.
-
-Do not tell the user these provider resources were deleted. The stopped Fly machine/app and paused Supabase project still need owner-side dashboard deletion if permanent deletion is desired. Do not perform those actions without account access and do not start any resource.
-
-## Immediate next-session work — execute in order
-
-### 1. Sync and establish evidence
-- Fetch origin/main and inspect the exact current head SHA.
-- Confirm the working tree and local branch state without destroying user changes.
-- Read the current CI run for that exact SHA. The prior session had multiple commits queued in GitHub Actions due direct-main commits; do not mistake an older successful run for the final main head.
-- Inspect all failed steps/logs, especially repository-policy, local deployment boundary, local native launcher contract, PowerShell parser and production OIDC frontend build.
-- Fix only real root causes; do not weaken assertions or skip jobs to obtain green CI.
-
-### 2. Static launcher validation
-- Run the current repository checks and Python verifiers.
-- Confirm PowerShell 5.1/7 syntax is parsed by the GitHub-hosted PowerShell CI step.
-- Verify the actual launcher and the root wrapper.
-- Validate that no hosted deployment manifests/workflows have reappeared.
-- Inspect all generated command-file arguments and ACL boundaries carefully. The user must never be asked to publish service credentials.
-
-### 3. Windows machine runtime acceptance
-The local Windows runtime has **not yet been proven** by the previous conversation. Do not claim it is working until the owner executes the script.
-
-Ask the owner to sync main and run:
-    .\scripts\Start-UEP.ps1 -Mode Both
-
-PowerShell may need to run as Administrator if the PostgreSQL Windows service is stopped and Windows denies Start-Service. The first-run database bootstrap asks for the local postgres superuser password; this is entered interactively and must not be pasted into the chat. Missing free prerequisites may be installed through WinGet or official Apache/Keycloak/PostgreSQL distributions.
-
-When the user shares logs:
-- Request only redacted log excerpts and status output, never state.json/accounts.txt.
-- Diagnose root causes from .uep-local\logs and actual service output.
-- Confirm PostgreSQL accepts connections on 5432.
-- Confirm Keycloak education discovery is HTTP 200.
-- Confirm Spring Boot actuator health is HTTP 200 and status UP.
-- Confirm Real Vite app on 5173 and Demo on 5174.
-- Confirm the script stops app processes on Ctrl+C and preserves the local database.
-- If any service fails, patch and retest the local launcher/CI rather than presenting a partial startup as success.
-
-### 4. Prove browser → API → PostgreSQL for Real mode
-Use docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md as the authoritative acceptance checklist.
-
-At minimum:
-- Sign in through the real Keycloak OIDC flow.
-- Confirm platform-web uses Authorization Code with PKCE S256.
-- Confirm GET /api/v1/me resolves the local owner, tenant, membership and roles.
-- Use browser Network tooling to prove a real UI data load calls /api/... through Vite and Spring Boot.
-- Create or update a uniquely named test record through the UI/API, verify the HTTP method/status, verify the corresponding PostgreSQL row, reload/new browser context and prove the data persists.
-- Cover GET, POST, PUT, PATCH and DELETE only on actual existing documented operations.
-- Verify backend request datasource user is uep_local_runtime, never postgres/uep_local_migrator.
-- Verify Keycloak tables live in keycloak schema and UEP application tables live in public.
-- Verify no browser connection or credential exposure to PostgreSQL.
-
-### 5. Complete role and business workflow coverage
-Inspect OpenAPI, controllers, DTOs, security rules and existing tests before inventing any test input. Exercise workflows that the current product actually implements:
-- Organization/branch creation and branch-scoped role assignment.
-- Membership and role permissions.
-- Academic period/program/course/batch, enrollment and teacher assignments.
-- Teacher assignment/assessment creation and publication.
-- Student submission and teacher grading/result publication.
-- Attendance.
-- Announcements, notifications and messaging where functional.
-- Guardian access only to linked learners.
-- Tenant and branch negative access tests.
-- Support/auditor read-only restrictions.
-- Revoked/ended membership and session behavior.
+```powershell
+.\startuep.ps1 -Mode Real -Database SQLite
+.\startuep.ps1 -Mode Demo
+```
 
-Use the local test personas provisioned by the launcher. The Branch Administrator must remain branch-scoped, never tenant-wide. Verify this from API results and database rows.
+Optional PostgreSQL qualification (requires local PostgreSQL 17 or 18):
 
-### 6. Add durable tests and fix product wiring
-- Add real-mode Playwright tests that exercise the local API and persistence.
-- Add API integration tests where useful.
-- Add database assertions that verify persisted writes and readbacks.
-- Ensure frontend errors do not turn failed requests into false success.
-- Keep the Demo fixture tests separate and clearly labeled as not Real mode.
-- Verify all frontend actions that require server data use the shared authenticated API client; do not add direct database access to the browser.
-- Verify every data mutation is persisted through Spring service/repository/transaction paths, not frontend localStorage.
-- Add integration proof to CI only where it remains zero-charge and does not require remote infrastructure. Do not add paid resources.
+```powershell
+.\startuep.ps1 -Mode Real -Database PostgreSQL
+```
 
-### 7. Documentation and handoff
-- Update LOCAL_NATIVE_WINDOWS.md and LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md after actual Windows runtime discoveries.
-- Keep the hosted retirement record accurate; never claim provider deletion without checking the provider dashboard.
-- Report exact tested commands, output, test counts, CI run URLs and commit SHAs.
-- Separate PASS, FAIL, BLOCKED and NOT TESTED.
-- Finish with a concrete next milestone, not an open-ended request to "continue".
+Supported modes are `Demo`, `Real`, `Both` and `Presentation`. `Both` and `Presentation` launch the same paired Real + Demo topology; Presentation is the default. The root script is a compatibility wrapper for `scripts/Start-UEP.ps1`.
 
-## Current expected final acceptance state
+### Endpoints
 
-Do not call UEP locally qualified until all of these are evidenced:
-- Demo mode starts offline and stays isolated.
-- Real mode starts native PostgreSQL, Keycloak, Spring API and Vite.
-- Real browser OIDC sign-in succeeds.
-- Browser-to-API proxy request succeeds.
-- Backend reads/writes the intended PostgreSQL database with the least-privilege runtime role.
-- At least one UI-originated write is verified in PostgreSQL and persists after reload/restart.
-- GET/POST/PUT/PATCH/DELETE are exercised against real supported API routes.
-- Tenant/branch/role isolation tests pass.
-- Frontend lint/tests/build, backend Maven verify, PowerShell parsing, launcher static checks and repository policy all pass on the exact current main SHA.
+| Component | Address | Actual role |
+|---|---|---|
+| Real UEP frontend | http://127.0.0.1:5173 | Actual React application; browser calls same-origin `/api` |
+| Offline Demo frontend | http://127.0.0.1:5174 | Seeded simulated personas and browser-local sample data |
+| Spring Boot backend | http://127.0.0.1:8080 | Actual local API |
+| Swagger UI | http://127.0.0.1:8080/swagger-ui.html | Interactive backend API reference |
+| OpenAPI JSON | http://127.0.0.1:8080/v3/api-docs | Generated API contract |
+| SQLite database | `.uep-local/uep-local.sqlite` | Default Real-mode local database |
 
-Start by syncing and checking the live repository/CI. Do not ask the user to repeat anything already present in this handoff or in the repository.
+Swagger UI/OpenAPI are enabled and anonymously accessible only under the explicit `local-native` profile. Ordinary secured API operations still require authentication. The backend is bound to loopback.
 
+### Real application request path
 
----
+```
+Browser at 127.0.0.1:5173
+  -> same-origin fetch('/api/...')
+  -> Vite Node process /api proxy
+       -> attaches X-UEP-Local-Auth from process.env.UEP_LOCAL_AUTH_TOKEN
+  -> Spring Boot at 127.0.0.1:8080
+  -> tenant / identity / authorization / domain services
+  -> SQLite (default) or local PostgreSQL (explicit)
+```
 
-## Continuation update — 2 November 2026
+The random launcher-issued credential is held in ACL-protected local process/command state and supplied to the Real Vite **Node process** as `UEP_LOCAL_AUTH_TOKEN`. The variable is intentionally not prefixed `VITE_`. Vite attaches `X-UEP-Local-Auth` to the upstream proxied API request. The browser bundle, browser storage and browser request headers must not contain the credential. Browser API requests also must not carry a bearer token in this no-Keycloak mode.
 
-The original handoff instructions remain authoritative. Continue by fetching the live `main` head and reviewing the latest CI run before making further changes.
+The backend local authentication filter accepts the launcher token only for `/api/` routes, loopback requests, a valid unexpired session and one authentication method. It rejects invalid tokens and mixed auth headers. A direct unauthenticated call to `http://127.0.0.1:8080/api/v1/me` must return HTTP 401; a call through Vite succeeds and returns the persisted local owner.
 
-### Engineering changes after the original handoff snapshot
+The backend bootstraps only the local tenant, one local owner, active membership and Organization Owner role in the selected database. It does not create synthetic OIDC accounts. The Offline Demo's Student/Teacher personas are synthetic browser-local personas and do not exist as corresponding backend users.
 
-- Removed duplicate `Start-ManagedProcess`, `Write-CommandFile` and `Wait-ForHttp` definitions from the native launcher. The single retained HTTP waiter accepts only HTTP 2xx responses; a 4xx response is not readiness.
-- PostgreSQL tool/service discovery now selects only supported major versions 17 and 18 by numeric version, and prefers an already-running supported service over lexicographic directory-name ordering.
-- Explicit current-user-only file ACLs are applied to local state, temporary database-role bootstrap SQL, generated command files containing service environment values, and the local account file.
-- The frontend analytics CSV request now uses the same API transport as JSON requests, including the refreshed Keycloak bearer token, same-origin Vite proxy path and consistent API error handling.
-- Added a frontend request-contract test and backend CSV export authorization/response integration test. Added an isolated native Real Playwright smoke configuration and test for the local owner OIDC login, authenticated `/api/v1/me`, analytics overview and CSV export flow.
-- The native Keycloak distribution pin is now 26.7.5 in the same 26.7 release line. The official release asset SHA-256 is pinned and verified before extraction.
+### Database modes
 
-### Validation boundary
+**SQLite (default local workstation path)**
 
-These changes are committed source and automated-test additions. They are not evidence that Windows services have launched on the owner's machine. Do not report PostgreSQL initialization, Keycloak login, the Spring Boot datasource, browser proxying, persisted application writes, role/tenant isolation or restart persistence as passing until the corresponding local commands, browser requests and PostgreSQL readbacks have actually run. CI statuses must be read from the resulting current `main` SHA; queued or older runs are not passes.
+- Spring profiles: `local-sqlite,local-native`.
+- Local file: `.uep-local/uep-local.sqlite`.
+- No PostgreSQL service or Flyway migrations are used. Hibernate creates/updates the local qualification schema from the JPA mappings.
+- Background workers that depend on PostgreSQL-specific behavior are disabled in this local profile.
+- The SQLite native browser test checks authenticated identity, branch creation/readback after reload and SQLite file signature.
+- This is a constrained local functional qualification profile, not a substitute for the PostgreSQL production/CI data layer. Not every UEP domain workflow is qualified against SQLite.
 
-The native Playwright smoke now covers owner OIDC, same-origin authenticated analytics/export calls, a UI-created tenant branch, reload/API readback, and a direct PostgreSQL query as `uep_local_runtime` with negative CREATE/Flyway-history checks. It retains one annotated `NATIVE-E2E-<timestamp>` branch per run because no branch-delete API exists. CI only discovers/parses this test; it does not start the Windows services or execute the local browser/database flow. Run the suite on the actual Windows machine, then continue with the wider browser-to-API-to-PostgreSQL workflows and tenant/branch/role negative tests described in `LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md`.
+**PostgreSQL (explicit qualification path)**
 
+- Local PostgreSQL 17/18 only.
+- Flyway migrations run via the explicit `DatabaseMigrationRunner` using `uep_local_migrator`.
+- Spring Boot runs using the restricted `uep_local_runtime` role with Flyway disabled at runtime.
+- The local launcher provisions only migration/runtime roles; it does not create, alter or drop Keycloak roles or schemas. Any legacy objects remain untouched.
+- The PostgreSQL native browser suite also checks analytics/CSV, branch persistence, custom-role CRUD, membership and role-assignment lifecycle, and runtime-role privilege boundaries.
+- PostgreSQL-only checks must not run against SQLite.
 
-### Clean-checkout migration runner requirement
+## Launcher behavior now implemented in source
 
-The native launcher's one-shot migration command now executes Maven `compile` before `org.codehaus.mojo:exec-maven-plugin:3.5.0:java`. The CI least-privilege migration probe uses `clean compile` before invoking the same runner, so a previously populated `target/classes` directory cannot mask a missing compile step. Preserve this ordering if the launcher or migration command is refactored.
+The current launcher was updated to:
 
-### Continuation update — 2 November 2026, CI and authorization follow-up
+- Default both `scripts/Start-UEP.ps1` and root `startuep.ps1` to paired Real + Demo Presentation mode.
+- Preserve explicit Demo-only, Real-only and PostgreSQL qualification modes.
+- Make Demo-only prerequisite inventory frontend-only; it does not require backend files, JDK, Maven or PostgreSQL.
+- Keep backend/JDK/Maven/database checks conditional on Real mode.
+- Check ports 5173, 5174 and 8080 before `npm ci`/startup so a second launch does not replace shared dependencies under an active Vite process.
+- Remove unused Keycloak installation/account/bootstrap functions from this local launcher and remove local PostgreSQL Keycloak role/schema provisioning. Existing DB objects are left intact.
+- Generate a fresh, random, short-lived local API credential and place it only in protected local command/process state.
+- Make Vite inject the header server-side and test the direct-backend 401 boundary.
+- Detect when a managed service process exits before its readiness URL becomes available; a stale listener on a port is not accepted as sufficient evidence.
+- Wait for Real frontend, Vite API proxy, backend health, Swagger UI and OpenAPI document, and verify the OpenAPI title.
+- Verify the Vite proxy returns the persisted local owner identity before reporting startup success.
+- Show the database/API read as UP only after a successful authenticated identity read via Vite; a non-empty SQLite file alone is not treated as a database health proof.
+- Preserve the SQLite DB and local state through clean compile/start/stop. Stop PostgreSQL only if the launcher itself started that Windows service.
 
-The live repository was rechecked after the previous continuation. The main-line changes since the preceding handoff include:
+`SkipAccountSeeding` remains accepted in the command line for backward compatibility. Local-native now provisions only the persisted owner; this switch does not activate a Keycloak/persona bootstrap.
 
-- `apps/web/test/native/real-analytics-export.native.spec.ts` now exercises the real local owner Authorization Code + PKCE S256 login, checks the active tenant and owner permissions, loads analytics, downloads the authenticated attendance CSV, creates a uniquely named branch through the Organization UI, reloads and reads the branch back through the API, and verifies the exact PostgreSQL row using only the protected `uep_local_runtime` credentials. It checks the runtime role's restricted attributes, no public/database CREATE and no Flyway history access. The branch is retained and its ID/code is recorded in a Playwright annotation because no branch-delete API exists.
-- `apps/web/test/api-client-contract.test.mjs` now guards the actual Playwright method expressions (`response.request().method()`) and the computed `PGPASSWORD` environment key. Do not weaken the repository secret scanner to accommodate test source.
-- The export integration test's correct authorization contract is both `REPORTS_EXPORT` and `ANALYTICS_VIEW`: the service checks export permission, and the attendance report it invokes independently checks analytics view. The test now covers denial without export permission, denial with export permission but without analytics view, and success when both are present.
-- `docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md` was corrected so its native-smoke description consistently matches the committed branch/API/PostgreSQL checks and states the remaining gaps accurately.
+## Current implementation status and evidence boundary
 
-### CI evidence at this checkpoint
+The repository remains `0.15.0.0-SNAPSHOT`. The source includes substantial implementations across multi-tenancy, identity/RBAC, branches, academic structures, scheduling, announcements/notifications, content/storage, assessments, assignments, grading/gradebook, attendance/live learning, recordings, finance, analytics, integrations and operational/security tooling. The Offline Demo contains seeded role-based browser workflows.
 
-- The latest observed main SHA before this handoff update was `e3bed7fa33b51606f15def7770d348b76f58e794`.
-- CI run #1033 for `8e703a8dd3acf82611861c5d80b32de191113837` completed the web and repository-policy jobs successfully, but both PostgreSQL backend matrix jobs failed because the test did not seed `ANALYTICS_VIEW` for the nested attendance read. This was a real test-fixture omission, not a production code failure; commit `d08a1880b623494eda8f7cdb09e98a8921b872da` restored that baseline permission.
-- CI run #1034 for `d08a1880b623494eda8f7cdb09e98a8921b872da` had web and repository-policy jobs pass; backend matrix and other jobs were still running at last inspection.
-- CI run #1035 for `9d6a4b1fd722da37f659bc7dca018c83a05b5478` had web and repository-policy pass; backend matrix and Keycloak CI qualification were still running at last inspection.
-- CI run #1036 was queued for `e3bed7fa33b51606f15def7770d348b76f58e794` after strengthening the dual-permission integration test. These are not final green results. Fetch the live main SHA and latest workflow status before claiming validation.
+This does not mean every visible module is integrated or qualified end to end in the Real local runtime. Keep distinguishing:
 
-Windows-native runtime remains unexecuted in this ChatGPT environment. The launcher, local Keycloak, Spring Boot, Vite, browser-to-API path, database writes/readbacks and restart behavior must still be qualified on the user's actual Windows machine. Never infer these passes from CI or source inspection.
+- source implementation;
+- offline Demo fixture behavior;
+- local SQLite behavior;
+- PostgreSQL CI/native qualification;
+- actual production/provider readiness.
 
-### Continuation update — membership PATCH UI integration
+The most recent code changes reviewed for this local launcher work include commit `d467bd948668c960b384f20a1376a46674c51bbb`; inspect the exact current `main` head before continuing because later commits may have landed.
 
-- The frontend API layer now exports `updateMembership`, which sends PATCH to `/api/v1/identity/memberships/{membershipId}` through the same bearer-authenticated `request()` transport.
-- The People workspace now exposes membership editing for users with `USERS_MANAGE`: membership status, primary branch (when the user also has `BRANCHES_VIEW` and branch data is loaded), and tenant-local external reference. It sends the current optimistic `expectedVersion`, preserves the existing branch when the user cannot select branches, and refreshes the member directory after success.
-- `apps/web/test/api-client-contract.test.mjs` guards the PATCH helper and People UI wiring. The web CI job for commit `0d5e53cd335ce2d8c2f343b107c908c78868117f` passed with 41 frontend tests, Playwright native test discovery (one test), and production build; the later contract-test addition is queued in CI and must still be checked on current main.
-- `IdentityAuthorizationIntegrationTest` already protects the final-active-owner invariant and now also covers an owner successfully changing a non-owner membership's status and tenant-local metadata through PATCH. CI for this test addition is pending.
-- The native acceptance prompt now explicitly includes the People-workspace PATCH flow and the owner-invariant check.
+The previous implementation-status snapshot mentioned earlier CI jobs; those historical jobs do not qualify the code changes made on 3 November. Recheck the current head's GitHub Actions results and inspect failed logs. Empty or missing status records are not a pass. The current-session source review did not execute the Windows launcher, Maven verification, Playwright, or local application on the user's workstation. Do not claim those passed without new run evidence.
 
-### Remaining UI/API coverage gaps found during the method inventory
+## Verification sequence
 
-The OpenAPI file currently defines 225 operations: 94 GET, 97 POST, 25 PUT, 1 PATCH and 8 DELETE. The frontend API layer uses a shared authenticated transport, but not every documented operation has a UI action yet. In particular, role-assignment list/add/remove is not yet exposed as a dedicated UI workflow (initial role selection during membership provisioning is available); custom-role update/delete and administrator revocation of another member's sessions also need a deliberate UI coverage decision. Continue mapping actual controllers, authorization rules and current UI before implementing these. Do not claim all 225 operations are wired or end-to-end tested.
+### 1. Synchronize and inspect
 
-At this checkpoint, the live main SHA before this handoff update was `f2bdb1c751ccd46c7cb927606b1120ecab49b0d9`. CI runs #1042–#1045 were queued/in progress; fetch the latest head and workflow status before relying on any result. Windows-native startup and browser-to-PostgreSQL runtime qualification remain unperformed in this environment.
+- Fetch and inspect live `origin/main` and latest commit.
+- Preserve uncommitted local user changes; do not hard reset or clean the working tree.
+- Read current workflow status for the exact head and any failed job logs.
+- Review the source of the launcher, wrapper, Vite proxy, auth transport, local-native backend profile, security config, test scripts and current docs.
 
-### Continuation update — membership PATCH response version correctness
+### 2. Static contract checks
 
-CI run #1042 exposed a response-version defect in the new membership update integration test: the service built `MemberView` before JPA flushed the entity's `@Version` increment, so a successful PATCH response reported the pre-update version. The backend now calls `memberships.flush()` after recording the update and before constructing the response DTO. The integration test again asserts that an initial version 0 membership returns version 1 after a successful PATCH. This preserves the optimistic-concurrency contract instead of weakening the test.
+Run from the repository root:
 
-- Fix commit: `fe607782bcb3312145a7c4c8e2bb8de30e193f37`.
-- Regression assertion commit: `4735a3343a23540aed8c4923c42d103b43c66f5e`.
-- Latest observed main SHA before this handoff update: `4735a3343a23540aed8c4923c42d103b43c66f5e`.
-- CI run #1050 was queued for that exact SHA at last inspection. Earlier run #1042 failed on the old pre-flush response behavior; do not count that stale run as validation of the fix.
+```powershell
+python scripts/verify-local-native-launcher.py
+python scripts/verify-local-deployment-boundary.py
+```
 
-On the next session, inspect #1050 (or the newest run for live main) and confirm the 17.11/18.4 backend matrix, web tests, repository policy, Keycloak CI and vulnerability scan. The Windows-native runtime still needs execution on the user's machine.
+Confirm the verifier covers Demo-only prerequisite scope, paired default, no-Keycloak launcher, server-side proxy credential, no browser token, direct backend 401, process-aware readiness, Swagger/OpenAPI local-only access, database boundaries and preservation of local files.
 
+### 3. Frontend and backend verification
 
-## Continuation update — native membership end-to-end test
+```powershell
+npm --prefix apps/web test
+npm --prefix apps/web run lint
+npm --prefix apps/web run build
+mvn -f apps/platform-server/pom.xml verify
+```
 
-Latest verified repository state during the 2026-11-03 continuation:
+Run the commands using the repository-supported Node/JDK versions. Report exact exits and any toolchain limitations.
 
-- main was 5f1ce44f3e6b87f1696174bfd10219d4203c37c2 after the documentation update; fetch the live branch before further edits.
-- CI run #1053 for the previous code head 5c1a009769a76d3be375ecdeabf01e5f0c34a708 completed successfully. All six jobs passed: web, vulnerability scan, repository policy, backend PostgreSQL 17.11, backend PostgreSQL 18.4, and Keycloak staging-container qualification. Both backend jobs included migration, least-privilege grant, image and packaged-server smoke steps.
-- The native Playwright test already covered OIDC login, analytics CSV export, branch creation/reload/API readback, direct restricted-role PostgreSQL branch readback, and runtime-role denial probes.
-- It has now been extended to create a synthetic role-free membership through the People UI, update it through authenticated PATCH (SUSPENDED plus external reference), assert optimistic version 0 to 1, reload and GET-read it, and verify the committed tenant_membership/user_account row using the restricted runtime role.
-- apps/web/test/api-client-contract.test.mjs now guards the native membership POST/PATCH and PostgreSQL readback coverage.
-- docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md documents the expanded scope and retained synthetic test records.
-- These new commits were pushed directly to main. CI for the new code has not yet been inspected at this exact head. Check current main and latest workflow before claiming green.
-- Native Windows execution remains unverified here. The Playwright test creates and retains a uniquely named synthetic membership because there is no membership-delete operation; it records the membership subject and ID in a Playwright annotation and never deletes rows with SQL.
-- The native suite still does not qualify PUT/DELETE, multi-persona or cross-tenant/branch isolation, broad product workflows, service restart persistence, or complete DB object-ownership grants. Do not overstate coverage.
+### 4. Actual Windows native launch
 
-## Continuation update — role assignment management and native qualification
+Start paired mode:
 
-Live API inventory from docs/api/openapi.yaml:
-- OpenAPI declares 225 operations: GET 94, POST 97, PUT 25, PATCH 1, DELETE 8. This is a contract count, not a count of missing UI implementations; multiple feature workspaces have their own API clients and need individual matching.
-- Identity API already supports GET role assignments per membership, POST tenant/branch role assignment, and DELETE role assignment. RoleManagementService enforces ROLES_VIEW for listing and ROLES_ASSIGN for assignment/removal, validates tenant membership and scope, prevents assignment to ended memberships, and protects privileged Organization Owner grants/removals.
-- The People workspace previously had no complete existing-member assignment lifecycle. It now lists assignments, supports tenant-scoped and branch-scoped assignment, and supports removal, with explicit ROLES_VIEW / ROLES_ASSIGN gates. Branch scope is only offered when BRANCHES_VIEW and branch data are available; missing branch selection is validated client-side.
+```powershell
+.\startuep.ps1 -Mode Presentation -Database SQLite
+```
 
-New commits pushed directly to main:
-- fce464c3f344f92114be13063ed21edae8ba0132 — typed authenticated API client functions for listing, assigning and unassigning membership roles.
-- d40d716669a1f2775cf3ea6bc759373823e9ee1d — People workspace assignment listing and management UI.
-- c0cce8c757273cd2cf381dd92a32afa266236344 — branch-scope selection validation.
-- 405fd391533c9e30668cfeeb9bbd27b79a4eb6d6 — source-contract assertions for assignment transport and permission gates.
-- 5ba77414f2d535990483c7901ad78a969b4446db — native Playwright tenant role assign/unassign lifecycle using the existing Student role.
-- 7fe6abfed834719b07953522d3fbcf031d577dc3 — source-contract assertions for native assignment lifecycle.
-- 11cdbf74f33abbf10beef976c8a614ca1feaf848 — native Windows acceptance prompt updated for role assignment lifecycle.
+Before announcing success, verify that the launcher itself reports:
 
-Native smoke now intends to cover, under local Keycloak and Vite proxy: OIDC login, analytics CSV export, branch create/reload/API readback, restricted PostgreSQL role boundaries and branch readback, synthetic membership create, tenant-scoped Student role assignment and removal, membership PATCH with optimistic version 0→1, reload/GET readback, and restricted-role PostgreSQL membership readback. The test's synthetic branch and membership are retained and annotated because delete operations are absent for those resources; the temporary Student role assignment is removed through the API.
+- managed Real Vite process alive and Real page is HTTP 2xx;
+- Demo Vite process alive and Demo page is HTTP 2xx;
+- Spring Boot actuator health is UP;
+- `/api/v1/platform/version` succeeds through the Vite proxy;
+- Swagger UI returns HTTP 2xx;
+- `/v3/api-docs` returns HTTP 2xx and title `Universal Education Platform API`;
+- proxied `/api/v1/me` returns the persisted owner, active membership, tenant ID and Organization Owner role;
+- direct unauthenticated backend `/api/v1/me` returns 401;
+- browser traffic does not redirect to port 8081 or contact an OIDC issuer.
 
-CI status at the last live check:
-- main = 11cdbf74f33abbf10beef976c8a614ca1feaf848.
-- CI run #1075 (41514410820) for this exact SHA was queued. Run #1074 (41514348790) on the immediately preceding native-test code SHA was also queued. Earlier run #1068 had web, repository-policy and vulnerability jobs passed while backend 17.11/18.4 and Keycloak were still running. Do not claim latest role-assignment changes have passed CI until #1075 (or a newer run on main) completes.
-- Native Windows runtime remains unexecuted in this environment. No claim of local full-stack runtime success is permitted.
+Use browser labels to distinguish Real and Offline Demo. Do not infer a pass from a TCP listener alone.
 
-Next work: inspect current-head CI and any failures; then continue a method-by-method OpenAPI-to-frontend-workspace inventory. Do not assume all 225 operations require direct UI buttons—some are internal lifecycle, public verification, background operations, or role-gated APIs. Prioritize user-facing workflow gaps, preserve permission boundaries and use real backend/database tests. Do not weaken CI or remove coverage.
+### 5. Native browser-to-database test
 
-## Continuation update — role assignment persistence and permission visibility
+Install Playwright Chromium once, then with the launcher still running:
 
-- CI runs #1074 through #1076 all completed successfully, including all six jobs. #1076 was on d25ab79c038b8ba80ad5820863a9212dcc4a694f.
-- A UI permission issue was found during source review: role assignment controls were nested inside the USERS_MANAGE-only membership editor cell. This hid role assignment management from users who had USERS_VIEW plus ROLES_VIEW/ROLES_ASSIGN but not USERS_MANAGE. The People table now has a separate Role assignments column, independently gated by ROLES_VIEW or ROLES_ASSIGN; the membership-edit column remains gated by USERS_MANAGE. Commit 1e104c4da3ee462b9c9e5d1d1d2177ad9bf3d619.
-- Added a frontend contract assertion for independent role-assignment visibility. Commit 39654059994125a517d8afb4406dac42f3a1c2e9.
-- Extended the native Playwright scenario to query public.role_assignment using the restricted runtime database account immediately after Student role assignment and after DELETE. It asserts persisted `1|TENANT` after POST and `0|` after DELETE. Commit 1379fbf668079bc190af7cceca0d14b22c6c42da.
-- Added source-contract assertions for the role-assignment database lifecycle. Commit 25f7c8d3928cbd8e38eddf46c3fd84d12bde8252.
-- Latest main at this update: 25f7c8d3928cbd8e38eddf46c3fd84d12bde8252.
-- CI runs #1077 through #1080 were created for the recent commits. At last check, #1080 (current HEAD) was in progress across all six jobs; #1079 and #1078 were also in progress, with #1078 web already passed. Do not claim current HEAD green until run #1080 completes.
-- The native role-assignment test now verifies API POST/DELETE responses, authenticated bearer presence, UI changes, and actual PostgreSQL row insertion/removal. It still has not been executed on the user's native Windows machine.
+```powershell
+npm --prefix apps/web exec -- playwright install chromium
+npm --prefix apps/web run test:e2e:native
+```
 
-Next: inspect CI #1080; if web fails, read full job logs and fix the actual cause. Continue permission matrix review and native run. Keep main-only, preserve DB data, and do not report source-contract tests as real runtime proof.
+Run under the same Windows user profile that initialized protected local state. The native suite chooses the matching SQLite or PostgreSQL test based on the selected provider. It must prove browser request headers contain neither the local credential nor bearer Authorization, while API calls succeed through Vite. The SQLite suite verifies a branch write/readback and SQLite file; PostgreSQL additionally verifies the relevant persisted records and restricted database role.
 
-## Follow-up — branch-scoped assignment lifecycle
+The tests intentionally annotate/retain resources for which no safe API deletion exists (for example a unique branch or test membership). Do not delete those records with direct SQL.
 
-- The native Real Playwright test now exercises both tenant-scoped and branch-scoped Student role assignment against the synthetic membership.
-- For tenant scope, it reads `public.role_assignment` with the restricted runtime role after POST and asserts one TENANT row, then asserts zero rows after authenticated DELETE.
-- For branch scope, it uses the branch created earlier in the same browser test, asserts the API response contains the exact branch UUID, reads back `scope_kind=BRANCH` and the matching `scope_id` from PostgreSQL, then asserts the row is absent after DELETE.
-- The local Windows acceptance prompt now explicitly documents both assignment scopes and the direct PostgreSQL readbacks.
-- Added commits after the prior handoff update: 5b87ea26c88b8e26db4af23a7023d44e162a20df (branch-scope native test), 8bdce4fbaf9723eb1b8526f67ecfcbd529beca9f (contract guard), and e8408585e8e307bae64fe8837d48656fc5d51195 (acceptance prompt).
-- At the last check, run #1082 on 73096ecab22c3e9b8cd34a352d6293dac0f20852 had web and repository-policy passed; backend PostgreSQL 17.11/18.4, Keycloak and vulnerability scan were still running. Later commits #1083–#1085 were queued. Recheck latest main CI before asserting success.
-- Current native coverage is still unexecuted on Windows. CI's Playwright discovery does not run the local Keycloak/Vite/Spring/PostgreSQL scenario.
+### 6. Manual end-to-end walkthrough
 
-## 2026-11-03 follow-up — custom role lifecycle implementation
+**Real UEP:** verify current identity and tenant, create a uniquely named branch from Organization, confirm POST response, reload, and read it back through GET. Only present other module actions if they have actually been rehearsed against the selected database mode.
 
-Base repository state inspected: `main` at `6192caf51c765a6678ea3a4b4cce48f843c37c0e`.
+**Offline Demo:** Student Today, My Learning, a prepared assignment, then Teacher submission queue/grade, then Student Results & feedback. State clearly that all such records are browser-local simulated data.
 
-Implementation added in this follow-up:
+**Swagger:** open the separate API reference and inspect API paths/schemas. Swagger documentation access does not bypass auth on real business API methods.
 
-- The Roles workspace exposes edit/delete controls only for custom roles when the authenticated identity has `ROLES_MANAGE`. System-managed roles remain read-only in the UI.
-- The custom-role editor exposes all 83 `PermissionKey` values from `apps/web/src/platform/api.ts`; a web contract test enforces exact parity so new API permission values cannot silently disappear from the editor.
-- Authenticated frontend API helpers cover `PUT /api/v1/identity/roles/{roleId}` and `DELETE /api/v1/identity/roles/{roleId}`. Updates send the role's optimistic `expectedVersion`; role queries are invalidated after successful updates/deletes.
-- Backend custom-role updates and deletions flush repository changes before returning, ensuring the returned JPA version is current and deletion is persisted before subsequent reads.
-- Backend integration tests cover version 0 → 1 update, permission replacement, stale-version conflict, successful deletion with cascading permission cleanup, non-manager 403 responses, immutable system-managed roles and rejection of deletion while a custom role is assigned.
-- Native Real Playwright acceptance creates, updates and deletes a uniquely named custom role through the browser/API and checks the corresponding `role_definition` and `role_permission` rows using the restricted PostgreSQL runtime account. The custom role is deleted through the API, not by direct SQL.
+### 7. Stop and handoff
 
-Validation status at handoff authoring: source-level permission parity was checked (83/83). Backend integration, web test/build, CI on this commit and native Windows execution remain pending until actual results are collected. Do not treat a newly added test as a passing test. The existing native local runtime remains unqualified in this session.
+Use Ctrl+C in the launcher window. Confirm application child processes launched by the script stop, while the SQLite file, PostgreSQL database, and protected local state remain preserved. If PostgreSQL was already running before launch, the launcher must not stop it.
 
+## Known completion gaps / production release gates
 
-## 2026-11-03 follow-up — administrative session management UI
+Continue using `docs/IMPLEMENTATION_STATUS.md` and `docs/MASTER_IMPLEMENTATION_PLAN.md` as the source for the broader product roadmap. The status snapshot has listed unfinished or incompletely qualified areas including:
 
-- The backend already exposed tenant-scoped member-session listing and administrator revocation. The Security workspace previously exposed only current-member self-service sessions.
-- Added authenticated frontend calls for `GET /api/v1/identity/sessions/memberships/{membershipId}` and administrator `DELETE /api/v1/identity/sessions/{sessionId}` with a bounded audit reason.
-- The Security workspace now lists observed sessions for other tenant memberships when the actor has both `USERS_VIEW` (required for the membership directory) and `SESSIONS_VIEW`; revocation controls are shown only when `SESSIONS_MANAGE` is also present. It excludes the actor's own membership from the administrator selector, preserving the separate self-service revoke path.
-- Added frontend endpoint/permission contract coverage and backend integration tests for authorized administrator revocation, denial on subsequent use of the revoked OIDC session, and 403 enforcement for ordinary members.
-- Validation/CI for this follow-up commit and native Windows acceptance remain pending until actual results are collected.
+- persistent communication threads, delivery/read state, moderation and abuse controls;
+- advanced academic moderation/double grading/adjudication and reproducible regrading;
+- device-based attendance and offline synchronization;
+- configurable workflow engine and history;
+- permission-aware global search;
+- finance edge cases, reconciliation/accounting exports and real payment provider qualification;
+- complete federation and interoperability (LTI, CASE, xAPI, Caliper, SCORM, mature OneRoster/QTI and Open Badges/CLR);
+- credential portability and tenant white-label capabilities;
+- live-class reconnect/recovery and scale qualification;
+- crash-safe recording workers, transcoding, archive/CDN and recovery;
+- longitudinal analytics and intervention workflows;
+- PWA/offline capabilities and native clients.
 
+Production Web GA still requires independently evidenced security/penetration testing, p50/p95/p99 capacity tests, WCAG 2.2 AA review, PostgreSQL PITR/full restore and object-storage recovery, measured RPO/RTO, failure injection, provider degradation/failover, migration/upgrade/rollback tests, and operational readiness.
 
-## 2026-11-03 follow-up — integration credential and webhook controls
+## Reporting format for the next session
 
-- API credential responses now expose the persisted `revokedAt` timestamp in both create/list DTOs and the OpenAPI schema. The one-time secret remains returned only on creation; list responses continue to omit it.
-- Integration workspace now displays credential expiry/status and offers permission-gated, optimistic-version API credential revocation. The list refresh confirms a revoked credential is no longer active.
-- Webhook subscriptions can now be revoked from the workspace using their current version. A test-event form uses the existing backend test route and clearly states that an event is queued to every enabled subscription whose filter matches; queuing is not proof of remote delivery.
-- The web contract suite now asserts the revoke/test helpers, version usage, status display and the warning about test event fan-out. CI for this follow-up and backend/native validation remain pending.
+Keep the report in this order:
 
+1. Exact current main SHA and working-tree status.
+2. Current CI run and each required job's terminal state.
+3. Verified implementation/source changes.
+4. Commands actually executed and their exit codes.
+5. Actual local HTTP/browser/API/database evidence.
+6. Demo-vs-Real boundaries.
+7. Failures, blockers and remaining gaps.
+8. Commits made and the next concrete milestone.
 
-## 2026-11-03 follow-up — optimistic integration provider updates
-
-- Identity Provider and External Notification Provider forms previously hard-coded `expectedVersion: 0`, which was correct only for creation and caused updates to existing providers to be rejected as stale.
-- Provider forms now look up the current matching provider version when the actor has the relevant list permission, submit that optimistic version, and invalidate/refetch the provider inventory after a successful save.
-- Added a typed authenticated notification-provider list helper and inventory with provider type, endpoint, version and explicit test action.
-- Clarified the separate permissions: `FEDERATION_VIEW` is required to inspect and update existing IdP configuration; `INTEROPERABILITY_VIEW` is required to inspect/update existing notification provider configuration, while the corresponding manage permissions allow creation/configuration and test delivery. The UI surfaces this instead of silently submitting version 0 for an existing provider.
-- Web contract coverage asserts current-version selection, inventory refresh and permission guidance. Current-head CI and backend/native validation remain pending.
-
-
-## 2026-11-03 CI evidence snapshot — current main
-
-Snapshot recorded after commits `89b0632`, `5b07aea`, `7bb3517` and `2358087`. Source head at snapshot time: `23580876b315053a9bd0bcc15d68792c7de6d334`.
-
-### Completed CI evidence
-
-- **Run 1087 — custom-role lifecycle commit `89b0632`:** [workflow](https://github.com/shreyashjagtap157/UEP/actions/runs/41521969656) completed successfully. PostgreSQL 17.11 and 18.4 each reported 245 Maven tests, 0 failures, 0 errors and 0 skipped; Flyway reached schema version 050 and least-privilege runtime grants were verified. Web, repository-policy, vulnerability-scan and Keycloak container jobs passed.
-- **Run 1088 — administrator session controls commit `5b07aea`:** [workflow](https://github.com/shreyashjagtap157/UEP/actions/runs/41522776332). Web (45/45 tests), repository-policy, vulnerability-scan and Keycloak container jobs passed. PostgreSQL 17.11 and 18.4 jobs were still in progress at the last status check.
-- **Run 1089 — credential/webhook lifecycle commit `7bb3517`:** [workflow](https://github.com/shreyashjagtap157/UEP/actions/runs/41523291335). Web (47/47 tests), repository-policy, vulnerability-scan and Keycloak container jobs passed. PostgreSQL 17.11 and 18.4 jobs were still in progress at the last status check.
-- **Run 1090 — provider optimistic-version fix commit `2358087`:** [workflow](https://github.com/shreyashjagtap157/UEP/actions/runs/41523843098). Web (48/48 tests), repository-policy and vulnerability-scan passed. PostgreSQL 17.11, PostgreSQL 18.4 and Keycloak container jobs were still in progress at the last status check.
-
-For runs 1088–1090, backend job logs were not yet published by GitHub while jobs remained in progress. Treat those backend outcomes as **PENDING**, not PASS; re-check the workflows after syncing or before final release qualification.
-
-### Validation boundary
-
-The native Playwright Real-mode spec is discovered in web CI (one test in one file), but the GitHub Linux web job does not execute it. The local Windows Real-mode service/browser/PostgreSQL run, full native browser workflow, multi-persona and cross-tenant/branch isolation phases, service/database restart persistence, and local operator evidence collection remain **NOT TESTED** in this assistant session. The user must run the native Windows prompt in the same Windows profile that initialized the protected LocalAppData state; do not expose its credentials.
-
-No hosted production deployment was started or modified by these commits. All changes above are source, tests and documentation on `main`.
-
-
-## 2026-11-03 follow-up — local SQLite qualification profile
-
-- Added the explicit Spring profile `local-sqlite`. It uses a file-backed SQLite database, the Xerial JDBC driver and Hibernate's community `SQLiteDialect`.
-- The profile disables Flyway and uses Hibernate `ddl-auto=update` to create/update a **local qualification schema from the JPA entity model**. It does not run the 50 existing PostgreSQL migrations, and it does not certify PostgreSQL migration, SQL, locking, row-grant or concurrency behavior.
-- The profile uses a single Hikari connection and disables scheduled/background workers because several worker/locking paths use PostgreSQL-only SQL/advisory locks. `TenantMutationLock` retains tenant-existence validation but does not issue `SELECT ... FOR UPDATE` on SQLite.
-- PostgreSQL remains the production and CI database. The PostgreSQL migrations, database migration runner and CI matrix remain unchanged.
-- Keycloak is a separate process and must use its supported local `dev-file` database for SQLite mode; it does not share the UEP SQLite file.
-- The first SQLite qualification scope is local OIDC login, current identity and branch create/readback through the API/browser. Tenant membership lifecycle, role management/assignment, analytics, JSONB survey operations, advisory-lock paths, background delivery workers and provider/database grant tests are not yet qualified by this profile.
-- Runtime start-up, schema generation and local Windows execution are pending actual verification. Do not label the profile qualified until the dedicated SQLite integration test and native Windows run pass.
-
-
-## SQLite qualification follow-up — implementation boundary
-
-- Added a dedicated SQLite JPA persistence test and SQLite-aware tenant existence check. PostgreSQL continues to use row-level `SELECT ... FOR UPDATE`; SQLite uses the Hibernate UUID binary representation and its single-connection local profile.
-- Added a dedicated native Playwright test for SQLite OIDC login, branch write/readback after reload, and file signature. The PostgreSQL-only native role/grant scenario skips itself when the local state identifies SQLite.
-- This does not change the PostgreSQL Flyway migration set or CI database matrix. Actual local Windows execution is still required.
-
-
-## 2026-11-03 follow-up — SQLite Windows launcher
-
-- `startuep.ps1` and `scripts/Start-UEP.ps1` accept `-Database SQLite|PostgreSQL`; SQLite is the default local qualification choice.
-- SQLite mode skips PostgreSQL discovery, installation, service startup, superuser prompts, database role creation and Flyway. It selects `local-sqlite` and the file `.uep-local/uep-local.sqlite`.
-- Keycloak uses its own `dev-file` database in SQLite mode; PostgreSQL mode retains its separate Keycloak schema and DB role.
-- PostgreSQL remains the production and CI database. Native Windows runtime execution remains pending.
-
-
-## 2026-11-03 follow-up — SQLite CI and launcher status
-
-- SQLite is now the default local Real-mode database selection in the native Windows launcher. The explicit PostgreSQL alternative remains available with `-Database PostgreSQL`.
-- The launcher contract/policy job passed on commit `b775309`; the web lint/build failure from that run was fixed in `4502b5e` by renaming duplicate state variables. The web job passed on commit `4502b5e`.
-- A follow-up changed the SQLite native test to read only the 16-byte SQLite signature instead of loading the entire database file into memory (`45a8fba`).
-- The corrected SQLite persistence test and PostgreSQL 17/18 Maven jobs were still running at the time of this handoff update. Do not report backend CI as green until those exact jobs complete successfully.
-- The SQLite native browser test has not yet been executed on the user's Windows machine. The Linux CI job only verifies test discovery. The backend SQLite integration test verifies SQLite startup, Hibernate schema creation, tenant persistence and SQLite UUID existence lookup; it does not qualify the full application API.
-
-
-## 2026-11-03 CI follow-up — SQLite test fix validated by backend test stage
-
-- Workflow run [41573029510](https://github.com/shreyashjagtap157/UEP/actions/runs/41573029510), source commit `4502b5e`: web, repository-policy and vulnerability-scan jobs completed successfully; Keycloak staging-container job completed successfully.
-- Both backend matrix jobs (PostgreSQL 17.11 and 18.4) completed the **Verify backend** step successfully. The subsequent PostgreSQL UUIDv7 migration callback and least-privilege runtime grant steps also completed successfully. The jobs were still running the later API container build/smoke stages at the last poll, so the complete workflow conclusion remained pending.
-- Workflow run [41573114756](https://github.com/shreyashjagtap157/UEP/actions/runs/41573114756), source commit `45a8fba`: web, repository-policy, vulnerability-scan and Keycloak staging-container jobs completed successfully; both backend matrix jobs had passed **Verify backend** and were in later container-build stages.
-- Workflow run [41573298769](https://github.com/shreyashjagtap157/UEP/actions/runs/41573298769), source commit `3c4189b`: web, repository-policy and vulnerability-scan completed successfully; PostgreSQL 18.4 had passed **Verify backend**, while PostgreSQL 17.11 and the remaining container jobs were still running.
-- The successful backend verification stage includes the added `SQLiteLocalQualificationIntegrationTest` in the Maven suite. The earlier test failure from UUID parameter comparison is therefore corrected at the backend verification stage. The native Windows launcher/browser test remains unexecuted.
-- Latest source at the time of this note is later than the cited runs; rerun/finish CI for the exact current main head before release qualification.
-
-
-## 2026-11-03 follow-up — paired Real + Demo presentation
-
-- Added `-Mode Presentation` as the named side-by-side startup mode. It starts Real UEP at `localhost:5173` and the separate offline seeded demo at `localhost:5174`.
-- SQLite remains the default local database for Real mode; PostgreSQL can still be selected explicitly.
-- Real and Demo have persistent, distinct header labels and separate Vite process environments, browser origins, sessions and stores.
-- Added `docs/presentation/UEP_PRESENTATION_RUNBOOK.md` covering the two-environment run of show, the Real OIDC/API/database preview, the seeded Student → Teacher demo, and explicit claim boundaries.
-- CI and actual Windows presentation-mode execution remain pending for this follow-up. The native SQLite browser smoke must be run on the presentation workstation before describing the full real path as verified.
-
-
-## 2026-11-03 follow-up — native SQLite launch lifecycle fixes
-
-- The latest source checkpoint before this note was `0292c0b93a150721b8dd8305cbcb4f430f3eb5ad`. Its Windows CI job successfully received HTTP 200 from the Real Vite frontend, offline Demo frontend, Keycloak education discovery endpoint and Spring Boot actuator, but the step then terminated the launcher in a `finally` block before the following Playwright step could use the services. That made the launcher step fail and caused both Chromium installation and the native SQLite browser test to be skipped.
-- Workflow commit `e52045028fecca1d8127584053d7e2ffdf4a7794` removed the premature cleanup, but the next Windows run showed that GitHub Actions terminates orphaned child processes between steps: Playwright received `ERR_CONNECTION_REFUSED` at `http://localhost:5173` even though all endpoints had been healthy in the preceding step. The final workflow correction runs launcher startup, endpoint readiness, Chromium installation and the native SQLite browser test within one PowerShell step, then terminates the launcher in that step's `finally`; a separate `if: always()` cleanup remains as a safety net. The static verifier asserts that Playwright runs before cleanup in the same step.
-- A separate source review found that `Real + SQLite` and `Both + SQLite` still attempted to seed 13 backend test identities, while only `Presentation + SQLite` skipped them. The SQLite boundary explicitly marks membership and role administration as not yet qualified. The launcher now skips these additional accounts for **all** SQLite modes and provisions only the real OIDC owner; the PostgreSQL path retains its optional full persona bootstrap. The offline Demo continues to use its own browser fixture personas.
-- The all-SQLite-mode seed rule is covered by the launcher static verifier. `LOCAL_NATIVE_WINDOWS.md` and the README describe the same behavior.
-- Do not confuse GitHub-hosted Windows runner results with qualification on the owner's workstation. The Windows native smoke must complete its SQLite OIDC/branch-write/readback Playwright step, and the user workstation must still run `./startuep.ps1 -Mode Real -Database SQLite` or `./startuep.ps1 -Mode Presentation -Database SQLite` locally before local runtime success is claimed. Keep the app/API/database scope limited to verified SQLite-compatible flows; PostgreSQL remains the production/CI database.
-
-- Run `41579085949` reached the native browser test after the lifecycle change, but failed because `localhost:5173` had been cleaned up between workflow steps. This is the evidence behind the same-step orchestration fix; the new combined-step workflow must be qualified on its exact commit before considering the CI gate green.
-
-
-## 2026-11-03 follow-up — Windows first-run hardening and SQLite boot fixes
-
-- The Windows job on `36647ef800c0bb41bef704747c75cb5ba100d9a9` reached HTTP 200 on Real Vite, Demo Vite, Keycloak discovery and Spring actuator, but the owner bootstrap failed because the local bootstrap access token lacked `tenant_id`. The local Keycloak realm now imports a dedicated development-only `uep-local-bootstrap` client with a scalar `tenant_id` access-token mapper. The launcher avoids setting an empty tenant attribute, verifies that the owner attribute was persisted in Keycloak, verifies the mapper configuration, and reports JWT claim names (never the token) when the claim is missing.
-- Windows logs also showed `StorageQuotaReconciliationWorker` executing PostgreSQL-specific SQL against SQLite even though the local SQLite profile disables the background-worker configuration. Every scheduled worker bean now additionally requires `platform.background-workers.enabled=true`, and the SQLite Maven integration test asserts that scheduling and all worker beans are absent.
-- The native Windows prerequisite checks now require an actual JDK 21+ with `javac.exe`, attempt to upgrade older Node.js through WinGet, and prefer the checked-in verified Maven 3.10.0 distribution when system Maven is below 3.9. If WinGet is unavailable, the setup guide includes official manual installer routes for Node.js, Temurin JDK and Maven.
-- These source changes and tests have been committed directly to `main`; exact-head Windows CI and backend Maven verification are still required before calling the startup path qualified. The owner must still sync `main` and run the local Windows launcher; hosted CI cannot inspect or install software on the owner's workstation.
-
-
-## 2026-11-03 follow-up — Java class-file version mismatch
-
-- The owner reported `UnsupportedClassVersionError` for `com/universalplatform/grading/package-info`, class file version `67.0` (Java 23), loaded by a runtime supporting up to `65.0` (Java 21).
-- The backend POM already declares `<java.version>21</java.version>` and `<maven.compiler.release>21</maven.compiler.release>`. This error indicates stale/newer-compiled class output or a compiler/runtime selection mismatch, not a missing application dependency.
-- The Windows launcher now pins `JAVA_HOME` and `PATH` for the backend command file to the same discovered JDK, logs `java -version`, `javac -version`, and `mvn -version` into the backend log, and runs `mvn -B -Dmaven.compiler.release=21 clean spring-boot:run` for local SQLite and PostgreSQL launches. `clean` removes stale Maven target class files but does not touch `.uep-local` application data or SQLite/Keycloak state.
-- `scripts/verify-local-native-launcher.py` now guards this runtime/bytecode contract. The exact commit must pass repository-policy, backend Maven and Windows native CI before this startup change is considered verified. The owner should sync `main` and rerun the Windows native launcher to confirm their machine's Java paths.
-
-
-## 2026-11-03 follow-up — repeated Java 23 class / Java 21 runtime error
-
-- The owner repeated `UnsupportedClassVersionError` for `com/universalplatform/grading/package-info`: class-file major `67.0` (Java 23), while the running Java runtime supports up to `65.0` (Java 21).
-- The backend POM explicitly declares both `<java.version>21</java.version>` and `<maven.compiler.release>21</maven.compiler.release>`, so this is stale/newer compiled output or a compiler/runtime selection problem rather than an undeclared dependency.
-- `scripts/Start-UEP.ps1` now chooses a JDK whose `java.exe` and `javac.exe` major versions match, prefers JDK 21 when present, sets that JDK's `JAVA_HOME` and `PATH` in the actual backend command process, logs the runtime/compiler/Maven versions, and runs `mvn -B -Dmaven.compiler.release=21 clean compile` before launching Spring Boot.
-- New `scripts/verify-java-class-version.ps1` checks that `grading/package-info.class` is Java 21 major 65 and scans every compiled backend class to reject anything newer than major 65. The launcher starts Spring Boot only after this check succeeds. The launcher static verifier also asserts that the compile/check/start order is present.
-- The clean build touches only Maven `target` build output; it preserves `.uep-local/uep-local.sqlite`, local Keycloak files, generated credentials and the user's data.
-- Source and static contracts were reviewed on the current main files. The exact latest-head Windows native browser run and PostgreSQL backend matrix still need to finish. Do not claim the owner workstation has been validated until its local `startuep.ps1 -Mode Real -Database SQLite` run succeeds.
-
-
-## 2026-11-03 follow-up — SQLite schema metadata query limit on existing databases
-
-- Local full-stack verification confirms Real Vite (5173), Demo Vite (5174), Spring Boot API (8080) and local-sqlite health are running; unauthenticated API requests correctly return HTTP 401. The reported remaining defect occurs when Hibernate `ddl-auto:update` introspects an existing UEP SQLite database: the Xerial JDBC `DatabaseMetaData.getColumns()` implementation can construct a compound SELECT covering the columns of all matching tables and hit SQLite's default compound-SELECT term limit.
-- `application-local-sqlite.yaml` now configures `hibernate.hbm2ddl.jdbc_metadata_extraction_strategy=individually`. Hibernate's `IndividuallySchemaMigratorImpl` obtains table metadata table-by-table instead of using the grouped all-table extraction strategy. This is preferred over setting `limit_compound_select=0`, which removes the normal compound SELECT bound and can permit oversized queries.
-- `SQLiteLocalQualificationIntegrationTest` now asserts the selected strategy and iterates the existing SQLite tables, requesting JDBC column metadata separately for each table. The test expects more than 50 non-internal tables to ensure it exercises the larger schema.
-- The fix retains `ddl-auto:update` and does not delete or recreate `.uep-local/uep-local.sqlite`. The owner should sync the latest main and rerun the Real SQLite startup using the existing database file. If a different exception remains, preserve the database and share the Backend log's first Hibernate/SQLite exception and full SQL error context; do not perform a database reset.
-- The change is committed to main; its Maven/Windows CI result still needs to be checked before claiming it is qualified on the owner's workstation.
-
-
-## 2026-11-03 follow-up — existing SQLite database restart regression
-
-- The SQLite backend test now starts a second `SpringApplicationBuilder` context against the same `target/uep-sqlite-qualification.db` after the primary test context has already created the full JPA schema. The second context uses `local-sqlite`, `ddl-auto:update`, the same per-entity metadata strategy and a random HTTP port, then asserts that the existing tables are still present.
-- The test also exercises Xerial `DatabaseMetaData.getColumns()` one existing table at a time and verifies the schema contains more than 50 non-internal tables. It avoids holding the one-connection Hikari pool while using `JdbcTemplate`.
-- This is the intended repeat-start regression for the user's 86-entity SQLite metadata issue. Latest main source is committed; CI currently has a queued run, so do not claim the new test passed until Maven/Windows jobs finish.
+Do not label a task complete just because a file or workflow check was added.
