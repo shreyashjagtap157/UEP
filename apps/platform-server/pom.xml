@@ -21,7 +21,7 @@
     <jackson-bom.version>3.1.7</jackson-bom.version>
     <tomcat.version>11.0.25</tomcat.version>
     <spring-modulith.version>2.1.2</spring-modulith.version>
-    <aws-sdk.version>2.57.3</aws-sdk.version>
+    <aws-sdk.version>2.57.8</aws-sdk.version>
     <sqlite-jdbc.version>3.54.1.0</sqlite-jdbc.version>
     <maven.compiler.release>21</maven.compiler.release>
     <jacoco.version>0.8.15</jacoco.version>
