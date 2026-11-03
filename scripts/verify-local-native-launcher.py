@@ -15,6 +15,7 @@ wrapper_path = ROOT / "startuep.ps1"
 vite_path = ROOT / "apps" / "web" / "vite.config.ts"
 pom_path = ROOT / "apps" / "platform-server" / "pom.xml"
 migration_path = ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "DatabaseMigrationRunner.java"
+sqlite_profile_path = ROOT / "apps" / "platform-server" / "src" / "main" / "resources" / "application-local-sqlite.yaml"
 workflow_path = ROOT / ".github" / "workflows" / "ci.yml"
 
 launcher = launcher_path.read_text(encoding="utf-8")
@@ -22,6 +23,7 @@ wrapper = wrapper_path.read_text(encoding="utf-8")
 vite = vite_path.read_text(encoding="utf-8")
 pom = pom_path.read_text(encoding="utf-8")
 migration = migration_path.read_text(encoding="utf-8")
+sqlite_profile = sqlite_profile_path.read_text(encoding="utf-8")
 local_realm = json.loads((ROOT / "infra" / "keycloak" / "education-realm.json").read_text(encoding="utf-8"))
 sqlite_test = (ROOT / "apps" / "platform-server" / "src" / "test" / "java" / "com" / "universalplatform" / "tenancy" / "SQLiteLocalQualificationIntegrationTest.java").read_text(encoding="utf-8")
 scheduled_worker_paths = [
@@ -273,6 +275,12 @@ checks.update({
         and "Get-ClassMajorVersion" in class_version_verifier
         and "$major -gt $ExpectedMajor" in class_version_verifier
         and "all {0} backend class files are compatible" in class_version_verifier
+    ),
+    "SQLite schema update uses individually extracted Hibernate metadata instead of grouped compound SELECT": (
+        "jdbc_metadata_extraction_strategy: individually" in sqlite_profile
+        and "hibernate.hbm2ddl.jdbc_metadata_extraction_strategy" in sqlite_test
+        and "existingSqliteSchemaSupportsPerTableColumnMetadataExtraction" in sqlite_test
+        and "metadata.getColumns(null, null, tableName, null)" in sqlite_test
     ),
     "SQLite backend integration test asserts scheduler and worker suppression": (
         "localSqliteProfileDisablesSchedulingAndEveryBackgroundWorker" in sqlite_test
