@@ -233,3 +233,10 @@ Produce a factual evidence report with these sections:
 11. Exact log paths and redacted evidence references.
 
 Label every item PASS, FAIL, BLOCKED or NOT TESTED. Separate verified facts from inferred behavior. Do not claim that all features work just because the home dashboard loads or actuator health is UP.
+
+
+## SQLite local qualification
+
+Use the SQLite profile when PostgreSQL is unavailable. The launcher accepts a SQLite database selection; the local qualification database is a file under `.uep-local`. The profile uses Hibernate entity schema generation, not the PostgreSQL Flyway migrations. Keycloak has a separate local development store.
+
+The SQLite native test validates OIDC login, authenticated branch creation, browser reload/readback and the SQLite file signature. PostgreSQL role/grant tests remain a separate PostgreSQL-only acceptance suite. SQLite results must not be represented as PostgreSQL migration, privilege, concurrency or production-equivalence evidence.

@@ -412,3 +412,10 @@ No hosted production deployment was started or modified by these commits. All ch
 - Keycloak is a separate process and must use its supported local `dev-file` database for SQLite mode; it does not share the UEP SQLite file.
 - The first SQLite qualification scope is local OIDC login, current identity, tenant membership, role management/assignment and branch persistence through the API/browser. PostgreSQL-specific analytics casts, JSONB survey operations, advisory-lock paths, background delivery workers and provider/database grant tests are not qualified by this profile.
 - Runtime start-up, schema generation and local Windows execution are pending actual verification. Do not label the profile qualified until the dedicated SQLite integration test and native Windows run pass.
+
+
+## SQLite qualification follow-up — implementation boundary
+
+- Added a dedicated SQLite JPA persistence test and SQLite-aware tenant existence check. PostgreSQL continues to use row-level `SELECT ... FOR UPDATE`; SQLite uses the Hibernate UUID binary representation and its single-connection local profile.
+- Added a dedicated native Playwright test for SQLite OIDC login, branch write/readback after reload, and file signature. The PostgreSQL-only native role/grant scenario skips itself when the local state identifies SQLite.
+- This does not change the PostgreSQL Flyway migration set or CI database matrix. Actual local Windows execution is still required.

@@ -12,6 +12,8 @@ type LocalBootstrapState = {
   DatabaseName?: unknown
   RuntimeUser?: unknown
   RuntimePassword?: unknown
+  DatabaseProvider?: unknown
+  SQLiteDatabasePath?: unknown
 }
 
 type CurrentIdentity = {
@@ -128,7 +130,10 @@ function expectRuntimeRoleDenial(
   expect(denied, 'the restricted Spring Boot database role must not perform this operation').toBe(true)
 }
 
-test('real OIDC owner proves authenticated analytics, branch and membership persistence through restricted PostgreSQL', async ({ page, request }) => {
+test('PostgreSQL mode: real OIDC owner proves authenticated analytics, branch and membership persistence through restricted PostgreSQL', async ({ page, request }) => {
+  const localStatePath = join(process.env.LOCALAPPDATA || '', 'UEP', 'local-native', 'state.json')
+  const localState = JSON.parse(readFileSync(localStatePath, 'utf8').replace(/^\uFEFF/, '')) as LocalBootstrapState
+  test.skip(localState.DatabaseProvider === 'SQLite', 'PostgreSQL role/grant assertions run only in PostgreSQL qualification mode')
   const credentials = loadLocalOwnerCredentials()
   const browserApiOrigins = new Set<string>()
 

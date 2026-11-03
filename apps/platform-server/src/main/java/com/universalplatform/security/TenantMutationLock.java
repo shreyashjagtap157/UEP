@@ -21,14 +21,21 @@ public class TenantMutationLock {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void lockTenant(UUID tenantId) {
-        String lockQuery = jdbc.execute((org.springframework.jdbc.core.ConnectionCallback<String>) connection ->
-                "SQLite".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName())
-                        ? "select id from tenant where id = ?"
-                        : "select id from tenant where id = ? for update");
-        List<UUID> locked = jdbc.query(
-                lockQuery,
-                (resultSet, rowNumber) -> resultSet.getObject(1, UUID.class),
-                tenantId);
+        boolean sqlite = jdbc.execute((org.springframework.jdbc.core.ConnectionCallback<Boolean>)
+                connection -> "SQLite".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName()));
+        List<Integer> locked;
+        if (sqlite) {
+            // Hibernate's SQLite dialect stores UUID identifiers as 16-byte binary values.
+            byte[] uuid = java.nio.ByteBuffer.allocate(16)
+                    .putLong(tenantId.getMostSignificantBits())
+                    .putLong(tenantId.getLeastSignificantBits())
+                    .array();
+            locked = jdbc.query("select id from tenant where id = ?",
+                    (resultSet, rowNumber) -> 1, uuid);
+        } else {
+            locked = jdbc.query("select id from tenant where id = ? for update",
+                    (resultSet, rowNumber) -> 1, tenantId);
+        }
         if (locked.isEmpty()) {
             throw new IllegalStateException("Tenant does not exist");
         }

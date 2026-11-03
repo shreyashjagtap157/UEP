@@ -39,7 +39,8 @@ class SQLiteLocalQualificationIntegrationTest {
                 "SQLite Local Qualification", Instant.now()));
 
         assertThat(jdbc.queryForObject(
-                "select count(*) from tenant where id = ?", Integer.class, tenantId)).isEqualTo(1);
+                "select count(*) from tenant where slug = ?", Integer.class,
+                "sqlite-" + tenantId.toString().substring(0, 8))).isEqualTo(1);
 
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
         assertThatCode(() -> transaction.executeWithoutResult(status -> tenantMutationLock.lockTenant(tenantId)))
