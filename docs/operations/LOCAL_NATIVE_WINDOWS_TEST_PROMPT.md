@@ -1,10 +1,10 @@
-# UEP — Full Native Local Frontend, API, OIDC and Database Acceptance Test Prompt (SQLite or PostgreSQL)
+# UEP — Full Native Local Real Frontend, API, Swagger UI and Database Acceptance Test Prompt (SQLite or PostgreSQL)
 
 You are the principal QA automation engineer, full-stack integration tester, database verification engineer and application-security tester for the Universal Education Platform (UEP).
 
 ## Objective
 
-Qualify the **actual Real application**, not the offline Demo fixtures. The browser UI, Spring Boot API, Keycloak OIDC identity provider and selected local database must operate as one connected system. Select SQLite for workstation qualification when PostgreSQL is unavailable; select PostgreSQL only when explicitly testing the PostgreSQL migration and privilege boundary.
+Qualify the **actual Real application**, not the offline Demo fixtures. The Real browser UI, Spring Boot API, local Swagger UI and selected local database must operate as one connected system without starting or contacting Keycloak. Select SQLite for workstation qualification when PostgreSQL is unavailable; select PostgreSQL only when explicitly testing the PostgreSQL migration and privilege boundary.
 
 The system is started natively on Windows by:
 
@@ -14,10 +14,11 @@ Expected local endpoints:
 
 - Frontend: http://localhost:5173
 - Backend: http://localhost:8080
-- Keycloak: http://localhost:8081
+- Swagger UI: http://localhost:8080/swagger-ui.html
+- OpenAPI JSON: http://localhost:8080/v3/api-docs
 - SQLite (default): .uep-local/uep-local.sqlite. PostgreSQL is an optional separate mode.
 
-In SQLite mode, the backend uses the `local-sqlite` Spring profile and Hibernate entity schema generation; PostgreSQL Flyway migrations and database roles are not used. Keycloak uses its separate local `dev-file` store. In PostgreSQL mode, the backend connects as `uep_local_runtime`, Flyway is run by `DatabaseMigrationRunner` as `uep_local_migrator`, and Keycloak connects as `uep_local_keycloak` using the `keycloak` schema.
+In SQLite mode, the backend uses the `local-sqlite,local-native` Spring profiles and Hibernate entity schema generation; PostgreSQL Flyway migrations and database roles are not used. In PostgreSQL mode, the backend connects as `uep_local_runtime` and Flyway is run by `DatabaseMigrationRunner` as `uep_local_migrator`. The local-native profile binds the backend to `127.0.0.1`, enables launcher-issued local API authentication and exposes Swagger only on this workstation. No Keycloak process is started or contacted in either local database mode.
 
 ## Non-negotiable safety and truth requirements
 
@@ -39,7 +40,7 @@ Check all prerequisites and statuses:
 - Node version >= 22.22.0 and npm available.
 - JDK >= 21 and Maven >= 3.9.
 - SQLite mode: the SQLite file is created by the backend and has a valid SQLite header. PostgreSQL mode: PostgreSQL accepts local connections.
-- Keycloak discovery endpoint returns the education realm metadata.
+- Swagger UI returns HTTP 200 at `/swagger-ui/index.html`; `/v3/api-docs` returns a valid OpenAPI document.
 - Spring Boot actuator health is UP.
 - Frontend page loads from port 5173.
 - Required ports are bound by the expected local processes.
@@ -48,16 +49,16 @@ Record process IDs and log paths without exposing credentials.
 
 Verify the data flow contract from source:
 
-- Real frontend has VITE_LOCAL_MODE=false.
+- Real frontend has `VITE_LOCAL_MODE=false` and `VITE_LOCAL_API_MODE=true`.
 - Frontend does not compile in a remote API URL; the API base remains same-origin/relative.
 - Vite proxies /api to 127.0.0.1:8080.
-- Frontend API helper uses fetch for data requests, attaches the Keycloak bearer token and supports GET, POST, PUT, PATCH and DELETE.
-- SQLite mode: backend uses `local-sqlite`, Flyway is disabled, Hibernate creates the local entity schema, background workers are disabled, and Keycloak uses `dev-file` independently.
+- Frontend API helper uses fetch for data requests, attaches the launcher-issued `X-UEP-Local-Auth` header and supports GET, POST, PUT, PATCH and DELETE.
+- SQLite mode: backend uses `local-sqlite,local-native`, Flyway is disabled, Hibernate creates the local entity schema, background workers are disabled and no identity-provider process is started.
 - PostgreSQL mode: backend uses the local PostgreSQL datasource and `uep_local_runtime`; Flyway migration history is present and validated; Keycloak uses the separate `keycloak` schema.
 
 Inspect browser and build artifacts for leaked secrets. No database username/password or Keycloak bootstrap admin password may be present in frontend environment variables, Vite output, browser storage or JavaScript assets.
 
-## Phase 2 — OIDC authentication and tenant context
+## Phase 2 — Local API authentication and tenant context
 
 1. Open the actual Real frontend at http://localhost:5173.
 2. Confirm it redirects to the local Keycloak education realm.
@@ -71,7 +72,7 @@ Inspect browser and build artifacts for leaked secrets. No database username/pas
 6. Verify GET /api/v1/me returns the authenticated user's identity, active tenant and Organization Owner role.
 7. Verify anonymous access to protected API resources returns 401/403 as designed, while documented public health/version endpoints remain accessible.
 8. Verify an invalid tenant claim is rejected and an inactive/unknown tenant cannot access tenant-scoped resources.
-9. Confirm that the browser does not call a remote Keycloak origin.
+9. Confirm that the browser does not call any Keycloak origin or port.
 
 ## Phase 3 — Browser-to-API request proof
 
@@ -82,7 +83,7 @@ Start with the committed native Real smoke suite after the launcher reports all 
     npm --prefix apps/web exec -- playwright install chromium
     npm --prefix apps/web run test:e2e:native
 
-This test must run on the same Windows account that initialized the protected local state. It signs in through local Keycloak, checks authenticated API calls from the Vite origin, downloads the attendance CSV, creates a uniquely prefixed branch through the UI, reloads the browser and reads the branch back. It then creates a synthetic role-free membership through the People UI, assigns the existing Student role at tenant scope through authenticated POST, verifies the `role_assignment` row exists through the restricted PostgreSQL runtime role, removes that assignment through authenticated DELETE, verifies the row is absent, repeats the assignment/removal at branch scope against the newly created branch and verifies the persisted scope kind and branch ID, updates the membership's status and external reference through authenticated PATCH with optimistic version 0, verifies the response increments the version to 1, reloads and reads the updated membership through GET, and directly reads the committed membership row from PostgreSQL using the protected `uep_local_runtime` credentials. It then creates a uniquely prefixed custom role in the Roles workspace, updates its name/description/permissions through PUT using optimistic version 0, verifies version 1 in the response and PostgreSQL, deletes it through the UI after explicit browser confirmation, and verifies that the role and cascading permission rows are absent through the restricted runtime role. System-managed roles have no edit/delete controls, and the backend must reject deletion of an assigned custom role. It also verifies the database role's no-CREATE/no-Flyway-history boundary. It deliberately does not print credentials or tokens. The uniquely named branch and synthetic membership are annotated and retained because the current UI/API has no delete operation for either resource; the test never deletes data with direct SQL.
+This test must run on the same Windows account that initialized the protected local state. It checks local-authenticated API calls from the Vite origin, downloads the attendance CSV, creates a uniquely prefixed branch through the UI, reloads the browser and reads the branch back. It then creates a synthetic role-free membership through the People UI, assigns the existing Student role at tenant scope through authenticated POST, verifies the `role_assignment` row exists through the restricted PostgreSQL runtime role, removes that assignment through authenticated DELETE, verifies the row is absent, repeats the assignment/removal at branch scope against the newly created branch and verifies the persisted scope kind and branch ID, updates the membership's status and external reference through authenticated PATCH with optimistic version 0, verifies the response increments the version to 1, reloads and reads the updated membership through GET, and directly reads the committed membership row from PostgreSQL using the protected `uep_local_runtime` credentials. It then creates a uniquely prefixed custom role in the Roles workspace, updates its name/description/permissions through PUT using optimistic version 0, verifies version 1 in the response and PostgreSQL, deletes it through the UI after explicit browser confirmation, and verifies that the role and cascading permission rows are absent through the restricted runtime role. System-managed roles have no edit/delete controls, and the backend must reject deletion of an assigned custom role. It also verifies the database role's no-CREATE/no-Flyway-history boundary. It deliberately does not print credentials or tokens. The uniquely named branch and synthetic membership are annotated and retained because the current UI/API has no delete operation for either resource; the test never deletes data with direct SQL.
 
 A successful run is evidence for this specific end-to-end path only; continue with the wider method, workflow and tenant/branch isolation matrix below.
 
@@ -141,9 +142,9 @@ Verify:
 - current database is uep_local_native.
 - backend application tables exist in public.
 - Flyway schema history contains the expected successfully applied versions.
-- Keycloak tables exist only in the keycloak schema.
+- The local-native runtime does not connect to an identity-provider database.
 - runtime account is a login with no superuser, CREATEDB, CREATEROLE, REPLICATION, BYPASSRLS, role membership, schema CREATE, database CREATE or application-object ownership.
-- Keycloak account owns/uses keycloak schema and cannot modify UEP public application data outside its granted access.
+- No external identity-provider database is connected by the local-native application path.
 - runtime account cannot read Flyway history or create schema objects.
 - app data rows created through the frontend/API are present in the expected PostgreSQL tables.
 - updates and deletes through the frontend/API are reflected in PostgreSQL.
@@ -195,9 +196,9 @@ Browser:
 - For the native Real environment, install Chromium once when absent and run:
       npm --prefix apps/web exec -- playwright install chromium
       npm --prefix apps/web run test:e2e:native
-- The native smoke reads owner and runtime database credentials only from the protected LocalAppData state file, keeps them in process memory, passes the database password to `psql` through the child-process environment, and disables trace/screenshot/video output. It verifies local Keycloak OIDC Authorization Code + PKCE S256 login, authenticated same-origin `/api/v1/me`, analytics overview, an authenticated attendance CSV export, a branch POST from the Organization UI, browser reload followed by API readback, and direct PostgreSQL readback of that branch as `uep_local_runtime`.
+- The native smoke reads the restricted PostgreSQL runtime credentials only from the protected LocalAppData state file, keeps them in process memory, passes the database password to `psql` through the child-process environment, and disables trace/screenshot/video output. It verifies launcher-issued loopback authentication, authenticated same-origin `/api/v1/me`, analytics overview, an authenticated attendance CSV export, a branch POST from the Organization UI, browser reload followed by API readback, and direct PostgreSQL readback of that branch as `uep_local_runtime`.
 - It also verifies that the connected database role is the configured restricted runtime user, has no superuser/role/database-creation/replication/RLS-bypass attributes, lacks schema and database CREATE privileges, and is denied access to `public.flyway_schema_history`. It deliberately retains the uniquely named test branch because the branch API currently exposes no delete operation; the test records its code and ID in a Playwright annotation and never deletes data with direct SQL.
-- Treat this as focused end-to-end evidence for one OIDC owner, analytics export, branch-create/read, membership-create/role-assign/role-unassign/PATCH/read, optimistic-version increment, and direct PostgreSQL readback. It does **not** prove general PUT/DELETE coverage outside the custom-role update/delete path and the specific operations above, all UI workflows, multi-persona or cross-tenant/branch isolation across modules, complete object-ownership/grant analysis, or service/database restart persistence. Those remain separate mandatory phases below.
+- Treat this as focused end-to-end evidence for one local owner, analytics export, branch-create/read, membership-create/role-assign/role-unassign/PATCH/read, optimistic-version increment, and direct PostgreSQL readback. It does **not** prove general PUT/DELETE coverage outside the custom-role update/delete path and the specific operations above, all UI workflows, multi-persona or cross-tenant/branch isolation across modules, complete object-ownership/grant analysis, or service/database restart persistence. Those remain separate mandatory phases below.
 - Discover and run the existing Playwright suite.
 - Add focused Real-mode integration tests only where the current setup supports them.
 - Keep the Demo suite separate; it does not count as Real backend/database qualification.
@@ -208,10 +209,10 @@ If an existing test requires an external service, skip it only with an explicit 
 
 1. Create a uniquely named test resource through the real UI.
 2. Confirm the API accepted it and PostgreSQL stores it.
-3. Stop only the frontend and backend processes (do not stop PostgreSQL or Keycloak yet).
+3. Stop only the frontend and backend processes (leave PostgreSQL running).
 4. Restart the frontend and backend using the local launcher.
 5. Sign in again and confirm the resource is still returned by the API and visible in the UI.
-6. Restart Keycloak only after the previous check if safe; confirm OIDC login and the same application data still work.
+6. Restart the backend and frontend only after the previous check; confirm the new local session works and the same database records remain.
 7. Do not reset the database.
 
 ## Required final report
@@ -221,7 +222,7 @@ Produce a factual evidence report with these sections:
 1. Environment and tool versions.
 2. Service endpoints and live status.
 3. Verified browser → Vite proxy → API → PostgreSQL request path.
-4. Verified Keycloak OIDC flow and tenant claims.
+4. Verified launcher-issued local API session and tenant context.
 5. API method coverage table (GET/POST/PUT/PATCH/DELETE).
 6. UI feature/workflow coverage table.
 7. Database migrations, tables, role grants and persistence proof.
@@ -235,9 +236,9 @@ Label every item PASS, FAIL, BLOCKED or NOT TESTED. Separate verified facts from
 
 ## SQLite local qualification
 
-Use the SQLite profile when PostgreSQL is unavailable. The launcher accepts a SQLite database selection; the local qualification database is a file under `.uep-local`. The profile uses Hibernate entity schema generation, not the PostgreSQL Flyway migrations. Keycloak has a separate local development store.
+Use the SQLite profile when PostgreSQL is unavailable. The launcher accepts a SQLite database selection; the local qualification database is a file under `.uep-local`. The profile uses Hibernate entity schema generation, not the PostgreSQL Flyway migrations. The local-native profile does not need an identity-provider service.
 
-The SQLite native test validates OIDC login, authenticated branch creation, browser reload/readback and the SQLite file signature. PostgreSQL role/grant tests remain a separate PostgreSQL-only acceptance suite. SQLite results must not be represented as PostgreSQL migration, privilege, concurrency or production-equivalence evidence.
+The SQLite native test validates local API authentication, authenticated branch creation, browser reload/readback and the SQLite file signature. PostgreSQL role/grant tests remain a separate PostgreSQL-only acceptance suite. SQLite results must not be represented as PostgreSQL migration, privilege, concurrency or production-equivalence evidence.
 
 
 ## SQLite local qualification mode — use this path when PostgreSQL is unavailable
@@ -263,7 +264,7 @@ Set-Location apps\web
 npm run test:e2e:native
 ```
 
-The SQLite native test validates OIDC login, authenticated branch creation, browser reload/readback and the SQLite file signature. PostgreSQL role/grant checks are a separate suite and are skipped in SQLite mode. This is a narrow local workflow qualification, not proof that every UEP module supports SQLite. Do not count membership lifecycle, role administration, analytics, scheduling, messaging, finance, notification delivery, or background-worker workflows as SQLite-qualified until their PostgreSQL-specific query and locking paths have dedicated SQLite tests. SQLite does not establish PostgreSQL migration, role/grant, concurrency, backup/restore or production-equivalence qualification.
+The SQLite native test validates local API authentication, authenticated branch creation, browser reload/readback and the SQLite file signature. PostgreSQL role/grant checks are a separate suite and are skipped in SQLite mode. This is a narrow local workflow qualification, not proof that every UEP module supports SQLite. Do not count membership lifecycle, role administration, analytics, scheduling, messaging, finance, notification delivery, or background-worker workflows as SQLite-qualified until their PostgreSQL-specific query and locking paths have dedicated SQLite tests. SQLite does not establish PostgreSQL migration, role/grant, concurrency, backup/restore or production-equivalence qualification.
 
 
 ## Paired presentation environment
@@ -274,6 +275,6 @@ Start Real UEP and the separate offline demo together:
 .\startuep.ps1 -Mode Presentation -Database SQLite
 ```
 
-Real UEP runs at `http://localhost:5173`; the offline seeded demo runs at `http://localhost:5174`. Both use separate Vite process environments and visible environment labels. Only Real uses Keycloak, Spring Boot and the selected database. Demo remains browser-fixture-only.
+Real UEP runs at `http://localhost:5173`; the offline seeded demo runs at `http://localhost:5174`. Both use separate Vite process environments and visible environment labels. Only Real uses Spring Boot and the selected database. It uses the launcher-issued local API session; no Keycloak service is started. Demo remains browser-fixture-only.
 
 Use `docs/presentation/UEP_PRESENTATION_RUNBOOK.md` for the walkthrough and evidence boundaries.

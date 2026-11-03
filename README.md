@@ -8,7 +8,7 @@
 
 > **Remote deployment controls retired in Git:** Fly app manifests and the hosted database-migration workflow have been removed from main. The Cloudflare Pages frontend projects remain separate; the last inspected testing bundle was stale and must not be treated as a connected product. No remote API or OIDC service is currently qualified.
 
-> **Supported local path:** use [scripts/Start-UEP.ps1](scripts/Start-UEP.ps1) with Demo, Real or Both mode. It runs the real React/Vite frontend, Spring Boot API, Keycloak 26.7.5 and PostgreSQL natively on Windows without Docker/Podman or hosted resources. Real mode connects the browser to the API through Vite's /api proxy and connects the API to local PostgreSQL using a least-privilege runtime role. Demo mode is intentionally offline and uses local UI fixtures only.
+> **Supported local path:** use [scripts/Start-UEP.ps1](scripts/Start-UEP.ps1) with Demo, Real or Both mode. It runs the real React/Vite frontend and Spring Boot API natively on Windows with local SQLite (default) or PostgreSQL. A launcher-issued loopback session connects the Real UI to the backend; Keycloak is not started. Real mode connects the browser to the API through Vite's /api proxy and connects the API to local PostgreSQL using a least-privilege runtime role. Demo mode is intentionally offline and uses local UI fixtures only.
 
 > The current 0.15.0.0-SNAPSHOT source contains tenant-scoped RBAC, academic workflows, assessments, assignments, grading, communication, storage, live-learning and operational modules. **Feature completeness is not equivalent to local acceptance:** run the test plan in [LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) and record actual browser, API, database and isolation evidence before making product-readiness claims.
 
@@ -95,7 +95,7 @@ npm --prefix apps/web run build
 
 The launcher inventories local requirements before startup. It can install Node.js LTS and Eclipse Temurin JDK 21 through WinGet, downloads a SHA-512-verified Maven 3.10.0 and SHA-256-verified Keycloak 26.7.5 into the ignored `.uep-local/tools` directory, installs locked frontend dependencies with `npm ci`, and resolves backend dependencies with Maven. Use a full JDK (including `javac.exe`), not a JRE. When WinGet is unavailable, use the manual installer links in [the Windows setup guide](docs/operations/LOCAL_NATIVE_WINDOWS.md).
 
-No container runtime is required. The launcher checks prerequisites and starts Keycloak, Spring Boot and Vite as native Windows processes. SQLite is the default local qualification database and does not require PostgreSQL or Flyway; select `-Database PostgreSQL` only when explicitly qualifying the PostgreSQL migration/runtime-role path, which runs Flyway separately with the local migrator role before the API starts with the restricted runtime role.
+No container runtime is required. The launcher checks prerequisites and starts Spring Boot and Vite as native Windows processes. SQLite is the default local qualification database and does not require PostgreSQL or Flyway; select `-Database PostgreSQL` only when explicitly qualifying the PostgreSQL migration/runtime-role path, which runs Flyway separately with the local migrator role before the API starts with the restricted runtime role.
 
 ```powershell
 # Run the real integrated application and the offline presentation demo side by side
@@ -106,7 +106,7 @@ No container runtime is required. The launcher checks prerequisites and starts K
 .\startuep.ps1 -Mode Demo
 ```
 
-See [Native Windows local development](docs/operations/LOCAL_NATIVE_WINDOWS.md) for requirements, URLs, SQLite/PostgreSQL boundaries, startup/stop behavior and local credentials. See [the UEP presentation runbook](docs/presentation/UEP_PRESENTATION_RUNBOOK.md) for the paired Real + Demo presentation. See [the local integration acceptance prompt](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) for browser-to-API-to-database qualification.
+See [Native Windows local development](docs/operations/LOCAL_NATIVE_WINDOWS.md) for requirements, URLs, local authentication, Swagger UI, SQLite/PostgreSQL boundaries, startup/stop behavior and local state. See [the UEP presentation runbook](docs/presentation/UEP_PRESENTATION_RUNBOOK.md) for the paired Real + Demo presentation. See [the local integration acceptance prompt](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) for browser-to-API-to-database qualification.
 
 For **all SQLite Real-mode launches** (Real, Both or Presentation), the launcher provisions only the real OIDC owner. It intentionally does not seed the additional backend test personas because their membership and role workflows are not yet SQLite-qualified. The offline Demo continues to use its separate seeded browser personas; PostgreSQL mode retains the broader backend test-persona bootstrap.
 
@@ -119,7 +119,7 @@ npm --prefix apps/web exec -- playwright install chromium
 npm --prefix apps/web run test:e2e:native
 ```
 
-The SQLite native spec verifies local owner OIDC sign-in, authenticated identity, a branch write through the UI and API readback after reload, plus the SQLite file signature. The PostgreSQL native spec additionally verifies analytics/CSV, custom-role CRUD, membership/role lifecycle and restricted runtime-role grants. Each database mode has a separate evidence boundary. Each run retains its unique test branch because no branch-delete API exists. These focused checks do not replace the wider multi-tenant/branch isolation matrix, all business workflows or restart-persistence acceptance.
+The SQLite native spec verifies local owner authentication, authenticated identity, a branch write through the UI and API readback after reload, plus the SQLite file signature. The PostgreSQL native spec additionally verifies analytics/CSV, custom-role CRUD, membership/role lifecycle and restricted runtime-role grants. Each database mode has a separate evidence boundary. Each run retains its unique test branch because no branch-delete API exists. These focused checks do not replace the wider multi-tenant/branch isolation matrix, all business workflows or restart-persistence acceptance.
 
 ## Licensing
 

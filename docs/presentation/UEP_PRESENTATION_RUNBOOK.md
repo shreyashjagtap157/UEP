@@ -4,7 +4,7 @@
 
 Present two honest views of the same project:
 
-1. **Real UEP — local integrated build:** the current React application with real Keycloak OIDC sign-in, the Spring Boot API and a local SQLite qualification database.
+1. **Real UEP — local integrated build:** the current React application with a launcher-managed loopback session, Spring Boot API, separate backend Swagger UI and a local SQLite qualification database. Keycloak is not started in this local walkthrough.
 2. **Offline presentation demo:** the curated role-specific seeded workspaces used for the concise academic workflow walkthrough.
 
 These are two independent environments. The Offline Demo is not connected to the Real application and does not use its API, Keycloak session or SQLite database. The Real application is not a production deployment, and the SQLite profile is narrower than PostgreSQL production/CI qualification.
@@ -17,16 +17,16 @@ From the repository root on Windows:
 .\startuep.ps1 -Mode Presentation -Database SQLite
 ```
 
-In this paired SQLite presentation mode, the launcher creates or reuses only the Real application's local OIDC owner account. It intentionally does not provision the optional 13 backend test personas: the Offline Demo has its own independent seeded personas, and those broader membership/role workflows are outside the current SQLite qualification boundary.
+In this paired SQLite presentation mode, the launcher creates or reuses only the Real application's local local API authentication owner account. It intentionally does not provision the optional 13 backend test personas: the Offline Demo has its own independent seeded personas, and those broader membership/role workflows are outside the current SQLite qualification boundary.
 
 Expected endpoints:
 
 | Environment | URL | What it is |
 |---|---|---|
-| Real UEP | http://localhost:5173 | OIDC-authenticated React UI; API requests go through Vite to Spring Boot |
+| Real UEP | http://localhost:5173 | Local-authenticated React UI; API requests go through Vite to Spring Boot |
 | Offline Demo | http://localhost:5174 | Seeded personas, simulated sign-in and browser-local sample state |
-| Keycloak | http://localhost:8081 | Local OIDC identity provider for Real UEP |
-| Spring Boot API | http://localhost:8080 | Local backend used by Real UEP only |
+| Swagger UI | http://localhost:8080/swagger-ui.html | Separate interactive backend API reference |
+| Spring Boot API | http://localhost:8080 | Local backend; generated OpenAPI JSON at `/v3/api-docs` |
 | SQLite file | `.uep-local\uep-local.sqlite` | Local qualification data for Real UEP |
 
 The Real UI displays `REAL UEP - LOCAL SQLITE`. The Demo UI displays `OFFLINE DEMO · SEEDED BROWSER DATA`. Keep the two windows separate during the presentation.
@@ -50,7 +50,7 @@ Say: “Before I explain the architecture, here is a short preview of the studen
 1. Open the Demo window and sign in as Student.
 2. Show Today, My Learning and one prepared assignment/result.
 3. Point out the visible Offline Demo label.
-4. Do not claim API, OIDC, server-side RBAC or database persistence.
+4. Do not claim API, local API authentication, server-side RBAC or database persistence.
 
 ### Four-slide presentation
 
@@ -58,16 +58,16 @@ Use the established four-slide speaker guide:
 
 1. Why UEP started — learner experience and the problem being addressed.
 2. What UEP brings together — role-specific education and institutional workflows.
-3. Technologies and architecture — React/TypeScript/Vite, Java/Spring Boot modular monolith, Keycloak OIDC, PostgreSQL/Flyway target, and the limited local SQLite qualification profile.
+3. Technologies and architecture — React/TypeScript/Vite, Java/Spring Boot modular monolith, Keycloak local API authentication, PostgreSQL/Flyway target, and the limited local SQLite qualification profile.
 4. What will be demonstrated — the current real integration slice and then the separate seeded offline demo.
 
 Keep the distinction explicit: source capability, demo behavior and runtime-verified behavior are three different things.
 
 ### Real implementation preview — Real UEP
 
-Say: “This is the actual UEP application path. I am signing in through the local identity provider, the browser calls the Spring Boot API, and the API persists the supported local workflow in SQLite. This is a local qualification environment, not a production deployment.”
+Say: “This is the actual UEP application path. The frontend calls the Spring Boot API through the local launcher session, and the API persists the supported workflow in SQLite. The backend API reference is available separately in Swagger UI. This is a local qualification environment, not a production deployment.”
 
-1. In the Real UEP window, complete Keycloak sign-in using the local owner identity from the protected Windows profile.
+1. Open Real UEP. It loads the persisted local owner identity from the database through `/api/v1/me`; this local path does not use Keycloak.
 2. Show the authenticated user, tenant identifier and assigned roles in the workspace.
 3. Explain the request path: Browser → Vite same-origin `/api` proxy → Spring Boot → SQLite. The browser never connects directly to the database.
 4. Open Organization and, after the local SQLite native smoke has passed, create a uniquely named branch. Reload the page and show that it is returned by the backend again.
@@ -98,7 +98,7 @@ Limitations to state when relevant:
 | Claim | Evidence boundary |
 |---|---|
 | Offline student/teacher workspace and seeded academic journey | Demo implementation; browser-local state only |
-| Keycloak login and tenant identity in Real UEP | Real native SQLite browser test must pass on the presentation machine |
+| Local API session and tenant identity in Real UEP | Real native SQLite browser test must pass on the presentation machine |
 | Branch API write and readback after reload | Real native SQLite browser test must pass on the presentation machine |
 | SQLite schema generation and tenant persistence | Backend SQLite integration test in CI |
 | PostgreSQL migrations, UUIDv7 and restricted runtime grants | PostgreSQL CI matrix only; not proven by SQLite |
@@ -109,7 +109,7 @@ Limitations to state when relevant:
 
 - Sync the latest repository `main`.
 - Run the launcher once in Presentation mode and confirm both windows display their correct environment labels.
-- Complete Real OIDC sign-in and the branch create/reload/readback smoke in the same Windows profile.
+- Open Real UEP and complete the local-authenticated branch create/reload/readback smoke.
 - Prepare the Student and Teacher offline demo flow and verify the seeded records still appear.
 - Close unrelated browser tabs; keep Real at :5173 and Demo at :5174.
 - Keep local credential files private. Do not paste or put passwords into the presentation.
