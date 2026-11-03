@@ -243,6 +243,13 @@ checks.update({
         (ROOT / worker_path).read_text(encoding="utf-8")
         for worker_path in scheduled_worker_paths
     ),
+    "database provider changes or a missing SQLite file trigger non-destructive tenant rebootstrap": (
+        "$providerChanged = -not [string]::Equals($previousProvider, $Database" in launcher
+        and "$sqliteIdentityMustBeRecreated = ($Database -eq 'SQLite' -and $sqliteMissingOrEmpty)" in launcher
+        and "$State.TenantId = ''" in launcher
+        and "$State.LocalAdminUserId = ''" in launcher
+        and "preserving local credentials and database files" in launcher
+    ),
     "Windows backend launch pins one JDK, release-21 bytecode and removes stale classes": (
         "set \"JAVA_HOME=" in launcher
         and "set \"PATH=" in launcher
