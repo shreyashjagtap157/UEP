@@ -575,8 +575,13 @@ function Assert-TenantTokenContext([string]$Token, [string]$ExpectedTenantId) {
         1 { throw 'Keycloak returned a JWT with an invalid payload encoding.' }
     }
     $claims = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payload)) | ConvertFrom-Json
-    if ([string]$claims.tenant_id -ne $ExpectedTenantId) {
-        throw "Local bootstrap token is missing the expected tenant_id claim '$ExpectedTenantId'. Check the uep-local-bootstrap Keycloak protocol mapper."
+    $tenantClaim = $claims.PSObject.Properties['tenant_id']
+    if ($null -eq $tenantClaim -or $tenantClaim.Value -isnot [string]) {
+        $claimType = if ($null -eq $tenantClaim) { 'missing' } else { $tenantClaim.Value.GetType().FullName }
+        throw "Local bootstrap token tenant_id must be a scalar JSON string; received $claimType. Check the uep-local-bootstrap Keycloak protocol mapper."
+    }
+    if ($tenantClaim.Value -ne $ExpectedTenantId) {
+        throw "Local bootstrap token tenant_id '$($tenantClaim.Value)' does not match the expected tenant '$ExpectedTenantId'. Check the uep-local-bootstrap Keycloak user attribute."
     }
 }
 function Invoke-Api([string]$Method, [string]$Path, [string]$Token, $Body = $null) {
