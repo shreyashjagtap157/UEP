@@ -46,6 +46,7 @@ import {
   fetchPlatformVersion,
   fetchRoles,
   logoutLocalDevelopmentSession,
+  PlatformApiError,
   fetchRoleAssignments,
   provisionMembership,
   revokeOwnSession,
@@ -87,6 +88,18 @@ export function App() {
   const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated && !localMode })
 
   useEffect(() => onOidcStatus(setOidcAuthenticated), [])
+
+  // A local-native logout revokes the single launcher session for every tab.
+  // Tabs whose sessionStorage marker is absent or unavailable also transition
+  // to the signed-out screen when their next authenticated identity read returns 401.
+  useEffect(() => {
+    if (localApiMode && identity.isError
+        && identity.error instanceof PlatformApiError && identity.error.status === 401) {
+      queryClient.clear()
+      markLocalApiSessionEnded()
+      setOidcAuthenticated(false)
+    }
+  }, [identity.error, identity.isError, queryClient])
 
   // Determine initial dashboard section based on user role after authentication
   useEffect(() => {

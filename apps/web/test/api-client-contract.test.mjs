@@ -120,6 +120,7 @@ test('local-native logout revokes the launcher session without exposing its toke
   assert.ok(appSource.includes('markLocalApiSessionEnded()'))
   assert.ok(appSource.includes('Revoke and sign out of this local owner session'))
   assert.ok(appSource.includes('Reconnect after restarting the launcher'))
+  assert.ok(appSource.includes('identity.error instanceof PlatformApiError && identity.error.status === 401'))
   assert.ok(authSource.includes('uep-local-api-session-ended'))
   assert.ok(authSource.includes('sessionStorage'))
   assert.doesNotMatch(authSource, /UEP_LOCAL_AUTH_TOKEN|X-UEP-Local-Auth/)
