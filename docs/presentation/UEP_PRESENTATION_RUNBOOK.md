@@ -9,6 +9,33 @@ Present two honest views of the same project:
 
 These are two independent environments. The Offline Demo is not connected to the Real application and does not use its API session or SQLite database. The Real application is not a production deployment, and the SQLite profile is narrower than PostgreSQL production/CI qualification.
 
+## Account groups and user responsibilities
+
+The Offline Demo presents three groups so the audience can understand how responsibility is divided across UEP:
+
+**1. Platform team**
+- **Platform Developer:** builds and operates the platform, manages technical integrations and webhook health, and supports platform-level operations. This workspace does not expose student learning content, course authoring or assignment queues.
+- **Product Maintainer:** owns the educational product catalogue, drafts, release review, versioning and publishing. This is a distinct product lifecycle role, not the integrations-focused Developer role.
+- **Support Operator:** handles institution support cases and issue triage, with academic details restricted by the support view.
+- **Platform Administrator:** manages platform-wide accounts, organizations, configuration and operations.
+- **Auditor:** reviews audit activity and compliance records in a read-only workspace.
+
+**2. Client & institution management**
+- **Client / Institution:** represents the institution's leadership/administrative contact and sees its programs, people, service actions, delivery schedule and outcomes.
+- **Finance Administrator:** manages institution invoices, payments and account status.
+- **Exam Controller:** oversees examination schedules, exam-linked submissions and examination operations.
+- In the connected tenant model, institution management is further divided into Organization Administrator, Branch Administrator and Academic Administrator permissions. Those roles are scoped by the tenant and branch; they are not interchangeable with the platform Developer.
+
+**3. Institution teaching & learning**
+- **Teacher:** manages assigned classes, learners, submissions, grading, attendance and course materials.
+- **Teaching Assistant:** supports assigned classes, attendance and submission triage.
+- **Evaluator:** works on assigned assessment and grading queues.
+- **Mentor:** follows the progress and evidence of linked learners.
+- **Student:** sees their enrolled learning, assignments, results, schedule and attendance.
+- **Parent / Guardian:** sees only progress and records for the learner linked to that guardian.
+
+The Offline Demo includes 14 seeded personas across those groups. Use **Switch user** in an authenticated Demo workspace to sign out and return to the grouped account selector. The Real local-native app deliberately has one persisted Organization Owner, not 14 simulated backend users; its launcher-managed session ends when the PowerShell launcher is stopped (Ctrl+C). Production OIDC users have the normal Sign out flow.
+
 ## One-command launch
 
 From the repository root on Windows, the default command starts both Real UEP and the separate Offline Demo:
@@ -84,8 +111,8 @@ Say: “I will now switch to the separate offline demo. These records are seeded
 1. Student Today — show role-specific sample metrics and pending tasks.
 2. My Learning and Calendar & classes — show the seeded courses, materials, progress and schedule.
 3. Assignments — submit one prepared assignment; say that this changes local demo state only.
-4. Sign out and select Teacher — open Submission queue and grade the prepared sample submission.
-5. Return to Student — show Results & feedback.
+4. Select **Switch user** in the workspace header, choose Teacher from Institution teaching & learning, then open Submission queue and grade the prepared sample submission.
+5. Switch back to Student — show Results & feedback.
 6. Optionally show sample Attendance or Inbox direct messaging.
 
 Limitations to state when relevant:
@@ -109,7 +136,7 @@ Limitations to state when relevant:
 
 ## Before presenting
 
-- Sync the latest repository `main`.
+- Sync the product branch being demonstrated; for this workstream use `feat/product-ui-role-navigation-auth-session` until it is merged.
 - Run the launcher once in Presentation mode and confirm both windows display their correct environment labels.
 - Open Real UEP and complete the local-authenticated branch create/reload/readback smoke.
 - Prepare the Student and Teacher offline demo flow and verify the seeded records still appear.

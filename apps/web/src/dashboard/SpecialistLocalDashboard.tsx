@@ -71,11 +71,14 @@ const NAVIGATION: Record<DemoRole, NavigationItem[]> = {
     { id: 'messages', label: 'Inbox' },
   ],
   developer: [
-    { id: 'today', label: 'Product overview' },
-    { id: 'content', label: 'Products & publishing' },
+    { id: 'today', label: 'Platform overview' },
     { id: 'integrations', label: 'Integrations & webhooks' },
+    { id: 'operations', label: 'Client service operations' },
+  ],
+  'product-maintainer': [
+    { id: 'today', label: 'Product portfolio' },
+    { id: 'content', label: 'Products & publishing' },
     { id: 'activity', label: 'Product activity' },
-    { id: 'operations', label: 'Platform operations' },
   ],
   admin: [
     { id: 'today', label: 'Platform overview' },
@@ -304,9 +307,7 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
         <div className="sidebar-footer">
           <p className="signed-in">{profile.email}</p>
           <p className="muted small">Role-scoped local session</p>
-          <div className="footer-actions">
-            <button className="primary-button" onClick={onSignOut}>Sign out</button>
-          </div>
+          <p className="muted small">Use Switch user in the workspace header to sign out and choose another account.</p>
         </div>
       </aside>
 
@@ -322,7 +323,7 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
                 <strong>{profile.name}</strong>
                 <small>{profile.label}</small>
               </span>
-              <button className="secondary-button" onClick={onSignOut} title="Sign out of your workspace">Sign out</button>
+              <button className="secondary-button" onClick={onSignOut} title="Sign out and return to the demo account selector">Switch user</button>
             </div>
           </div>
         </header>
@@ -335,6 +336,7 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
             {profile.role === 'teacher' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} onGradeExam={gradeExamAttempt} onSubmitExam={submitExamAttempt} />}
             {profile.role === 'client' && <OrganizationPanel state={state} profile={profile} onResolve={resolveOrganizationAction} />}
             {profile.role === 'developer' && <IntegrationsPanel state={state} profile={profile} />}
+            {profile.role === 'product-maintainer' && <PanelList eyebrow="Product lifecycle" title="Catalogue & release status" items={state.products.map(product => ({ title: product.title + ' · v' + product.version, detail: product.description, status: product.status }))} />}
             {profile.role === 'admin' && <OperationsPanel state={state} profile={profile} onResolve={resolveOrganizationAction} onSupportStatus={updateSupportCase} />}
             {profile.role === 'teaching-assistant' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} onGradeExam={gradeExamAttempt} onSubmitExam={submitExamAttempt} />}
             {profile.role === 'evaluator' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} onGradeExam={gradeExamAttempt} onSubmitExam={submitExamAttempt} />}
@@ -373,7 +375,8 @@ function summaryTitle(role: DemoRole) {  switch (role) {
     case 'student': return 'Student learning workspace'
     case 'teacher': return 'Teaching and assessment workspace'
     case 'client': return 'Institution overview'
-    case 'developer': return 'Product and integration control room'
+    case 'developer': return 'Platform engineering workspace'
+    case 'product-maintainer': return 'Product lifecycle workspace'
     case 'admin': return 'Platform administration'
     case 'guardian': return 'Linked learner overview'
     case 'exam-controller': return 'Examination operations'
@@ -411,9 +414,14 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
     ]
   }
   if (profile.role === 'developer') return [
-    { title: 'Product drafts', status: String(state.products.filter(item => item.status !== 'Published').length), detail: 'Products requiring work or review' },
-    { title: 'Webhook failures', status: String(state.webhooks.reduce((sum, item) => sum + item.failedDeliveries, 0)), detail: 'Failed deliveries across demo integrations' },
-    { title: 'Tracked integrations', status: String(state.webhooks.length), detail: 'Integration records in the shared state' },
+    { title: 'Tracked integrations', status: String(state.webhooks.length), detail: 'Configured platform webhook connections' },
+    { title: 'Webhook failures', status: String(state.webhooks.reduce((sum, item) => sum + item.failedDeliveries, 0)), detail: 'Failed deliveries requiring technical attention' },
+    { title: 'Client service cases', status: String(state.supportCases.filter(item => item.status !== 'Resolved').length), detail: 'Open or active institution support cases' },
+  ]
+  if (profile.role === 'product-maintainer') return [
+    { title: 'Products in catalogue', status: String(state.products.length), detail: 'Educational products managed by the platform team' },
+    { title: 'Drafts to review', status: String(state.products.filter(item => item.status !== 'Published').length), detail: 'Products awaiting release approval' },
+    { title: 'Published products', status: String(state.products.filter(item => item.status === 'Published').length), detail: 'Products available to institutions' },
   ]
   if (profile.role === 'admin') return [
     { title: 'Active accounts', status: String(state.users.filter(item => item.status === 'Active').length), detail: 'Platform-wide user count' },
@@ -615,9 +623,9 @@ function AnalyticsPanel({ state, profile, submissions, attendance, schedule }: {
     ]
   } else if (profile.role === 'developer') {
     items = [
-      { title: 'Product drafts', detail: 'Products not yet published', status: String(state.products.filter(item => item.status !== 'Published').length) },
-      { title: 'Webhook failures', detail: 'Failed deliveries needing attention', status: String(state.webhooks.reduce((sum, item) => sum + item.failedDeliveries, 0)) },
-      { title: 'Integrations', detail: 'Tracked local webhook integrations', status: String(state.webhooks.length) },
+      { title: 'Tracked integrations', detail: 'Configured platform webhook connections', status: String(state.webhooks.length) },
+      { title: 'Webhook failures', detail: 'Failed deliveries needing technical attention', status: String(state.webhooks.reduce((sum, item) => sum + item.failedDeliveries, 0)) },
+      { title: 'Client service cases', detail: 'Aggregate open and active institution support cases', status: String(state.supportCases.filter(item => item.status !== 'Resolved').length) },
     ]
   } else if (profile.role === 'support') {
     items = [
@@ -642,7 +650,7 @@ function ContentPanel({ state, profile, onCreateProduct, onProductTitle, onProdu
   const [materialTitle, setMaterialTitle] = useState('')
   const [materialSummary, setMaterialSummary] = useState('')
   const materials = state.materials.filter(item => visibleCourses.some(course => course.id === item.courseId))
-  if (profile.role === 'developer') {
+  if (profile.role === 'product-maintainer') {
     return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Product authoring</p><h3>Educational products</h3></div><span className="count-badge">{state.products.length}</span></div>
       <form className="local-login-form" onSubmit={event => { event.preventDefault(); onCreateProduct() }}><label>Product title<input value={productTitle} onChange={event => onProductTitle(event.target.value)} maxLength={200} required /></label><label>Description<textarea value={productDescription} onChange={event => onProductDescription(event.target.value)} maxLength={2000} rows={3} /></label><button type="submit" className="primary-button">Create draft</button></form>
       <div className="local-module-list">{state.products.map(product => <article className="local-module" key={product.id}><div><strong>{product.title} · v{product.version}</strong><p>{product.description} · updated {new Date(product.updatedAt).toLocaleDateString()}</p></div><div><span className="chip">{product.status}</span>{product.status !== 'Published' && <button type="button" className="text-button" onClick={() => onPublishProduct(product.id)}>Publish</button>}</div></article>)}</div>
