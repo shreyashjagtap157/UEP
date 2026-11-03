@@ -2,10 +2,12 @@ package com.universalplatform.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -20,7 +22,6 @@ import org.springframework.test.context.DynamicPropertySource;
         "spring.profiles.active=local-sqlite,local-native",
         "UEP_SQLITE_JDBC_URL=jdbc:sqlite:target/uep-local-auth-qualification.db",
         "UEP_LOCAL_TENANT_ID=01901234-4444-7000-8000-000000000001",
-        "UEP_LOCAL_AUTH_TOKEN=local-auth-integration-test-token",
         "UEP_LOCAL_AUTH_SESSION_ID=01901234-4444-7000-8000-000000000002",
         "platform.background-workers.enabled=false"
 })
@@ -28,6 +29,7 @@ import org.springframework.test.context.DynamicPropertySource;
 class LocalDevelopmentAuthenticationIntegrationTest {
     @DynamicPropertySource
     static void localApiSessionProperties(DynamicPropertyRegistry registry) {
+        registry.add("UEP_LOCAL_AUTH_TOKEN", () -> TOKEN);
         registry.add("UEP_LOCAL_AUTH_EXPIRES_AT", () -> Instant.now().plusSeconds(3600).toString());
     }
 
@@ -36,6 +38,12 @@ class LocalDevelopmentAuthenticationIntegrationTest {
 
     @Autowired private MockMvc mvc;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private LocalDevelopmentSessionControl localSessionControl;
+
+    @BeforeEach
+    void resetLocalSessionForTest() {
+        localSessionControl.resetForTests();
+    }
 
     @Test
     void localOwnerUsesTheRealPersistedMembershipAndRole() throws Exception {
@@ -70,6 +78,15 @@ class LocalDevelopmentAuthenticationIntegrationTest {
         mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.openapi").isNotEmpty())
                 .andExpect(jsonPath("$.info.title").value("Universal Education Platform API"));
+    }
+
+    @Test
+    void logoutRevokesTheLauncherSessionForAllSubsequentApiRequests() throws Exception {
+        mvc.perform(post("/api/v1/local/session/logout").header(TOKEN_HEADER, TOKEN).with(loopback()))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/v1/me").header(TOKEN_HEADER, TOKEN).with(loopback()))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

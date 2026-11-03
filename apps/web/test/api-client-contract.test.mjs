@@ -10,6 +10,7 @@ const apiBusiness = readFileSync(fileURLToPath(new URL('../src/platform/api-busi
 const apiTypes = readFileSync(fileURLToPath(new URL('../src/platform/api.ts', import.meta.url)), 'utf8')
 const nativeSmoke = readFileSync(fileURLToPath(new URL('./native/real-analytics-export.native.spec.ts', import.meta.url)), 'utf8')
 const appSource = readFileSync(fileURLToPath(new URL('../src/app/App.tsx', import.meta.url)), 'utf8')
+const authSource = readFileSync(fileURLToPath(new URL('../src/auth/keycloak.ts', import.meta.url)), 'utf8')
 const integrationApi = readFileSync(fileURLToPath(new URL('../src/platform/api-integrations.ts', import.meta.url)), 'utf8')
 const integrationSource = readFileSync(fileURLToPath(new URL('../src/integration/IntegrationWorkspace.tsx', import.meta.url)), 'utf8')
 
@@ -110,6 +111,20 @@ test('administrator session controls use authenticated tenant-scoped list/revoke
   assert.ok(appSource.includes('Other member sessions'))
   assert.ok(appSource.includes('Revoke member session'))
   assert.ok(appSource.includes('member.membershipId !== me.membershipId'))
+})
+
+test('local-native logout revokes the launcher session without exposing its token to browser code', () => {
+  assert.match(apiCore, /export function logoutLocalDevelopmentSession/)
+  assert.ok(apiCore.includes('/api/v1/local/session/logout'))
+  assert.ok(appSource.includes('logoutLocalDevelopmentSession()'))
+  assert.ok(appSource.includes('markLocalApiSessionEnded()'))
+  assert.ok(appSource.includes('Revoke and sign out of this local owner session'))
+  assert.ok(appSource.includes('Reconnect after restarting the launcher'))
+  assert.ok(appSource.includes('identity.error instanceof PlatformApiError && identity.error.status === 401'))
+  assert.ok(authSource.includes('uep-local-api-session-ended'))
+  assert.ok(authSource.includes('sessionStorage'))
+  assert.doesNotMatch(authSource, /UEP_LOCAL_AUTH_TOKEN|X-UEP-Local-Auth/)
+  assert.doesNotMatch(apiCore, /UEP_LOCAL_AUTH_TOKEN|X-UEP-Local-Auth/)
 })
 
 test('custom role CRUD uses authenticated PUT/DELETE, optimistic versions and the complete permission catalog', () => {

@@ -7,6 +7,7 @@ import {
   availableCourseCountForProfile,
   linkedLearnerProgressForProfile,
   createDemoProduct,
+  publishDemoProduct,
   activeUserForProfile,
   attendanceForProfile,
   coursesForProfile,
@@ -68,14 +69,14 @@ globalThis.window = {
   },
 }
 
-test('local demo sign-in exposes all thirteen canonical profiles through one shared workspace', () => {
-  assert.equal(demoAccounts.length, 13)
-  assert.equal(new Set(demoAccounts.map((account) => account.email)).size, 13)
-  assert.equal(new Set(demoAccounts.map((account) => account.role)).size, 13)
+test('local demo sign-in exposes all fourteen canonical profiles through one shared workspace', () => {
+  assert.equal(demoAccounts.length, 14)
+  assert.equal(new Set(demoAccounts.map((account) => account.email)).size, 14)
+  assert.equal(new Set(demoAccounts.map((account) => account.role)).size, 14)
 
   assert.deepEqual(demoAccounts.map((account) => account.role).sort(), [
     'admin', 'auditor', 'client', 'developer', 'evaluator', 'exam-controller',
-    'finance-admin', 'guardian', 'mentor', 'student', 'support',
+    'finance-admin', 'guardian', 'mentor', 'product-maintainer', 'student', 'support',
     'teacher', 'teaching-assistant',
   ])
 
@@ -88,6 +89,7 @@ test('local demo sign-in exposes all thirteen canonical profiles through one sha
   assert.equal(demoAccounts.find((account) => account.email === 'student@demo.uep')?.profile.userId, 'student-asha')
   assert.equal(demoAccounts.find((account) => account.email === 'teacher@demo.uep')?.profile.userId, 'teacher-rahul')
   assert.equal(demoAccounts.find((account) => account.email === 'guardian@demo.uep')?.profile.userId, 'guardian-nina')
+  assert.equal(demoAccounts.find((account) => account.email === 'product-maintainer@demo.uep')?.profile.userId, 'product-maintainer-mira')
 })
 
 function profile(role) {
@@ -150,7 +152,7 @@ test('unauthorized role, learner and course mutations are rejected', () => {
 
 test('storage failures are reported without publishing a stale-state change event', () => {
   const state = resetDemoState()
-  const persistedBefore = localStorage.getItem('uep.local-demo-data.v4')
+  const persistedBefore = localStorage.getItem('uep.local-demo-data.v5')
   const originalSetItem = localStorage.setItem
   let notifications = 0
   const unsubscribe = subscribeDemoState(() => { notifications += 1 })
@@ -162,7 +164,7 @@ test('storage failures are reported without publishing a stale-state change even
   try {
     localStorage.setItem = () => { throw new Error('storage quota exceeded') }
     assert.equal(saveDemoState(next), false)
-    assert.equal(localStorage.getItem('uep.local-demo-data.v4'), persistedBefore, 'failed write must leave persisted data untouched')
+    assert.equal(localStorage.getItem('uep.local-demo-data.v5'), persistedBefore, 'failed write must leave persisted data untouched')
     assert.equal(loadDemoState().courseProgress['student-asha:course-web'], 79, 'later actions must read the unsaved in-memory state rather than stale storage')
     assert.equal(notifications, 0, 'failed write must not ask subscribers to reload stale persisted state')
   } finally {
@@ -172,7 +174,7 @@ test('storage failures are reported without publishing a stale-state change even
 
   const recovered = loadDemoState()
   assert.equal(recovered.courseProgress['student-asha:course-web'], 79, 'storage recovery must retain the in-memory change')
-  assert.equal(JSON.parse(localStorage.getItem('uep.local-demo-data.v4')).courseProgress['student-asha:course-web'], 79, 'the next load should durably persist the recovered state')
+  assert.equal(JSON.parse(localStorage.getItem('uep.local-demo-data.v5')).courseProgress['student-asha:course-web'], 79, 'the next load should durably persist the recovered state')
 })
 
 test('authorized attendance changes propagate through the shared persisted state', () => {
@@ -254,6 +256,7 @@ test('submission visibility is restricted to each persona learner/course scope',
   assert.deepEqual(ids('support'), [])
   assert.deepEqual(ids('auditor'), [])
   assert.deepEqual(ids('developer'), [])
+  assert.deepEqual(ids('product-maintainer'), [])
   assert.deepEqual(ids('finance-admin'), [])
 })
 
@@ -535,9 +538,14 @@ test('rapid product creation allocates unique IDs even when the clock has not ad
   Date.now = () => 1740000000000
   try {
     const developer = profile('developer')
+    const maintainer = profile('product-maintainer')
     const initial = resetDemoState()
-    const first = createDemoProduct(initial, 'Demo product one', 'First draft', developer)
-    const second = createDemoProduct(first, 'Demo product two', 'Second draft', developer)
+    assert.strictEqual(createDemoProduct(initial, 'Unauthorized product', 'Developer must not own releases.', developer), initial)
+    assert.strictEqual(publishDemoProduct(initial, 'product-ai-draft', developer), initial)
+    const first = createDemoProduct(initial, 'Demo product one', 'First draft', maintainer)
+    const second = createDemoProduct(first, 'Demo product two', 'Second draft', maintainer)
+    const published = publishDemoProduct(second, 'product-1740000000000', maintainer)
+    assert.equal(published.products.find(item => item.id === 'product-1740000000000')?.status, 'Published')
     const created = second.products.filter(item => item.title.startsWith('Demo product '))
 
     assert.equal(created.length, 2)
@@ -590,28 +598,57 @@ test('client organization actions resolve only for their matching active organiz
   assert.strictEqual(resolveDemoOrganizationAction(unrelatedOrgState, actionId, client), unrelatedOrgState)
 })
 
-test('legacy browser state migrates to v4 with finance, support and inbox backfills', () => {
+test('v4 demo state migrates the old Product Developer and adds Product Maintainer without resetting user data', () => {
+  const seeded = resetDemoState()
+  const priorUsers = seeded.users
+    .filter(user => user.id !== 'product-maintainer-mira')
+    .map(user => user.id === 'developer-dev' ? { ...user, role: 'Product Developer' } : user)
+  const priorState = {
+    ...seeded,
+    schemaVersion: 4,
+    users: priorUsers,
+    courseProgress: { ...seeded.courseProgress, 'student-asha:course-web': 73 },
+    products: seeded.products.map(product => product.id === 'product-ai-draft'
+      ? { ...product, title: 'Existing v4 product draft' }
+      : product),
+  }
+  localStorage.removeItem('uep.local-demo-data.v5')
+  localStorage.setItem('uep.local-demo-data.v4', JSON.stringify(priorState))
+
+  const migrated = loadDemoState()
+  assert.equal(migrated.schemaVersion, 5)
+  assert.equal(activeUserForProfile(migrated, profile('developer'))?.role, 'Platform Developer')
+  assert.equal(activeUserForProfile(migrated, profile('product-maintainer'))?.role, 'Product Maintainer')
+  assert.equal(migrated.users.filter(user => user.id === 'product-maintainer-mira').length, 1)
+  assert.equal(migrated.users.find(user => user.id === 'developer-dev')?.status, 'Active')
+  assert.equal(migrated.courseProgress['student-asha:course-web'], 73)
+  assert.equal(migrated.products.find(product => product.id === 'product-ai-draft')?.title, 'Existing v4 product draft')
+  assert.ok(localStorage.getItem('uep.local-demo-data.v5'))
+  localStorage.removeItem('uep.local-demo-data.v4')
+})
+
+test('legacy browser state migrates to v5 with finance, support and inbox backfills', () => {
   let state = resetDemoState()
   state = advanceDemoProgress(state, 'course-web', profile('student'))
   saveDemoState(state)
 
-  const current = JSON.parse(localStorage.getItem('uep.local-demo-data.v4'))
+  const current = JSON.parse(localStorage.getItem('uep.local-demo-data.v5'))
   current.schemaVersion = 1
   delete current.organizationActions
   delete current.invoices
   delete current.supportCases
   delete current.messages
   localStorage.setItem('uep.local-demo-data.v1', JSON.stringify(current))
-  localStorage.removeItem('uep.local-demo-data.v4')
+  localStorage.removeItem('uep.local-demo-data.v5')
 
   const migrated = loadDemoState()
-  assert.equal(migrated.schemaVersion, 4)
+  assert.equal(migrated.schemaVersion, 5)
   assert.equal(migrated.courseProgress['student-asha:course-web'], 78)
   assert.equal(migrated.organizationActions.length, 3)
   assert.equal(migrated.invoices.length, 3)
   assert.equal(migrated.supportCases.length, 3)
   assert.ok(migrated.messages.some(message => message.id === 'message-student-weekly'))
-  assert.ok(localStorage.getItem('uep.local-demo-data.v4'))
+  assert.ok(localStorage.getItem('uep.local-demo-data.v5'))
 
   for (const legacyVersion of [2, 3]) {
     const oldState = { ...migrated, schemaVersion: legacyVersion }
@@ -621,13 +658,13 @@ test('legacy browser state migrates to v4 with finance, support and inbox backfi
       delete oldState.supportCases
     }
     localStorage.setItem(`uep.local-demo-data.v${legacyVersion}`, JSON.stringify(oldState))
-    localStorage.removeItem('uep.local-demo-data.v4')
+    localStorage.removeItem('uep.local-demo-data.v5')
     const migratedLegacy = loadDemoState()
-    assert.equal(migratedLegacy.schemaVersion, 4)
+    assert.equal(migratedLegacy.schemaVersion, 5)
     assert.equal(migratedLegacy.invoices.length, 3)
     assert.equal(migratedLegacy.supportCases.length, 3)
     assert.ok(migratedLegacy.messages.some(message => message.id === 'message-student-weekly'))
-    assert.ok(localStorage.getItem('uep.local-demo-data.v4'))
+    assert.ok(localStorage.getItem('uep.local-demo-data.v5'))
   }
 })
 
@@ -753,9 +790,10 @@ test('activity feeds do not expose global details to unrelated personas', () => 
   assert.ok(evaluatorEvents.some((item) => item.action === 'Grade published'))
   assert.ok(!evaluatorEvents.some((item) => item.action === 'Assignment submitted'))
 
-  const developerEvents = events('developer')
-  assert.ok(developerEvents.length > 0)
-  assert.ok(developerEvents.every((item) => item.action.toLowerCase().includes('product')))
+  assert.deepEqual(events('developer'), [])
+  const maintainerEvents = events('product-maintainer')
+  assert.ok(maintainerEvents.length > 0)
+  assert.ok(maintainerEvents.every((item) => item.action.toLowerCase().includes('product')))
   assert.deepEqual(events('support'), [])
   assert.deepEqual(events('finance-admin'), [])
   assert.equal(events('admin').length, state.activity.length)
@@ -778,10 +816,10 @@ test('legacy product activity hides ambiguous duplicate product titles', () => {
     products: [...state.products, { ...product, id: 'product-ai-draft-duplicate' }],
     activity: [event, ...state.activity],
   }
-  assert.ok(!activityForProfile(ambiguous, profile('developer')).some(item => item.id === event.id))
+  assert.ok(!activityForProfile(ambiguous, profile('product-maintainer')).some(item => item.id === event.id))
 
   const unambiguous = { ...state, activity: [event, ...state.activity] }
-  assert.ok(activityForProfile(unambiguous, profile('developer')).some(item => item.id === event.id))
+  assert.ok(activityForProfile(unambiguous, profile('product-maintainer')).some(item => item.id === event.id))
 })
 
 test('legacy organization and course-published events hide ambiguous duplicate titles', () => {

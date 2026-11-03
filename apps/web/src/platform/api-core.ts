@@ -115,6 +115,10 @@ export function updateOrganizationSettings(input:OrganizationSettings):Promise<O
 export function revokeOwnSession(sessionId:string):Promise<void>{
   return request(`/api/v1/identity/sessions/me/${encodeURIComponent(sessionId)}`,{method:'DELETE'})
 }
+export function logoutLocalDevelopmentSession():Promise<void>{
+  if(!localApiMode)return Promise.reject(new PlatformApiError(400,'Local development logout is available only in local API mode.'))
+  return request('/api/v1/local/session/logout',{method:'POST'})
+}
 export function revokeMemberSession(sessionId:string,reason:string):Promise<void>{
   return request(`/api/v1/identity/sessions/${encodeURIComponent(sessionId)}`,{method:'DELETE',body:JSON.stringify({reason})})
 }
