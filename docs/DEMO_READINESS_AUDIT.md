@@ -1,7 +1,7 @@
 # UEP product UI and demo readiness audit
 
 Date: 2026-11-03
-Baseline: `main` at `7683236833d274e9d688f58cb0768abe28395f5c`
+Baseline: `main` at `992ea2f7ef95748f500865e306ec82b2062af847`
 Work branch: `feat/product-ui-role-navigation-auth-session`
 
 This audit describes the product and identity boundaries introduced in this workstream. It does not claim that Windows runtime checks or browser tests have passed until the branch's CI jobs report success.
@@ -14,7 +14,7 @@ This audit describes the product and identity boundaries introduced in this work
 | Offline Demo | Separate React/Vite app on port 5174; seeded persona sign-in | Browser-local shared demonstration dataset; not connected to the Real API or database |
 | Production | OIDC identity provider and API bearer-token authentication | Tenant-scoped server-side authorization and persistence |
 
-The local-native Real path intentionally does not start Keycloak and does not provision synthetic Student/Teacher/Developer backend memberships. Its single owner session is process-managed by the Windows launcher. Stop the PowerShell launcher with Ctrl+C to terminate it. The Real header's **Open demo accounts** link opens the independent Offline Demo; it does not impersonate or replace the Real owner identity. Production OIDC keeps the normal Sign out action.
+The local-native Real path intentionally does not start Keycloak and does not provision synthetic Student/Teacher/Developer backend memberships. Its single owner session is process-managed by the Spring Boot instance and launcher. The Real header now offers a genuine **Sign out** action: an authenticated same-origin request passes through the Vite proxy, and Spring revokes the session in process memory so later requests using that launcher token receive HTTP 401. Restart the PowerShell launcher to create a fresh Real owner session. The **Open demo accounts** link opens the independent Offline Demo; it does not impersonate or replace the Real owner identity. Production OIDC keeps its identity-provider Sign out action.
 
 ## Offline Demo: account groups and responsibilities
 
@@ -50,6 +50,7 @@ Platform Developer and Product Maintainer are platform-team responsibilities sho
 - Demo navigation is declared per persona in `SpecialistLocalDashboard`; hidden sections are not rendered in the menu.
 - Product creation and publishing are guarded in `LocalDemoStore` and assigned to Product Maintainer. Platform Developer receives integrations and client-service operations, not the product publishing form or academic navigation.
 - Real UEP filters navigation by permissions and the backend continues to enforce authorization. The local-native Organization Owner is expected to see broad tenant administration; it is not the Developer persona.
+- Local-native Sign out revokes only the current launcher-issued session ID in the active Spring process; the token remains server-side in the Vite proxy. The same session cannot authenticate again until the launcher restarts and creates a new session.
 
 ## Product design direction
 

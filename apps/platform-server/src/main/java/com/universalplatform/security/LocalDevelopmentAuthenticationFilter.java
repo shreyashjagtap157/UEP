@@ -34,12 +34,14 @@ final class LocalDevelopmentAuthenticationFilter extends OncePerRequestFilter {
     private final String sessionId;
     private final Instant sessionExpiresAt;
     private final LocalTenantBootstrapService tenantBootstrap;
+    private final LocalDevelopmentSessionControl sessionControl;
 
     LocalDevelopmentAuthenticationFilter(
             String token,
             String sessionId,
             Instant sessionExpiresAt,
-            LocalTenantBootstrapService tenantBootstrap) {
+            LocalTenantBootstrapService tenantBootstrap,
+            LocalDevelopmentSessionControl sessionControl) {
         if (token == null || token.isBlank()) throw new IllegalArgumentException("Local API token must not be blank.");
         if (sessionId == null || sessionId.isBlank()) throw new IllegalArgumentException("Local session ID must not be blank.");
         if (sessionExpiresAt == null) throw new IllegalArgumentException("Local session expiry is required.");
@@ -50,6 +52,7 @@ final class LocalDevelopmentAuthenticationFilter extends OncePerRequestFilter {
         this.sessionId = sessionId;
         this.sessionExpiresAt = sessionExpiresAt;
         this.tenantBootstrap = tenantBootstrap;
+        this.sessionControl = sessionControl;
     }
 
     @Override
@@ -78,6 +81,11 @@ final class LocalDevelopmentAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        if (!sessionControl.isActive()) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "The local development session has been revoked; restart the native launcher to reconnect.");
+            return;
+        }
+
         Instant now = Instant.now();
         if (!now.isBefore(sessionExpiresAt)) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "The local development session expired; restart the native launcher.");
@@ -86,7 +94,7 @@ final class LocalDevelopmentAuthenticationFilter extends OncePerRequestFilter {
 
         Jwt jwt = Jwt.withTokenValue("local-development-session")
                 .header("alg", "none")
-                .subject(SUBJECT)
+                .subject(LocalDevelopmentSessionControl.LOCAL_SUBJECT)
                 .issuedAt(now)
                 .expiresAt(sessionExpiresAt)
                 .claim("tenant_id", tenantBootstrap.requireTenantId().toString())

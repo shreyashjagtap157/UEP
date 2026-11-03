@@ -34,7 +34,7 @@ The Offline Demo presents three groups so the audience can understand how respon
 - **Student:** sees their enrolled learning, assignments, results, schedule and attendance.
 - **Parent / Guardian:** sees only progress and records for the learner linked to that guardian.
 
-The Offline Demo includes 14 seeded personas across those groups. Use **Switch user** in an authenticated Demo workspace to sign out and return to the grouped account selector. The Real local-native app deliberately has one persisted Organization Owner, not 14 simulated backend users; its launcher-managed session ends when the PowerShell launcher is stopped (Ctrl+C). Production OIDC users have the normal Sign out flow.
+The Offline Demo includes 14 seeded personas across those groups. Use **Switch user** in an authenticated Demo workspace to sign out and return to the grouped account selector. The Real local-native app deliberately has one persisted Organization Owner, not 14 simulated backend users. Its **Sign out** button revokes the active launcher session in the Spring process; restart the PowerShell launcher before reconnecting to Real UEP. The separate Offline Demo remains available for role exploration. Production OIDC users have the normal identity-provider Sign out flow.
 
 ## One-command launch
 

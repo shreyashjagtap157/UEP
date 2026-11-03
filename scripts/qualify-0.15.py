@@ -658,6 +658,23 @@ v023 = text('apps/platform-server/src/main/resources/db/migration/V023__reliabil
 for index_name in sorted(required_indexes):
     if index_name not in v023:
         errors.append(f'V023 is missing required performance index {index_name}')
+# Local-native logout must revoke the process-owned launcher session without exposing its token.
+local_auth_filter = text('apps/platform-server/src/main/java/com/universalplatform/security/LocalDevelopmentAuthenticationFilter.java')
+local_auth_controller = text('apps/platform-server/src/main/java/com/universalplatform/security/LocalDevelopmentSessionController.java')
+local_auth_control = text('apps/platform-server/src/main/java/com/universalplatform/security/LocalDevelopmentSessionControl.java')
+if 'sessionControl.isActive()' not in local_auth_filter or 'restart the native launcher to reconnect' not in local_auth_filter:
+    errors.append('local-native authentication must reject a launcher token after explicit logout')
+if '@PostMapping("/logout")' not in local_auth_controller or 'session.revoke(' not in local_auth_controller:
+    errors.append('local-native logout endpoint must revoke only the authenticated current session')
+if 'AtomicBoolean' not in local_auth_control or 'active.compareAndSet(true, false)' not in local_auth_control:
+    errors.append('local-native session revocation must be monotonic and process-local')
+local_web_app = text('apps/web/src/app/App.tsx')
+local_web_api = text('apps/web/src/platform/api-core.ts')
+if 'logoutLocalDevelopmentSession()' not in local_web_app or '/api/v1/local/session/logout' not in local_web_api:
+    errors.append('Real local-native UI must call the authenticated local-session logout endpoint')
+if 'Reconnect after restarting the launcher' not in local_web_app:
+    errors.append('Real local-native signed-out state must explain how a fresh owner session is established')
+
 # Local demo authentication must remain separate from the real OIDC identity query.
 app_source = text('apps/web/src/app/App.tsx')
 if 'queryFn: localMode ? fetchLocalCurrentIdentity : fetchCurrentIdentity' in app_source or 'fetchLocalCurrentIdentity' in app_source:

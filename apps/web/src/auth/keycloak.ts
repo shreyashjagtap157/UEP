@@ -22,6 +22,18 @@ function ensureKeycloak(): Keycloak {
   return instance
 }
 
+const LOCAL_API_SESSION_ENDED_KEY = 'uep-local-api-session-ended'
+
+export function markLocalApiSessionEnded(): void {
+  if (!localApiMode) return
+  try { sessionStorage.setItem(LOCAL_API_SESSION_ENDED_KEY, 'true') } catch { /* private browsing may disable storage */ }
+}
+
+export function reconnectLocalApiSession(): void {
+  if (!localApiMode) return
+  try { sessionStorage.removeItem(LOCAL_API_SESSION_ENDED_KEY) } catch { /* private browsing may disable storage */ }
+}
+
 let initialized = false
 
 export async function initializeAuthentication(): Promise<void> {
@@ -40,7 +52,11 @@ export async function initializeAuthentication(): Promise<void> {
 }
 
 export function isAuthenticated(): boolean {
-  return localMode || localApiMode || instance?.authenticated === true
+  if (localMode) return true
+  if (localApiMode) {
+    try { return sessionStorage.getItem(LOCAL_API_SESSION_ENDED_KEY) !== 'true' } catch { return true }
+  }
+  return instance?.authenticated === true
 }
 
 /** Subscribes to OIDC session transitions; returns an unsubscribe function. */
