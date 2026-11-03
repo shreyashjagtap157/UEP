@@ -1121,9 +1121,9 @@ try {
         Write-Host ''
         Write-Host 'REAL UEP — LOCAL INTEGRATED APPLICATION' -ForegroundColor Green
         Write-Host '  Frontend:  http://localhost:5173'
-        Write-Host '  Backend:   http://localhost:8080'
-        Write-Host '  Swagger:   http://localhost:8080/swagger-ui.html'
-        Write-Host '  OpenAPI:   http://localhost:8080/v3/api-docs'
+        Write-Host '  Backend:   http://127.0.0.1:8080'
+        Write-Host '  Swagger:   http://127.0.0.1:8080/swagger-ui.html'
+        Write-Host '  OpenAPI:   http://127.0.0.1:8080/v3/api-docs'
         Write-Host '  Identity:  launcher-managed local API session (Keycloak not started)'
         Write-Host ('  Database:  ' + $(if ($Database -eq 'SQLite') { 'SQLite / .uep-local/uep-local.sqlite' } else { 'PostgreSQL / uep_local_native / localhost:5432' }))
         Write-Host 'OFFLINE PRESENTATION DEMO (seeded browser data; no API/Keycloak/database)' -ForegroundColor Yellow
@@ -1133,9 +1133,9 @@ try {
         Write-Host ''
         Write-Host 'REAL UEP — LOCAL INTEGRATED APPLICATION' -ForegroundColor Green
         Write-Host '  Frontend:  http://localhost:5173'
-        Write-Host '  Backend:   http://localhost:8080'
-        Write-Host '  Swagger:   http://localhost:8080/swagger-ui.html'
-        Write-Host '  OpenAPI:   http://localhost:8080/v3/api-docs'
+        Write-Host '  Backend:   http://127.0.0.1:8080'
+        Write-Host '  Swagger:   http://127.0.0.1:8080/swagger-ui.html'
+        Write-Host '  OpenAPI:   http://127.0.0.1:8080/v3/api-docs'
         Write-Host '  Identity:  launcher-managed local API session (Keycloak not started)'
         Write-Host ('  Database:  ' + $(if ($Database -eq 'SQLite') { 'SQLite / .uep-local/uep-local.sqlite' } else { 'PostgreSQL / uep_local_native / localhost:5432' }))
     } else {

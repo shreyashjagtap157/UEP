@@ -25,8 +25,8 @@ Expected endpoints:
 |---|---|---|
 | Real UEP | http://localhost:5173 | Local-authenticated React UI; API requests go through Vite to Spring Boot |
 | Offline Demo | http://localhost:5174 | Seeded personas, simulated sign-in and browser-local sample state |
-| Swagger UI | http://localhost:8080/swagger-ui.html | Separate interactive backend API reference |
-| Spring Boot API | http://localhost:8080 | Local backend; generated OpenAPI JSON at `/v3/api-docs` |
+| Swagger UI | http://127.0.0.1:8080/swagger-ui.html | Separate interactive backend API reference |
+| Spring Boot API | http://127.0.0.1:8080 | Local backend; generated OpenAPI JSON at `/v3/api-docs` |
 | SQLite file | `.uep-local\uep-local.sqlite` | Local qualification data for Real UEP |
 
 The Real UI displays `REAL UEP - LOCAL SQLITE`. The Demo UI displays `OFFLINE DEMO · SEEDED BROWSER DATA`. Keep the two windows separate during the presentation.
