@@ -565,6 +565,20 @@ function Get-UserToken([string]$Username, [string]$Password) {
     $response = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8081/realms/education/protocol/openid-connect/token' -ContentType 'application/x-www-form-urlencoded' -Body $body
     return $response.access_token
 }
+function Assert-TenantTokenContext([string]$Token, [string]$ExpectedTenantId) {
+    $segments = $Token.Split('.')
+    if ($segments.Count -ne 3) { throw 'Keycloak returned a token that is not a compact JWT.' }
+    $payload = $segments[1].Replace('-', '+').Replace('_', '/')
+    switch ($payload.Length % 4) {
+        2 { $payload += '==' }
+        3 { $payload += '=' }
+        1 { throw 'Keycloak returned a JWT with an invalid payload encoding.' }
+    }
+    $claims = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payload)) | ConvertFrom-Json
+    if ([string]$claims.tenant_id -ne $ExpectedTenantId) {
+        throw "Local bootstrap token is missing the expected tenant_id claim '$ExpectedTenantId'. Check the uep-local-bootstrap Keycloak protocol mapper."
+    }
+}
 function Invoke-Api([string]$Method, [string]$Path, [string]$Token, $Body = $null) {
     $params = @{ Method = $Method; Uri = ('http://127.0.0.1:8080' + $Path); Headers = @{ Authorization = "Bearer $Token"; Accept = 'application/json' }; TimeoutSec = 30 }
     if ($null -ne $Body) { $params.ContentType = 'application/json'; $params.Body = ConvertTo-Json -InputObject $Body -Depth 20 }
@@ -573,10 +587,51 @@ function Invoke-Api([string]$Method, [string]$Path, [string]$Token, $Body = $nul
 function Ensure-RealIdentity {
     Write-Section 'Keycloak local realm and owner bootstrap'
     $adminToken = Get-KeycloakAdminToken
-    $clients = Invoke-KeycloakAdmin 'Get' '/admin/realms/education/clients?clientId=uep-local-bootstrap' $adminToken
-    if (-not $clients -or $clients.Count -eq 0) {
-        $client = @{ clientId = $State.LocalBootstrapClient; name = 'Local-only UEP bootstrap helper'; enabled = $true; publicClient = $true; standardFlowEnabled = $false; implicitFlowEnabled = $false; directAccessGrantsEnabled = $true; serviceAccountsEnabled = $false; protocol = 'openid-connect' }
+    $tenantIdMapper = @{
+        name = 'tenant-id'
+        protocol = 'openid-connect'
+        protocolMapper = 'oidc-usermodel-attribute-mapper'
+        consentRequired = $false
+        config = @{
+            'user.attribute' = 'tenant_id'
+            'claim.name' = 'tenant_id'
+            'jsonType.label' = 'String'
+            'id.token.claim' = 'true'
+            'access.token.claim' = 'true'
+            'userinfo.token.claim' = 'true'
+        }
+    }
+    $clients = Invoke-KeycloakAdmin 'Get' ("/admin/realms/education/clients?clientId=" + [uri]::EscapeDataString($State.LocalBootstrapClient)) $adminToken
+    $bootstrapClient = $clients | Select-Object -First 1
+    if (-not $bootstrapClient) {
+        $client = @{
+            clientId = $State.LocalBootstrapClient
+            name = 'Local-only UEP bootstrap helper'
+            enabled = $true
+            publicClient = $true
+            standardFlowEnabled = $false
+            implicitFlowEnabled = $false
+            directAccessGrantsEnabled = $true
+            serviceAccountsEnabled = $false
+            protocol = 'openid-connect'
+            protocolMappers = @($tenantIdMapper)
+        }
         Invoke-KeycloakAdmin 'Post' '/admin/realms/education/clients' $adminToken $client | Out-Null
+        $clients = Invoke-KeycloakAdmin 'Get' ("/admin/realms/education/clients?clientId=" + [uri]::EscapeDataString($State.LocalBootstrapClient)) $adminToken
+        $bootstrapClient = $clients | Select-Object -First 1
+    }
+    if (-not $bootstrapClient -or -not $bootstrapClient.id) {
+        throw 'Keycloak did not return the local bootstrap client identifier.'
+    }
+    $bootstrapMappers = Invoke-KeycloakAdmin 'Get' ("/admin/realms/education/clients/" + $bootstrapClient.id + '/protocol-mappers/models') $adminToken
+    $existingTenantMapper = $bootstrapMappers | Where-Object { $_.name -eq 'tenant-id' } | Select-Object -First 1
+    if (-not $existingTenantMapper) {
+        Invoke-KeycloakAdmin 'Post' ("/admin/realms/education/clients/" + $bootstrapClient.id + '/protocol-mappers/models') $adminToken $tenantIdMapper | Out-Null
+    } elseif ($existingTenantMapper.config.'user.attribute' -ne 'tenant_id' -or
+              $existingTenantMapper.config.'claim.name' -ne 'tenant_id' -or
+              $existingTenantMapper.config.'access.token.claim' -ne 'true') {
+        $tenantIdMapper.id = $existingTenantMapper.id
+        Invoke-KeycloakAdmin 'Put' ("/admin/realms/education/clients/" + $bootstrapClient.id + '/protocol-mappers/models/' + $existingTenantMapper.id) $adminToken $tenantIdMapper | Out-Null
     }
     $realmRole = Invoke-KeycloakAdmin 'Get' '/admin/realms/education/roles/platform_super_admin' $adminToken
     $localAdmin = Ensure-KeycloakUser $State.LocalAdminUsername 'admin@local.uep' 'UEP' 'Local Administrator' $State.LocalAdminPassword $State.TenantId $adminToken
@@ -602,6 +657,7 @@ function Ensure-RealIdentity {
     $State.LocalAdminUserId = $localAdmin.id
     Save-State
     $localAdminToken = Get-UserToken $State.LocalAdminUsername $State.LocalAdminPassword
+    Assert-TenantTokenContext $localAdminToken $State.TenantId
     $current = $null
     try { $current = Invoke-Api 'Get' '/api/v1/me' $localAdminToken } catch {}
     if (-not $current) {
