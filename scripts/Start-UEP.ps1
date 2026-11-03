@@ -583,7 +583,11 @@ function Ensure-RealIdentity {
     $localAdminToken = Get-UserToken $State.LocalAdminUsername $State.LocalAdminPassword
     if (-not $State.TenantId) {
         $tenant = Invoke-Api 'Post' '/api/v1/tenants' $localAdminToken @{ slug = 'uep-local'; displayName = 'UEP Local Test Institution'; subscriptionTier = 'free' }
-        $State.TenantId = [string]$tenant.id
+        $tenantIdProperty = if ($null -ne $tenant) { $tenant.PSObject.Properties['id'] } else { $null }
+        if ($null -eq $tenantIdProperty -or [string]::IsNullOrWhiteSpace([string]$tenantIdProperty.Value)) {
+            throw 'Tenant bootstrap API response did not include the required id field. Verify the tenant response DTO and backend logs.'
+        }
+        $State.TenantId = [string]$tenantIdProperty.Value
         # Mark the tenant record as a local development environment, not a hosted Fly deployment.
         Invoke-Api 'Patch' ("/api/v1/tenants/" + $State.TenantId + '/deployment?platform=local&status=active') $localAdminToken | Out-Null
         Save-State
@@ -789,7 +793,7 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
                 'set DATABASE_POOL_SIZE=1',
                 'set PORT=8080',
                 ('cd /d "' + $ApiDir + '"'),
-                ('call "' + $MavenCmd + '" -B spring-boot:run')
+                ('call "' + $MavenCmd + '" -B spring-boot:run -Dspring-boot.run.arguments=--platform.background-workers.enabled=false')
             )
         } else {
             $backendLines = @(
