@@ -29,9 +29,8 @@ async function authorizedResponse(path:string,init:RequestInit,accept:string):Pr
   const headers=new Headers(init.headers)
   headers.set('Accept',accept)
   if(localApiMode){
-    const localToken=import.meta.env.VITE_LOCAL_API_AUTH_TOKEN
-    if(!localToken)throw new PlatformApiError(0,'The local API session is not configured. Restart UEP with the native launcher.')
-    headers.set('X-UEP-Local-Auth',localToken)
+    // The native Vite development proxy injects the launcher credential server-side.
+    // Keep it out of import.meta.env, browser requests, bundles and browser storage.
   }else{
     let token:string
     try{token=await accessToken()}catch(error){
