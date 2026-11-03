@@ -307,8 +307,8 @@ function Ensure-Postgres {
     Write-Status 'PostgreSQL' 'OK — localhost:5432' Green
 }
 function Ensure-Keycloak {
-    $home = Join-Path $ToolDir 'keycloak-26.7.5'
-    $kcBat = Join-Path $home 'bin\kc.bat'
+    $keycloakInstallDir = Join-Path $ToolDir 'keycloak-26.7.5'
+    $kcBat = Join-Path $keycloakInstallDir 'bin\kc.bat'
     if (-not (Test-Path $kcBat)) {
         Protect-Directory $ToolDir
         $zip = Join-Path $ToolDir 'keycloak-26.7.5.zip'
@@ -324,10 +324,10 @@ function Ensure-Keycloak {
     if (-not (Test-Path $kcBat)) { throw 'Keycloak 26.7.5 could not be extracted.' }
     $realmSource = Join-Path $RepoRoot 'infra\keycloak\education-realm.json'
     if (-not (Test-Path $realmSource)) { throw 'The tracked education Keycloak realm file is missing.' }
-    $importDir = Join-Path $home 'data\import'
+    $importDir = Join-Path $keycloakInstallDir 'data\import'
     New-Item -ItemType Directory -Path $importDir -Force | Out-Null
     Copy-Item -LiteralPath $realmSource -Destination (Join-Path $importDir 'education-realm.json') -Force
-    $script:KeycloakHome = $home
+    $script:KeycloakHome = $keycloakInstallDir
     Write-Status 'Keycloak' 'OK — 26.7.5, realm import prepared' Green
 }
 function Invoke-Psql([string]$User, [string]$Password, [string]$Database, [string]$Sql, [string]$File = '') {
