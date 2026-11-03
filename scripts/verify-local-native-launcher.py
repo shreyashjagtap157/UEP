@@ -152,8 +152,8 @@ checks.update({
         and "SKIPPED — the separate Offline Demo has its own seeded personas" in launcher
         and "Ensure-LocalTestAccounts $localAdminToken $adminToken" in launcher
     ),
-    "launcher avoids assignment to PowerShell's read-only HOME automatic variable": (
-        not re.search(r"(?im)^\s*\$home\s*=", launcher)
+    "launcher avoids shadowing PowerShell automatic HOME and args variables": (
+        not re.search(r"(?im)^\s*\$(?:home|args)\s*=", launcher)
         and "$keycloakInstallDir = Join-Path $ToolDir 'keycloak-26.7.5'" in launcher
     ),
     "launcher defines each process/readiness helper exactly once": all(
