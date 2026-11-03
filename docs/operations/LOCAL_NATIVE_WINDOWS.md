@@ -96,6 +96,10 @@ The backend Maven project targets Java 21 bytecode (`maven.compiler.release=21`)
 
 If you see `UnsupportedClassVersionError` reporting `67.0` while Java supports only `65.0`, the offending output was compiled for Java 23 and is too new for Java 21. Use the repository launcher rather than a stale IDE output/run configuration. The launcher removes backend `target` output with Maven's `clean` phase, recompiles it to Java 21 bytecode, and reports the exact incompatible class paths if any remain. This clean build does **not** remove `.uep-local/uep-local.sqlite`, Keycloak state, or local credentials.
 
+### SQLite existing-schema metadata extraction
+
+For a database that already has the UEP tables, the local SQLite profile uses Hibernate's `individually` JDBC metadata strategy. This avoids grouped column-metadata extraction across all mapped tables, which can exceed SQLite's compound-SELECT term limit on the larger UEP schema. Keep `ddl-auto:update`; do not delete the SQLite file to bypass this condition. The backend integration test checks per-table JDBC column metadata over the existing schema.
+
 ## SQLite local qualification boundary
 
 SQLite mode:
