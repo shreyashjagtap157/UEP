@@ -147,14 +147,25 @@ function Find-Java {
             }
         }
     }
+    $compatibleCandidates = New-Object System.Collections.Generic.List[object]
     foreach ($candidate in ($candidates | Select-Object -Unique)) {
-        $javac = Join-Path (Split-Path $candidate -Parent) 'javac.exe'
+        $binDirectory = Split-Path $candidate -Parent
+        $javac = Join-Path $binDirectory 'javac.exe'
         if (-not (Test-Path $javac)) { continue }
-        $versionText = (& $candidate -version 2>&1 | Out-String)
-        $versionMatch = [regex]::Match($versionText, 'version "?(?<major>\d+)')
-        if (-not $versionMatch.Success) { $versionMatch = [regex]::Match($versionText, 'openjdk (?<major>\d+)') }
-        if ($versionMatch.Success -and [int]$versionMatch.Groups['major'].Value -ge 21) { return $candidate }
+        $javaText = (& $candidate -version 2>&1 | Out-String)
+        $javacText = (& $javac -version 2>&1 | Out-String)
+        $javaMatch = [regex]::Match($javaText, 'version "?(?<major>\d+)')
+        if (-not $javaMatch.Success) { $javaMatch = [regex]::Match($javaText, 'openjdk (?<major>\d+)') }
+        $javacMatch = [regex]::Match($javacText, 'javac (?<major>\d+)')
+        if (-not $javaMatch.Success -or -not $javacMatch.Success) { continue }
+        $javaMajor = [int]$javaMatch.Groups['major'].Value
+        $javacMajor = [int]$javacMatch.Groups['major'].Value
+        if ($javaMajor -lt 21 -or $javaMajor -ne $javacMajor) { continue }
+        $compatibleCandidates.Add([pscustomobject]@{ Path = $candidate; Major = $javaMajor })
     }
+    # Prefer JDK 21 for the project's Java 21 baseline; newer full JDKs are a fallback.
+    $selected = $compatibleCandidates | Sort-Object @{ Expression = { if ($_.Major -eq 21) { 0 } else { 1 } } }, @{ Expression = { $_.Major } } | Select-Object -First 1
+    if ($selected) { return $selected.Path }
     return $null
 }
 function Ensure-Java {
@@ -164,6 +175,11 @@ function Ensure-Java {
         Refresh-Path
         $java = Find-Java
     }
+    $javaRuntimeText = (& $java -version 2>&1 | Out-String)
+    $javaCompiler = Join-Path (Split-Path $java -Parent) 'javac.exe'
+    $javaCompilerText = (& $javaCompiler -version 2>&1 | Out-String)
+    Write-Status 'Java runtime' (($javaRuntimeText -split "`r?`n" | Select-Object -First 1).Trim()) Gray
+    Write-Status 'Java compiler' (($javaCompilerText -split "`r?`n" | Select-Object -First 1).Trim()) Gray
     if (-not $java) { throw 'A full JDK 21 or later (java.exe and javac.exe) is required. Install Eclipse Temurin JDK 21 from https://adoptium.net/temurin/releases/?version=21, then reopen PowerShell and rerun this launcher.' }
     $script:JavaHome = Split-Path (Split-Path $java -Parent) -Parent
     $javac = Join-Path (Split-Path $java -Parent) 'javac.exe'
