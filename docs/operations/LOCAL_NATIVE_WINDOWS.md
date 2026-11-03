@@ -92,7 +92,9 @@ Use PostgreSQL only when it is installed and intentionally selected. The Postgre
 
 ### Java bytecode/runtime consistency
 
-The backend Maven project targets Java 21 bytecode (`maven.compiler.release=21`). The native launcher sets `JAVA_HOME` and the front of `PATH` to the same discovered full JDK before starting Maven, records `java -version`, `javac -version` and `mvn -version` in the Backend log, and runs a clean Maven build with `-Dmaven.compiler.release=21` before starting Spring Boot. This removes stale `target/classes` output compiled by a newer JDK and prevents a Java 23 class (`67.0`) from being loaded by a Java 21 runtime (`65.0`). A clean backend build does not delete `.uep-local/uep-local.sqlite` or the local Keycloak state.
+The backend Maven project targets Java 21 bytecode (`maven.compiler.release=21`). The Windows launcher selects one full JDK whose `java.exe` and `javac.exe` major versions match (preferring JDK 21), pins that JDK in the backend command file, and records `java -version`, `javac -version` and `mvn -version` in the Backend log. Before Spring Boot starts, it runs `mvn -B -Dmaven.compiler.release=21 clean compile`, then `scripts/verify-java-class-version.ps1` checks that `com/universalplatform/grading/package-info.class` is major 65 and that no class under `target/classes` is newer than major 65. Only after that check passes does it run `spring-boot:run` with the same JDK and release property.
+
+If you see `UnsupportedClassVersionError` reporting `67.0` while Java supports only `65.0`, the offending output was compiled for Java 23 and is too new for Java 21. Use the repository launcher rather than a stale IDE output/run configuration. The launcher removes backend `target` output with Maven's `clean` phase, recompiles it to Java 21 bytecode, and reports the exact incompatible class paths if any remain. This clean build does **not** remove `.uep-local/uep-local.sqlite`, Keycloak state, or local credentials.
 
 ## SQLite local qualification boundary
 
