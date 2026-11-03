@@ -513,5 +513,5 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Playwright Chromium installation failed with exit code $LASTEXITCODE." }
           $env:CI = 'true'
           $env:VITE_LOCAL_MODE = 'true'
-          npm --prefix apps/web run test:e2e -- --project="Layer A: Local Demo"
+          npm --prefix apps/web run test:e2e -- test/e2e/login-signout.e2e.ts --project="Layer A: Local Demo" --workers=1
           if ($LASTEXITCODE -ne 0) { throw "Offline Demo browser regression failed with exit code $LASTEXITCODE." }

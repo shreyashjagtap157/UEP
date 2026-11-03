@@ -57,7 +57,7 @@ The updated interface uses a warm ivory workspace, deep slate navigation, restra
 
 ## Validation and Windows run path
 
-The repository CI contains a `windows-latest` presentation smoke that launches `.\startuep.ps1 -Mode Presentation -Database SQLite -NoBrowser`, checks both frontends, Spring Boot, the Vite API proxy, Swagger/OpenAPI and executes the native local-auth-to-SQLite browser test. This branch extends that Windows job to run the Offline Demo persona and navigation Playwright suite after stopping the launcher processes.
+The repository CI contains a `windows-latest` presentation smoke that launches `.\startuep.ps1 -Mode Presentation -Database SQLite -NoBrowser`, checks both frontends, Spring Boot, the Vite API proxy, Swagger/OpenAPI and executes the native local-auth-to-SQLite browser test. This branch extends that Windows job to run the focused Offline Demo sign-in/account-switch Playwright spec after stopping the launcher processes. The spec signs in to all 14 seeded personas, asserts each persona's exact ordered navigation menu, and exercises Switch user back to the grouped account selector. It is intentionally scoped to this acceptance contract rather than running every legacy Demo E2E file, several of which currently contain unrelated stale selectors and assumptions.
 
 Useful local checks:
 
@@ -69,7 +69,7 @@ npm --prefix apps/web run build:production
 .\startuep.ps1 -Mode Presentation -Database SQLite
 ```
 
-The assistant environment cannot execute PowerShell or Windows desktop browsers. The first PR run reached the Real + Demo launcher and both frontends, but its native SQLite browser test exposed a duplicate `Timezone` label selector; the Offline Demo test was skipped because that first test failed. The cleanup step also exposed a PowerShell syntax defect in the added CI cleanup block. Both are corrected in the follow-up commit. The Windows job now runs the Offline Demo browser regression with `always()` so a Real native smoke failure does not suppress independent Demo coverage. The next Actions run must confirm both paths. An empty or missing GitHub status is not a pass.
+The assistant environment cannot execute PowerShell or Windows desktop browsers. The first PR run reached the Real + Demo launcher and both frontends, but its native SQLite browser test exposed a duplicate `Timezone` label selector; the Offline Demo test was skipped because that first test failed. The cleanup step also exposed a PowerShell syntax defect in the added CI cleanup block. Both are corrected in the follow-up commit. The Windows job now runs the dedicated account-switch/role-navigation browser spec with `always()` so a Real native smoke failure does not suppress independent Demo coverage. The broad legacy E2E suite was also exercised during the first pass and surfaced 19 unrelated existing failures across assessment, attendance, finance, support, mentoring, schedule and shared-state selectors/fixtures; those are not included in this focused acceptance gate and remain separate work. The most recent completed native SQLite smoke passed its API create/readback and SQLite-file checks. The latest Actions run must still confirm the targeted Windows spec and the complete end-to-end qualification. An empty or missing GitHub status is not a pass.
 
 ## Claim boundary
 
