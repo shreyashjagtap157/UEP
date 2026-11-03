@@ -328,9 +328,9 @@ function Overview({ me }: { me: CurrentIdentity }) {
       <section className="hero-card">
         <p className="eyebrow">Today</p>
         <h3>Welcome, {me.displayName}</h3>
-        <p>Your classes, examinations, institutional operations, announcements, and unread work are brought together here.</p>
+        <p>Your workspace summary reflects the responsibilities and permissions assigned to your current membership.</p>
       </section>
-      <TodayOverview />
+      <TodayOverview enabled={hasScoped(me, 'SCHEDULE_VIEW') || hasScoped(me, 'SCHEDULE_MANAGE')} />
       <section className="metric-grid" aria-label="Identity overview">
         <Metric label="Membership" value={me.membershipStatus} />
         <Metric label="Roles" value={String(me.roles.length)} />
