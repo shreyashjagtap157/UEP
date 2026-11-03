@@ -241,17 +241,32 @@ checks.update({
         "set PLATFORM_BACKGROUND_WORKERS_ENABLED=false" in launcher
         and "-Dspring-boot.run.arguments=--platform.background-workers.enabled=false" in launcher
     ),
-    "tenant bootstrap validates the API response identifier before saving local state": (
-        "$tenant.PSObject.Properties['id']" in launcher
-        and "Tenant bootstrap API response did not include the required id field" in launcher
+    "launcher validates the persisted owner, role and tenant through the Vite proxy before saving local state": (
+        "function Test-LocalApiProxy" in launcher
+        and "$identity.oidcSubject -ne 'uep-local-demo-owner'" in launcher
+        and "$identity.membershipStatus -ne 'ACTIVE'" in launcher
+        and "@($identity.roles) -contains 'Organization Owner'" in launcher
+        and "$State.TenantId = [string]$identity.tenantId" in launcher
     ),
-    "bootstrap JWT requires tenant_id to be a scalar JSON string": (
-        "$tenantClaim = $claims.PSObject.Properties['tenant_id']" in launcher
-        and "$tenantClaim.Value -isnot [string]" in launcher
-        and "must be a scalar JSON string" in launcher
+    "local authentication is API-only, loopback-only, time-limited and rejects mixed credentials": (
+        'getRequestURI().startsWith("/api/")' in
+        (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalDevelopmentAuthenticationFilter.java").read_text(encoding="utf-8")
+        and 'isLoopback(request.getRemoteAddr())' in
+        (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalDevelopmentAuthenticationFilter.java").read_text(encoding="utf-8")
+        and 'MessageDigest.isEqual(expectedToken, suppliedBytes)' in
+        (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalDevelopmentAuthenticationFilter.java").read_text(encoding="utf-8")
+        and 'sessionExpiresAt' in
+        (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalDevelopmentAuthenticationFilter.java").read_text(encoding="utf-8")
+        and 'Use only one authentication mechanism per request.' in
+        (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalDevelopmentAuthenticationFilter.java").read_text(encoding="utf-8")
     ),
-    "API bootstrap failures identify the HTTP method and endpoint": (
-        'UEP API $Method $Path failed (HTTP $statusCode)' in launcher
+    "backend integration tests reject invalid tokens and non-loopback requests without issuer discovery": (
+        "oidcBearerIsRejectedWithoutExternalIssuerDiscovery" in
+        (ROOT / "apps" / "platform-server" / "src" / "test" / "java" / "com" / "universalplatform" / "security" / "LocalDevelopmentAuthenticationIntegrationTest.java").read_text(encoding="utf-8")
+        and "missingOrInvalidLocalTokenDoesNotAuthenticate" in
+        (ROOT / "apps" / "platform-server" / "src" / "test" / "java" / "com" / "universalplatform" / "security" / "LocalDevelopmentAuthenticationIntegrationTest.java").read_text(encoding="utf-8")
+        and "localTokenIsRejectedForNonLoopbackRequests" in
+        (ROOT / "apps" / "platform-server" / "src" / "test" / "java" / "com" / "universalplatform" / "security" / "LocalDevelopmentAuthenticationIntegrationTest.java").read_text(encoding="utf-8")
     ),
     "launcher avoids shadowing PowerShell automatic HOME and args variables": (
         not re.search(r"(?im)^\s*\$(?:home|args)\s*=", launcher)
