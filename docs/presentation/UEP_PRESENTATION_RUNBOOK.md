@@ -17,7 +17,7 @@ From the repository root on Windows:
 .\startuep.ps1 -Mode Presentation -Database SQLite
 ```
 
-In this paired SQLite presentation mode, the launcher creates or reuses only the Real application's local API authentication owner account. It intentionally does not provision the optional 13 backend test personas: the Offline Demo has its own independent seeded personas, and those broader membership/role workflows are outside the current SQLite qualification boundary.
+In every Real local-native mode, the launcher creates or reuses only the persisted local API owner account, active tenant membership and Organization Owner role in the selected database (SQLite or PostgreSQL). It does not create OIDC test accounts or start Keycloak. The Offline Demo has its own independent browser-seeded personas; they are synthetic and are not backend users.
 
 Expected endpoints:
 
@@ -25,7 +25,7 @@ Expected endpoints:
 |---|---|---|
 | Real UEP | http://localhost:5173 | Local-authenticated React UI; API requests go through Vite to Spring Boot |
 | Offline Demo | http://localhost:5174 | Seeded personas, simulated sign-in and browser-local sample state |
-| Swagger UI | http://127.0.0.1:8080/swagger-ui.html | Separate interactive backend API reference (local-native profile only) |
+| Swagger UI | http://127.0.0.1:8080/swagger-ui.html | Separate backend API reference (anonymous docs are local-native only; protected API operations still enforce auth) |
 | Spring Boot API | http://127.0.0.1:8080 | Local backend; generated OpenAPI JSON at `/v3/api-docs` |
 | SQLite file | `.uep-local\uep-local.sqlite` | Local qualification data for Real UEP |
 
@@ -69,7 +69,7 @@ Say: “This is the actual UEP application path. The frontend calls the Spring B
 
 1. Open Real UEP. It loads the persisted local owner identity from the database through `/api/v1/me`; this local path does not use Keycloak.
 2. Show the authenticated user, tenant identifier and assigned roles in the workspace.
-3. Explain the request path: Browser → Vite same-origin `/api` proxy → Spring Boot → SQLite. The browser never connects directly to the database.
+3. Explain the request path: Browser (no credential header) → same-origin Vite proxy (adds the launcher token server-side) → Spring Boot → selected local database. The browser never connects directly to the database.
 4. Open Organization and, after the local SQLite native smoke has passed, create a uniquely named branch. Reload the page and show that it is returned by the backend again.
 5. Optionally show role/permission or security surfaces only after rehearsing those exact operations in this SQLite runtime. Do not use visible navigation or source-code presence as proof that every module works end to end.
 
