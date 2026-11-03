@@ -136,53 +136,93 @@ function Invoke-WingetInstall([string]$PackageId, [string]$DisplayName, [switch]
     Refresh-Path
 }
 function Find-Java {
+    $candidates = New-Object System.Collections.Generic.List[string]
     $cmd = Get-Command 'java.exe' -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
+    if ($cmd) { $candidates.Add($cmd.Source) }
     foreach ($root in @('C:\Program Files\Eclipse Adoptium', 'C:\Program Files\Microsoft', 'C:\Program Files\Java')) {
         if (Test-Path $root) {
-            $found = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending |
-                ForEach-Object { Join-Path $_.FullName 'bin\java.exe' } | Where-Object { Test-Path $_ } | Select-Object -First 1
-            if ($found) { return $found }
+            Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | ForEach-Object {
+                $candidate = Join-Path $_.FullName 'bin\java.exe'
+                if (Test-Path $candidate) { $candidates.Add($candidate) }
+            }
         }
     }
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        $javac = Join-Path (Split-Path $candidate -Parent) 'javac.exe'
+        if (-not (Test-Path $javac)) { continue }
+        $versionText = (& $candidate -version 2>&1 | Out-String)
+        $versionMatch = [regex]::Match($versionText, 'version "?(?<major>\d+)')
+        if (-not $versionMatch.Success) { $versionMatch = [regex]::Match($versionText, 'openjdk (?<major>\d+)') }
+        if ($versionMatch.Success -and [int]$versionMatch.Groups['major'].Value -ge 21) { return $candidate }
+    }
     return $null
-}
-function Ensure-Java {
+}function Ensure-Java {
     $java = Find-Java
-    if (-not $java) { Invoke-WingetInstall 'EclipseAdoptium.Temurin.21.JDK' 'Eclipse Temurin JDK 21'; $java = Find-Java }
-    if (-not $java) { throw 'Java 21 or later was not found after installation.' }
-    $text = (& $java -version 2>&1 | Out-String)
-    $match = [regex]::Match($text, 'version "?(?<major>\d+)')
-    if (-not $match.Success) { $match = [regex]::Match($text, 'openjdk (?<major>\d+)') }
-    if (-not $match.Success -or [int]$match.Groups['major'].Value -lt 21) { throw "UEP requires JDK 21 or later. Detected: $text" }
+    if (-not $java) {
+        Invoke-WingetInstall 'EclipseAdoptium.Temurin.21.JDK' 'Eclipse Temurin JDK 21'
+        Refresh-Path
+        $java = Find-Java
+    }
+    if (-not $java) { throw 'A full JDK 21 or later (java.exe and javac.exe) is required. Install Eclipse Temurin JDK 21 from https://adoptium.net/temurin/releases/?version=21, then reopen PowerShell and rerun this launcher.' }
     $script:JavaHome = Split-Path (Split-Path $java -Parent) -Parent
+    $javac = Join-Path (Split-Path $java -Parent) 'javac.exe'
+    if (-not (Test-Path $javac)) { throw 'The selected Java installation is missing javac.exe; install a full JDK, not a JRE.' }
     $env:JAVA_HOME = $script:JavaHome
     $env:Path = (Join-Path $script:JavaHome 'bin') + ';' + $env:Path
-    Write-Status 'Java' 'OK — JDK 21+' Green
-}
-function Ensure-Node {
+    Write-Status 'Java' 'OK — full JDK 21+ (java and javac)' Green
+}function Ensure-Node {
     $node = Get-Command 'node.exe' -ErrorAction SilentlyContinue
-    if (-not $node) {
-        Invoke-WingetInstall 'OpenJS.NodeJS.LTS' 'Node.js LTS'
+    if (-not $node -and (Test-Path 'C:\Program Files\nodejs\node.exe')) {
+        $env:Path = 'C:\Program Files\nodejs;' + $env:Path
+        $node = Get-Command 'node.exe' -ErrorAction SilentlyContinue
+    }
+    $version = if ($node) { (& $node.Source --version).Trim().TrimStart('v') } else { '' }
+    $nodeIsCurrent = $false
+    if ($version) { try { $nodeIsCurrent = ([version]$version -ge [version]'22.22.0') } catch { $nodeIsCurrent = $false } }
+    if (-not $nodeIsCurrent) {
+        if ($node) {
+            if (-not (Test-Command 'winget.exe')) { throw "Node.js $version is too old. Install Node.js 22.22.0 or later from https://nodejs.org/en/download, then reopen PowerShell." }
+            Write-Host 'Upgrading Node.js to a supported LTS release...' -ForegroundColor Yellow
+            & winget.exe upgrade --id 'OpenJS.NodeJS.LTS' --exact --source winget --accept-source-agreements --accept-package-agreements --silent --disable-interactivity
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host 'WinGet upgrade was unavailable; attempting a supported LTS installation...' -ForegroundColor Yellow
+                & winget.exe install --id 'OpenJS.NodeJS.LTS' --exact --source winget --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --force
+                if ($LASTEXITCODE -ne 0) { throw 'WinGet could not upgrade Node.js. Install Node.js 22.22.0 or later from https://nodejs.org/en/download and rerun.' }
+            }
+            Refresh-Path
+        } else {
+            Invoke-WingetInstall 'OpenJS.NodeJS.LTS' 'Node.js LTS'
+            Refresh-Path
+        }
         $node = Get-Command 'node.exe' -ErrorAction SilentlyContinue
         if (-not $node -and (Test-Path 'C:\Program Files\nodejs\node.exe')) {
             $env:Path = 'C:\Program Files\nodejs;' + $env:Path
             $node = Get-Command 'node.exe' -ErrorAction SilentlyContinue
         }
+        if (-not $node) { throw 'Node.js 22.22.0 or later could not be found after installation. Install it from https://nodejs.org/en/download and reopen PowerShell.' }
+        $version = (& $node.Source --version).Trim().TrimStart('v')
     }
-    if (-not $node) { throw 'Node.js 22.22.0 or later is required. Install Node.js LTS and reopen PowerShell.' }
-    $version = (& $node.Source --version).Trim().TrimStart('v')
-    if ([version]$version -lt [version]'22.22.0') { throw "Node.js 22.22.0 or later is required. Detected $version." }
+    try { if ([version]$version -lt [version]'22.22.0') { throw 'old' } } catch { throw "Node.js 22.22.0 or later is required. Detected $version. Update Node.js from https://nodejs.org/en/download and rerun." }
     $npm = Get-Command 'npm.cmd' -ErrorAction SilentlyContinue
-    if (-not $npm) { throw 'npm.cmd was not found beside Node.js. Repair the Node.js installation.' }
+    if (-not $npm) {
+        $npmCandidate = Join-Path (Split-Path $node.Source -Parent) 'npm.cmd'
+        if (Test-Path $npmCandidate) { $npm = Get-Item $npmCandidate }
+    }
+    if (-not $npm) { throw 'npm.cmd was not found beside Node.js. Repair the Node.js LTS installation from https://nodejs.org/en/download.' }
     $script:NpmCmd = $npm.Source
     Write-Status 'Node.js' ("OK — " + $version) Green
-}
-function Ensure-Maven {
+}function Ensure-Maven {
     $localMaven = Join-Path $ToolDir 'apache-maven-3.10.0\bin\mvn.cmd'
     $globalMaven = Get-Command 'mvn.cmd' -ErrorAction SilentlyContinue
+    $useGlobal = $false
+    if ($globalMaven) {
+        $globalLine = (& $globalMaven.Source -version 2>&1 | Select-Object -First 1).ToString()
+        $globalMatch = [regex]::Match($globalLine, 'Apache Maven (?<version>\d+\.\d+\.\d+)')
+        if ($globalMatch.Success -and [version]$globalMatch.Groups['version'].Value -ge [version]'3.9.0') { $useGlobal = $true }
+        else { Write-Host ("System Maven is too old or invalid; using the verified local Maven distribution instead. Detected: " + $globalLine) -ForegroundColor Yellow }
+    }
     if (Test-Path $localMaven) { $script:MavenCmd = $localMaven }
-    elseif ($globalMaven) { $script:MavenCmd = $globalMaven.Source }
+    elseif ($useGlobal) { $script:MavenCmd = $globalMaven.Source }
     else {
         Protect-Directory $ToolDir
         $zip = Join-Path $ToolDir 'apache-maven-3.10.0-bin.zip'
@@ -197,15 +237,14 @@ function Ensure-Maven {
         [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $ToolDir)
         $script:MavenCmd = $localMaven
     }
-    if (-not (Test-Path $script:MavenCmd)) { throw 'Maven 3.9+ could not be located.' }
+    if (-not (Test-Path $script:MavenCmd)) { throw 'Maven 3.9+ could not be located. Install Maven 3.9+ from https://maven.apache.org/download.cgi or rerun to download the verified local distribution.' }
     $mavenLine = (& $script:MavenCmd -version 2>&1 | Select-Object -First 1).ToString()
     $mavenMatch = [regex]::Match($mavenLine, 'Apache Maven (?<version>\d+\.\d+\.\d+)')
     if (-not $mavenMatch.Success -or [version]$mavenMatch.Groups['version'].Value -lt [version]'3.9.0') {
-        throw "Maven 3.9 or later is required. Detected: $mavenLine"
+        throw "Maven 3.9 or later is required. Detected: $mavenLine. Install Maven 3.9+ from https://maven.apache.org/download.cgi."
     }
     Write-Status 'Maven' ("OK — " + $mavenLine) Green
-}
-function Find-PostgresTools {
+}function Find-PostgresTools {
     $candidates = @()
     $root = 'C:\Program Files\PostgreSQL'
     if (Test-Path $root) {
@@ -539,7 +578,9 @@ function Get-LocalUser([string]$Username, [string]$AdminToken) {
 function Ensure-KeycloakUser([string]$Username, [string]$Email, [string]$FirstName, [string]$LastName, [string]$Password, [string]$TenantId, [string]$AdminToken) {
     $user = Get-LocalUser $Username $AdminToken
     if (-not $user) {
-        $representation = @{ username = $Username; email = $Email; emailVerified = $true; enabled = $true; firstName = $FirstName; lastName = $LastName; attributes = @{ tenant_id = @($TenantId) } }
+        $attributes = @{}
+        if (-not [string]::IsNullOrWhiteSpace($TenantId)) { $attributes.tenant_id = @($TenantId) }
+        $representation = @{ username = $Username; email = $Email; emailVerified = $true; enabled = $true; firstName = $FirstName; lastName = $LastName; attributes = $attributes }
         Invoke-KeycloakAdmin 'Post' '/admin/realms/education/users' $AdminToken $representation | Out-Null
         $user = Get-LocalUser $Username $AdminToken
         if (-not $user) { throw "Keycloak did not create the local test user '$Username'." }
@@ -548,11 +589,13 @@ function Ensure-KeycloakUser([string]$Username, [string]$Email, [string]$FirstNa
         if ($null -eq $attributesProperty -or $null -eq $attributesProperty.Value) {
             $user | Add-Member -NotePropertyName attributes -NotePropertyValue ([pscustomobject]@{}) -Force
         }
-        $tenantAttributeProperty = $user.attributes.PSObject.Properties['tenant_id']
-        if ($null -eq $tenantAttributeProperty) {
-            $user.attributes | Add-Member -NotePropertyName tenant_id -NotePropertyValue @() -Force
+        if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
+            $tenantAttributeProperty = $user.attributes.PSObject.Properties['tenant_id']
+            if ($null -eq $tenantAttributeProperty) {
+                $user.attributes | Add-Member -NotePropertyName tenant_id -NotePropertyValue @() -Force
+            }
+            $user.attributes.tenant_id = @($TenantId)
         }
-        $user.attributes.tenant_id = @($TenantId)
         $user.enabled = $true
         Invoke-KeycloakAdmin 'Put' ("/admin/realms/education/users/" + $user.id) $AdminToken $user | Out-Null
     }
@@ -578,7 +621,8 @@ function Assert-TenantTokenContext([string]$Token, [string]$ExpectedTenantId) {
     $tenantClaim = $claims.PSObject.Properties['tenant_id']
     if ($null -eq $tenantClaim -or $tenantClaim.Value -isnot [string]) {
         $claimType = if ($null -eq $tenantClaim) { 'missing' } else { $tenantClaim.Value.GetType().FullName }
-        throw "Local bootstrap token tenant_id must be a scalar JSON string; received $claimType. Check the uep-local-bootstrap Keycloak protocol mapper."
+        $claimNames = ($claims.PSObject.Properties.Name | Sort-Object) -join ', '
+        throw "Local bootstrap token tenant_id must be a scalar JSON string; received $claimType. Claims returned: $claimNames. Check the uep-local-bootstrap user attribute and client protocol mapper."
     }
     if ($tenantClaim.Value -ne $ExpectedTenantId) {
         throw "Local bootstrap token tenant_id '$($tenantClaim.Value)' does not match the expected tenant '$ExpectedTenantId'. Check the uep-local-bootstrap Keycloak user attribute."
@@ -618,6 +662,8 @@ function Ensure-RealIdentity {
             'user.attribute' = 'tenant_id'
             'claim.name' = 'tenant_id'
             'jsonType.label' = 'String'
+            'multivalued' = 'false'
+            'aggregate.attrs' = 'false'
             'id.token.claim' = 'true'
             'access.token.claim' = 'true'
             'userinfo.token.claim' = 'true'
@@ -651,7 +697,8 @@ function Ensure-RealIdentity {
         Invoke-KeycloakAdmin 'Post' ("/admin/realms/education/clients/" + $bootstrapClient.id + '/protocol-mappers/models') $adminToken $tenantIdMapper | Out-Null
     } elseif ($existingTenantMapper.config.'user.attribute' -ne 'tenant_id' -or
               $existingTenantMapper.config.'claim.name' -ne 'tenant_id' -or
-              $existingTenantMapper.config.'access.token.claim' -ne 'true') {
+              $existingTenantMapper.config.'access.token.claim' -ne 'true' -or
+              $existingTenantMapper.config.'multivalued' -ne 'false') {
         $tenantIdMapper.id = $existingTenantMapper.id
         Invoke-KeycloakAdmin 'Put' ("/admin/realms/education/clients/" + $bootstrapClient.id + '/protocol-mappers/models/' + $existingTenantMapper.id) $adminToken $tenantIdMapper | Out-Null
     }
@@ -678,6 +725,19 @@ function Ensure-RealIdentity {
     $localAdmin = Ensure-KeycloakUser $State.LocalAdminUsername 'admin@local.uep' 'UEP' 'Local Administrator' $State.LocalAdminPassword $State.TenantId $adminToken
     $State.LocalAdminUserId = $localAdmin.id
     Save-State
+    $verifiedLocalAdmin = Get-LocalUser $State.LocalAdminUsername $adminToken
+    $tenantAttributeProperty = if ($null -ne $verifiedLocalAdmin -and $null -ne $verifiedLocalAdmin.attributes) { $verifiedLocalAdmin.attributes.PSObject.Properties['tenant_id'] } else { $null }
+    $tenantAttributeValues = if ($null -ne $tenantAttributeProperty) { @($tenantAttributeProperty.Value | ForEach-Object { [string]$_ }) } else { @() }
+    if (-not ($tenantAttributeValues -contains $State.TenantId)) {
+        throw 'Keycloak did not persist the local owner tenant_id user attribute. The local owner was not issued an API bootstrap token.'
+    }
+    $verifiedBootstrapMappers = Invoke-KeycloakAdmin 'Get' ("/admin/realms/education/clients/" + $bootstrapClient.id + '/protocol-mappers/models') $adminToken
+    $verifiedTenantMapper = $verifiedBootstrapMappers | Where-Object { $_.name -eq 'tenant-id' } | Select-Object -First 1
+    if (-not $verifiedTenantMapper -or $verifiedTenantMapper.config.'user.attribute' -ne 'tenant_id' -or
+        $verifiedTenantMapper.config.'claim.name' -ne 'tenant_id' -or $verifiedTenantMapper.config.'access.token.claim' -ne 'true' -or
+        $verifiedTenantMapper.config.'multivalued' -ne 'false') {
+        throw 'The local bootstrap client is missing the required scalar tenant_id access-token mapper.'
+    }
     $localAdminToken = Get-UserToken $State.LocalAdminUsername $State.LocalAdminPassword
     Assert-TenantTokenContext $localAdminToken $State.TenantId
     $current = $null
