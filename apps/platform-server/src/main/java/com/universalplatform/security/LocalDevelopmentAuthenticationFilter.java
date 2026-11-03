@@ -27,7 +27,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 final class LocalDevelopmentAuthenticationFilter extends OncePerRequestFilter {
     static final String HEADER = "X-UEP-Local-Auth";
-    private static final String SUBJECT = "uep-local-demo-owner";
     private static final Duration MAX_SESSION = Duration.ofHours(12);
 
     private final byte[] expectedToken;
