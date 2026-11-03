@@ -127,7 +127,7 @@ function Refresh-Path {
     $env:Path = @([Environment]::GetEnvironmentVariable('Path', 'Machine'), [Environment]::GetEnvironmentVariable('Path', 'User')) -join ';'
 }
 function Invoke-WingetInstall([string]$PackageId, [string]$DisplayName, [switch]$Interactive) {
-    if (-not (Test-Command 'winget.exe')) { throw "$DisplayName is missing and winget.exe is not available. Install Microsoft App Installer, then rerun." }
+    if (-not (Test-Command 'winget.exe')) { throw "$DisplayName is missing and winget.exe is not available. Install Microsoft App Installer from https://aka.ms/getwinget, or install the requirement manually using docs/operations/LOCAL_NATIVE_WINDOWS.md, then rerun." }
     Write-Host "Installing $DisplayName from the official winget source..." -ForegroundColor Yellow
     $wingetArguments = @('install', '--id', $PackageId, '--exact', '--source', 'winget', '--accept-source-agreements', '--accept-package-agreements')
     if ($Interactive) { $wingetArguments += '--interactive' } else { $wingetArguments += @('--silent', '--disable-interactivity') }
@@ -156,7 +156,8 @@ function Find-Java {
         if ($versionMatch.Success -and [int]$versionMatch.Groups['major'].Value -ge 21) { return $candidate }
     }
     return $null
-}function Ensure-Java {
+}
+function Ensure-Java {
     $java = Find-Java
     if (-not $java) {
         Invoke-WingetInstall 'EclipseAdoptium.Temurin.21.JDK' 'Eclipse Temurin JDK 21'
@@ -170,7 +171,8 @@ function Find-Java {
     $env:JAVA_HOME = $script:JavaHome
     $env:Path = (Join-Path $script:JavaHome 'bin') + ';' + $env:Path
     Write-Status 'Java' 'OK — full JDK 21+ (java and javac)' Green
-}function Ensure-Node {
+}
+function Ensure-Node {
     $node = Get-Command 'node.exe' -ErrorAction SilentlyContinue
     if (-not $node -and (Test-Path 'C:\Program Files\nodejs\node.exe')) {
         $env:Path = 'C:\Program Files\nodejs;' + $env:Path
@@ -204,14 +206,15 @@ function Find-Java {
     }
     try { if ([version]$version -lt [version]'22.22.0') { throw 'old' } } catch { throw "Node.js 22.22.0 or later is required. Detected $version. Update Node.js from https://nodejs.org/en/download and rerun." }
     $npm = Get-Command 'npm.cmd' -ErrorAction SilentlyContinue
-    if (-not $npm) {
+    if ($npm) { $script:NpmCmd = $npm.Source }
+    else {
         $npmCandidate = Join-Path (Split-Path $node.Source -Parent) 'npm.cmd'
-        if (Test-Path $npmCandidate) { $npm = Get-Item $npmCandidate }
+        if (Test-Path $npmCandidate) { $script:NpmCmd = $npmCandidate }
+        else { throw 'npm.cmd was not found beside Node.js. Repair the Node.js LTS installation from https://nodejs.org/en/download.' }
     }
-    if (-not $npm) { throw 'npm.cmd was not found beside Node.js. Repair the Node.js LTS installation from https://nodejs.org/en/download.' }
-    $script:NpmCmd = $npm.Source
     Write-Status 'Node.js' ("OK — " + $version) Green
-}function Ensure-Maven {
+}
+function Ensure-Maven {
     $localMaven = Join-Path $ToolDir 'apache-maven-3.10.0\bin\mvn.cmd'
     $globalMaven = Get-Command 'mvn.cmd' -ErrorAction SilentlyContinue
     $useGlobal = $false
@@ -244,7 +247,8 @@ function Find-Java {
         throw "Maven 3.9 or later is required. Detected: $mavenLine. Install Maven 3.9+ from https://maven.apache.org/download.cgi."
     }
     Write-Status 'Maven' ("OK — " + $mavenLine) Green
-}function Find-PostgresTools {
+}
+function Find-PostgresTools {
     $candidates = @()
     $root = 'C:\Program Files\PostgreSQL'
     if (Test-Path $root) {
