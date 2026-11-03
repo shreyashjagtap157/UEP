@@ -57,8 +57,10 @@ import {
   unassignRole,
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, MemberView, OrganizationSettings, PermissionKey, RoleAssignmentView, RoleView } from '../platform/api'
+import { buildWorkspaceNavigation, filterWorkspaceNavigation } from './workspace-navigation'
+import type { WorkspaceSection } from './workspace-navigation'
 
-type Section = 'overview' | 'advanced' | 'integrations' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
+type Section = WorkspaceSection
 
 const permissionOptions: PermissionKey[] = [
   'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
@@ -220,54 +222,11 @@ export function App() {
 
   const me = identity.data
   const initials = me.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || 'U'
-  const navGroups: Array<{ label: string; items: Array<{ id: Section; label: string; visible: boolean }> }> = [
-    {
-      label: 'My workspace',
-      items: [
-        { id: 'overview', label: 'Today', visible: true },
-        { id: 'schedule', label: 'Schedule', visible: hasScoped(me, 'SCHEDULE_VIEW') },
-        { id: 'notifications', label: 'Notifications', visible: true },
-      ],
-    },
-    {
-      label: 'Teaching & learning',
-      items: [
-        { id: 'academics', label: 'Academics', visible: has(me, 'ACADEMICS_VIEW') || has(me, 'CURRICULUM_VIEW') },
-        { id: 'enrollment', label: 'Enrollment', visible: has(me, 'ENROLLMENTS_VIEW') || has(me, 'TEACHING_ASSIGNMENTS_VIEW') },
-        { id: 'content', label: 'Learning Content', visible: has(me, 'CONTENT_VIEW') },
-        { id: 'assignments', label: 'Assignments', visible: has(me, 'ASSIGNMENTS_VIEW') || has(me, 'ASSIGNMENTS_TAKE') || has(me, 'GRADEBOOK_VIEW') },
-        { id: 'assessment', label: 'Assessments', visible: has(me, 'ASSESSMENTS_VIEW') || has(me, 'ASSESSMENTS_TAKE') },
-        { id: 'live', label: 'Live Learning', visible: has(me, 'LIVE_CLASS_VIEW') || has(me, 'LIVE_CLASS_MANAGE') },
-        { id: 'recordings', label: 'Recordings', visible: has(me, 'RECORDINGS_VIEW') || has(me, 'RECORDINGS_MANAGE') },
-        { id: 'advanced', label: 'Advanced Academics', visible: has(me, 'LEARNING_OUTCOMES_MANAGE') || has(me, 'CREDENTIALS_MANAGE') || has(me, 'MENTORING_MANAGE') || has(me, 'SURVEYS_MANAGE') || has(me, 'LEARNING_OUTCOMES_VIEW') || has(me, 'CREDENTIALS_VIEW') || has(me, 'MENTORING_VIEW') || has(me, 'SURVEYS_VIEW') || has(me, 'FEEDBACK_MANAGE') },
-      ],
-    },
-    {
-      label: 'Institution management',
-      items: [
-        { id: 'announcements', label: 'Announcements', visible: hasScoped(me, 'ANNOUNCEMENTS_VIEW') },
-        { id: 'finance', label: 'Finance', visible: has(me, 'FINANCE_VIEW') || has(me, 'FINANCE_MANAGE') },
-        { id: 'people', label: 'People', visible: has(me, 'USERS_VIEW') },
-        { id: 'roles', label: 'Roles', visible: has(me, 'ROLES_VIEW') },
-        { id: 'organization', label: 'Organization', visible: has(me, 'ORGANIZATION_VIEW') || has(me, 'BRANCHES_VIEW') },
-        { id: 'security', label: 'Security', visible: has(me, 'SESSIONS_VIEW') || has(me, 'SESSIONS_MANAGE') },
-      ],
-    },
-    {
-      label: 'Platform & insights',
-      items: [
-        { id: 'analytics', label: 'Analytics & Operations', visible: has(me, 'ANALYTICS_VIEW') },
-        { id: 'integrations', label: 'Integrations', visible: has(me, 'API_VIEW') || has(me, 'WEBHOOKS_VIEW') || has(me, 'FEDERATION_VIEW') || has(me, 'INTEROPERABILITY_VIEW') },
-      ],
-    },
-  ]
-  const normalizedNavFilter = navFilter.trim().toLocaleLowerCase()
-  const visibleNavGroups = navGroups
-    .map(group => ({
-      ...group,
-      items: group.items.filter(item => item.visible && item.label.toLocaleLowerCase().includes(normalizedNavFilter)),
-    }))
-    .filter(group => group.items.length > 0)
+  const navGroups = buildWorkspaceNavigation({
+    has: permission => has(me, permission),
+    hasScoped: permission => hasScoped(me, permission),
+  })
+  const visibleNavGroups = filterWorkspaceNavigation(navGroups, navFilter)
 
   return (
     <div className="app-frame">
