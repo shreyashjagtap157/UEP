@@ -384,3 +384,101 @@ jobs:
           set -euo pipefail
           docker buildx build --platform linux/arm64 --load --tag uep-keycloak-staging:arm64-ci infra/keycloak
           docker run --rm --platform linux/arm64 --entrypoint java uep-keycloak-staging:arm64-ci -version
+
+
+  windows-local-presentation-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.22.0'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Start the documented Real + Demo SQLite presentation launcher
+        shell: pwsh
+        run: |
+          $scriptPath = (Resolve-Path '.\startuep.ps1').Path
+          $stdout = Join-Path $env:RUNNER_TEMP 'uep-launcher.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'uep-launcher.stderr.log'
+          $arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $scriptPath + '" -Mode Presentation -Database SQLite -NoBrowser'
+          $launcher = Start-Process -FilePath 'pwsh' -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+
+          try {
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 420; $attempt++) {
+              if ($launcher.HasExited) {
+                throw "Launcher exited early with code $($launcher.ExitCode)."
+              }
+              if (Test-Path $stdout) {
+                $output = Get-Content -LiteralPath $stdout -Raw
+                if ($output -match 'Live service status') {
+                  $ready = $true
+                  break
+                }
+              }
+              Start-Sleep -Seconds 5
+            }
+
+            if (-not $ready) {
+              throw 'Launcher did not reach its live-service monitor within 35 minutes.'
+            }
+
+            $checks = @(
+              @{ Name = 'Real frontend'; Url = 'http://127.0.0.1:5173' },
+              @{ Name = 'Offline Demo frontend'; Url = 'http://127.0.0.1:5174' },
+              @{ Name = 'Keycloak education realm'; Url = 'http://127.0.0.1:8081/realms/education/.well-known/openid-configuration' },
+              @{ Name = 'Spring Boot actuator'; Url = 'http://127.0.0.1:8080/actuator/health' }
+            )
+            foreach ($check in $checks) {
+              $response = Invoke-WebRequest -Uri $check.Url -UseBasicParsing -TimeoutSec 15
+              if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) {
+                throw "$($check.Name) returned HTTP $($response.StatusCode)."
+              }
+              Write-Host "PASS: $($check.Name) returned HTTP $($response.StatusCode)."
+            }
+          }
+          catch {
+            Write-Host '---- launcher stdout (tail) ----'
+            if (Test-Path $stdout) { Get-Content -LiteralPath $stdout -Tail 200 }
+            Write-Host '---- launcher stderr (tail) ----'
+            if (Test-Path $stderr) { Get-Content -LiteralPath $stderr -Tail 200 }
+            $logs = Join-Path $PWD '.uep-local\logs'
+            if (Test-Path $logs) {
+              Get-ChildItem -LiteralPath $logs -File | ForEach-Object {
+                Write-Host "---- $($_.Name) (tail) ----"
+                Get-Content -LiteralPath $_.FullName -Tail 100
+              }
+            }
+            throw
+          }
+          finally {
+            if ($launcher -and -not $launcher.HasExited) {
+              & taskkill.exe /PID $launcher.Id /T /F *> $null
+              Start-Sleep -Seconds 3
+            }
+          }
+
+      - name: Install Playwright Chromium
+        run: npm --prefix apps/web exec -- playwright install chromium
+
+      - name: Verify actual Windows OIDC-to-SQLite browser write/readback
+        run: npm --prefix apps/web run test:e2e:native
+
+      - name: Ensure launcher processes are stopped
+        if: always()
+        shell: pwsh
+        run: |
+          $listeners = @(Get-NetTCPConnection -State Listen -LocalPort 5173,5174,8080,8081 -ErrorAction SilentlyContinue)
+          foreach ($listener in $listeners) {
+            try { & taskkill.exe /PID $listener.OwningProcess /T /F *> $null } catch {}
+          }
