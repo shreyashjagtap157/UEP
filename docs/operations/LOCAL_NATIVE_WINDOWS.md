@@ -90,6 +90,10 @@ Other supported commands:
 
 Use PostgreSQL only when it is installed and intentionally selected. The PostgreSQL mode retains the primary Flyway migration and separate migration/runtime/Keycloak-role design.
 
+### Java bytecode/runtime consistency
+
+The backend Maven project targets Java 21 bytecode (`maven.compiler.release=21`). The native launcher sets `JAVA_HOME` and the front of `PATH` to the same discovered full JDK before starting Maven, records `java -version`, `javac -version` and `mvn -version` in the Backend log, and runs a clean Maven build with `-Dmaven.compiler.release=21` before starting Spring Boot. This removes stale `target/classes` output compiled by a newer JDK and prevents a Java 23 class (`67.0`) from being loaded by a Java 21 runtime (`65.0`). A clean backend build does not delete `.uep-local/uep-local.sqlite` or the local Keycloak state.
+
 ## SQLite local qualification boundary
 
 SQLite mode:
