@@ -1,14 +1,14 @@
 # Universal Education, Training and Learning Operations Platform
 
-## Current verified status — 2 November 2026
+## Current repository status — 3 November 2026
 
 > **Release gate: NOT QUALIFIED FOR PRODUCTION.** UEP is being qualified locally because its hosted backend and database staging path has been retired. A green source/build CI run is not a connected production deployment.
 
-> **Hosted service status:** the Fly API machine previously reported by the owner is stopped (Sydney, machine d89565db307d58, no attached volumes); the Fly Keycloak app does not exist. The Supabase UEP Free project was successfully paused and subsequently reported INACTIVE. No UEP migrations were applied to that hosted database. The Fly app record and paused Supabase project have not been permanently deleted; see the retired hosting record at [FLY_SUPABASE_STAGING.md](docs/operations/FLY_SUPABASE_STAGING.md).
+> **Last observed hosted service status (2 November 2026; not rechecked in this local launcher review):** the Fly API machine previously reported by the owner was stopped (Sydney, machine d89565db307d58, no attached volumes); the Fly Keycloak app did not exist. The Supabase UEP Free project was paused and subsequently reported INACTIVE. No UEP migrations had been applied to that hosted database. The Fly app record and paused Supabase project had not been permanently deleted; see the retired hosting record at [FLY_SUPABASE_STAGING.md](docs/operations/FLY_SUPABASE_STAGING.md).
 
 > **Remote deployment controls retired in Git:** Fly app manifests and the hosted database-migration workflow have been removed from main. The Cloudflare Pages frontend projects remain separate; the last inspected testing bundle was stale and must not be treated as a connected product. No remote API or OIDC service is currently qualified.
 
-> **Supported local path:** use [scripts/Start-UEP.ps1](scripts/Start-UEP.ps1) with Demo, Real or Both mode. It runs the real React/Vite frontend and Spring Boot API natively on Windows with local SQLite (default) or PostgreSQL. A launcher-issued loopback session connects the Real UI to the backend; Keycloak is not started or contacted. Real mode connects the browser to the API through Vite's /api proxy and connects the API to local PostgreSQL using a least-privilege runtime role. Demo mode is intentionally offline and uses local UI fixtures only.
+> **Supported local path:** from the repository root, run `.\startuep.ps1` (Presentation mode is the default). It starts the actual Real React/Vite frontend + Spring Boot API + local SQLite database and the separate browser-fixture Demo side by side. Use `-Mode Real`, `-Mode Demo`, or `-Database PostgreSQL` to select another path. Keycloak is not installed, started or contacted by the local launcher. A random launcher credential stays in the protected Node/Vite process and is injected into upstream `/api` proxy requests; the browser bundle and browser request headers do not receive it. The current Windows runtime still requires acceptance testing on the target workstation.
 
 > The current 0.15.0.0-SNAPSHOT source contains tenant-scoped RBAC, academic workflows, assessments, assignments, grading, communication, storage, live-learning and operational modules. **Feature completeness is not equivalent to local acceptance:** run the test plan in [LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) and record actual browser, API, database and isolation evidence before making product-readiness claims.
 
@@ -101,10 +101,13 @@ No container runtime is required. The launcher checks prerequisites and starts S
 # Default: start the actual Real implementation and the separate offline Demo together
 .\startuep.ps1
 
-# Equivalent explicit paired mode; or run only one environment
-.\startuep.ps1 -Mode Presentation -Database SQLite
+# Explicit paired mode, or run just one environment
+.\startuep.ps1 -Mode Presentation -Database SQLite -NoBrowser
 .\startuep.ps1 -Mode Real -Database SQLite
 .\startuep.ps1 -Mode Demo
+
+# Explicit PostgreSQL migration/runtime-role qualification (requires local PostgreSQL 17/18)
+.\startuep.ps1 -Mode Real -Database PostgreSQL
 ```
 
 Local backend API reference (available only while Real runs with the local-native profile):
