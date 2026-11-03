@@ -38,6 +38,7 @@ scheduled_worker_paths = [
     "apps/platform-server/src/main/java/com/universalplatform/storage/StorageQuotaReconciliationWorker.java",
 ]
 workflow = workflow_path.read_text(encoding="utf-8")
+class_version_verifier = (ROOT / "scripts" / "verify-java-class-version.ps1").read_text(encoding="utf-8")
 
 checks = {
     "launcher supports Demo, Real, Both and Presentation modes": (
@@ -250,13 +251,23 @@ checks.update({
         and "$State.LocalAdminUserId = ''" in launcher
         and "preserving local credentials and database files" in launcher
     ),
-    "Windows backend launch pins one JDK, release-21 bytecode and removes stale classes": (
+    "Windows backend launch pins matching JDK tools and performs a clean Java 21 compile": (
         "set \"JAVA_HOME=" in launcher
         and "set \"PATH=" in launcher
-        and "'java -version'" in launcher
-        and "'javac -version'" in launcher
-        and "-Dmaven.compiler.release=21 clean spring-boot:run" in launcher
+        and "java -version" in launcher
+        and "javac -version" in launcher
+        and "'-version')" in launcher
+        and "-Dmaven.compiler.release=21 clean compile" in launcher
+        and "verify-java-class-version.ps1" in launcher
+        and "-ExpectedMajor 65" in launcher
+        and "-Dmaven.compiler.release=21 spring-boot:run" in launcher
         and "<maven.compiler.release>21</maven.compiler.release>" in pom
+    ),
+    "Java class-version verifier validates grading package-info and all generated classes": (
+        "com\\universalplatform\\grading\\package-info.class" in class_version_verifier
+        and "Get-ClassMajorVersion" in class_version_verifier
+        and "$major -gt $ExpectedMajor" in class_version_verifier
+        and "all {0} backend class files are compatible" in class_version_verifier
     ),
     "SQLite backend integration test asserts scheduler and worker suppression": (
         "localSqliteProfileDisablesSchedulingAndEveryBackgroundWorker" in sqlite_test
