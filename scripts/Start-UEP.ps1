@@ -600,7 +600,13 @@ function Ensure-RealIdentity {
         $current = Invoke-Api 'Get' '/api/v1/me' $localAdminToken
     }
     Write-Status 'Identity' ("OK — Keycloak OIDC, tenant " + $State.TenantId + ', owner membership active') Green
-    if (-not $SkipAccountSeeding) { Ensure-LocalTestAccounts $localAdminToken $adminToken }
+    if ($SkipAccountSeeding) {
+        Write-Status 'Test users' 'SKIPPED — requested by -SkipAccountSeeding' Yellow
+    } elseif ($Mode -eq 'Presentation' -and $Database -eq 'SQLite') {
+        Write-Status 'Test users' 'SKIPPED — the separate Offline Demo has its own seeded personas; Real SQLite provisions only the OIDC owner' Yellow
+    } else {
+        Ensure-LocalTestAccounts $localAdminToken $adminToken
+    }
     Save-State
 }
 function Ensure-LocalTestAccounts([string]$OwnerToken, [string]$AdminToken) {
