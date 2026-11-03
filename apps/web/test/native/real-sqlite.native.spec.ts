@@ -27,8 +27,8 @@ test('SQLite mode: local-authenticated Real UI, API write/readback and durable S
     if (url.port === '8081' || url.pathname.includes('/realms/education')) keycloakRequests.push(url.origin + url.pathname)
   })
 
-  const anonymous = await request.get(frontend + '/api/v1/me')
-  expect(anonymous.status()).toBe(401)
+  const directBackendAnonymous = await request.get('http://127.0.0.1:8080/api/v1/me')
+  expect(directBackendAnonymous.status()).toBe(401)
   const identityPromise = page.waitForResponse(response => {
     const url = new URL(response.url())
     return url.origin === frontend && url.pathname === '/api/v1/me' && response.request().method() === 'GET'
@@ -37,8 +37,7 @@ test('SQLite mode: local-authenticated Real UI, API write/readback and durable S
   const identityResponse = await identityPromise
   expect(identityResponse.status()).toBe(200)
   const identityHeaders = await identityResponse.request().allHeaders()
-  expect(typeof identityHeaders['x-uep-local-auth']).toBe('string')
-  expect(identityHeaders['x-uep-local-auth'].length).toBeGreaterThan(20)
+  expect(identityHeaders['x-uep-local-auth']).toBeUndefined()
   expect(identityHeaders.authorization).toBeUndefined()
   const identity = await identityResponse.json() as CurrentIdentity
   expect(identity.oidcSubject).toBe('uep-local-demo-owner')
