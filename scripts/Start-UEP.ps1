@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Demo', 'Real', 'Both', 'Presentation')]
-    [string]$Mode = 'Both',
+    [string]$Mode = 'Presentation',
     [ValidateSet('SQLite', 'PostgreSQL')]
     [string]$Database = 'SQLite',
     [switch]$NoBrowser,
@@ -26,7 +26,6 @@ $PostgresClientMajor = $null
 $Psql = $null
 $PgIsReady = $null
 $MavenCmd = $null
-$KeycloakHome = $null
 $LocalAuthToken = $null
 $LocalAuthSessionId = $null
 $LocalAuthExpiresAt = $null
@@ -37,17 +36,20 @@ function Show-RequirementInventory {
     $requiredFiles = @(
         @{ Name='Frontend package'; Path=(Join-Path $WebDir 'package.json') },
         @{ Name='Frontend lockfile'; Path=(Join-Path $WebDir 'package-lock.json') },
-        @{ Name='Frontend Vite entry'; Path=(Join-Path $WebDir 'vite.config.ts') },
-        @{ Name='Backend Maven project'; Path=(Join-Path $ApiDir 'pom.xml') },
-        @{ Name='Backend application'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\PlatformServerApplication.java') },
-        @{ Name='Database migration runner'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\DatabaseMigrationRunner.java') },
-        @{ Name='Database migrations'; Path=(Join-Path $ApiDir 'src\main\resources\db\migration') },
-        @{ Name='SQLite local profile'; Path=(Join-Path $ApiDir 'src\main\resources\application-local-sqlite.yaml') },
-        @{ Name='Local native authentication profile'; Path=(Join-Path $ApiDir 'src\main\resources\application-local-native.yaml') },
-        @{ Name='Local API documentation configuration'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\LocalApiDocumentationConfiguration.java') },
-        @{ Name='Local OIDC decoder guard'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\security\LocalNativeJwtDecoderConfiguration.java') }
-
+        @{ Name='Frontend Vite entry'; Path=(Join-Path $WebDir 'vite.config.ts') }
     )
+    if ($Mode -ne 'Demo') {
+        $requiredFiles += @(
+            @{ Name='Backend Maven project'; Path=(Join-Path $ApiDir 'pom.xml') },
+            @{ Name='Backend application'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\PlatformServerApplication.java') },
+            @{ Name='Database migration runner'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\DatabaseMigrationRunner.java') },
+            @{ Name='Database migrations'; Path=(Join-Path $ApiDir 'src\main\resources\db\migration') },
+            @{ Name='SQLite local profile'; Path=(Join-Path $ApiDir 'src\main\resources\application-local-sqlite.yaml') },
+            @{ Name='Local native authentication profile'; Path=(Join-Path $ApiDir 'src\main\resources\application-local-native.yaml') },
+            @{ Name='Local API documentation configuration'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\LocalApiDocumentationConfiguration.java') },
+            @{ Name='Local OIDC decoder guard'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\security\LocalNativeJwtDecoderConfiguration.java') }
+        )
+    }
     foreach ($item in $requiredFiles) {
         if (Test-Path -LiteralPath $item.Path) {
             Write-Status $item.Name 'PRESENT' Green
@@ -375,30 +377,6 @@ function Ensure-Postgres {
     if (-not $ready) { throw 'PostgreSQL is not accepting connections on 127.0.0.1:5432.' }
     Write-Status 'PostgreSQL' 'OK — localhost:5432' Green
 }
-function Ensure-Keycloak {
-    $keycloakInstallDir = Join-Path $ToolDir 'keycloak-26.7.5'
-    $kcBat = Join-Path $keycloakInstallDir 'bin\kc.bat'
-    if (-not (Test-Path $kcBat)) {
-        Protect-Directory $ToolDir
-        $zip = Join-Path $ToolDir 'keycloak-26.7.5.zip'
-        $url = 'https://github.com/keycloak/keycloak/releases/download/26.7.5/keycloak-26.7.5.zip'
-        $expected = '30ef87fb7101c43d29688d1ae80c0588ff4a151b3330e9f664bf9692d398658a'
-        Write-Host 'Downloading Keycloak 26.7.5...' -ForegroundColor Yellow
-        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
-        $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-        if ($actual -ne $expected) { Remove-Item $zip -Force; throw 'Keycloak SHA-256 verification failed.' }
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $ToolDir)
-    }
-    if (-not (Test-Path $kcBat)) { throw 'Keycloak 26.7.5 could not be extracted.' }
-    $realmSource = Join-Path $RepoRoot 'infra\keycloak\education-realm.json'
-    if (-not (Test-Path $realmSource)) { throw 'The tracked education Keycloak realm file is missing.' }
-    $importDir = Join-Path $keycloakInstallDir 'data\import'
-    New-Item -ItemType Directory -Path $importDir -Force | Out-Null
-    Copy-Item -LiteralPath $realmSource -Destination (Join-Path $importDir 'education-realm.json') -Force
-    $script:KeycloakHome = $keycloakInstallDir
-    Write-Status 'Keycloak' 'OK — 26.7.5, realm import prepared' Green
-}
 function Invoke-Psql([string]$User, [string]$Password, [string]$Database, [string]$Sql, [string]$File = '') {
     $previous = $env:PGPASSWORD
     $env:PGPASSWORD = $Password
@@ -412,7 +390,6 @@ function Initialize-LocalState {
     Protect-Directory $StateDir
     if (Test-Path $StateFile) {
         $script:State = Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
-        if (-not $State.TestAccounts) { $State | Add-Member -NotePropertyName TestAccounts -NotePropertyValue @() -Force }
         if (-not ($State.PSObject.Properties.Name -contains 'DatabaseProvider')) {
             $State | Add-Member -NotePropertyName DatabaseProvider -NotePropertyValue 'PostgreSQL' -Force
         }
@@ -438,7 +415,6 @@ function Initialize-LocalState {
             Write-Status 'Local state' ("Reinitializing database-specific tenant identity because " + $reason + '; preserving local credentials and database files') Yellow
             $State.TenantId = ''
             $State.LocalAdminUserId = ''
-            $State.TestAccounts = @()
         }
         $State.DatabaseProvider = $Database
         if ($Database -eq 'SQLite') { $State.SQLiteDatabasePath = $sqlitePath }
@@ -451,18 +427,10 @@ function Initialize-LocalState {
         DatabaseName = 'uep_local_native'
         MigrationUser = 'uep_local_migrator'
         RuntimeUser = 'uep_local_runtime'
-        KeycloakUser = 'uep_local_keycloak'
         MigrationPassword = New-RandomSecret
         RuntimePassword = New-RandomSecret
-        KeycloakPassword = New-RandomSecret
-        KeycloakAdminUser = 'uep-local-bootstrap-admin'
-        KeycloakAdminPassword = New-RandomSecret
-        LocalAdminUsername = 'uep-local-admin'
-        LocalAdminPassword = New-RandomSecret
-        LocalBootstrapClient = 'uep-local-bootstrap'
         TenantId = ''
         LocalAdminUserId = ''
-        TestAccounts = @()
     }
     Save-State
 }
@@ -519,30 +487,18 @@ BEGIN
   ELSE
     EXECUTE format('ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD %L', '__RUNTIME_USER__', '__RUNTIME_PASSWORD__');
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '__KEYCLOAK_USER__') THEN
-    EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD %L', '__KEYCLOAK_USER__', '__KEYCLOAK_PASSWORD__');
-  ELSE
-    EXECUTE format('ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD %L', '__KEYCLOAK_USER__', '__KEYCLOAK_PASSWORD__');
-  END IF;
 END
 $uep_local_roles$;
 '@
         $roleSql = $roleSql.Replace('__MIGRATION_USER__', $State.MigrationUser).Replace('__MIGRATION_PASSWORD__', $State.MigrationPassword)
         $roleSql = $roleSql.Replace('__RUNTIME_USER__', $State.RuntimeUser).Replace('__RUNTIME_PASSWORD__', $State.RuntimePassword)
-        $roleSql = $roleSql.Replace('__KEYCLOAK_USER__', $State.KeycloakUser).Replace('__KEYCLOAK_PASSWORD__', $State.KeycloakPassword)
         $roleSql | Set-Content -LiteralPath $rolesFile -Encoding ASCII
         Protect-File $rolesFile
         Protect-Directory $LocalDir
         Invoke-Psql 'postgres' $adminPassword 'postgres' '' $rolesFile
         $exists = Invoke-Psql 'postgres' $adminPassword 'postgres' "SELECT 1 FROM pg_database WHERE datname = '$($State.DatabaseName)'"
         if (-not $exists) { Invoke-Psql 'postgres' $adminPassword 'postgres' ("CREATE DATABASE " + $State.DatabaseName + " OWNER " + $State.MigrationUser) }
-        Invoke-Psql 'postgres' $adminPassword $State.DatabaseName ("GRANT CONNECT ON DATABASE " + $State.DatabaseName + " TO " + $State.RuntimeUser + ", " + $State.KeycloakUser)
-        $schemaOwner = Invoke-Psql 'postgres' $adminPassword $State.DatabaseName "SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = 'keycloak'"
-        if (-not $schemaOwner) {
-            Invoke-Psql 'postgres' $adminPassword $State.DatabaseName ("CREATE SCHEMA keycloak AUTHORIZATION " + $State.KeycloakUser)
-        } elseif ($schemaOwner.Trim() -ne $State.KeycloakUser) {
-            throw "The local keycloak schema already exists but is owned by '$schemaOwner'. No ownership changes were made."
-        }
+        Invoke-Psql 'postgres' $adminPassword $State.DatabaseName ("GRANT CONNECT ON DATABASE " + $State.DatabaseName + " TO " + $State.RuntimeUser)
         Save-State
         $adminPassword = $null
         Remove-Item $rolesFile -Force -ErrorAction SilentlyContinue
@@ -593,331 +549,32 @@ function Write-CommandFile([string]$Name, [string[]]$Lines) {
     Protect-File $path
     return $path
 }
-function Wait-ForHttp([string]$Url, [int]$TimeoutSeconds = 120, [string]$Name = 'service') {
+function Wait-ForHttp([string]$Url, [int]$TimeoutSeconds = 120, [string]$Name = 'service', [string]$ProcessName = '') {
+    $managedName = if ([string]::IsNullOrWhiteSpace($ProcessName)) { $Name } else { $ProcessName }
+    $managedEntry = $script:Processes | Where-Object { $_.Name -eq $managedName } | Select-Object -Last 1
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
+        if ($managedEntry) {
+            $managedProcess = Get-Process -Id $managedEntry.ProcessId -ErrorAction SilentlyContinue
+            if (-not $managedProcess) {
+                Write-Status $Name ("FAILED — managed process '" + $managedName + "' exited before readiness") Red
+                if (Test-Path $managedEntry.Log) { Get-Content $managedEntry.Log -Tail 100 }
+                if (Test-Path $managedEntry.ErrorLog) { Get-Content $managedEntry.ErrorLog -Tail 60 }
+                return $false
+            }
+        }
         try {
             $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 4
             if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) { return $true }
         } catch {}
         Start-Sleep -Seconds 2
     }
-    foreach ($entry in $script:Processes) {
-        if ($entry.Name -eq $Name -and (Test-Path $entry.Log)) {
-            Write-Host ("Last log lines for " + $Name + ":") -ForegroundColor Red
-            Get-Content $entry.Log -Tail 80
-            if (Test-Path $entry.ErrorLog) { Get-Content $entry.ErrorLog -Tail 40 }
-        }
+    if ($managedEntry) {
+        Write-Host ("Last log lines for " + $managedName + " (readiness target: " + $Name + "):") -ForegroundColor Red
+        if (Test-Path $managedEntry.Log) { Get-Content $managedEntry.Log -Tail 100 }
+        if (Test-Path $managedEntry.ErrorLog) { Get-Content $managedEntry.ErrorLog -Tail 60 }
     }
     return $false
-}
-function Get-KeycloakAdminToken {
-    $body = @{ grant_type = 'password'; client_id = 'admin-cli'; username = $State.KeycloakAdminUser; password = $State.KeycloakAdminPassword }
-    $response = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8081/realms/master/protocol/openid-connect/token' -ContentType 'application/x-www-form-urlencoded' -Body $body
-    return $response.access_token
-}
-function Invoke-KeycloakAdmin([string]$Method, [string]$Path, [string]$Token, $Body = $null) {
-    $params = @{ Method = $Method; Uri = ('http://127.0.0.1:8081' + $Path); Headers = @{ Authorization = "Bearer $Token" }; TimeoutSec = 20 }
-    if ($null -ne $Body) { $params.ContentType = 'application/json'; $params.Body = ConvertTo-Json -InputObject $Body -Depth 20 }
-    return Invoke-RestMethod @params
-}
-function Get-LocalUser([string]$Username, [string]$AdminToken) {
-    $items = Invoke-KeycloakAdmin 'Get' ("/admin/realms/education/users?username=$([uri]::EscapeDataString($Username))&exact=true") $AdminToken
-    if ($items -and $items.Count -gt 0) { return $items[0] }
-    return $null
-}
-function Ensure-KeycloakUser([string]$Username, [string]$Email, [string]$FirstName, [string]$LastName, [string]$Password, [string]$TenantId, [string]$AdminToken) {
-    $user = Get-LocalUser $Username $AdminToken
-    if (-not $user) {
-        $attributes = @{}
-        if (-not [string]::IsNullOrWhiteSpace($TenantId)) { $attributes.tenant_id = @($TenantId) }
-        $representation = @{ username = $Username; email = $Email; emailVerified = $true; enabled = $true; firstName = $FirstName; lastName = $LastName; attributes = $attributes }
-        Invoke-KeycloakAdmin 'Post' '/admin/realms/education/users' $AdminToken $representation | Out-Null
-        $user = Get-LocalUser $Username $AdminToken
-        if (-not $user) { throw "Keycloak did not create the local test user '$Username'." }
-    } else {
-        $attributesProperty = $user.PSObject.Properties['attributes']
-        if ($null -eq $attributesProperty -or $null -eq $attributesProperty.Value) {
-            $user | Add-Member -NotePropertyName attributes -NotePropertyValue ([pscustomobject]@{}) -Force
-        }
-        if (-not [string]::IsNullOrWhiteSpace($TenantId)) {
-            $tenantAttributeProperty = $user.attributes.PSObject.Properties['tenant_id']
-            if ($null -eq $tenantAttributeProperty) {
-                $user.attributes | Add-Member -NotePropertyName tenant_id -NotePropertyValue @() -Force
-            }
-            $user.attributes.tenant_id = @($TenantId)
-        }
-        $user.enabled = $true
-        Invoke-KeycloakAdmin 'Put' ("/admin/realms/education/users/" + $user.id) $AdminToken $user | Out-Null
-    }
-    $passwordBody = @{ type = 'password'; value = $Password; temporary = $false }
-    Invoke-KeycloakAdmin 'Put' ("/admin/realms/education/users/" + $user.id + '/reset-password') $AdminToken $passwordBody | Out-Null
-    return $user
-}
-function Get-UserToken([string]$Username, [string]$Password) {
-    $body = @{ grant_type = 'password'; client_id = $State.LocalBootstrapClient; username = $Username; password = $Password; scope = 'openid profile email' }
-    $response = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8081/realms/education/protocol/openid-connect/token' -ContentType 'application/x-www-form-urlencoded' -Body $body
-    return $response.access_token
-}
-function Assert-TenantTokenContext([string]$Token, [string]$ExpectedTenantId) {
-    $segments = $Token.Split('.')
-    if ($segments.Count -ne 3) { throw 'Keycloak returned a token that is not a compact JWT.' }
-    $payload = $segments[1].Replace('-', '+').Replace('_', '/')
-    switch ($payload.Length % 4) {
-        2 { $payload += '==' }
-        3 { $payload += '=' }
-        1 { throw 'Keycloak returned a JWT with an invalid payload encoding.' }
-    }
-    $claims = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payload)) | ConvertFrom-Json
-    $tenantClaim = $claims.PSObject.Properties['tenant_id']
-    if ($null -eq $tenantClaim -or $tenantClaim.Value -isnot [string]) {
-        $claimType = if ($null -eq $tenantClaim) { 'missing' } else { $tenantClaim.Value.GetType().FullName }
-        $claimNames = ($claims.PSObject.Properties.Name | Sort-Object) -join ', '
-        throw "Local bootstrap token tenant_id must be a scalar JSON string; received $claimType. Claims returned: $claimNames. Check the uep-local-bootstrap user attribute and client protocol mapper."
-    }
-    if ($tenantClaim.Value -ne $ExpectedTenantId) {
-        throw "Local bootstrap token tenant_id '$($tenantClaim.Value)' does not match the expected tenant '$ExpectedTenantId'. Check the uep-local-bootstrap Keycloak user attribute."
-    }
-}
-function Invoke-Api([string]$Method, [string]$Path, [string]$Token, $Body = $null) {
-    $params = @{ Method = $Method; Uri = ('http://127.0.0.1:8080' + $Path); Headers = @{ Authorization = "Bearer $Token"; Accept = 'application/json' }; TimeoutSec = 30 }
-    if ($null -ne $Body) { $params.ContentType = 'application/json'; $params.Body = ConvertTo-Json -InputObject $Body -Depth 20 }
-    try {
-        return Invoke-RestMethod @params
-    } catch {
-        $statusCode = $null
-        $responseBody = $null
-        if ($null -ne $_.Exception.Response) {
-            try { $statusCode = [int]$_.Exception.Response.StatusCode } catch {}
-            try {
-                $stream = $_.Exception.Response.GetResponseStream()
-                if ($null -ne $stream) {
-                    $reader = [System.IO.StreamReader]::new($stream)
-                    try { $responseBody = $reader.ReadToEnd() } finally { $reader.Dispose() }
-                }
-            } catch {}
-        }
-        $detail = if ($responseBody) { $responseBody } else { $_.Exception.Message }
-        throw "UEP API $Method $Path failed (HTTP $statusCode): $detail"
-    }
-}
-function Ensure-RealIdentity {
-    Write-Section 'Keycloak local realm and owner bootstrap'
-    $adminToken = Get-KeycloakAdminToken
-    $tenantIdMapper = @{
-        name = 'tenant-id'
-        protocol = 'openid-connect'
-        protocolMapper = 'oidc-usermodel-attribute-mapper'
-        consentRequired = $false
-        config = @{
-            'user.attribute' = 'tenant_id'
-            'claim.name' = 'tenant_id'
-            'jsonType.label' = 'String'
-            'multivalued' = 'false'
-            'aggregate.attrs' = 'false'
-            'id.token.claim' = 'true'
-            'access.token.claim' = 'true'
-            'userinfo.token.claim' = 'true'
-        }
-    }
-    $clients = Invoke-KeycloakAdmin 'Get' ("/admin/realms/education/clients?clientId=" + [uri]::EscapeDataString($State.LocalBootstrapClient)) $adminToken
-    $bootstrapClient = $clients | Select-Object -First 1
-    if (-not $bootstrapClient) {
-        $client = @{
-            clientId = $State.LocalBootstrapClient
-            name = 'Local-only UEP bootstrap helper'
-            enabled = $true
-            publicClient = $true
-            standardFlowEnabled = $false
-            implicitFlowEnabled = $false
-            directAccessGrantsEnabled = $true
-            serviceAccountsEnabled = $false
-            protocol = 'openid-connect'
-            protocolMappers = @($tenantIdMapper)
-        }
-        Invoke-KeycloakAdmin 'Post' '/admin/realms/education/clients' $adminToken $client | Out-Null
-        $clients = Invoke-KeycloakAdmin 'Get' ("/admin/realms/education/clients?clientId=" + [uri]::EscapeDataString($State.LocalBootstrapClient)) $adminToken
-        $bootstrapClient = $clients | Select-Object -First 1
-    }
-    if (-not $bootstrapClient -or -not $bootstrapClient.id) {
-        throw 'Keycloak did not return the local bootstrap client identifier.'
-    }
-    $bootstrapMappers = Invoke-KeycloakAdmin 'Get' ("/admin/realms/education/clients/" + $bootstrapClient.id + '/protocol-mappers/models') $adminToken
-    $existingTenantMapper = $bootstrapMappers | Where-Object { $_.name -eq 'tenant-id' } | Select-Object -First 1
-    if (-not $existingTenantMapper) {
-        Invoke-KeycloakAdmin 'Post' ("/admin/realms/education/clients/" + $bootstrapClient.id + '/protocol-mappers/models') $adminToken $tenantIdMapper | Out-Null
-    } elseif ($existingTenantMapper.config.'user.attribute' -ne 'tenant_id' -or
-              $existingTenantMapper.config.'claim.name' -ne 'tenant_id' -or
-              $existingTenantMapper.config.'access.token.claim' -ne 'true' -or
-              $existingTenantMapper.config.'multivalued' -ne 'false') {
-        $tenantIdMapper.id = $existingTenantMapper.id
-        Invoke-KeycloakAdmin 'Put' ("/admin/realms/education/clients/" + $bootstrapClient.id + '/protocol-mappers/models/' + $existingTenantMapper.id) $adminToken $tenantIdMapper | Out-Null
-    }
-    $realmRole = Invoke-KeycloakAdmin 'Get' '/admin/realms/education/roles/platform_super_admin' $adminToken
-    $localAdmin = Ensure-KeycloakUser $State.LocalAdminUsername 'admin@local.uep' 'UEP' 'Local Administrator' $State.LocalAdminPassword $State.TenantId $adminToken
-    $State.LocalAdminUserId = $localAdmin.id
-    $mappings = Invoke-KeycloakAdmin 'Get' ("/admin/realms/education/users/" + $localAdmin.id + '/role-mappings/realm') $adminToken
-    if (-not ($mappings | Where-Object { $_.name -eq 'platform_super_admin' })) {
-        Invoke-KeycloakAdmin 'Post' ("/admin/realms/education/users/" + $localAdmin.id + '/role-mappings/realm') $adminToken @($realmRole) | Out-Null
-    }
-    Save-State
-    $localAdminToken = Get-UserToken $State.LocalAdminUsername $State.LocalAdminPassword
-    if (-not $State.TenantId) {
-        $tenant = Invoke-Api 'Post' '/api/v1/tenants' $localAdminToken @{ slug = 'uep-local'; displayName = 'UEP Local Test Institution'; subscriptionTier = 'free' }
-        $tenantIdProperty = if ($null -ne $tenant) { $tenant.PSObject.Properties['id'] } else { $null }
-        if ($null -eq $tenantIdProperty -or [string]::IsNullOrWhiteSpace([string]$tenantIdProperty.Value)) {
-            throw 'Tenant bootstrap API response did not include the required id field. Verify the tenant response DTO and backend logs.'
-        }
-        $State.TenantId = [string]$tenantIdProperty.Value
-        # Mark the tenant record as a local development environment, not a hosted Fly deployment.
-        Invoke-Api 'Patch' ("/api/v1/tenants/" + $State.TenantId + '/deployment?platform=local&status=active') $localAdminToken | Out-Null
-        Save-State
-    }
-    $localAdmin = Ensure-KeycloakUser $State.LocalAdminUsername 'admin@local.uep' 'UEP' 'Local Administrator' $State.LocalAdminPassword $State.TenantId $adminToken
-    $State.LocalAdminUserId = $localAdmin.id
-    Save-State
-    $verifiedLocalAdmin = Get-LocalUser $State.LocalAdminUsername $adminToken
-    $tenantAttributeProperty = if ($null -ne $verifiedLocalAdmin -and $null -ne $verifiedLocalAdmin.attributes) { $verifiedLocalAdmin.attributes.PSObject.Properties['tenant_id'] } else { $null }
-    $tenantAttributeValues = if ($null -ne $tenantAttributeProperty) { @($tenantAttributeProperty.Value | ForEach-Object { [string]$_ }) } else { @() }
-    if (-not ($tenantAttributeValues -contains $State.TenantId)) {
-        throw 'Keycloak did not persist the local owner tenant_id user attribute. The local owner was not issued an API bootstrap token.'
-    }
-    $verifiedBootstrapMappers = Invoke-KeycloakAdmin 'Get' ("/admin/realms/education/clients/" + $bootstrapClient.id + '/protocol-mappers/models') $adminToken
-    $verifiedTenantMapper = $verifiedBootstrapMappers | Where-Object { $_.name -eq 'tenant-id' } | Select-Object -First 1
-    if (-not $verifiedTenantMapper -or $verifiedTenantMapper.config.'user.attribute' -ne 'tenant_id' -or
-        $verifiedTenantMapper.config.'claim.name' -ne 'tenant_id' -or $verifiedTenantMapper.config.'access.token.claim' -ne 'true' -or
-        $verifiedTenantMapper.config.'multivalued' -ne 'false') {
-        throw 'The local bootstrap client is missing the required scalar tenant_id access-token mapper.'
-    }
-    $localAdminToken = Get-UserToken $State.LocalAdminUsername $State.LocalAdminPassword
-    Assert-TenantTokenContext $localAdminToken $State.TenantId
-    $current = $null
-    try { $current = Invoke-Api 'Get' '/api/v1/me' $localAdminToken } catch {}
-    if (-not $current) {
-        Invoke-Api 'Post' '/api/v1/identity/bootstrap-owner' $localAdminToken @{ subject = $localAdmin.id; email = 'admin@local.uep'; displayName = 'UEP Local Administrator'; roleIds = @() } | Out-Null
-        $localAdminToken = Get-UserToken $State.LocalAdminUsername $State.LocalAdminPassword
-        $current = Invoke-Api 'Get' '/api/v1/me' $localAdminToken
-    }
-    Write-Status 'Identity' ("OK — Keycloak OIDC, tenant " + $State.TenantId + ', owner membership active') Green
-    if ($SkipAccountSeeding) {
-        Write-Status 'Test users' 'SKIPPED — requested by -SkipAccountSeeding' Yellow
-    } elseif ($Database -eq 'SQLite') {
-        if ($Mode -in @('Both', 'Presentation')) {
-            Write-Status 'Test users' 'SKIPPED — SQLite qualification provisions only the Real UEP OIDC owner; the separate Offline Demo has its own seeded browser personas' Yellow
-        } else {
-            Write-Status 'Test users' 'SKIPPED — SQLite qualification provisions only the Real UEP OIDC owner; additional backend personas require separate SQLite validation' Yellow
-        }
-    } else {
-        Ensure-LocalTestAccounts $localAdminToken $adminToken
-    }
-    Save-State
-}
-function Ensure-LocalTestAccounts([string]$OwnerToken, [string]$AdminToken) {
-    $rolePage = Invoke-Api 'Get' '/api/v1/identity/roles?size=100' $OwnerToken
-    $roles = @{}
-    foreach ($role in $rolePage.items) { if ($role.systemKey) { $roles[[string]$role.systemKey] = $role } }
-    $developerRole = $rolePage.items | Where-Object { $_.name -eq 'Product Developer (Local Test)' } | Select-Object -First 1
-    if (-not $developerRole) {
-        $developerRole = Invoke-Api 'Post' '/api/v1/identity/roles' $OwnerToken @{
-            name = 'Product Developer (Local Test)'
-            description = 'Read-only local testing persona for product and integration operations.'
-            permissions = @('API_VIEW', 'WEBHOOKS_VIEW', 'OPERATIONS_VIEW', 'AUDIT_VIEW', 'INTEROPERABILITY_VIEW', 'FEDERATION_VIEW')
-            expectedVersion = 0
-        }
-    }
-
-    $branches = Invoke-Api 'Get' '/api/v1/organization/branches?size=100' $OwnerToken
-    $testBranch = $branches.items | Where-Object { $_.code -eq 'NATIVE-LOCAL' } | Select-Object -First 1
-    if (-not $testBranch) {
-        $testBranch = Invoke-Api 'Post' '/api/v1/organization/branches' $OwnerToken @{
-            code = 'NATIVE-LOCAL'
-            displayName = 'UEP Native Local Test Branch'
-            timezone = 'Asia/Kolkata'
-        }
-    }
-
-    $existingMemberships = Invoke-Api 'Get' '/api/v1/identity/memberships?size=100' $OwnerToken
-    $personas = @(
-        @{ Key='student'; Username='uep-student'; Email='student@local.uep'; Name='Asha Sharma'; Role='STUDENT' },
-        @{ Key='teacher'; Username='uep-teacher'; Email='teacher@local.uep'; Name='Rahul Deshmukh'; Role='TEACHER' },
-        @{ Key='client'; Username='uep-client'; Email='client@local.uep'; Name='Priya Kulkarni'; Role='ORGANIZATION_ADMINISTRATOR' },
-        @{ Key='developer'; Username='uep-developer'; Email='developer@local.uep'; Name='Dev Patel'; Role='CUSTOM' },
-        @{ Key='admin'; Username='uep-branch-admin'; Email='branch-admin@local.uep'; Name='Morgan Admin'; Role='BRANCH_ADMINISTRATOR' },
-        @{ Key='guardian'; Username='uep-guardian'; Email='guardian@local.uep'; Name='Nina Sharma'; Role='GUARDIAN' },
-        @{ Key='exam-controller'; Username='uep-exam-controller'; Email='exam-controller@local.uep'; Name='Aarav Shah'; Role='EXAM_CONTROLLER' },
-        @{ Key='finance-admin'; Username='uep-finance-admin'; Email='finance-admin@local.uep'; Name='Anaya Joshi'; Role='FINANCE_ADMINISTRATOR' },
-        @{ Key='teaching-assistant'; Username='uep-teaching-assistant'; Email='teaching-assistant@local.uep'; Name='Ishaan Patil'; Role='TEACHING_ASSISTANT' },
-        @{ Key='evaluator'; Username='uep-evaluator'; Email='evaluator@local.uep'; Name='Sara Khan'; Role='EVALUATOR' },
-        @{ Key='mentor'; Username='uep-mentor'; Email='mentor@local.uep'; Name='Rohan Mehta'; Role='MENTOR' },
-        @{ Key='support'; Username='uep-support'; Email='support@local.uep'; Name='Alex Support'; Role='SUPPORT_OPERATOR' },
-        @{ Key='auditor'; Username='uep-auditor'; Email='auditor@local.uep'; Name='Jordan Audit'; Role='AUDITOR' }
-    )
-    foreach ($persona in $personas) {
-        $account = $State.TestAccounts | Where-Object { $_.key -eq $persona.Key } | Select-Object -First 1
-        if (-not $account) {
-            $account = [pscustomobject]@{ key = $persona.Key; username = $persona.Username; email = $persona.Email; password = (New-RandomSecret) }
-            $State.TestAccounts = @($State.TestAccounts) + @($account)
-            Save-State
-        }
-        $nameParts = $persona.Name.Split(' ', 2)
-        $user = Ensure-KeycloakUser $persona.Username $persona.Email $nameParts[0] $nameParts[-1] $account.password $State.TenantId $AdminToken
-        $membership = $existingMemberships.items | Where-Object { $_.oidcSubject -eq $user.id } | Select-Object -First 1
-
-        if ($persona.Role -eq 'CUSTOM') {
-            $roleId = $developerRole.id
-        } else {
-            if (-not $roles.ContainsKey($persona.Role)) {
-                throw "Required system role '$($persona.Role)' was not returned by the backend."
-            }
-            $roleId = $roles[$persona.Role].id
-        }
-
-        if (-not $membership) {
-            $primaryBranchId = if ($persona.Role -eq 'BRANCH_ADMINISTRATOR') { $testBranch.id } else { $null }
-            $initialRoleIds = if ($persona.Role -eq 'BRANCH_ADMINISTRATOR') { @() } else { @($roleId) }
-            Invoke-Api 'Post' '/api/v1/identity/memberships' $OwnerToken @{
-                subject = $user.id
-                email = $persona.Email
-                displayName = $persona.Name
-                primaryBranchId = $primaryBranchId
-                roleIds = $initialRoleIds
-            } | Out-Null
-            $existingMemberships = Invoke-Api 'Get' '/api/v1/identity/memberships?size=100' $OwnerToken
-            $membership = $existingMemberships.items | Where-Object { $_.oidcSubject -eq $user.id } | Select-Object -First 1
-        }
-
-        if ($persona.Role -eq 'BRANCH_ADMINISTRATOR') {
-            $membership = Invoke-Api 'Get' ("/api/v1/identity/memberships/" + $membership.membershipId) $OwnerToken
-            if ($membership.primaryBranchId -ne $testBranch.id) {
-                Invoke-Api 'Patch' ("/api/v1/identity/memberships/" + $membership.membershipId) $OwnerToken @{
-                    status = $membership.membershipStatus
-                    primaryBranchId = $testBranch.id
-                    externalReference = $membership.externalReference
-                    expectedVersion = $membership.version
-                } | Out-Null
-            }
-            $assignments = Invoke-Api 'Get' ("/api/v1/identity/roles/memberships/" + $membership.membershipId + '?size=100') $OwnerToken
-            $correct = $assignments.items | Where-Object {
-                $_.roleId -eq $roleId -and $_.scopeKind -eq 'BRANCH' -and $_.scopeId -eq $testBranch.id
-            } | Select-Object -First 1
-            if (-not $correct) {
-                $tenantScoped = $assignments.items | Where-Object {
-                    $_.roleId -eq $roleId -and $_.scopeKind -eq 'TENANT'
-                }
-                foreach ($wrongScope in $tenantScoped) {
-                    Invoke-Api 'Delete' ("/api/v1/identity/roles/assignments/" + $wrongScope.id) $OwnerToken | Out-Null
-                }
-                Invoke-Api 'Post' '/api/v1/identity/roles/assignments' $OwnerToken @{
-                    membershipId = $membership.membershipId
-                    roleId = $roleId
-                    scopeKind = 'BRANCH'
-                    scopeId = $testBranch.id
-                } | Out-Null
-            }
-        }
-    }
-    Save-State
-    Write-Status 'Test users' 'OK — 13 tenant-scoped OIDC users; Branch Administrator is branch-scoped' Green
 }
 function Test-PortAvailable([int]$Port) {
     $listener = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -941,11 +598,10 @@ function Stop-ManagedProcesses {
     Write-Host 'UEP application processes stopped. Database files and local accounts were preserved.' -ForegroundColor Cyan
 }
 function Test-LocalApiProxy {
-    $headers = @{ 'X-UEP-Local-Auth' = $script:LocalAuthToken }
     try {
-        $identity = Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:5173/api/v1/me' -Headers $headers -TimeoutSec 15
+        $identity = Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:5173/api/v1/me' -TimeoutSec 15
     } catch {
-        throw "Real Vite API proxy failed its authenticated /api/v1/me check. Verify the local-native profile, Backend log and Vite /api proxy. $($_.Exception.Message)"
+        throw "Real Vite API proxy failed its server-side authenticated /api/v1/me check. Verify UEP_LOCAL_AUTH_TOKEN in the protected Vite process, the local-native profile, Backend log and Vite /api proxy. $($_.Exception.Message)"
     }
     if ([string]$identity.oidcSubject -ne 'uep-local-demo-owner' -or
         [string]$identity.membershipStatus -ne 'ACTIVE' -or
@@ -953,11 +609,19 @@ function Test-LocalApiProxy {
         [string]::IsNullOrWhiteSpace([string]$identity.tenantId)) {
         throw 'The authenticated Vite proxy response did not contain the persisted active local owner identity, tenant and Organization Owner role.'
     }
+    try {
+        Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:8080/api/v1/me' -TimeoutSec 10 | Out-Null
+        throw 'The backend accepted /api/v1/me without the local proxy credential; refusing to report a secure local session.'
+    } catch {
+        $statusCode = $null
+        if ($_.Exception.Response) { try { $statusCode = [int]$_.Exception.Response.StatusCode } catch {} }
+        if ($statusCode -ne 401) { throw "Direct backend access without the proxy credential did not return HTTP 401 (received '$statusCode'). $($_.Exception.Message)" }
+    }
     if ([string]$State.TenantId -ne [string]$identity.tenantId) {
         $State.TenantId = [string]$identity.tenantId
         Save-State
     }
-    Write-Status 'Vite API proxy' 'PASS — authenticated /api/v1/me returned the persisted owner, tenant and role' Green
+    Write-Status 'Vite API proxy' 'PASS — Vite injected the local token server-side; direct unauthenticated API returned HTTP 401' Green
 }
 function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$DemoPort = 5174) {
     if ($RunReal) {
@@ -1047,7 +711,7 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
             '@echo off',
             'set VITE_LOCAL_MODE=false',
             'set VITE_LOCAL_API_MODE=true',
-            ('set VITE_LOCAL_API_AUTH_TOKEN=' + $script:LocalAuthToken),
+            ('set UEP_LOCAL_AUTH_TOKEN=' + $script:LocalAuthToken),
             'set VITE_BACKEND_URL=',
             ('set VITE_UEP_PRESENTATION_LABEL=REAL UEP - LOCAL ' + $Database.ToUpperInvariant()),
             'set VITE_KEYCLOAK_URL=',
@@ -1059,9 +723,12 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
         $frontFile = Write-CommandFile 'run-real-frontend' $frontLines
         Start-ManagedProcess 'Real frontend' $frontFile $WebDir
         if (-not (Wait-ForHttp 'http://127.0.0.1:5173' 90 'Real frontend')) { throw 'Real frontend did not become ready. Inspect .uep-local\logs\Real frontend.log.' }
-        if (-not (Wait-ForHttp 'http://127.0.0.1:5173/api/v1/platform/version' 90 'Vite API proxy')) { throw 'Real frontend is reachable, but /api/v1/platform/version did not pass through the Vite proxy as HTTP 2xx. Inspect Vite and Backend logs.' }
-        if (-not (Wait-ForHttp 'http://127.0.0.1:8080/swagger-ui/index.html' 60 'Backend Swagger UI')) { throw 'The backend is healthy but its local Swagger UI did not become available at /swagger-ui/index.html. Inspect Backend.log.' }
-        if (-not (Wait-ForHttp 'http://127.0.0.1:8080/v3/api-docs' 60 'Backend OpenAPI document')) { throw 'The backend Swagger UI is present but its OpenAPI document is unavailable at /v3/api-docs.' }
+        if (-not (Wait-ForHttp 'http://127.0.0.1:5173/api/v1/platform/version' 90 'Vite API proxy' 'Real frontend')) { throw 'Real frontend is reachable, but /api/v1/platform/version did not pass through the Vite proxy as HTTP 2xx. Inspect Vite and Backend logs.' }
+        if (-not (Wait-ForHttp 'http://127.0.0.1:8080/swagger-ui/index.html' 60 'Backend Swagger UI' 'Backend')) { throw 'The backend is healthy but its local Swagger UI did not become available at /swagger-ui/index.html. Inspect Backend.log.' }
+        if (-not (Wait-ForHttp 'http://127.0.0.1:8080/v3/api-docs' 60 'Backend OpenAPI document' 'Backend')) { throw 'The backend Swagger UI is present but its OpenAPI document is unavailable at /v3/api-docs.' }
+        $openApi = Invoke-RestMethod -Uri 'http://127.0.0.1:8080/v3/api-docs' -TimeoutSec 15
+        if ($openApi.info.title -ne 'Universal Education Platform API') { throw 'The OpenAPI document did not contain the expected Universal Education Platform API title.' }
+        Write-Status 'OpenAPI' 'PASS — UEP API title verified' Green
         Test-LocalApiProxy
     }
     if ($RunDemo) {
@@ -1100,7 +767,7 @@ try {
         if ($Database -eq 'PostgreSQL') { Ensure-Postgres }
         Test-PortAvailable 8080
         Test-PortAvailable 5173
-        if ($Mode -in @('Both', 'Presentation')) { Test-PortAvailable 5174 }
+        Test-PortAvailable 5174
         Initialize-LocalState
         if ($Database -eq 'SQLite') {
             Initialize-LocalSqliteDatabase
@@ -1111,9 +778,15 @@ try {
         $script:LocalAuthSessionId = [guid]::NewGuid().ToString()
         $script:LocalAuthExpiresAt = [DateTime]::UtcNow.AddHours(12).ToString("yyyy-MM-ddTHH:mm:ss'Z'")
         Write-Status 'Identity' 'Created a new 12-hour loopback-only local API session' Green
+        if ($SkipAccountSeeding) {
+            Write-Status 'Test identities' 'SkipAccountSeeding is retained for compatibility; local-native provisions only the persisted owner' Yellow
+        } else {
+            Write-Status 'Test identities' 'No Keycloak/OIDC test users are created by the no-Keycloak local-native launcher' Yellow
+        }
         Write-RuntimeCommandFiles -RunReal -RunDemo:($Mode -in @('Both', 'Presentation'))
     } else {
         Test-PortAvailable 5173
+        Test-PortAvailable 5174
         Write-RuntimeCommandFiles -RunDemo -DemoPort 5173
     }
 
@@ -1161,19 +834,19 @@ try {
     Write-Host 'Press Ctrl+C to stop application processes. PostgreSQL is stopped only when this script started its Windows service.'
     while ($true) {
         if ($Mode -ne 'Demo') {
-            $db = 'DOWN'
-            if ($Database -eq 'SQLite') {
-                if ((Test-Path -LiteralPath $State.SQLiteDatabasePath -PathType Leaf) -and
-                    (Get-Item -LiteralPath $State.SQLiteDatabasePath).Length -gt 0) { $db = 'UP' }
-            } else {
-                try {
-                    $dbResult = Invoke-Psql $State.RuntimeUser $State.RuntimePassword $State.DatabaseName 'SELECT 1'
-                    if ($dbResult.Trim() -eq '1') { $db = 'UP' }
-                } catch {}
-            }
+            $db = 'DOWN — authenticated application read failed'
+            try {
+                $identity = Invoke-RestMethod -Uri 'http://127.0.0.1:5173/api/v1/me' -TimeoutSec 4
+                if ([string]$identity.oidcSubject -eq 'uep-local-demo-owner' -and
+                    [string]$identity.membershipStatus -eq 'ACTIVE' -and
+                    (@($identity.roles) -contains 'Organization Owner') -and
+                    -not [string]::IsNullOrWhiteSpace([string]$identity.tenantId)) {
+                    $db = 'UP — persisted owner/tenant identity read through the API'
+                }
+            } catch {}
             $api = 'DOWN'
             try { $health = Invoke-RestMethod -Uri 'http://127.0.0.1:8080/actuator/health' -TimeoutSec 3; $api = [string]$health.status } catch {}
-            Write-Status 'Database' $db $(if ($db -eq 'UP') { 'Green' } else { 'Red' })
+            Write-Status 'Database/API read' $db $(if ($db -like 'UP*') { 'Green' } else { 'Red' })
             Write-Status 'Identity' 'LOCAL DEV AUTH — loopback-only session' Green
             Write-Status 'Backend' $api $(if ($api -eq 'UP') { 'Green' } else { 'Red' })
         } else {
