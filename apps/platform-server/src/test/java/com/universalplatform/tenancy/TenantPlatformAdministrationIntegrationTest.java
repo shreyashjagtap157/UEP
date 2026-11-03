@@ -2,6 +2,8 @@ package com.universalplatform.tenancy;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
@@ -14,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
@@ -38,6 +41,24 @@ class TenantPlatformAdministrationIntegrationTest {
                         .with(jwt().jwt(token -> token.subject("platform-operator")
                                 .claim("realm_access", Map.of("roles", List.of("platform_super_admin"))))))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void platformSuperAdministratorReceivesTenantIdWhenCreatingTenant() throws Exception {
+        mvc.perform(post("/api/v1/tenants")
+                        .with(jwt().jwt(token -> token.subject("platform-operator")
+                                .claim("realm_access", Map.of("roles", List.of("platform_super_admin")))))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "slug": "tenant-create-response-test",
+                                  "displayName": "Tenant Create Response Test",
+                                  "subscriptionTier": "free"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isNotEmpty())
+                .andExpect(jsonPath("$.slug").value("tenant-create-response-test"));
     }
 
     @Test
