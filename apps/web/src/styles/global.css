@@ -2021,3 +2021,65 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   .session-chip { flex-wrap: wrap; border-radius: .8rem; }
   .workspace { padding: 1rem; }
 }
+
+/* Keep the polished two-column workspace usable on tablets and phones.
+   These final overrides intentionally follow the desktop polish rules so
+   the responsive shell is not overridden by the later base grid declaration. */
+@media (max-width: 820px) {
+  .app-frame {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sidebar {
+    position: static;
+    height: auto;
+    min-height: 0;
+    padding: 1rem;
+    gap: 1rem;
+  }
+  .product-title {
+    max-width: none;
+  }
+  .nav-list {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: .3rem;
+    scrollbar-width: thin;
+  }
+  .nav-item {
+    flex: 0 0 auto;
+    width: auto;
+    white-space: nowrap;
+  }
+  .sidebar-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .2rem 1rem;
+  }
+}
+@media (max-width: 560px) {
+  .sidebar {
+    padding: .85rem;
+  }
+  .workspace-header {
+    padding: .9rem;
+  }
+  .workspace-header-actions,
+  .session-chip {
+    width: 100%;
+  }
+  .session-chip {
+    align-items: flex-start;
+    border-radius: .8rem;
+  }
+  .session-chip .secondary-button {
+    min-height: 2.5rem;
+  }
+  .content-stack,
+  .metric-grid {
+    min-width: 0;
+  }
+  .metric-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
