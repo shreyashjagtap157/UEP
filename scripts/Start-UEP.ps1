@@ -186,12 +186,17 @@ function Ensure-Node {
             if (-not (Test-Command 'winget.exe')) { throw "Node.js $version is too old. Install Node.js 22.22.0 or later from https://nodejs.org/en/download, then reopen PowerShell." }
             Write-Host 'Upgrading Node.js to a supported LTS release...' -ForegroundColor Yellow
             & winget.exe upgrade --id 'OpenJS.NodeJS.LTS' --exact --source winget --accept-source-agreements --accept-package-agreements --silent --disable-interactivity
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host 'WinGet upgrade was unavailable; attempting a supported LTS installation...' -ForegroundColor Yellow
+            Refresh-Path
+            $node = Get-Command 'node.exe' -ErrorAction SilentlyContinue
+            if ($node) { $version = (& $node.Source --version).Trim().TrimStart('v') } else { $version = '' }
+            $stillOld = $true
+            if ($version) { try { $stillOld = ([version]$version -lt [version]'22.22.0') } catch { $stillOld = $true } }
+            if ($stillOld) {
+                Write-Host 'WinGet upgrade did not provide Node.js 22.22.0+; reinstalling the supported LTS package...' -ForegroundColor Yellow
                 & winget.exe install --id 'OpenJS.NodeJS.LTS' --exact --source winget --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --force
                 if ($LASTEXITCODE -ne 0) { throw 'WinGet could not upgrade Node.js. Install Node.js 22.22.0 or later from https://nodejs.org/en/download and rerun.' }
+                Refresh-Path
             }
-            Refresh-Path
         } else {
             Invoke-WingetInstall 'OpenJS.NodeJS.LTS' 'Node.js LTS'
             Refresh-Path
