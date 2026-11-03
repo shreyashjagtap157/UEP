@@ -23,7 +23,7 @@ Xerial SQLite JDBC implements `DatabaseMetaData.getColumns()` by collecting colu
 
 The local SQLite profile therefore sets `hibernate.hbm2ddl.jdbc_metadata_extraction_strategy=individually`. Hibernate inspects each mapped entity/table separately. This keeps `ddl-auto:update` enabled, avoids increasing SQLite's global `SQLITE_LIMIT_COMPOUND_SELECT` to an unbounded value, and does not require deleting or recreating the database.
 
-The backend integration test asserts the Hibernate strategy and requests JDBC column metadata for every existing non-internal SQLite table one table at a time. Re-run the real application against the existing `.uep-local/uep-local.sqlite` after syncing the fix; do not delete the file as a workaround.
+The backend integration test asserts the Hibernate strategy, requests JDBC column metadata for every existing non-internal SQLite table one table at a time, and starts a second real Spring Boot application context against the same database file to qualify the existing-schema startup path. Re-run the real application against the existing `.uep-local/uep-local.sqlite` after syncing the fix; do not delete the file as a workaround.
 
 ## Verified in CI so far
 
