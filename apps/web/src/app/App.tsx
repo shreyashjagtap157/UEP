@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -237,7 +237,10 @@ export function App() {
                 <small>{me.roles[0] ?? 'Signed in'}</small>
               </span>
               {localApiMode
-                ? <span className="chip" title="Local-only session; restart the launcher to rotate it">Local API session</span>
+                ? (<>
+                    <span className="chip" title="Local-only session; restart the launcher to rotate it">Local API session</span>
+                    <button className="secondary-button" onClick={handleSignOut} title="End your session">Sign out</button>
+                  </>)
                 : <button className="secondary-button" onClick={handleSignOut} title="End your session">Sign out</button>}
             </div>
           </div>

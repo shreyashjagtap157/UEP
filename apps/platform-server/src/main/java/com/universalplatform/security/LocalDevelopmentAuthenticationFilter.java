@@ -97,7 +97,7 @@ final class LocalDevelopmentAuthenticationFilter extends OncePerRequestFilter {
                 .claim("acr", "urn:uep:local-development")
                 .claim("amr", List.of("local-development"))
                 .build();
-        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
         chain.doFilter(request, response);
     }
 

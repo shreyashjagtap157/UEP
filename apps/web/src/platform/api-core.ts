@@ -20,7 +20,7 @@ export const localMode = import.meta.env.VITE_LOCAL_MODE === 'true'
 // Prefer explicitly‑set backend URL; fall back to per‑mode defaults only if omitted.
 // An empty base URL keeps requests same-origin so the active reverse proxy
 // (the local Vite development proxy in Real mode) can route /api/* to Spring Boot.
-export const backendUrl = () => resolveBackendBaseUrl(
+export const backendUrl = () => localApiMode ? "" : resolveBackendBaseUrl(
   import.meta.env.VITE_BACKEND_URL,
   localMode,
   import.meta.env.VITE_LOCAL_BACKEND_URL,
