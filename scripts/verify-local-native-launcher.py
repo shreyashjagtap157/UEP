@@ -152,6 +152,14 @@ checks.update({
         and "SKIPPED — the separate Offline Demo has its own seeded personas" in launcher
         and "Ensure-LocalTestAccounts $localAdminToken $adminToken" in launcher
     ),
+    "SQLite launcher disables background workers in the actual Spring Boot process": (
+        "set PLATFORM_BACKGROUND_WORKERS_ENABLED=false" in launcher
+        and "-Dspring-boot.run.arguments=--platform.background-workers.enabled=false" in launcher
+    ),
+    "tenant bootstrap validates the API response identifier before saving local state": (
+        "$tenant.PSObject.Properties['id']" in launcher
+        and "Tenant bootstrap API response did not include the required id field" in launcher
+    ),
     "launcher avoids shadowing PowerShell automatic HOME and args variables": (
         not re.search(r"(?im)^\s*\$(?:home|args)\s*=", launcher)
         and "$keycloakInstallDir = Join-Path $ToolDir 'keycloak-26.7.5'" in launcher
