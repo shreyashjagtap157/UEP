@@ -27,10 +27,10 @@ test('builds the complete Real workspace navigation in four stable work areas', 
 
 test('shows only destinations granted by the current identity', () => {
   const permissions = new Set(['CONTENT_VIEW', 'ASSIGNMENTS_TAKE', 'ANNOUNCEMENTS_VIEW', 'ANALYTICS_VIEW'])
-  const groups = buildWorkspaceNavigation({
+  const groups = filterWorkspaceNavigation(buildWorkspaceNavigation({
     has: permission => permissions.has(permission),
     hasScoped: permission => permissions.has(permission),
-  })
+  }), '')
 
   assert.deepEqual(groups.map(group => ({
     label: group.label,
@@ -45,10 +45,10 @@ test('shows only destinations granted by the current identity', () => {
 
 test('recognizes branch-scoped schedule and announcement access', () => {
   const scopedPermissions = new Set(['SCHEDULE_VIEW', 'ANNOUNCEMENTS_VIEW'])
-  const groups = buildWorkspaceNavigation({
+  const groups = filterWorkspaceNavigation(buildWorkspaceNavigation({
     has: () => false,
     hasScoped: permission => scopedPermissions.has(permission),
-  })
+  }), '')
 
   assert.deepEqual(groups.map(group => ({
     label: group.label,
