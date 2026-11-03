@@ -243,6 +243,14 @@ checks.update({
         (ROOT / worker_path).read_text(encoding="utf-8")
         for worker_path in scheduled_worker_paths
     ),
+    "Windows backend launch pins one JDK, release-21 bytecode and removes stale classes": (
+        "set \"JAVA_HOME=" in launcher
+        and "set \"PATH=" in launcher
+        and "'java -version'" in launcher
+        and "'javac -version'" in launcher
+        and "-Dmaven.compiler.release=21 clean spring-boot:run" in launcher
+        and "<maven.compiler.release>21</maven.compiler.release>" in pom
+    ),
     "SQLite backend integration test asserts scheduler and worker suppression": (
         "localSqliteProfileDisablesSchedulingAndEveryBackgroundWorker" in sqlite_test
         and "storageQuotaReconciliationWorker" in sqlite_test
