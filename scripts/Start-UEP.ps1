@@ -690,8 +690,12 @@ function Ensure-RealIdentity {
     Write-Status 'Identity' ("OK — Keycloak OIDC, tenant " + $State.TenantId + ', owner membership active') Green
     if ($SkipAccountSeeding) {
         Write-Status 'Test users' 'SKIPPED — requested by -SkipAccountSeeding' Yellow
-    } elseif ($Mode -eq 'Presentation' -and $Database -eq 'SQLite') {
-        Write-Status 'Test users' 'SKIPPED — the separate Offline Demo has its own seeded personas; Real SQLite provisions only the OIDC owner' Yellow
+    } elseif ($Database -eq 'SQLite') {
+        if ($Mode -in @('Both', 'Presentation')) {
+            Write-Status 'Test users' 'SKIPPED — SQLite qualification provisions only the Real UEP OIDC owner; the separate Offline Demo has its own seeded browser personas' Yellow
+        } else {
+            Write-Status 'Test users' 'SKIPPED — SQLite qualification provisions only the Real UEP OIDC owner; additional backend personas require separate SQLite validation' Yellow
+        }
     } else {
         Ensure-LocalTestAccounts $localAdminToken $adminToken
     }

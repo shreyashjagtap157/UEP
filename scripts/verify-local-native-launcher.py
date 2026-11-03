@@ -149,10 +149,11 @@ checks = {
 
 # Regression guards for defects found during native launcher source review.
 checks.update({
-    "Presentation SQLite provisions only the real OIDC owner, not unqualified backend personas": (
-        "elseif ($Mode -eq 'Presentation' -and $Database -eq 'SQLite')" in launcher
-        and "SKIPPED — the separate Offline Demo has its own seeded personas" in launcher
+    "all SQLite Real modes provision only the real OIDC owner": (
+        "elseif ($Database -eq 'SQLite')" in launcher
+        and "SQLite qualification provisions only the Real UEP OIDC owner" in launcher
         and "Ensure-LocalTestAccounts $localAdminToken $adminToken" in launcher
+        and "elseif ($Mode -eq 'Presentation' -and $Database -eq 'SQLite')" not in launcher
     ),
     "SQLite launcher disables background workers in the actual Spring Boot process": (
         "set PLATFORM_BACKGROUND_WORKERS_ENABLED=false" in launcher
