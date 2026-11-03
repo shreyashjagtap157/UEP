@@ -28,60 +28,62 @@ class TenantController {
     }
 
     @GetMapping
-    List<Tenant> listAll() {
+    List<TenantDetails> listAll() {
         requirePlatformSuperAdmin();
-        return tenantService.findAll();
+        return tenantService.findAll().stream().map(TenantController::toDetails).toList();
     }
 
     @GetMapping("/{id}")
-    Tenant details(@PathVariable UUID id) {
+    TenantDetails details(@PathVariable UUID id) {
         requirePlatformSuperAdmin();
-        return tenantService.details(id);
+        return toDetails(tenantService.details(id));
     }
 
     @PostMapping
-    Tenant create(@Valid @RequestBody TenantCreateRequest request) {
+    TenantDetails create(@Valid @RequestBody TenantCreateRequest request) {
         requirePlatformSuperAdmin();
-        return tenantService.create(request.slug(), request.displayName(), request.subscriptionTier());
+        return toDetails(tenantService.create(request.slug(), request.displayName(), request.subscriptionTier()));
     }
 
     @PutMapping("/{id}")
-    Tenant update(@PathVariable UUID id, @Valid @RequestBody TenantUpdateRequest request) {
+    TenantDetails update(@PathVariable UUID id, @Valid @RequestBody TenantUpdateRequest request) {
         requirePlatformSuperAdmin();
-        return tenantService.update(id, request.displayName(), request.subscriptionTier());
+        return toDetails(tenantService.update(id, request.displayName(), request.subscriptionTier()));
     }
 
     @PatchMapping("/{id}/deployment")
-    Tenant updateDeployment(@PathVariable UUID id,
-                            @RequestParam String platform,
-                            @RequestParam String status) {
+    TenantDetails updateDeployment(@PathVariable UUID id,
+                                    @RequestParam String platform,
+                                    @RequestParam String status) {
         requirePlatformSuperAdmin();
-        return tenantService.updateDeployment(id, platform, status);
+        return toDetails(tenantService.updateDeployment(id, platform, status));
     }
 
     @PatchMapping("/{id}/licensed-users")
-    Tenant incrementLicensedUsers(@PathVariable UUID id) {
+    TenantDetails incrementLicensedUsers(@PathVariable UUID id) {
         requirePlatformSuperAdmin();
-        return tenantService.incrementLicensedUsers(id);
+        return toDetails(tenantService.incrementLicensedUsers(id));
     }
 
     @PatchMapping("/{id}/decrement-licensed-users")
-    Tenant decrementLicensedUsers(@PathVariable UUID id) {
+    TenantDetails decrementLicensedUsers(@PathVariable UUID id) {
         requirePlatformSuperAdmin();
-        return tenantService.decrementLicensedUsers(id);
+        return toDetails(tenantService.decrementLicensedUsers(id));
     }
 
     @GetMapping("/by-status")
-    List<Tenant> findByStatus(@RequestParam(required = false) String platform,
-                              @RequestParam(required = false) String status) {
+    List<TenantDetails> findByStatus(@RequestParam(required = false) String platform,
+                                      @RequestParam(required = false) String status) {
         requirePlatformSuperAdmin();
-        return tenantService.findByDeploymentStatus(platform, status);
+        return tenantService.findByDeploymentStatus(platform, status).stream()
+                .map(TenantController::toDetails)
+                .toList();
     }
 
     @GetMapping("/license-limit")
-    List<Tenant> findAtLicenseLimit() {
+    List<TenantDetails> findAtLicenseLimit() {
         requirePlatformSuperAdmin();
-        return tenantService.findAtLicenseLimit();
+        return tenantService.findAtLicenseLimit().stream().map(TenantController::toDetails).toList();
     }
 
     @GetMapping("/{id}/stats")
@@ -90,7 +92,25 @@ class TenantController {
         return tenantService.stats(id);
     }
 
-    // --- Request DTOs ---
+    private static TenantDetails toDetails(Tenant tenant) {
+        return new TenantDetails(
+                tenant.id(),
+                tenant.slug(),
+                tenant.displayName(),
+                tenant.status(),
+                tenant.deploymentPlatform(),
+                tenant.deploymentStatus(),
+                tenant.licensedUserCount(),
+                tenant.maxLicensedUsers(),
+                0,
+                0,
+                tenant.onboardingDate(),
+                tenant.subscriptionTier(),
+                tenant.customDomain()
+        );
+    }
+
+    // --- Request and response DTOs ---
 
     record TenantCreateRequest(
             @NotBlank @Size(max = 80) String slug,
