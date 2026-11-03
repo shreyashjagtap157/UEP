@@ -1,4 +1,16 @@
-# Explicitly selected only by the native local launcher. Never activate in production.
+# Explicit native local-development profile. This profile is never activated by deployed runtimes.
+server:
+  address: 127.0.0.1
+
 platform:
   local-auth:
     enabled: true
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+    display-request-duration: true

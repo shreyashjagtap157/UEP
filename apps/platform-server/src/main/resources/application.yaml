@@ -55,6 +55,12 @@ spring:
           issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/education}
           jwk-set-uri: ${OIDC_JWK_SET_URI:http://localhost:8081/realms/education/protocol/openid-connect/certs}
 
+springdoc:
+  api-docs:
+    enabled: ${PLATFORM_API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${PLATFORM_API_DOCS_ENABLED:false}
+
 management:
   endpoints:
     web:

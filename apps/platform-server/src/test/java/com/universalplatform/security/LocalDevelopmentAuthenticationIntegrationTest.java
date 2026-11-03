@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -12,6 +13,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 @SpringBootTest(properties = {
         "spring.profiles.active=local-sqlite,local-native",
@@ -19,11 +22,15 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
         "UEP_LOCAL_TENANT_ID=01901234-4444-7000-8000-000000000001",
         "UEP_LOCAL_AUTH_TOKEN=local-auth-integration-test-token",
         "UEP_LOCAL_AUTH_SESSION_ID=01901234-4444-7000-8000-000000000002",
-        "UEP_LOCAL_AUTH_EXPIRES_AT=2099-01-01T00:00:00Z",
         "platform.background-workers.enabled=false"
 })
 @AutoConfigureMockMvc
 class LocalDevelopmentAuthenticationIntegrationTest {
+    @DynamicPropertySource
+    static void localApiSessionProperties(DynamicPropertyRegistry registry) {
+        registry.add("UEP_LOCAL_AUTH_EXPIRES_AT", () -> Instant.now().plusSeconds(3600).toString());
+    }
+
     private static final String TOKEN_HEADER = LocalDevelopmentAuthenticationFilter.HEADER;
     private static final String TOKEN = "local-auth-integration-test-token";
 
@@ -55,6 +62,20 @@ class LocalDevelopmentAuthenticationIntegrationTest {
                   and a.scope_kind = 'TENANT'
                   and m.status = 'ACTIVE'
                 """)).isEqualTo(1);
+    }
+
+    @Test
+    void localSwaggerUiAndOpenApiDescriptionAreAvailableWithoutAnApiSession() throws Exception {
+        mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
+        mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.openapi").isNotEmpty())
+                .andExpect(jsonPath("$.info.title").value("Universal Education Platform API"));
+    }
+
+    @Test
+    void oidcBearerIsRejectedWithoutExternalIssuerDiscovery() throws Exception {
+        mvc.perform(get("/api/v1/me").header("Authorization", "Bearer not.a.valid.jwt"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

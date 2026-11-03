@@ -43,7 +43,10 @@ function Show-RequirementInventory {
         @{ Name='Database migration runner'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\DatabaseMigrationRunner.java') },
         @{ Name='Database migrations'; Path=(Join-Path $ApiDir 'src\main\resources\db\migration') },
         @{ Name='SQLite local profile'; Path=(Join-Path $ApiDir 'src\main\resources\application-local-sqlite.yaml') },
-        @{ Name='Local native authentication profile'; Path=(Join-Path $ApiDir 'src\main\resources\application-local-native.yaml') }
+        @{ Name='Local native authentication profile'; Path=(Join-Path $ApiDir 'src\main\resources\application-local-native.yaml') },
+        @{ Name='Local API documentation configuration'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\LocalApiDocumentationConfiguration.java') },
+        @{ Name='Local OIDC decoder guard'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\security\LocalNativeJwtDecoderConfiguration.java') }
+
     )
     foreach ($item in $requiredFiles) {
         if (Test-Path -LiteralPath $item.Path) {
@@ -1057,6 +1060,8 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
         Start-ManagedProcess 'Real frontend' $frontFile $WebDir
         if (-not (Wait-ForHttp 'http://127.0.0.1:5173' 90 'Real frontend')) { throw 'Real frontend did not become ready. Inspect .uep-local\logs\Real frontend.log.' }
         if (-not (Wait-ForHttp 'http://127.0.0.1:5173/api/v1/platform/version' 90 'Vite API proxy')) { throw 'Real frontend is reachable, but /api/v1/platform/version did not pass through the Vite proxy as HTTP 2xx. Inspect Vite and Backend logs.' }
+        if (-not (Wait-ForHttp 'http://127.0.0.1:8080/swagger-ui/index.html' 60 'Backend Swagger UI')) { throw 'The backend is healthy but its local Swagger UI did not become available at /swagger-ui/index.html. Inspect Backend.log.' }
+        if (-not (Wait-ForHttp 'http://127.0.0.1:8080/v3/api-docs' 60 'Backend OpenAPI document')) { throw 'The backend Swagger UI is present but its OpenAPI document is unavailable at /v3/api-docs.' }
         Test-LocalApiProxy
     }
     if ($RunDemo) {
@@ -1117,6 +1122,8 @@ try {
         Write-Host 'REAL UEP — LOCAL INTEGRATED APPLICATION' -ForegroundColor Green
         Write-Host '  Frontend:  http://localhost:5173'
         Write-Host '  Backend:   http://localhost:8080'
+        Write-Host '  Swagger:   http://localhost:8080/swagger-ui.html'
+        Write-Host '  OpenAPI:   http://localhost:8080/v3/api-docs'
         Write-Host '  Identity:  launcher-managed local API session (Keycloak not started)'
         Write-Host ('  Database:  ' + $(if ($Database -eq 'SQLite') { 'SQLite / .uep-local/uep-local.sqlite' } else { 'PostgreSQL / uep_local_native / localhost:5432' }))
         Write-Host 'OFFLINE PRESENTATION DEMO (seeded browser data; no API/Keycloak/database)' -ForegroundColor Yellow
@@ -1127,6 +1134,8 @@ try {
         Write-Host 'REAL UEP — LOCAL INTEGRATED APPLICATION' -ForegroundColor Green
         Write-Host '  Frontend:  http://localhost:5173'
         Write-Host '  Backend:   http://localhost:8080'
+        Write-Host '  Swagger:   http://localhost:8080/swagger-ui.html'
+        Write-Host '  OpenAPI:   http://localhost:8080/v3/api-docs'
         Write-Host '  Identity:  launcher-managed local API session (Keycloak not started)'
         Write-Host ('  Database:  ' + $(if ($Database -eq 'SQLite') { 'SQLite / .uep-local/uep-local.sqlite' } else { 'PostgreSQL / uep_local_native / localhost:5432' }))
     } else {
