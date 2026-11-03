@@ -82,6 +82,8 @@ class SQLiteLocalQualificationIntegrationTest {
             assertThat(restarted.getEnvironment().getProperty(
                     "spring.jpa.properties.hibernate.hbm2ddl.jdbc_metadata_extraction_strategy"))
                     .isEqualTo("individually");
+            assertThat(restarted.getEnvironment().getProperty("spring.jpa.hibernate.ddl-auto"))
+                    .isEqualTo("update");
             JdbcTemplate restartedJdbc = restarted.getBean(JdbcTemplate.class);
             Integer existingTables = restartedJdbc.queryForObject(
                     "select count(*) from sqlite_master where type = 'table' and name not like 'sqlite_%'",
