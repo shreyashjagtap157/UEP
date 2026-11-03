@@ -2,10 +2,12 @@ package com.universalplatform.messaging;
 
 import java.time.Clock;
 import java.time.Instant;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(prefix = "platform.background-workers", name = "enabled", havingValue = "true", matchIfMissing = true)
 class MessagingRetentionWorker {
     private final MessageTenantPolicyRepository policies;
     private final MessagingRetentionService retention;
