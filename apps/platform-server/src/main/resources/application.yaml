@@ -75,6 +75,8 @@ management:
 
 platform:
   version: 0.15.0.0-SNAPSHOT
+  local-auth:
+    enabled: ${PLATFORM_LOCAL_AUTH_ENABLED:false}
   background-workers:
     enabled: ${PLATFORM_BACKGROUND_WORKERS_ENABLED:true}
   # Explicit opt-out of the production-secret guard (ProductionSecretGuard) for local dev and CI.

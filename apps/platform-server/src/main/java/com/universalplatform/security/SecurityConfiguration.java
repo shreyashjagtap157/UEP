@@ -1,6 +1,9 @@
 package com.universalplatform.security;
 
+import java.time.Instant;
 import java.util.List;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -11,6 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.cors.CorsConfigurationSource;
+import com.universalplatform.tenancy.LocalTenantBootstrapService;
 
 @Configuration
 class SecurityConfiguration {
@@ -24,7 +28,8 @@ class SecurityConfiguration {
             "http://localhost:*",
             "http://localhost:3000",
             "http://localhost:5173",
-            "http://localhost:8080"
+            "http://localhost:8080",
+            "http://127.0.0.1:*"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
@@ -39,14 +44,19 @@ class SecurityConfiguration {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, ApiCredentialService credentials,
-            TenantContext tenantContext, com.universalplatform.tenancy.TenantDirectory tenants) throws Exception {
+            TenantContext tenantContext, com.universalplatform.tenancy.TenantDirectory tenants,
+            ObjectProvider<LocalTenantBootstrapService> localTenantBootstrap,
+            @Value("${platform.local-auth.enabled:false}") boolean localAuthEnabled,
+            @Value("${UEP_LOCAL_AUTH_TOKEN:}") String localAuthToken,
+            @Value("${UEP_LOCAL_AUTH_SESSION_ID:}") String localAuthSessionId,
+            @Value("${UEP_LOCAL_AUTH_EXPIRES_AT:}") String localAuthExpiresAt) throws Exception {
         // These filters are deliberately owned by the security chain rather than registered as
         // application Filter beans. AOP-proxying a GenericFilterBean breaks its final init()
         // method because the proxy does not initialize GenericFilterBean's logger field.
         ApiCredentialFilter apiCredentialFilter = new ApiCredentialFilter(credentials);
         JwtTenantContextFilter tenantFilter = new JwtTenantContextFilter();
         TenantLifecycleFilter tenantLifecycleFilter = new TenantLifecycleFilter(tenantContext, tenants);
-        return http
+        http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -54,8 +64,25 @@ class SecurityConfiguration {
                         .requestMatchers("/actuator/health", "/api/v1/platform/version", "/api/v1/credentials/verify/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()))
-                 .addFilterBefore(apiCredentialFilter, BearerTokenAuthenticationFilter.class)
-                .addFilterAfter(tenantFilter, BearerTokenAuthenticationFilter.class)
+                .addFilterBefore(apiCredentialFilter, BearerTokenAuthenticationFilter.class)
+                .addFilterAfter(tenantFilter, BearerTokenAuthenticationFilter.class);
+
+        if (localAuthEnabled) {
+            LocalTenantBootstrapService bootstrap = localTenantBootstrap.getIfAvailable();
+            if (bootstrap == null) {
+                throw new IllegalStateException("Local API authentication is enabled outside the local-native profile.");
+            }
+            if (localAuthToken == null || localAuthToken.isBlank()
+                    || localAuthSessionId == null || localAuthSessionId.isBlank()
+                    || localAuthExpiresAt == null || localAuthExpiresAt.isBlank()) {
+                throw new IllegalStateException("Local API authentication requires a launcher-issued token, session ID and expiry.");
+            }
+            LocalDevelopmentAuthenticationFilter localFilter = new LocalDevelopmentAuthenticationFilter(
+                    localAuthToken, localAuthSessionId, Instant.parse(localAuthExpiresAt), bootstrap);
+            http.addFilterBefore(localFilter, ApiCredentialFilter.class);
+        }
+
+        return http
                 .addFilterAfter(tenantLifecycleFilter, JwtTenantContextFilter.class)
                 .build();
     }

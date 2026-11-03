@@ -1,0 +1,4 @@
+# Explicitly selected only by the native local launcher. Never activate in production.
+platform:
+  local-auth:
+    enabled: true
