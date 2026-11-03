@@ -7,10 +7,12 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(prefix = "platform.background-workers", name = "enabled", havingValue = "true", matchIfMissing = true)
 class RecordingWorker {
     private static final Logger log = LoggerFactory.getLogger(RecordingWorker.class);
     private static final int BATCH_SIZE = 100;
