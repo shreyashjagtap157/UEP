@@ -191,6 +191,11 @@ test('authorized attendance changes propagate through the shared persisted state
   assert.equal(persisted.attendance.find((item) => item.id === 'student-ravi-attendance--6')?.status, 'Present')
   assert.ok(changeNotifications > 0, 'same-tab subscribers should receive saved-state updates')
   unsubscribe()
+
+  const lateRecord = resetDemoState()
+  const meeraPresent = updateDemoAttendance(lateRecord, 'student-meera-attendance--4', 'Present', teacher)
+  assert.notStrictEqual(meeraPresent, lateRecord, 'a Teacher can update a linked learner Late record for an assigned published course')
+  assert.equal(meeraPresent.attendance.find(item => item.id === 'student-meera-attendance--4')?.status, 'Present')
 })
 
 
