@@ -17,6 +17,8 @@ From the repository root on Windows:
 .\startuep.ps1 -Mode Presentation -Database SQLite
 ```
 
+In this paired SQLite presentation mode, the launcher creates or reuses only the Real application's local OIDC owner account. It intentionally does not provision the optional 13 backend test personas: the Offline Demo has its own independent seeded personas, and those broader membership/role workflows are outside the current SQLite qualification boundary.
+
 Expected endpoints:
 
 | Environment | URL | What it is |
