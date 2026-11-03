@@ -41,7 +41,7 @@ For `Real`, `Both` or `Presentation`:
 - SQLite mode is the default and does not require PostgreSQL, psql, a PostgreSQL service, containers or a cloud database.
 - PostgreSQL 17 or 18 is optional and selected explicitly with `-Database PostgreSQL`.
 - Internet access for first-time Maven and npm dependency resolution.
-- Ports 5173, 5174 and 8080 must be free before startup. The launcher runs `npm ci`, so it deliberately refuses to start if either Vite port is occupied by another UEP process.
+- Ports 5173, 5174 and 8080 must be free before startup. The launcher runs `npm ci`, so it deliberately refuses to start if either Vite port is occupied by another UEP process. Demo-only also checks both Vite ports before installing shared frontend dependencies.
 
 ### First-run dependency installation
 
@@ -61,10 +61,16 @@ SQLite is provided by the backend's Xerial JDBC dependency; it does not require 
 
 ## Start the paired presentation
 
-From the repository root:
+From the repository root, the default command starts the paired Real + Offline Demo presentation:
 
 ```powershell
-.\startuep.ps1 -Mode Presentation -Database SQLite
+.\startuep.ps1
+```
+
+Equivalent explicit SQLite command (optionally avoid opening browser windows):
+
+```powershell
+.\startuep.ps1 -Mode Presentation -Database SQLite -NoBrowser
 ```
 
 This opens:
