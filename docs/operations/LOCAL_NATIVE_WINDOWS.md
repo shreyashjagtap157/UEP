@@ -58,6 +58,8 @@ This opens:
 
 The Real UI displays `REAL UEP - LOCAL SQLITE`. The Demo UI displays `OFFLINE DEMO - SEEDED BROWSER DATA`. Keep the two windows separate during the presentation.
 
+For `Presentation + SQLite`, the launcher provisions only the Real application's local OIDC owner account. It skips the optional backend test-persona/membership seeding because the separate Offline Demo already supplies its own seeded personas; this keeps startup within the currently qualified SQLite workflow boundary.
+
 Other supported commands:
 
 ```powershell
