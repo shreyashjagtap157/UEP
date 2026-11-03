@@ -97,25 +97,25 @@ function Protect-Directory([string]$Path) {
     $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
     $acl = New-Object System.Security.AccessControl.DirectorySecurity
     $acl.SetAccessRuleProtection($true, $false)
-    $acl.SetOwner((New-Object System.Security.Principal.NTAccount($identity)))
+    try { $acl.SetOwner((New-Object System.Security.Principal.NTAccount($identity))) } catch {}
     $inheritance = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
     $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity, [System.Security.AccessControl.FileSystemRights]::FullControl, $inheritance, [System.Security.AccessControl.PropagationFlags]::None, [System.Security.AccessControl.AccessControlType]::Allow)
     $acl.AddAccessRule($rule)
-    Set-Acl -Path $Path -AclObject $acl
+    try { Set-Acl -Path $Path -AclObject $acl -ErrorAction SilentlyContinue } catch {}
 }
 function Protect-File([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return }
     $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
     $acl = New-Object System.Security.AccessControl.FileSecurity
     $acl.SetAccessRuleProtection($true, $false)
-    $acl.SetOwner((New-Object System.Security.Principal.NTAccount($identity)))
+    try { $acl.SetOwner((New-Object System.Security.Principal.NTAccount($identity))) } catch {}
     $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
         $identity,
         [System.Security.AccessControl.FileSystemRights]::FullControl,
         [System.Security.AccessControl.AccessControlType]::Allow
     )
     $acl.AddAccessRule($rule)
-    Set-Acl -Path $Path -AclObject $acl
+    try { Set-Acl -Path $Path -AclObject $acl -ErrorAction SilentlyContinue } catch {}
 }
 function New-RandomSecret([int]$Bytes = 32) {
     $buffer = New-Object byte[] $Bytes
@@ -691,7 +691,7 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
             'echo === Selected Java compiler ===',
             'javac -version',
             'echo === Selected Maven runtime ===',
-            ('call "' + $MavenCmd + '" -version')
+            ('call "' + $MavenCmd + '" ' + '-version')
         ) + @($backendLines | Select-Object -Skip 1)
         $apiFile = Write-CommandFile 'run-api' $backendLines
         Start-ManagedProcess 'Backend' $apiFile $ApiDir

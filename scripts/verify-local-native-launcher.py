@@ -84,7 +84,7 @@ checks = {
     ),
     "backend listens on the configured local API port": "set PORT=8080" in launcher,
     "frontend and backend have explicit local endpoints": (
-        "http://localhost:5173" in launcher and "http://localhost:8080" in launcher
+        "http://localhost:5173" in launcher and ("http://localhost:8080" in launcher or "http://127.0.0.1:8080" in launcher)
     ),
     "Both and Presentation modes run separately labelled Real and Demo apps": (
         "5174" in launcher
