@@ -101,11 +101,13 @@ function expectRuntimeRoleDenial(
   expect(denied, 'the restricted Spring Boot database role must not perform this operation').toBe(true)
 }
 
-test('PostgreSQL mode: local owner proves authenticated analytics, branch and membership persistence through restricted PostgreSQL', async ({ page }) => {
+test('PostgreSQL mode: proxy-authenticated Real UI proves analytics, branch and membership persistence through restricted PostgreSQL', async ({ page, request }) => {
   const bootstrapStatePath = join(process.env.LOCALAPPDATA || '', 'UEP', 'local-native', 'state.json')
   const bootstrapState = JSON.parse(readFileSync(bootstrapStatePath, 'utf8').replace(/^\uFEFF/, '')) as LocalBootstrapState
   test.skip(bootstrapState.DatabaseProvider === 'SQLite', 'PostgreSQL role/grant assertions run only in PostgreSQL qualification mode')
   const browserApiOrigins = new Set<string>()
+  const directBackendAnonymous = await request.get('http://127.0.0.1:8080/api/v1/me')
+  expect(directBackendAnonymous.status()).toBe(401)
   const keycloakRequests: string[] = []
   page.on('request', browserRequest => {
     const url = new URL(browserRequest.url())
@@ -128,7 +130,7 @@ test('PostgreSQL mode: local owner proves authenticated analytics, branch and me
   const identityResponse = await identityResponsePromise
   expect(identityResponse.status()).toBe(200)
   const identityHeaders = await identityResponse.request().allHeaders()
-  expect(typeof identityHeaders['x-uep-local-auth']).toBe('string')
+  expect(identityHeaders['x-uep-local-auth']).toBeUndefined()
   expect(identityHeaders.authorization).toBeUndefined()
   const identity = await identityResponse.json() as CurrentIdentity
   expect(identity.oidcSubject).toBe('uep-local-demo-owner')
@@ -168,7 +170,7 @@ test('PostgreSQL mode: local owner proves authenticated analytics, branch and me
 
   const requestHeaders = await csvResponse.request().allHeaders()
   // Assert only the presence of the launcher-issued local header; never log its value.
-  expect(typeof requestHeaders['x-uep-local-auth']).toBe('string')
+  expect(requestHeaders['x-uep-local-auth']).toBeUndefined()
   expect(requestHeaders.authorization).toBeUndefined()
   expect([...browserApiOrigins]).toEqual([frontend])
 
@@ -208,7 +210,7 @@ test('PostgreSQL mode: local owner proves authenticated analytics, branch and me
   })
 
   const createHeaders = await createBranchResponse.request().allHeaders()
-  expect(typeof createHeaders['x-uep-local-auth']).toBe('string')
+  expect(createHeaders['x-uep-local-auth']).toBeUndefined()
   expect(createHeaders.authorization).toBeUndefined()
 
   // Register the response waiter before reload so a fast local response cannot be missed.
@@ -416,7 +418,8 @@ test('PostgreSQL mode: local owner proves authenticated analytics, branch and me
   })
 
   const provisionHeaders = await provisionMembershipResponse.request().allHeaders()
-  expect(provisionHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
+  expect(provisionHeaders['x-uep-local-auth']).toBeUndefined()
+  expect(provisionHeaders.authorization).toBeUndefined()
 
   const membershipRow = page.getByRole('row').filter({ hasText: membershipSubject })
   await expect(membershipRow).toBeVisible()
@@ -452,7 +455,8 @@ test('PostgreSQL mode: local owner proves authenticated analytics, branch and me
   ].join(' ')
   expect(runAsRuntimeRole(psql, runtimeDatabase, persistedAssignmentSql)).toBe('1|TENANT')
   const assignHeaders = await assignRoleResponse.request().allHeaders()
-  expect(assignHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
+  expect(assignHeaders['x-uep-local-auth']).toBeUndefined()
+  expect(assignHeaders.authorization).toBeUndefined()
   await expect(membershipRow).toContainText('Student')
 
   const unassignRolePromise = page.waitForResponse(response => {
@@ -466,7 +470,8 @@ test('PostgreSQL mode: local owner proves authenticated analytics, branch and me
   expect(unassignRoleResponse.status()).toBe(204)
   expect(runAsRuntimeRole(psql, runtimeDatabase, persistedAssignmentSql)).toBe('0|')
   const unassignHeaders = await unassignRoleResponse.request().allHeaders()
-  expect(unassignHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
+  expect(unassignHeaders['x-uep-local-auth']).toBeUndefined()
+  expect(unassignHeaders.authorization).toBeUndefined()
   await expect(membershipRow).not.toContainText('Student')
 
   // Repeat at branch scope to verify tenant-bound branch assignment integrity.
@@ -537,7 +542,8 @@ test('PostgreSQL mode: local owner proves authenticated analytics, branch and me
   expect(updatedMembership.version).toBe(1)
 
   const updateHeaders = await updateMembershipResponse.request().allHeaders()
-  expect(updateHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
+  expect(updateHeaders['x-uep-local-auth']).toBeUndefined()
+  expect(updateHeaders.authorization).toBeUndefined()
 
   const membershipReadbackPromise = page.waitForResponse(response => {
     const url = new URL(response.url())
