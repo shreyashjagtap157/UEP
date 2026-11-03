@@ -404,7 +404,7 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Start Real + Demo SQLite and run the native OIDC-to-SQLite browser test
+      - name: Start Real + Demo SQLite and run the native local-auth-to-SQLite browser test
         shell: pwsh
         run: |
           $scriptPath = (Resolve-Path '.\startuep.ps1').Path
@@ -417,8 +417,10 @@ jobs:
             $checks = @(
               @{ Name = 'Real frontend'; Url = 'http://127.0.0.1:5173' },
               @{ Name = 'Offline Demo frontend'; Url = 'http://127.0.0.1:5174' },
-              @{ Name = 'Keycloak education realm'; Url = 'http://127.0.0.1:8081/realms/education/.well-known/openid-configuration' },
-              @{ Name = 'Spring Boot actuator'; Url = 'http://127.0.0.1:8080/actuator/health' }
+              @{ Name = 'Spring Boot actuator'; Url = 'http://127.0.0.1:8080/actuator/health' },
+              @{ Name = 'Vite API reverse proxy'; Url = 'http://127.0.0.1:5173/api/v1/platform/version' },
+              @{ Name = 'Backend Swagger UI'; Url = 'http://127.0.0.1:8080/swagger-ui/index.html' },
+              @{ Name = 'Backend OpenAPI JSON'; Url = 'http://127.0.0.1:8080/v3/api-docs' }
             )
             $ready = $false
             for ($attempt = 0; $attempt -lt 420; $attempt++) {
@@ -445,7 +447,7 @@ jobs:
             }
 
             if (-not $ready) {
-              throw 'The launcher stayed alive but all four presentation endpoints did not become healthy within 35 minutes.'
+              throw 'The launcher stayed alive but one or more Real/Demo/API/Swagger endpoints did not become healthy within 35 minutes.'
             }
 
             if ($launcher.HasExited) {
@@ -460,11 +462,16 @@ jobs:
               Write-Host "PASS: $($check.Name) returned HTTP $($response.StatusCode)."
             }
 
+            $openApi = Invoke-RestMethod -Uri 'http://127.0.0.1:8080/v3/api-docs' -TimeoutSec 15
+            if ($openApi.info.title -ne 'Universal Education Platform API') { throw 'The OpenAPI document did not contain the UEP API title.' }
+            if ((Test-NetConnection 127.0.0.1 -Port 8081 -WarningAction SilentlyContinue).TcpTestSucceeded) { throw 'Keycloak unexpectedly started in the local-native path.' }
+            Write-Host 'PASS: OpenAPI title verified and Keycloak port 8081 is unused.'
+
             Write-Host 'Installing Playwright Chromium before the browser test...'
             npm --prefix apps/web exec -- playwright install chromium
             if ($LASTEXITCODE -ne 0) { throw "Playwright Chromium installation failed with exit code $LASTEXITCODE." }
 
-            Write-Host 'Running the native OIDC-to-SQLite browser write/readback test while local services remain alive...'
+            Write-Host 'Running the native local-auth-to-SQLite browser write/readback test while local services remain alive...'
             npm --prefix apps/web run test:e2e:native
             if ($LASTEXITCODE -ne 0) { throw "Native SQLite browser qualification failed with exit code $LASTEXITCODE." }
           }

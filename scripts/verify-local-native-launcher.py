@@ -16,6 +16,8 @@ vite_path = ROOT / "apps" / "web" / "vite.config.ts"
 pom_path = ROOT / "apps" / "platform-server" / "pom.xml"
 migration_path = ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "DatabaseMigrationRunner.java"
 sqlite_profile_path = ROOT / "apps" / "platform-server" / "src" / "main" / "resources" / "application-local-sqlite.yaml"
+local_native_profile_path = ROOT / "apps" / "platform-server" / "src" / "main" / "resources" / "application-local-native.yaml"
+local_native_profile = local_native_profile_path.read_text(encoding="utf-8")
 workflow_path = ROOT / ".github" / "workflows" / "ci.yml"
 
 launcher = launcher_path.read_text(encoding="utf-8")
@@ -24,7 +26,6 @@ vite = vite_path.read_text(encoding="utf-8")
 pom = pom_path.read_text(encoding="utf-8")
 migration = migration_path.read_text(encoding="utf-8")
 sqlite_profile = sqlite_profile_path.read_text(encoding="utf-8")
-local_realm = json.loads((ROOT / "infra" / "keycloak" / "education-realm.json").read_text(encoding="utf-8"))
 sqlite_test = (ROOT / "apps" / "platform-server" / "src" / "test" / "java" / "com" / "universalplatform" / "tenancy" / "SQLiteLocalQualificationIntegrationTest.java").read_text(encoding="utf-8")
 scheduled_worker_paths = [
     "apps/platform-server/src/main/java/com/universalplatform/communication/AnnouncementPublishingWorker.java",
@@ -59,15 +60,17 @@ checks = {
         and "set SPRING_PROFILES_ACTIVE=local-sqlite" in launcher
         and "set PLATFORM_BACKGROUND_WORKERS_ENABLED=false" in launcher
     ),
-    "SQLite Keycloak uses an isolated development database": (
-        "set KC_DB=dev-file" in launcher and "KC_DB_SCHEMA=keycloak" in launcher
+    "local-native profile binds the real API to loopback": (
+        "address: 127.0.0.1" in local_native_profile
+        and "local-auth:\n    enabled: true" in local_native_profile
     ),
     "Demo mode enables local fixture authentication": "set VITE_LOCAL_MODE=true" in launcher,
     "Real mode disables local fixture authentication": "set VITE_LOCAL_MODE=false" in launcher,
-    "Real mode configures the tracked Keycloak realm and client": (
-        "VITE_KEYCLOAK_REALM=education" in launcher
-        and "VITE_KEYCLOAK_CLIENT_ID=platform-web" in launcher
-        and "VITE_KEYCLOAK_URL=http://localhost:8081" in launcher
+    "Real mode uses the launcher-issued local API header instead of OIDC": (
+        "set VITE_LOCAL_API_MODE=true" in launcher
+        and "VITE_LOCAL_API_AUTH_TOKEN=" in launcher
+        and "X-UEP-Local-Auth" in (ROOT / "apps" / "web" / "src" / "platform" / "api-core.ts").read_text(encoding="utf-8")
+        and "VITE_KEYCLOAK_URL=http://localhost:8081" not in launcher
     ),
     "Real mode leaves the API base URL same-origin for Vite proxying": "set VITE_BACKEND_URL=" in launcher,
     "Vite proxies API requests to the IPv4 loopback backend": (
@@ -89,25 +92,17 @@ checks = {
         "PostgreSQL 18.4" in launcher and "pg_isready.exe" in launcher
         and not re.search(r"\b(?:docker|podman)\s+(?:run|compose|build)\b", launcher, re.I)
     ),
-    "Keycloak is run from the native distribution": (
-        "keycloak-26.7.5.zip" in launcher and "kc.bat" in launcher
-        and "start-dev --http-port=8081 --import-realm" in launcher
+    "Real launcher does not install, start or probe Keycloak": (
+        "Ensure-Keycloak\n        Test-PortAvailable 8080" not in launcher
+        and "Test-PortAvailable 8081" not in launcher
+        and "Start-ManagedProcess 'Keycloak'" not in launcher
+        and "Wait-ForHttp 'http://127.0.0.1:8081" not in launcher
     ),
     "Maven installation verifies the downloaded SHA-512": (
         "apache-maven-3.10.0-bin.zip" in launcher and "Get-FileHash" in launcher
         and "SHA512" in launcher
     ),
-    "Keycloak archive verifies the pinned SHA-256": (
-        "30ef87fb7101c43d29688d1ae80c0588ff4a151b3330e9f664bf9692d398658a" in launcher
-        and "Algorithm SHA256" in launcher
-    ),
-    "local database uses distinct migrator, runtime and Keycloak roles": (
-        all(name in launcher for name in (
-            "uep_local_migrator", "uep_local_runtime", "uep_local_keycloak"
-        ))
-    ),
-    "Keycloak owns a separate schema in PostgreSQL mode": "KC_DB_SCHEMA=keycloak" in launcher
-        and "CREATE SCHEMA keycloak AUTHORIZATION " in launcher,
+    "PostgreSQL local schema has separate migration/runtime roles": all(name in launcher for name in ("uep_local_migrator", "uep_local_runtime")),
     "database migration runner is compiled before execution": (
         "compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java" in launcher
     ),
@@ -123,9 +118,9 @@ checks = {
     ),
     "runtime backend disables auto-Flyway after explicit migration": "set SPRING_FLYWAY_ENABLED=false" in launcher,
     "production-secret guard is opt-out only in non-production local mode": "set PLATFORM_DEV_MODE=true" in launcher,
-    "local test identities carry a tenant claim and platform memberships": (
-        "tenant_id" in launcher and "/api/v1/identity/bootstrap-owner" in launcher
-        and "/api/v1/identity/memberships" in launcher
+    "the local owner membership and Organization Owner role are persisted by backend bootstrap": (
+        "uep-local-demo-owner" in (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "identity" / "LocalDevelopmentIdentityBootstrapper.java").read_text(encoding="utf-8")
+        and "SystemRoleKey.ORGANIZATION_OWNER" in (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "identity" / "LocalDevelopmentIdentityBootstrapper.java").read_text(encoding="utf-8")
     ),
     "requirement inventory runs before installers and service startup": (
         "function Show-RequirementInventory" in launcher
@@ -147,9 +142,9 @@ checks = {
     "SQL bootstrap script is written without a UTF-8 BOM": (
         "$roleSql | Set-Content -LiteralPath $rolesFile -Encoding ASCII" in launcher
     ),
-    "launcher displays backend, database, Keycloak and frontend health": (
+    "launcher displays backend, database, local identity and frontend health": (
         "Live service status" in launcher and all(token in launcher for token in (
-            "Write-Status 'Database'", "Write-Status 'Backend'", "Write-Status 'Keycloak'", "Write-Status 'Frontend'"
+            "Write-Status 'Database'", "Write-Status 'Backend'", "Write-Status 'Identity'", "Write-Status 'Frontend'"
         ))
     ),
     "process cleanup does not use unsupported Select-Object Reverse": (
@@ -168,11 +163,28 @@ checks = {
 
 # Regression guards for defects found during native launcher source review.
 checks.update({
-    "all SQLite Real modes provision only the real OIDC owner": (
-        "elseif ($Database -eq 'SQLite')" in launcher
-        and "SQLite qualification provisions only the Real UEP OIDC owner" in launcher
-        and "Ensure-LocalTestAccounts $localAdminToken $adminToken" in launcher
-        and "elseif ($Mode -eq 'Presentation' -and $Database -eq 'SQLite')" not in launcher
+    "Swagger UI and OpenAPI are local-native only and covered by integration tests": (
+        "springdoc-openapi-starter-webmvc-ui" in pom
+        and "PLATFORM_API_DOCS_ENABLED:false" in (ROOT / "apps" / "platform-server" / "src" / "main" / "resources" / "application.yaml").read_text(encoding="utf-8")
+        and "swagger-ui/index.html" in launcher
+        and "v3/api-docs" in launcher
+        and "localSwaggerUiAndOpenApiDescriptionAreAvailableWithoutAnApiSession" in (ROOT / "apps" / "platform-server" / "src" / "test" / "java" / "com" / "universalplatform" / "security" / "LocalDevelopmentAuthenticationIntegrationTest.java").read_text(encoding="utf-8")
+    ),
+    "local auth is loopback-only, bound to localhost, and restricted to API routes": (
+        "isLoopback(request.getRemoteAddr())" in (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalDevelopmentAuthenticationFilter.java").read_text(encoding="utf-8")
+        and "getRequestURI().startsWith(\"/api/\")" in (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalDevelopmentAuthenticationFilter.java").read_text(encoding="utf-8")
+        and "address: 127.0.0.1" in local_native_profile
+    ),
+    "local-native does not attempt external OIDC issuer discovery": (
+        "@Profile(\"local-native\")" in (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalNativeJwtDecoderConfiguration.java").read_text(encoding="utf-8")
+        and "OIDC bearer tokens are disabled" in (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalNativeJwtDecoderConfiguration.java").read_text(encoding="utf-8")
+    ),
+    "Real launcher verifies the Vite API proxy and actual persisted identity": (
+        "set SPRING_PROFILES_ACTIVE=local-sqlite,local-native" in launcher
+        and "set VITE_LOCAL_API_MODE=true" in launcher
+        and "Wait-ForHttp 'http://127.0.0.1:5173/api/v1/platform/version'" in launcher
+        and "Test-LocalApiProxy" in launcher
+        and "UEP_LOCAL_AUTH_TOKEN=" in launcher
     ),
     "SQLite launcher disables background workers in the actual Spring Boot process": (
         "set PLATFORM_BACKGROUND_WORKERS_ENABLED=false" in launcher
@@ -190,14 +202,9 @@ checks.update({
     "API bootstrap failures identify the HTTP method and endpoint": (
         'UEP API $Method $Path failed (HTTP $statusCode)' in launcher
     ),
-    "Keycloak tenant-attribute repair handles users with no attributes property": (
-        "$user.PSObject.Properties['attributes']" in launcher
-        and "$user.attributes.PSObject.Properties['tenant_id']" in launcher
-        and "Add-Member -NotePropertyName attributes -NotePropertyValue ([pscustomobject]@{}) -Force" in launcher
-    ),
     "launcher avoids shadowing PowerShell automatic HOME and args variables": (
         not re.search(r"(?im)^\s*\$(?:home|args)\s*=", launcher)
-        and "$keycloakInstallDir = Join-Path $ToolDir 'keycloak-26.7.5'" in launcher
+        and "$RepoRoot = (Resolve-Path" in launcher
     ),
     "launcher defines each process/readiness helper exactly once": all(
         len(re.findall(rf"(?m)^function\s+{name}\s*\(", launcher)) == 1
@@ -213,12 +220,11 @@ checks.update({
         and "Get-PostgresService" in launcher
         and "Sort-Object Name -Descending" not in launcher
     ),
-    "credential-bearing local files receive explicit file ACLs": (
+    "launcher-issued tokens are written only to ACL-protected command files": (
         "function Protect-File" in launcher
-        and launcher.count("Protect-File") >= 6
         and "Protect-File $StateFile" in launcher
-        and "Protect-File $rolesFile" in launcher
-        and "Protect-File $accountsFile" in launcher
+        and "function Write-CommandFile" in launcher
+        and "Protect-File $path" in launcher
     ),
     "Windows setup requires a full JDK and supports dependency upgrades/fallbacks": (
         "javac.exe" in launcher
@@ -227,19 +233,6 @@ checks.update({
         and "winget.exe upgrade --id 'OpenJS.NodeJS.LTS'" in launcher
         and "System Maven is too old or invalid" in launcher
         and "Maven 3.9+ could not be located" in launcher
-    ),
-    "local Keycloak import has a development-only bootstrap client and scalar tenant mapper": (
-        any(client.get("clientId") == "uep-local-bootstrap"
-            and client.get("directAccessGrantsEnabled") is True
-            and any(mapper.get("name") == "tenant-id"
-                and mapper.get("config", {}).get("user.attribute") == "tenant_id"
-                and mapper.get("config", {}).get("claim.name") == "tenant_id"
-                and mapper.get("config", {}).get("access.token.claim") == "true"
-                and mapper.get("config", {}).get("multivalued") == "false"
-                for mapper in client.get("protocolMappers", []))
-            for client in local_realm.get("clients", []))
-        and "$verifiedLocalAdmin = Get-LocalUser" in launcher
-        and "Keycloak did not persist the local owner tenant_id user attribute" in launcher
     ),
     "all scheduled background worker beans are gated by the local worker opt-in": all(
         '@ConditionalOnProperty(prefix = "platform.background-workers", name = "enabled", havingValue = "true", matchIfMissing = true)' in
@@ -292,7 +285,7 @@ checks.update({
         and '"platform.background-workers.enabled=false"' in sqlite_test
     ),
     "Windows SQLite presentation runs Playwright before process cleanup in the same step": (
-        (launch_start := workflow.find("- name: Start Real + Demo SQLite and run the native OIDC-to-SQLite browser test")) >= 0
+        (launch_start := workflow.find("- name: Start Real + Demo SQLite and run the native local-auth-to-SQLite browser test")) >= 0
         and (cleanup_start := workflow.find("- name: Ensure launcher processes are stopped", launch_start)) > launch_start
         and (playwright_install := workflow.find("npm --prefix apps/web exec -- playwright install chromium", launch_start)) > launch_start
         and (browser_test := workflow.find("npm --prefix apps/web run test:e2e:native", playwright_install)) > playwright_install
