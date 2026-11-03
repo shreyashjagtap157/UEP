@@ -62,29 +62,24 @@ test.describe('Layer A: Common login and sign-out', () => {
       // Sign in must open the persona-specific workspace, not a generic role menu.
       await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
       const navigation = page.getByRole('navigation', { name: 'Primary navigation' })
-      if (email === 'developer@demo.uep') {
-        await expect(navigation.getByRole('button', { name: 'Integrations & webhooks' })).toBeVisible()
-        await expect(navigation.getByRole('button', { name: 'Products & publishing' })).toHaveCount(0)
-        await expect(navigation.getByRole('button', { name: 'Assignments' })).toHaveCount(0)
-        await expect(navigation.getByRole('button', { name: 'My learning' })).toHaveCount(0)
+      const expectedNavigation: Record<string, string[]> = {
+        'student@demo.uep': ['Today', 'My learning', 'Assignments', 'Results & feedback', 'Calendar & classes', 'Attendance', 'Inbox'],
+        'teacher@demo.uep': ['Teaching overview', 'My classes', 'Learner roster', 'Submission queue', 'Attendance register', 'Course catalog', 'Class analytics', 'Inbox'],
+        'client@demo.uep': ['Organization overview', 'Programs & actions', 'People', 'Outcomes & reports', 'Delivery schedule', 'Operations', 'Inbox'],
+        'developer@demo.uep': ['Platform overview', 'Integrations & webhooks', 'Client service operations'],
+        'product-maintainer@demo.uep': ['Product portfolio', 'Products & publishing', 'Product activity'],
+        'admin@demo.uep': ['Platform overview', 'People & roles', 'Organizations', 'Course catalog', 'Academic records', 'Scheduling', 'Operations', 'Audit activity', 'Configuration'],
+        'guardian@demo.uep': ['Learner overview', 'Learner progress', 'Assignments & results', 'Calendar', 'Attendance', 'Inbox'],
+        'exam-controller@demo.uep': ['Exam overview', 'Exam schedule', 'Exam submissions', 'Exam activity'],
+        'finance-admin@demo.uep': ['Finance overview', 'Invoices & payments'],
+        'teaching-assistant@demo.uep': ['Teaching overview', 'Assigned classes', 'Submission triage', 'Attendance', 'My activity'],
+        'evaluator@demo.uep': ['Evaluation overview', 'Grading queue', 'Evaluation activity'],
+        'mentor@demo.uep': ['Mentor overview', 'Mentee progress', 'Learning evidence', 'Mentoring activity'],
+        'support@demo.uep': ['Support overview', 'Support queue'],
+        'auditor@demo.uep': ['Audit overview', 'Audit log'],
       }
-      if (email === 'product-maintainer@demo.uep') {
-        await expect(navigation.getByRole('button', { name: 'Products & publishing' })).toBeVisible()
-        await expect(navigation.getByRole('button', { name: 'Integrations & webhooks' })).toHaveCount(0)
-        await expect(navigation.getByRole('button', { name: 'Assignments' })).toHaveCount(0)
-        await expect(navigation.getByRole('button', { name: 'My learning' })).toHaveCount(0)
-      }
-      if (email === 'student@demo.uep') {
-        await expect(navigation.getByRole('button', { name: 'My learning' })).toBeVisible()
-        await expect(navigation.getByRole('button', { name: 'Assignments' })).toBeVisible()
-        await expect(navigation.getByRole('button', { name: 'Products & publishing' })).toHaveCount(0)
-        await expect(navigation.getByRole('button', { name: 'Integrations & webhooks' })).toHaveCount(0)
-      }
-      if (email === 'support@demo.uep') {
-        await expect(navigation.getByRole('button', { name: 'Support queue' })).toBeVisible()
-        await expect(navigation.getByRole('button', { name: 'Assignments' })).toHaveCount(0)
-        await expect(navigation.getByRole('button', { name: 'Products & publishing' })).toHaveCount(0)
-      }
+      expect(expectedNavigation[email], `Expected a role-specific navigation contract for ${email}`).toBeDefined()
+      await expect(navigation.getByRole('button')).toHaveText(expectedNavigation[email]!)
       await page.getByRole('button', { name: 'Switch user', exact: true }).click()
       // Should return to login page
       await expect(page.locator('.local-login-intro')).toBeVisible()
