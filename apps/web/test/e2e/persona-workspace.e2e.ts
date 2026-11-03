@@ -1,80 +1,37 @@
 /**
- * Layer A E2E Test: Persona workspace identification
- *
- * Verifies that each of the 13 canonical personas has a workspace that
- * visibly identifies the active persona and only provides controls appropriate
- * to that persona's role and permissions.
- *
- * @tag layerA
- * @tag persona
- * @tag workspace
+ * Layer A E2E: every canonical Demo persona has a distinct identity label and
+ * the exact navigation declared for its role.
  */
 import { test, expect } from '@playwright/test'
+import { signInToDemo, switchDemoUser } from './_helpers'
+
+const personas = [
+  { email: 'student@demo.uep', label: 'Student', name: 'Asha Sharma', nav: ['Today', 'My learning', 'Assignments', 'Results & feedback', 'Calendar & classes', 'Attendance', 'Inbox'] },
+  { email: 'teacher@demo.uep', label: 'Teacher', name: 'Rahul Deshmukh', nav: ['Teaching overview', 'My classes', 'Learner roster', 'Submission queue', 'Attendance register', 'Course catalog', 'Class analytics', 'Inbox'] },
+  { email: 'client@demo.uep', label: 'Client / Institution', name: 'Priya Kulkarni', nav: ['Organization overview', 'Programs & actions', 'People', 'Outcomes & reports', 'Delivery schedule', 'Operations', 'Inbox'] },
+  { email: 'developer@demo.uep', label: 'Platform Developer', name: 'Dev Patel', nav: ['Platform overview', 'Integrations & webhooks', 'Client service operations'] },
+  { email: 'product-maintainer@demo.uep', label: 'Product Maintainer', name: 'Mira Shah', nav: ['Product portfolio', 'Products & publishing', 'Product activity'] },
+  { email: 'admin@demo.uep', label: 'Platform Administrator', name: 'Morgan Admin', nav: ['Platform overview', 'People & roles', 'Organizations', 'Course catalog', 'Academic records', 'Scheduling', 'Operations', 'Audit activity', 'Configuration'] },
+  { email: 'guardian@demo.uep', label: 'Parent / Guardian', name: 'Nina Sharma', nav: ['Learner overview', 'Learner progress', 'Assignments & results', 'Calendar', 'Attendance', 'Inbox'] },
+  { email: 'exam-controller@demo.uep', label: 'Exam Controller', name: 'Aarav Shah', nav: ['Exam overview', 'Exam schedule', 'Exam submissions', 'Exam activity'] },
+  { email: 'finance-admin@demo.uep', label: 'Finance Administrator', name: 'Anaya Joshi', nav: ['Finance overview', 'Invoices & payments'] },
+  { email: 'teaching-assistant@demo.uep', label: 'Teaching Assistant', name: 'Ishaan Patil', nav: ['Teaching overview', 'Assigned classes', 'Submission triage', 'Attendance', 'My activity'] },
+  { email: 'evaluator@demo.uep', label: 'Evaluator', name: 'Sara Khan', nav: ['Evaluation overview', 'Grading queue', 'Evaluation activity'] },
+  { email: 'mentor@demo.uep', label: 'Mentor', name: 'Rohan Mehta', nav: ['Mentor overview', 'Mentee progress', 'Learning evidence', 'Mentoring activity'] },
+  { email: 'support@demo.uep', label: 'Support Operator', name: 'Alex Support', nav: ['Support overview', 'Support queue'] },
+  { email: 'auditor@demo.uep', label: 'Auditor', name: 'Jordan Audit', nav: ['Audit overview', 'Audit log'] },
+]
 
 test.describe('Layer A: Persona workspace identification', () => {
-  const personaRoles = [
-    'student',
-    'teacher',
-    'client',
-    'developer',
-    'admin',
-    'guardian',
-    'exam-controller',
-    'finance-admin',
-    'teaching-assistant',
-    'evaluator',
-    'mentor',
-    'support',
-    'auditor',
-  ]
+  test('all 14 personas render their own identity label and exact navigation', async ({ page }) => {
+    for (let index = 0; index < personas.length; index += 1) {
+      const persona = personas[index]
+      await signInToDemo(page, persona.email)
+      await expect(page.locator('.workspace-header .eyebrow')).toContainText(persona.label)
+      await expect(page.locator('.session-meta strong')).toHaveText(persona.name)
+      await expect(page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button')).toHaveText(persona.nav)
 
-  test('each persona role renders the correct workspace header and label', async ({
-    page,
-  }) => {
-    for (const role of personaRoles) {
-      await page.goto('/')
-      await page.fill('input[type="email"]', `${role}@demo.uep`)
-      await page.fill('input[type="password"]', 'demo')
-      await page.click('button[type="submit"]')
-      // The workspace header should identify the active persona
-      const header = page.locator('.workspace-header')
-      await expect(header).toBeVisible({ timeout: 5000 })
-      // Should show the persona label
-      await expect(header).toContainText(role)
-    }
-  })
-
-  test('each persona workspace shows role-appropriate navigation', async ({
-    page,
-  }) => {
-    const _roleNavs: Record<string, string[]> = {
-      student: ['Today', 'My learning', 'Assignments', 'Results & feedback', 'Calendar & classes', 'Attendance', 'Inbox'],
-      teacher: ['Teaching overview', 'My classes', 'Learner roster', 'Submission queue', 'Attendance register', 'Course catalog', 'Class analytics', 'Inbox'],
-      client: ['Organization overview', 'Programs & actions', 'People', 'Outcomes & reports', 'Delivery schedule', 'Operations', 'Inbox'],
-      developer: ['Product overview', 'Products & publishing', 'Integrations & webhooks', 'Product activity', 'Platform operations'],
-      admin: ['Platform overview', 'People & roles', 'Organizations', 'Course catalog', 'Academic records', 'Scheduling', 'Operations', 'Audit activity', 'Configuration'],
-      guardian: ['Learner overview', 'Learner progress', 'Assignments & results', 'Calendar', 'Attendance', 'Inbox'],
-      'exam-controller': ['Exam overview', 'Exam schedule', 'Exam submissions', 'Exam activity'],
-      'finance-admin': ['Finance overview', 'Invoices & payments'],
-      'teaching-assistant': ['Teaching overview', 'Assigned classes', 'Submission triage', 'Attendance', 'My activity'],
-      evaluator: ['Evaluation overview', 'Grading queue', 'Evaluation activity'],
-      mentor: ['Mentor overview', 'Mentee progress', 'Learning evidence', 'Mentoring activity'],
-      support: ['Support overview', 'Support queue'],
-      auditor: ['Audit overview'],
-    }
-
-    await page.goto('/')
-    await page.fill('input[type="email"]', `student@demo.uep`)
-    await page.fill('input[type="password"]', 'demo')
-    await page.click('button[type="submit"]')
-
-    const navItems = page.locator('.nav-list .nav-item')
-    const count = await navItems.count()
-    for (let i = 0; i < count; i++) {
-      const label = await navItems.nth(i).textContent()
-      if (label) {
-        // Just verify navigation renders without errors
-      }
+      if (index < personas.length - 1) await switchDemoUser(page)
     }
   })
 })
