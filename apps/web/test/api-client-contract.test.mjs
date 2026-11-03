@@ -113,6 +113,20 @@ test('administrator session controls use authenticated tenant-scoped list/revoke
   assert.ok(appSource.includes('member.membershipId !== me.membershipId'))
 })
 
+test('Real overview only requests schedule and academic data within the current identity scope', () => {
+  const todaySource = readFileSync(fileURLToPath(new URL('../src/dashboard/TodayOverview.tsx', import.meta.url)), 'utf8')
+  const academicSource = readFileSync(fileURLToPath(new URL('../src/academic/AcademicOverview.tsx', import.meta.url)), 'utf8')
+
+  assert.ok(appSource.includes("hasScoped(me, 'SCHEDULE_VIEW') || hasScoped(me, 'SCHEDULE_MANAGE')"))
+  assert.ok(todaySource.includes('enabled: boolean'))
+  assert.ok(todaySource.includes('enabled })'))
+  assert.ok(todaySource.includes('if (!enabled) return null'))
+  assert.ok(academicSource.includes("me.roles.includes('Student') || has(me, 'ENROLLMENTS_VIEW')"))
+  assert.ok(academicSource.includes("has(me, 'TEACHING_ASSIGNMENTS_VIEW')"))
+  assert.ok(academicSource.includes('enabled: canViewOwnEnrollments'))
+  assert.ok(academicSource.includes('enabled: canViewOwnTeaching'))
+})
+
 test('local-native logout revokes the launcher session without exposing its token to browser code', () => {
   assert.match(apiCore, /export function logoutLocalDevelopmentSession/)
   assert.ok(apiCore.includes('/api/v1/local/session/logout'))
