@@ -419,3 +419,11 @@ No hosted production deployment was started or modified by these commits. All ch
 - Added a dedicated SQLite JPA persistence test and SQLite-aware tenant existence check. PostgreSQL continues to use row-level `SELECT ... FOR UPDATE`; SQLite uses the Hibernate UUID binary representation and its single-connection local profile.
 - Added a dedicated native Playwright test for SQLite OIDC login, branch write/readback after reload, and file signature. The PostgreSQL-only native role/grant scenario skips itself when the local state identifies SQLite.
 - This does not change the PostgreSQL Flyway migration set or CI database matrix. Actual local Windows execution is still required.
+
+
+## 2026-11-03 follow-up — SQLite Windows launcher
+
+- `startuep.ps1` and `scripts/Start-UEP.ps1` accept `-Database SQLite|PostgreSQL`; SQLite is the default local qualification choice.
+- SQLite mode skips PostgreSQL discovery, installation, service startup, superuser prompts, database role creation and Flyway. It selects `local-sqlite` and the file `.uep-local/uep-local.sqlite`.
+- Keycloak uses its own `dev-file` database in SQLite mode; PostgreSQL mode retains its separate Keycloak schema and DB role.
+- PostgreSQL remains the production and CI database. Native Windows runtime execution remains pending.

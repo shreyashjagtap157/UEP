@@ -2,6 +2,8 @@
 param(
     [ValidateSet('Demo', 'Real', 'Both')]
     [string]$Mode = 'Both',
+    [ValidateSet('SQLite', 'PostgreSQL')]
+    [string]$Database = 'SQLite',
     [switch]$NoBrowser,
     [switch]$SkipAccountSeeding
 )
@@ -12,4 +14,4 @@ if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) {
     throw "UEP native launcher was not found: $launcher"
 }
 
-& $launcher -Mode $Mode -NoBrowser:$NoBrowser -SkipAccountSeeding:$SkipAccountSeeding
+& $launcher -Mode $Mode -Database $Database -NoBrowser:$NoBrowser -SkipAccountSeeding:$SkipAccountSeeding

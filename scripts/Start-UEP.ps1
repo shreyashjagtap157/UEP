@@ -2,6 +2,8 @@
 param(
     [ValidateSet('Demo', 'Real', 'Both')]
     [string]$Mode = 'Both',
+    [ValidateSet('SQLite', 'PostgreSQL')]
+    [string]$Database = 'SQLite',
     [switch]$NoBrowser,
     [switch]$SkipAccountSeeding
 )
@@ -37,6 +39,7 @@ function Show-RequirementInventory {
         @{ Name='Backend application'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\PlatformServerApplication.java') },
         @{ Name='Database migration runner'; Path=(Join-Path $ApiDir 'src\main\java\com\universalplatform\DatabaseMigrationRunner.java') },
         @{ Name='Database migrations'; Path=(Join-Path $ApiDir 'src\main\resources\db\migration') },
+        @{ Name='SQLite local profile'; Path=(Join-Path $ApiDir 'src\main\resources\application-local-sqlite.yaml') },
         @{ Name='Keycloak local realm'; Path=(Join-Path $RepoRoot 'infra\keycloak\education-realm.json') }
     )
     foreach ($item in $requiredFiles) {
@@ -56,13 +59,17 @@ function Show-RequirementInventory {
     if ($Mode -ne 'Demo') {
         $java = Find-Java
         $maven = Get-Command 'mvn.cmd' -ErrorAction SilentlyContinue
-        Find-PostgresTools
-        $pgService = Get-PostgresService
+        if ($Database -eq 'PostgreSQL') {
+            Find-PostgresTools
+            $pgService = Get-PostgresService
+            Write-Status 'PostgreSQL tools' $(if ($script:Psql) { 'PRESENT' } else { 'MISSING — installer will be offered' }) $(if ($script:Psql) { 'Green' } else { 'Yellow' })
+            Write-Status 'PostgreSQL service' $(if ($pgService) { $pgService.Status.ToString() } else { 'MISSING — install PostgreSQL service' }) $(if ($pgService -and $pgService.Status -eq 'Running') { 'Green' } else { 'Yellow' })
+        } else {
+            Write-Status 'SQLite' 'Built into the local qualification profile; no database server required' Green
+        }
         $keycloak = Join-Path $ToolDir 'keycloak-26.7.5\bin\kc.bat'
         Write-Status 'JDK 21+' $(if ($java) { 'PRESENT' } else { 'MISSING — installer will be offered' }) $(if ($java) { 'Green' } else { 'Yellow' })
         Write-Status 'Maven 3.9+' $(if ($maven -or (Test-Path (Join-Path $ToolDir 'apache-maven-3.10.0\bin\mvn.cmd'))) { 'PRESENT' } else { 'MISSING — download will be offered' }) $(if ($maven -or (Test-Path (Join-Path $ToolDir 'apache-maven-3.10.0\bin\mvn.cmd'))) { 'Green' } else { 'Yellow' })
-        Write-Status 'PostgreSQL tools' $(if ($script:Psql) { 'PRESENT' } else { 'MISSING — installer will be offered' }) $(if ($script:Psql) { 'Green' } else { 'Yellow' })
-        Write-Status 'PostgreSQL service' $(if ($pgService) { $pgService.Status.ToString() } else { 'MISSING — install PostgreSQL service' }) $(if ($pgService -and $pgService.Status -eq 'Running') { 'Green' } else { 'Yellow' })
         Write-Status 'Keycloak 26.7' $(if (Test-Path $keycloak) { 'PRESENT' } else { 'MISSING — verified download will be performed' }) $(if (Test-Path $keycloak) { 'Green' } else { 'Yellow' })
         Write-Status 'Local state' $(if (Test-Path $StateFile) { 'PRESENT — existing local credentials/database identity will be reused' } else { 'NOT INITIALIZED — first-run bootstrap required' }) $(if (Test-Path $StateFile) { 'Green' } else { 'Yellow' })
         Write-Status 'Frontend node_modules' $(if (Test-Path (Join-Path $WebDir 'node_modules')) { 'PRESENT — npm ci will still verify lockfile' } else { 'MISSING — npm ci will install it' }) $(if (Test-Path (Join-Path $WebDir 'node_modules')) { 'Green' } else { 'Yellow' })
@@ -337,9 +344,20 @@ function Initialize-LocalState {
     if (Test-Path $StateFile) {
         $script:State = Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
         if (-not $State.TestAccounts) { $State | Add-Member -NotePropertyName TestAccounts -NotePropertyValue @() -Force }
+        if (-not ($State.PSObject.Properties.Name -contains 'DatabaseProvider')) {
+            $State | Add-Member -NotePropertyName DatabaseProvider -NotePropertyValue 'PostgreSQL'
+        }
+        if (-not ($State.PSObject.Properties.Name -contains 'SQLiteDatabasePath')) {
+            $State | Add-Member -NotePropertyName SQLiteDatabasePath -NotePropertyValue ''
+        }
+        $State.DatabaseProvider = $Database
+        if ($Database -eq 'SQLite') { $State.SQLiteDatabasePath = Join-Path $LocalDir 'uep-local.sqlite' }
+        Save-State
         return
     }
     $script:State = [pscustomobject]@{
+        DatabaseProvider = $Database
+        SQLiteDatabasePath = $(if ($Database -eq 'SQLite') { Join-Path $LocalDir 'uep-local.sqlite' } else { '' })
         DatabaseName = 'uep_local_native'
         MigrationUser = 'uep_local_migrator'
         RuntimeUser = 'uep_local_runtime'
@@ -357,6 +375,17 @@ function Initialize-LocalState {
         TestAccounts = @()
     }
     Save-State
+}
+function Initialize-LocalSqliteDatabase {
+    $script:State.DatabaseProvider = 'SQLite'
+    $script:State.SQLiteDatabasePath = Join-Path $LocalDir 'uep-local.sqlite'
+    Protect-Directory $LocalDir
+    if (Test-Path -LiteralPath $State.SQLiteDatabasePath -PathType Leaf) {
+        Protect-File $State.SQLiteDatabasePath
+    }
+    Save-State
+    Write-Status 'Database' ('SQLite file — ' + $State.SQLiteDatabasePath) Green
+    Write-Host 'Hibernate creates the local schema from JPA entities. PostgreSQL Flyway migrations are not run.' -ForegroundColor Yellow
 }
 function Assert-PostgresServerVersion([string]$User, [string]$Password, [string]$Database = 'postgres') {
     $serverVersionNumber = Invoke-Psql $User $Password $Database 'SHOW server_version_num'
@@ -705,43 +734,77 @@ function Stop-ManagedProcesses {
 function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$DemoPort = 5174) {
     if ($RunReal) {
         $kcBat = Join-Path $KeycloakHome 'bin\kc.bat'
-        $kcLines = @(
-            '@echo off',
-            'set KC_DB=postgres',
-            ('set KC_DB_URL=jdbc:postgresql://127.0.0.1:5432/' + $State.DatabaseName),
-            'set KC_DB_SCHEMA=keycloak',
-            ('set KC_DB_USERNAME=' + $State.KeycloakUser),
-            ('set KC_DB_PASSWORD=' + $State.KeycloakPassword),
-            ('set KC_BOOTSTRAP_ADMIN_USERNAME=' + $State.KeycloakAdminUser),
-            ('set KC_BOOTSTRAP_ADMIN_PASSWORD=' + $State.KeycloakAdminPassword),
-            'set KC_HEALTH_ENABLED=true',
-            'set KC_HTTP_ENABLED=true',
-            'set KC_HOSTNAME=http://localhost:8081',
-            ('cd /d "' + $KeycloakHome + '"'),
-            ('call "' + $kcBat + '" start-dev --http-port=8081 --import-realm')
-        )
+        if ($Database -eq 'SQLite') {
+            $kcLines = @(
+                '@echo off',
+                'set KC_DB=dev-file',
+                ('set KC_BOOTSTRAP_ADMIN_USERNAME=' + $State.KeycloakAdminUser),
+                ('set KC_BOOTSTRAP_ADMIN_PASSWORD=' + $State.KeycloakAdminPassword),
+                'set KC_HEALTH_ENABLED=true',
+                'set KC_HTTP_ENABLED=true',
+                'set KC_HOSTNAME=http://localhost:8081',
+                ('cd /d "' + $KeycloakHome + '"'),
+                ('call "' + $kcBat + '" start-dev --http-port=8081 --import-realm')
+            )
+        } else {
+            $kcLines = @(
+                '@echo off',
+                'set KC_DB=postgres',
+                ('set KC_DB_URL=jdbc:postgresql://127.0.0.1:5432/' + $State.DatabaseName),
+                'set KC_DB_SCHEMA=keycloak',
+                ('set KC_DB_USERNAME=' + $State.KeycloakUser),
+                ('set KC_DB_PASSWORD=' + $State.KeycloakPassword),
+                ('set KC_BOOTSTRAP_ADMIN_USERNAME=' + $State.KeycloakAdminUser),
+                ('set KC_BOOTSTRAP_ADMIN_PASSWORD=' + $State.KeycloakAdminPassword),
+                'set KC_HEALTH_ENABLED=true',
+                'set KC_HTTP_ENABLED=true',
+                'set KC_HOSTNAME=http://localhost:8081',
+                ('cd /d "' + $KeycloakHome + '"'),
+                ('call "' + $kcBat + '" start-dev --http-port=8081 --import-realm')
+            )
+        }
         $kcFile = Write-CommandFile 'run-keycloak' $kcLines
         Start-ManagedProcess 'Keycloak' $kcFile $KeycloakHome
         if (-not (Wait-ForHttp 'http://127.0.0.1:8081/realms/education/.well-known/openid-configuration' 180 'Keycloak')) { throw 'Keycloak did not become ready. Inspect .uep-local\logs\Keycloak.log.' }
 
-        $backendLines = @(
-            '@echo off',
-            ('set SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:5432/' + $State.DatabaseName + '?sslmode=disable'),
-            ('set SPRING_DATASOURCE_USERNAME=' + $State.RuntimeUser),
-            ('set SPRING_DATASOURCE_PASSWORD=' + $State.RuntimePassword),
-            'set SPRING_FLYWAY_ENABLED=false',
-            'set PLATFORM_DEV_MODE=true',
-            'set OIDC_ISSUER_URI=http://localhost:8081/realms/education',
-            'set OIDC_JWK_SET_URI=http://localhost:8081/realms/education/protocol/openid-connect/certs',
-            'set PLATFORM_LIVEKIT_ENABLED=false',
-            'set PLATFORM_CLAMAV_ENABLED=false',
-            'set PLATFORM_BACKGROUND_WORKERS_ENABLED=true',
-            'set PLATFORM_UPLOAD_STAGING_ENABLED=true',
-            'set DATABASE_POOL_SIZE=10',
-            'set PORT=8080',
-            ('cd /d "' + $ApiDir + '"'),
-            ('call "' + $MavenCmd + '" -B spring-boot:run')
-        )
+        if ($Database -eq 'SQLite') {
+            $sqliteJdbcPath = $State.SQLiteDatabasePath.Replace('\', '/')
+            $backendLines = @(
+                '@echo off',
+                'set SPRING_PROFILES_ACTIVE=local-sqlite',
+                ('set UEP_SQLITE_JDBC_URL=jdbc:sqlite:' + $sqliteJdbcPath),
+                'set PLATFORM_DEV_MODE=true',
+                'set OIDC_ISSUER_URI=http://localhost:8081/realms/education',
+                'set OIDC_JWK_SET_URI=http://localhost:8081/realms/education/protocol/openid-connect/certs',
+                'set PLATFORM_LIVEKIT_ENABLED=false',
+                'set PLATFORM_CLAMAV_ENABLED=false',
+                'set PLATFORM_BACKGROUND_WORKERS_ENABLED=false',
+                'set PLATFORM_UPLOAD_STAGING_ENABLED=false',
+                'set DATABASE_POOL_SIZE=1',
+                'set PORT=8080',
+                ('cd /d "' + $ApiDir + '"'),
+                ('call "' + $MavenCmd + '" -B spring-boot:run')
+            )
+        } else {
+            $backendLines = @(
+                '@echo off',
+                ('set SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:5432/' + $State.DatabaseName + '?sslmode=disable'),
+                ('set SPRING_DATASOURCE_USERNAME=' + $State.RuntimeUser),
+                ('set SPRING_DATASOURCE_PASSWORD=' + $State.RuntimePassword),
+                'set SPRING_FLYWAY_ENABLED=false',
+                'set PLATFORM_DEV_MODE=true',
+                'set OIDC_ISSUER_URI=http://localhost:8081/realms/education',
+                'set OIDC_JWK_SET_URI=http://localhost:8081/realms/education/protocol/openid-connect/certs',
+                'set PLATFORM_LIVEKIT_ENABLED=false',
+                'set PLATFORM_CLAMAV_ENABLED=false',
+                'set PLATFORM_BACKGROUND_WORKERS_ENABLED=true',
+                'set PLATFORM_UPLOAD_STAGING_ENABLED=true',
+                'set DATABASE_POOL_SIZE=10',
+                'set PORT=8080',
+                ('cd /d "' + $ApiDir + '"'),
+                ('call "' + $MavenCmd + '" -B spring-boot:run')
+            )
+        }
         $apiFile = Write-CommandFile 'run-api' $backendLines
         Start-ManagedProcess 'Backend' $apiFile $ApiDir
         if (-not (Wait-ForHttp 'http://127.0.0.1:8080/actuator/health' 180 'Backend')) { throw 'Backend did not become healthy. Inspect .uep-local\logs\Backend.log.' }
@@ -797,14 +860,18 @@ try {
     if ($Mode -ne 'Demo') {
         Ensure-Java
         Ensure-Maven
-        Ensure-Postgres
+        if ($Database -eq 'PostgreSQL') { Ensure-Postgres }
         Ensure-Keycloak
         Test-PortAvailable 8080
         Test-PortAvailable 8081
         Test-PortAvailable 5173
         if ($Mode -eq 'Both') { Test-PortAvailable 5174 }
         Initialize-LocalState
-        Initialize-LocalDatabase
+        if ($Database -eq 'SQLite') {
+            Initialize-LocalSqliteDatabase
+        } else {
+            Initialize-LocalDatabase
+        }
         Write-RuntimeCommandFiles -RunReal -RunDemo:($Mode -eq 'Both')
         Ensure-RealIdentity
     } else {
@@ -818,7 +885,7 @@ try {
         Write-Host '  Frontend:  http://localhost:5173'
         Write-Host '  Backend:   http://localhost:8080'
         Write-Host '  Keycloak:  http://localhost:8081'
-        Write-Host '  Database:  PostgreSQL / uep_local_native / localhost:5432'
+        Write-Host ('  Database:  ' + $(if ($Database -eq 'SQLite') { 'SQLite / .uep-local/uep-local.sqlite' } else { 'PostgreSQL / uep_local_native / localhost:5432' }))
         Write-Host 'DEMO (offline fixtures; no API/database requests)' -ForegroundColor Yellow
         Write-Host '  Frontend:  http://localhost:5174'
     } elseif ($Mode -eq 'Real') {
@@ -827,7 +894,7 @@ try {
         Write-Host '  Frontend:  http://localhost:5173'
         Write-Host '  Backend:   http://localhost:8080'
         Write-Host '  Keycloak:  http://localhost:8081'
-        Write-Host '  Database:  PostgreSQL / uep_local_native / localhost:5432'
+        Write-Host ('  Database:  ' + $(if ($Database -eq 'SQLite') { 'SQLite / .uep-local/uep-local.sqlite' } else { 'PostgreSQL / uep_local_native / localhost:5432' }))
     } else {
         Write-Host ''
         Write-Host 'DEMO MODE' -ForegroundColor Green
@@ -859,10 +926,15 @@ try {
     while ($true) {
         if ($Mode -ne 'Demo') {
             $db = 'DOWN'
-            try {
-                $dbResult = Invoke-Psql $State.RuntimeUser $State.RuntimePassword $State.DatabaseName 'SELECT 1'
-                if ($dbResult.Trim() -eq '1') { $db = 'UP' }
-            } catch {}
+            if ($Database -eq 'SQLite') {
+                if ((Test-Path -LiteralPath $State.SQLiteDatabasePath -PathType Leaf) -and
+                    (Get-Item -LiteralPath $State.SQLiteDatabasePath).Length -gt 0) { $db = 'UP' }
+            } else {
+                try {
+                    $dbResult = Invoke-Psql $State.RuntimeUser $State.RuntimePassword $State.DatabaseName 'SELECT 1'
+                    if ($dbResult.Trim() -eq '1') { $db = 'UP' }
+                } catch {}
+            }
             $kc = if ((Test-NetConnection 127.0.0.1 -Port 8081 -WarningAction SilentlyContinue).TcpTestSucceeded) { 'LISTENING' } else { 'DOWN' }
             $api = 'DOWN'
             try { $health = Invoke-RestMethod -Uri 'http://127.0.0.1:8080/actuator/health' -TimeoutSec 3; $api = [string]$health.status } catch {}

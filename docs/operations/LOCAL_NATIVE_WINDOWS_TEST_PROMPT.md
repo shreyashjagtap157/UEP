@@ -240,3 +240,29 @@ Label every item PASS, FAIL, BLOCKED or NOT TESTED. Separate verified facts from
 Use the SQLite profile when PostgreSQL is unavailable. The launcher accepts a SQLite database selection; the local qualification database is a file under `.uep-local`. The profile uses Hibernate entity schema generation, not the PostgreSQL Flyway migrations. Keycloak has a separate local development store.
 
 The SQLite native test validates OIDC login, authenticated branch creation, browser reload/readback and the SQLite file signature. PostgreSQL role/grant tests remain a separate PostgreSQL-only acceptance suite. SQLite results must not be represented as PostgreSQL migration, privilege, concurrency or production-equivalence evidence.
+
+
+## SQLite local qualification mode
+
+Use SQLite when PostgreSQL is unavailable. From the repository root:
+
+```powershell
+.\startuep.ps1 -Mode Real -Database SQLite
+```
+
+SQLite is the default local qualification database. PostgreSQL remains an explicit alternative:
+
+```powershell
+.\startuep.ps1 -Mode Real -Database PostgreSQL
+```
+
+SQLite mode does not install or start PostgreSQL and does not execute Flyway's PostgreSQL migrations. Hibernate generates the local qualification schema from the JPA entity model in `.uep-local\uep-local.sqlite`. Keycloak uses its own local `dev-file` development store. Runtime workers that depend on PostgreSQL advisory locks are disabled.
+
+After the launcher reports the backend healthy, run:
+
+```powershell
+Set-Location apps\web
+npm run test:e2e:native
+```
+
+The SQLite native test validates OIDC login, authenticated branch creation, browser reload/readback and the SQLite file signature. PostgreSQL role/grant checks are a separate suite and are skipped in SQLite mode. SQLite does not establish PostgreSQL migration, role/grant, concurrency, backup/restore or production-equivalence qualification.

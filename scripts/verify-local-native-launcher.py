@@ -23,6 +23,20 @@ migration = migration_path.read_text(encoding="utf-8")
 
 checks = {
     "launcher supports Demo, Real and Both modes": "ValidateSet('Demo', 'Real', 'Both')" in launcher,
+    "launcher supports SQLite and PostgreSQL local database modes": (
+        "ValidateSet('SQLite', 'PostgreSQL')" in launcher
+        and "function Initialize-LocalSqliteDatabase" in launcher
+        and "function Initialize-LocalDatabase" in launcher
+    ),
+    "SQLite mode bypasses PostgreSQL install and Flyway": (
+        "if ($Database -eq 'PostgreSQL') { Ensure-Postgres }" in launcher
+        and "if ($Database -eq 'SQLite') {\n            Initialize-LocalSqliteDatabase" in launcher
+        and "set SPRING_PROFILES_ACTIVE=local-sqlite" in launcher
+        and "set PLATFORM_BACKGROUND_WORKERS_ENABLED=false" in launcher
+    ),
+    "SQLite Keycloak uses an isolated development database": (
+        "set KC_DB=dev-file" in launcher and "KC_DB_SCHEMA=keycloak" in launcher
+    ),
     "Demo mode enables local fixture authentication": "set VITE_LOCAL_MODE=true" in launcher,
     "Real mode disables local fixture authentication": "set VITE_LOCAL_MODE=false" in launcher,
     "Real mode configures the tracked Keycloak realm and client": (
@@ -62,7 +76,7 @@ checks = {
             "uep_local_migrator", "uep_local_runtime", "uep_local_keycloak"
         ))
     ),
-    "Keycloak owns a separate schema": "KC_DB_SCHEMA=keycloak" in launcher
+    "Keycloak owns a separate schema in PostgreSQL mode": "KC_DB_SCHEMA=keycloak" in launcher
         and "CREATE SCHEMA keycloak AUTHORIZATION " in launcher,
     "database migration runner is compiled before execution": (
         "compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java" in launcher
@@ -90,6 +104,7 @@ checks = {
         and "Frontend lockfile" in launcher
         and "Database migration runner" in launcher
         and "PostgreSQL service" in launcher
+        and "SQLite local profile" in launcher
     ),
     "branch administrator test identity is attached only at branch scope": (
         "scopeKind = 'BRANCH'" in launcher
