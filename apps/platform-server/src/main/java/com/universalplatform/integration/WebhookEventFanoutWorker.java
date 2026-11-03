@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -21,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * marker are committed atomically; HTTP transport remains the responsibility of WebhookWorker.
  */
 @Service
+@ConditionalOnProperty(prefix = "platform.background-workers", name = "enabled", havingValue = "true", matchIfMissing = true)
 class WebhookEventFanoutWorker {
     private static final Logger log = LoggerFactory.getLogger(WebhookEventFanoutWorker.class);
 
