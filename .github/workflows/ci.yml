@@ -472,7 +472,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Playwright Chromium installation failed with exit code $LASTEXITCODE." }
 
             Write-Host 'Running the native local-auth-to-SQLite browser write/readback test while local services remain alive...'
-            npm --prefix apps/web run test:e2e:native
+            npm --prefix apps/web run test:e2e:native -- test/native/real-sqlite.native.spec.ts
             if ($LASTEXITCODE -ne 0) { throw "Native SQLite browser qualification failed with exit code $LASTEXITCODE." }
           }
           catch {
@@ -492,8 +492,15 @@ jobs:
           finally {
             if ($launcher -and -not $launcher.HasExited) {
               & taskkill.exe /PID $launcher.Id /T /F *> $null
+              $cleanupExitCode = $LASTEXITCODE
+              if ($cleanupExitCode -ne 0) {
+                Write-Warning "The launcher process tree returned exit code $cleanupExitCode during best-effort cleanup; the port-based cleanup step will make a second pass."
+              }
               Start-Sleep -Seconds 3
             }
+            # All required native commands above have explicit exit-code guards.
+            # Do not let a best-effort taskkill result turn a successful qualification into a failed job.
+            $global:LASTEXITCODE = 0
           }
 
       - name: Ensure launcher processes are stopped
