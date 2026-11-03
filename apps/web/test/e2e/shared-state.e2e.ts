@@ -23,7 +23,9 @@ test.describe('Layer A: Shared state persistence', () => {
     await signInToDemo(page, 'teacher@demo.uep')
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Submission queue' }).click()
 
-    const gradable = page.locator('article.local-module').filter({ has: page.getByRole('button', { name: /^Grade / }) }).first()
+    const gradable = page.locator('article.local-module')
+      .filter({ hasText: 'REST API design exercise' })
+      .filter({ hasText: 'Asha Sharma' })
     const title = await gradable.locator('strong').textContent() ?? ''
     const detail = await gradable.locator('p').first().textContent() ?? ''
     await gradable.getByRole('button', { name: /^Grade / }).click()
