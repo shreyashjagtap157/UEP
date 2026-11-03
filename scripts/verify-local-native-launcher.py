@@ -282,6 +282,8 @@ checks.update({
         and "existingSqliteSchemaSupportsPerTableColumnMetadataExtraction" in sqlite_test
         and "existingSqliteDatabaseCanStartASecondRealApplicationContext" in sqlite_test
         and "new SpringApplicationBuilder(PlatformServerApplication.class)" in sqlite_test
+        and '"spring.jpa.hibernate.ddl-auto"' in sqlite_test
+        and '.isEqualTo("update")' in sqlite_test
         and "metadata.getColumns(null, null, tableName, null)" in sqlite_test
     ),
     "SQLite backend integration test asserts scheduler and worker suppression": (
