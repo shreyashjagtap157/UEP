@@ -7,9 +7,9 @@
 - Repository: `https://github.com/shreyashjagtap157/UEP`
 - Development branch: `main`
 - Version: `0.15.0.0-SNAPSHOT` (not a stable release).
-- The latest source review for the native launcher and Real/ Demo integration was performed through commit [`d467bd948668c960b384f20a1376a46674c51bbb`](https://github.com/shreyashjagtap157/UEP/commit/d467bd948668c960b384f20a1376a46674c51bbb). Subsequent commits in this session updated documentation and handoff instructions; always fetch the actual current `main` head before making another change.
-- The current-head GitHub combined-status and commit-workflow queries returned no status/workflow records during this review. This is **not** evidence of a green CI run. The older run records below belong to the previous 2-November snapshot and do not qualify the 3-November launcher changes.
-- No local Windows runtime, Maven test run, Playwright run or browser/API/database request was executed from this session. The target workstation still must run the documented acceptance sequence. Source inspection and committed tests are not runtime proof.
+- `main` was verified at [`992ea2f7ef95748f500865e306ec82b2062af847`](https://github.com/shreyashjagtap157/UEP/commit/992ea2f7ef95748f500865e306ec82b2062af847) (`feat: add REST API controllers for platform modules`). The product UI, Demo persona and local-native logout changes described below are on draft PR [#38](https://github.com/shreyashjagtap157/UEP/pull/38), branch `feat/product-ui-role-navigation-auth-session`, and are **not yet part of `main`**.
+- At this update, the feature branch head is [`928237d8d50c99686e77e705c083db9ee5a1f19a`](https://github.com/shreyashjagtap157/UEP/commit/928237d8d50c99686e77e705c083db9ee5a1f19a). GitHub's comparison against the current `main` reports 18 commits ahead and 0 behind. PR #38 remains open and draft.
+- CI evidence below is from GitHub Actions on the feature branch, not from a commit already merged to `main`. No claim is made that the target workstation itself ran PowerShell, Maven or Playwright; the verified Windows execution is on GitHub's `windows-latest` runner. Source inspection and committed tests are not runtime proof.
 
 ### Real local implementation and offline Demo
 
@@ -47,6 +47,30 @@ That is Presentation mode with SQLite. The separately selectable modes remain:
 - PostgreSQL remains an explicit qualification option: local PostgreSQL 17/18, tracked Flyway migrations via `DatabaseMigrationRunner` and `uep_local_migrator`, then Spring Boot under the restricted `uep_local_runtime` role with Flyway disabled. The launcher provisions only the migration/runtime roles.
 - The root `startuep.ps1` remains a compatibility wrapper around `scripts/Start-UEP.ps1`; both default to paired Presentation mode. The data files and protected local state are retained during normal stop/failure cleanup.
 
+
+### Pending product UI, persona and session milestone — draft PR #38 (not merged to main)
+
+This is a substantial in-progress product-quality change set. Its implementation and CI evidence belong to `feat/product-ui-role-navigation-auth-session` until PR #38 is reviewed and merged.
+
+- **Visual system:** refreshed the Real and Offline Demo presentation with warm ivory surfaces, deep slate navigation, restrained copper accents, editorial headings, consistent header/session treatment and responsive layouts. A follow-up CSS correction preserves the responsive workspace layout when desktop product styling is applied.
+- **Organizational account groups:** the Offline Demo offers 14 seeded personas across **Platform team**, **Client & institution management**, and **Institution teaching & learning**.
+- **Platform Developer vs Product Maintainer:** Platform Developer is scoped to platform integrations, webhook health and technical/client-service operations. It does not receive learning-content, assignment or product-authoring navigation. Product Maintainer owns educational product catalogue, draft/release and publishing workflows. Demo create/publish mutations enforce that distinction.
+- **Existing Demo data upgrade:** the browser store is upgraded to schema v5. Its migration reads v4 and older stored states, changes the old Developer record label to Platform Developer, adds the Product Maintainer record only when it is absent, and preserves the remaining persisted users, suspension status, course progress, products and workflow data. A dedicated v4-to-v5 regression test covers that upgrade.
+- **Demo account switching:** one header **Switch user** action clears the active tab's Demo identity and returns to the grouped account selector. The browser regression covers all 14 persona sign-ins, the exact ordered navigation for each role, and switching back to the selector.
+- **Real local-native logout:** the Real local-native owner now has a genuine **Sign out** action. The browser sends a same-origin POST through the Vite proxy; the launcher token remains in the server-side Vite process and is not exposed to browser storage or JavaScript. Spring checks the local owner subject and session ID, revokes the process-owned session, and the authentication filter rejects subsequent use of that launcher token with HTTP 401. The UI renders a signed-out state and explains that restarting the launcher is required to establish a fresh single-owner Real session. Other tabs also transition to the signed-out state when their next identity request receives 401, including when session storage is unavailable.
+- **Production authentication:** production OIDC sign-out remains on the identity-provider flow; the local-native path does not simulate 14 backend users or route the user to a non-functional Keycloak login screen.
+- **Navigation gating:** the Real Security menu is permission-gated. Server-side API authorization remains the security boundary; hiding a menu item is not treated as authorization.
+
+The local-native logout integration test asserts a successful logout response followed by an unauthorized response for the same launcher session. Frontend contract tests also verify that browser code does not contain the local launcher token/header and that revoked-session 401 responses are handled.
+
+### Feature-branch CI evidence for PR #38
+
+- **Run #1235**, commit `781579a6f70a98cefb0c1a1d2433a1a0f4d8913b`, completed with **all seven jobs successful**. This includes frontend install/lint/Demo workflow tests/production-contract build; repository policy and PowerShell parsing; dependency SBOM and OSV scan; Windows Real + Demo SQLite presentation startup; native local-auth-to-SQLite branch create/readback and database-file checks; the focused all-14-persona Demo browser regression; PostgreSQL 17.11 and 18.4 Maven verification, migration callback and least-privilege database grants; API OCI ARM64 build/smoke and fresh-database packaged-server health; and the Keycloak staging OCI ARM64 image smoke.
+- **Run #1236**, latest feature head `928237d8d50c99686e77e705c083db9ee5a1f19a`, has completed successfully for Windows local presentation smoke, focused Demo persona/navigation browser regression, frontend lint/unit/build, repository policy, vulnerability scanning and Keycloak staging OCI image checks. At the time of this update, both backend matrix jobs had passed Maven verification, PostgreSQL migration callback, least-privilege grants and the current-runner API image build; the OCI ARM64 API image/smoke stages were still in progress. Treat those final stages as pending until the run reaches a terminal successful conclusion.
+- Earlier runs #1229–#1234 failed while this milestone was being stabilized. The failures exposed stale browser selectors, a malformed PowerShell cleanup block, a duplicate `Timezone` label selector, an undeclared Modulith dependency, a brittle finance-annotation check and cleanup exit-code propagation. Those defects were corrected in subsequent commits; the successful run #1235 confirms the resulting workflow at its tested commit.
+- The broad legacy Demo E2E suite was also exercised during diagnosis and exposed 19 failures in unrelated older assessment, attendance, finance, support, mentoring, schedule and shared-state specs. It is **not** the gate used by this milestone. Windows CI now runs the focused account-switch/navigation acceptance spec instead. Those other legacy specs remain separate follow-up work.
+- A green feature-branch run is repository CI evidence only. It does not mean PR #38 has merged, nor does it establish production release readiness or prove execution on the developer's local Windows workstation.
+
 ### Current source-level implementation coverage
 
 The repository contains substantial source implementations across multi-tenancy, identity/RBAC, branches and organization settings; academic structure, enrollment and teaching assignments; scheduling; announcements and notifications; learning resources and storage; question banks and assessments; assignments, submissions, grading and gradebook; attendance, live classrooms and recordings; finance; analytics; integrations/federation/interoperability foundations; and operations/security qualification tooling. The Offline Demo separately contains role-based simulated education workflows.
@@ -55,17 +79,9 @@ This inventory describes source implementation, not full end-to-end acceptance o
 
 ### CI status
 
-The previous 2-November snapshot recorded completed run #936 on documentation-only commit `8132e74b135c23a6e0b67c2870f72d54ba351dcb` and run #935 on source commit `a29485b7b73f522a553a94e769a8318d5b774702`, as well as an in-progress #939 observation. Those results are historical. None demonstrates that the current local-proxy, launcher, verifier, security and documentation changes from 3 November passed CI.
+The 2-November runs #935/#936 and the 28-October run #40701828392 remain historical evidence and must not be used to qualify the 3-November work. For the active 3-November product milestone, use the feature-branch evidence recorded in **Feature-branch CI evidence for PR #38** above. Run #1235 is fully green at its tested commit. Run #1236 is green for the Windows, web, policy, vulnerability and Keycloak jobs, while its two backend OCI ARM64 image/smoke stages were still running at the time of this update.
 
-Before accepting the changes, inspect the current `main` workflow run and confirm terminal results for:
-- backend Maven verification and packaged API startup;
-- frontend dependency install, contract tests, lint and production build;
-- repository policy and native-launcher static verification;
-- Windows local Presentation smoke, including Real, Demo, API proxy, Swagger, OpenAPI and no port 8081;
-- Playwright native SQLite/API persistence test;
-- dependency/vulnerability scanning.
-
-A queued, missing or empty status is pending/unverified, not a pass.
+The latest `main` commit remains `992ea2f7ef95748f500865e306ec82b2062af847`; PR #38 is not merged. A green feature-branch CI run does not make its changes part of `main`. Recheck the PR and the latest run before merging. A queued, missing or empty status is pending/unverified, not a pass.
 
 ### Remaining implementation / qualification gaps
 
