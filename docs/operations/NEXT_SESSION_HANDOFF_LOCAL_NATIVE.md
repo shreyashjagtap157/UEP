@@ -436,3 +436,13 @@ No hosted production deployment was started or modified by these commits. All ch
 - A follow-up changed the SQLite native test to read only the 16-byte SQLite signature instead of loading the entire database file into memory (`45a8fba`).
 - The corrected SQLite persistence test and PostgreSQL 17/18 Maven jobs were still running at the time of this handoff update. Do not report backend CI as green until those exact jobs complete successfully.
 - The SQLite native browser test has not yet been executed on the user's Windows machine. The Linux CI job only verifies test discovery. The backend SQLite integration test verifies SQLite startup, Hibernate schema creation, tenant persistence and SQLite UUID existence lookup; it does not qualify the full application API.
+
+
+## 2026-11-03 CI follow-up — SQLite test fix validated by backend test stage
+
+- Workflow run [41573029510](https://github.com/shreyashjagtap157/UEP/actions/runs/41573029510), source commit `4502b5e`: web, repository-policy and vulnerability-scan jobs completed successfully; Keycloak staging-container job completed successfully.
+- Both backend matrix jobs (PostgreSQL 17.11 and 18.4) completed the **Verify backend** step successfully. The subsequent PostgreSQL UUIDv7 migration callback and least-privilege runtime grant steps also completed successfully. The jobs were still running the later API container build/smoke stages at the last poll, so the complete workflow conclusion remained pending.
+- Workflow run [41573114756](https://github.com/shreyashjagtap157/UEP/actions/runs/41573114756), source commit `45a8fba`: web, repository-policy, vulnerability-scan and Keycloak staging-container jobs completed successfully; both backend matrix jobs had passed **Verify backend** and were in later container-build stages.
+- Workflow run [41573298769](https://github.com/shreyashjagtap157/UEP/actions/runs/41573298769), source commit `3c4189b`: web, repository-policy and vulnerability-scan completed successfully; PostgreSQL 18.4 had passed **Verify backend**, while PostgreSQL 17.11 and the remaining container jobs were still running.
+- The successful backend verification stage includes the added `SQLiteLocalQualificationIntegrationTest` in the Maven suite. The earlier test failure from UUID parameter comparison is therefore corrected at the backend verification stage. The native Windows launcher/browser test remains unexecuted.
+- Latest source at the time of this note is later than the cited runs; rerun/finish CI for the exact current main head before release qualification.
