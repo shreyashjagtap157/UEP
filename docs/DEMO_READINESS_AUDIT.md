@@ -1,55 +1,76 @@
-# Demo Readiness Audit
+# UEP product UI and demo readiness audit
 
-Date: 2026-10-23
+Date: 2026-11-03
+Baseline: `main` at `7683236833d274e9d688f58cb0768abe28395f5c`
+Work branch: `feat/product-ui-role-navigation-auth-session`
 
-## Verified Local Presentation Path
+This audit describes the product and identity boundaries introduced in this workstream. It does not claim that Windows runtime checks or browser tests have passed until the branch's CI jobs report success.
 
-The local presentation path is enabled by `apps/web/.env` with `VITE_LOCAL_MODE=true`.
+## Two application paths
 
-- First screen: local login form.
-- Authenticated Student session: Student-only workspace.
-- Student feature areas shown: schedule, upcoming class, already conducted classes, future classes, exams/tests, results/feedback, class notes, and announcements.
-- When offline, these areas show explicit unavailable/empty states and explain that the backend must be connected; no fabricated records are displayed.
-- Client and Developer workspaces are not rendered inside an authenticated Student session.
-- Sign out clears the local session and returns to login.
-- Browser verification found no requests to `/api/`, Keycloak, or backend port 8080 in local mode.
-
-The offline path contains no course, class, assessment, attendance, organization, billing, API-health, or deployment records. Connected mode must be used for real data and persisted workflows.
-
-## Role Boundary
-
-| Persona | Local entry | Local scope | Status |
-| --- | --- | --- | --- |
-| Student | Login role: Student | Student learning, schedule, assessments, notes, announcements | Verified locally |
-| Client | Login role: Client | Institution summary, cohort, teaching coverage, entitlement | Verified locally; fixture-backed |
-| Developer | Login role: Developer | Platform/integration summary and release modules | Verified locally; fixture-backed |
-| Teacher | Main connected application role model | Assigned teaching workspaces in the non-local shell | Backend-dependent and not locally authenticated |
-| Administrator roles | Main connected application role model | Permission-gated administration workspaces | Backend-dependent and not locally authenticated |
-
-The local authenticated dashboard does not provide a role-switcher. Role selection occurs only at the local demo login boundary.
-
-## Feature Status
-
-| Area | Status | Evidence / limitation |
+| Path | Runtime and identity | Data boundary |
 | --- | --- | --- |
-| Login-first local flow | WORKING | Browser-tested login, validation, session, and sign-out |
-| Student schedule and learning navigation | WORKING locally | Deterministic fixture rows and local action feedback |
-| Student assessment/notes/announcements presentation | WORKING locally | Deterministic fixture rows and local action feedback |
-| Client/Developer isolated local workspaces | WORKING locally | Separate role selection at login; no cross-role content in session |
-| Real OIDC authentication | BLOCKED | Keycloak is not running in this environment |
-| Real API persistence and cross-role state | BLOCKED | Spring backend cannot start until JDK/Maven/database dependencies are available |
-| Server-side authorization and tenant isolation | UNVERIFIED locally | Existing connected application contains the authorization model; requires backend runtime/tests |
-| Backend compilation/integration qualification | BLOCKED | Maven/JDK/database setup and known CI compilation failures require separate repair |
+| Real UEP | React/Vite on port 5173, Spring Boot on 8080, launcher-issued loopback session; one persisted local Organization Owner | Actual API and selected local SQLite/PostgreSQL database |
+| Offline Demo | Separate React/Vite app on port 5174; seeded persona sign-in | Browser-local shared demonstration dataset; not connected to the Real API or database |
+| Production | OIDC identity provider and API bearer-token authentication | Tenant-scoped server-side authorization and persistence |
 
-## Validation Commands
+The local-native Real path intentionally does not start Keycloak and does not provision synthetic Student/Teacher/Developer backend memberships. Its single owner session is process-managed by the Windows launcher. Stop the PowerShell launcher with Ctrl+C to terminate it. The Real header's **Open demo accounts** link opens the independent Offline Demo; it does not impersonate or replace the Real owner identity. Production OIDC keeps the normal Sign out action.
 
-From `apps/web`:
+## Offline Demo: account groups and responsibilities
 
-- `npm run lint` passed.
-- `npm run build` passed.
-- Browser smoke tests passed for Student login, Student-only content, feature actions, Client/Developer isolation, and sign-out.
-- Mobile layout was previously verified without horizontal overflow.
+The Offline Demo exposes 14 named sample personas in three groups. The identities are fixtures for presentation workflows and are not production user records.
 
-## Presentation Boundary
+| Organizational group | Persona | Responsibility and visible workspace |
+| --- | --- | --- |
+| Platform team | Platform Developer | Platform engineering, integration configuration, webhook health and client-service operations; no course authoring, learning content or assignments |
+| Platform team | Product Maintainer | Educational product catalogue, product drafts, release review, versioning and publishing |
+| Platform team | Support Operator | Institution support queue and issue triage, with restricted academic-record visibility |
+| Platform team | Platform Administrator | Platform-wide people, organizations, academic configuration and operational administration |
+| Platform team | Auditor | Read-only audit and compliance activity |
+| Client & institution management | Client / Institution | Institution overview, programs, people, service actions, delivery schedule and outcomes |
+| Client & institution management | Finance Administrator | Institution invoice, payment and account-status records |
+| Client & institution management | Exam Controller | Examination schedule, exam-linked submissions and examination operations |
+| Institution teaching & learning | Teacher | Assigned classes, learner roster, submission review, grading, attendance and course materials |
+| Institution teaching & learning | Teaching Assistant | Assigned classes, attendance and submission triage |
+| Institution teaching & learning | Evaluator | Assigned evaluation and grading queue |
+| Institution teaching & learning | Mentor | Linked learner progress, evidence and mentoring activity |
+| Institution teaching & learning | Student | Own enrolled published courses, learning materials, assignments, results, schedule and attendance |
+| Institution teaching & learning | Parent / Guardian | Read-only progress, results, attendance and communications for the linked learner |
 
-Use local mode for a truthful offline UI walkthrough. Do not describe fixture values as live enrollment, attendance, API health, billing, or deployment data. For a production-style demo, disable local mode only after the backend, Keycloak, database, seed accounts, and connected authorization tests are available.
+### Real tenant roles versus platform-team personas
+
+The connected tenant identity model separately defines Organization Owner, Organization Administrator, Branch Administrator, Academic Administrator, Exam Controller, Finance Administrator, Teacher, Evaluator, Teaching Assistant, Mentor, Student, Guardian, Support Operator and Auditor roles. Their menus are derived from the current identity's permission set, and API authorization remains enforced by Spring Security. Branch and academic managers therefore receive scoped tenant permissions rather than a hard-coded global menu.
+
+Platform Developer and Product Maintainer are platform-team responsibilities shown as Offline Demo personas; Product Maintainer is not a tenant system role in the current `DefaultRoleSeeder`. This avoids representing a platform product-release responsibility as an institution membership.
+
+## Identity switching and role visibility
+
+- Offline Demo sign-in stores the selected persona in the current tab's `sessionStorage` after checking that its seeded account is active.
+- The single **Switch user** action in the workspace header clears that account session and returns to the three-group selector. Choosing another account is an explicit sign-out followed by a new sign-in.
+- Demo navigation is declared per persona in `SpecialistLocalDashboard`; hidden sections are not rendered in the menu.
+- Product creation and publishing are guarded in `LocalDemoStore` and assigned to Product Maintainer. Platform Developer receives integrations and client-service operations, not the product publishing form or academic navigation.
+- Real UEP filters navigation by permissions and the backend continues to enforce authorization. The local-native Organization Owner is expected to see broad tenant administration; it is not the Developer persona.
+
+## Product design direction
+
+The updated interface uses a warm ivory workspace, deep slate navigation, restrained copper accents, editorial serif headings, clearer account grouping, consistent session controls, and responsive persona cards. These are presentation-layer changes; they do not weaken backend permission checks.
+
+## Validation and Windows run path
+
+The repository CI already contains a `windows-latest` presentation smoke that launches `.` + String.raw`\startuep.ps1 -Mode Presentation -Database SQLite -NoBrowser`, checks both frontends, Spring Boot, Vite API proxy, Swagger/OpenAPI and executes the native local-auth-to-SQLite browser test. This branch extends that Windows job to run the Offline Demo persona and navigation Playwright suite after the launcher processes have been stopped.
+
+Useful local checks:
+
+```powershell
+npm --prefix apps/web ci
+npm --prefix apps/web run lint
+npm --prefix apps/web test
+npm --prefix apps/web run build:production
+.\startuep.ps1 -Mode Presentation -Database SQLite
+```
+
+The assistant environment cannot execute PowerShell or Windows desktop browsers. Windows acceptance must therefore be confirmed by the `windows-local-presentation-smoke` and Offline Demo browser regression results on the branch/PR. An empty or missing GitHub status is not a pass.
+
+## Claim boundary
+
+Seeded Demo interactions are browser-local fixture behavior. The local-native Real path proves only the API/database operations exercised by its native browser smoke. Other modules must be separately exercised before describing them as end-to-end verified. Production readiness additionally requires deployment, security, accessibility, performance, recovery and operational evidence.
