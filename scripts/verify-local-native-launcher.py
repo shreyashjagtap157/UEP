@@ -160,6 +160,14 @@ checks.update({
         "$tenant.PSObject.Properties['id']" in launcher
         and "Tenant bootstrap API response did not include the required id field" in launcher
     ),
+    "bootstrap JWT requires tenant_id to be a scalar JSON string": (
+        "$tenantClaim = $claims.PSObject.Properties['tenant_id']" in launcher
+        and "$tenantClaim.Value -isnot [string]" in launcher
+        and "must be a scalar JSON string" in launcher
+    ),
+    "API bootstrap failures identify the HTTP method and endpoint": (
+        'UEP API $Method $Path failed (HTTP $statusCode)' in launcher
+    ),
     "Keycloak tenant-attribute repair handles users with no attributes property": (
         "$user.PSObject.Properties['attributes']" in launcher
         and "$user.attributes.PSObject.Properties['tenant_id']" in launcher
