@@ -835,6 +835,7 @@ try {
     while ($true) {
         if ($Mode -ne 'Demo') {
             $db = 'DOWN — authenticated application read failed'
+            $identityStatus = 'DOWN — persisted identity could not be read'
             try {
                 $identity = Invoke-RestMethod -Uri 'http://127.0.0.1:5173/api/v1/me' -TimeoutSec 4
                 if ([string]$identity.oidcSubject -eq 'uep-local-demo-owner' -and
@@ -842,12 +843,13 @@ try {
                     (@($identity.roles) -contains 'Organization Owner') -and
                     -not [string]::IsNullOrWhiteSpace([string]$identity.tenantId)) {
                     $db = 'UP — persisted owner/tenant identity read through the API'
+                    $identityStatus = 'UP — active local owner and Organization Owner role'
                 }
             } catch {}
             $api = 'DOWN'
             try { $health = Invoke-RestMethod -Uri 'http://127.0.0.1:8080/actuator/health' -TimeoutSec 3; $api = [string]$health.status } catch {}
             Write-Status 'Database/API read' $db $(if ($db -like 'UP*') { 'Green' } else { 'Red' })
-            Write-Status 'Identity' 'LOCAL DEV AUTH — loopback-only session' Green
+            Write-Status 'Identity' $identityStatus $(if ($identityStatus -like 'UP*') { 'Green' } else { 'Red' })
             Write-Status 'Backend' $api $(if ($api -eq 'UP') { 'Green' } else { 'Red' })
         } else {
             Write-Status 'Database' 'NOT STARTED — offline Demo' Yellow
