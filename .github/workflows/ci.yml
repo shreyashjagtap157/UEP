@@ -414,31 +414,44 @@ jobs:
           $launcher = Start-Process -FilePath 'pwsh' -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 
           try {
-            $ready = $false
-            for ($attempt = 0; $attempt -lt 420; $attempt++) {
-              if ($launcher.HasExited) {
-                throw "Launcher exited early with code $($launcher.ExitCode)."
-              }
-              if (Test-Path $stdout) {
-                $output = Get-Content -LiteralPath $stdout -Raw
-                if ($output -match 'Live service status') {
-                  $ready = $true
-                  break
-                }
-              }
-              Start-Sleep -Seconds 5
-            }
-
-            if (-not $ready) {
-              throw 'Launcher did not reach its live-service monitor within 35 minutes.'
-            }
-
             $checks = @(
               @{ Name = 'Real frontend'; Url = 'http://127.0.0.1:5173' },
               @{ Name = 'Offline Demo frontend'; Url = 'http://127.0.0.1:5174' },
               @{ Name = 'Keycloak education realm'; Url = 'http://127.0.0.1:8081/realms/education/.well-known/openid-configuration' },
               @{ Name = 'Spring Boot actuator'; Url = 'http://127.0.0.1:8080/actuator/health' }
             )
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 420; $attempt++) {
+              if ($launcher.HasExited) {
+                throw "Launcher exited early with code $($launcher.ExitCode)."
+              }
+
+              $ready = $true
+              foreach ($check in $checks) {
+                try {
+                  $response = Invoke-WebRequest -Uri $check.Url -UseBasicParsing -TimeoutSec 5
+                  if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) {
+                    $ready = $false
+                    break
+                  }
+                } catch {
+                  $ready = $false
+                  break
+                }
+              }
+
+              if ($ready) { break }
+              Start-Sleep -Seconds 5
+            }
+
+            if (-not $ready) {
+              throw 'The launcher stayed alive but all four presentation endpoints did not become healthy within 35 minutes.'
+            }
+
+            if ($launcher.HasExited) {
+              throw "Launcher exited after endpoint readiness with code $($launcher.ExitCode)."
+            }
+
             foreach ($check in $checks) {
               $response = Invoke-WebRequest -Uri $check.Url -UseBasicParsing -TimeoutSec 15
               if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) {
