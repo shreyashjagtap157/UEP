@@ -5,6 +5,7 @@ This does not execute Windows services. CI separately parses the PowerShell sour
 the real Windows acceptance run must still be performed on a developer workstation.
 """
 from pathlib import Path
+import json
 import re
 import sys
 
@@ -21,6 +22,20 @@ wrapper = wrapper_path.read_text(encoding="utf-8")
 vite = vite_path.read_text(encoding="utf-8")
 pom = pom_path.read_text(encoding="utf-8")
 migration = migration_path.read_text(encoding="utf-8")
+local_realm = json.loads((ROOT / "infra" / "keycloak" / "education-realm.json").read_text(encoding="utf-8"))
+sqlite_test = (ROOT / "apps" / "platform-server" / "src" / "test" / "java" / "com" / "universalplatform" / "tenancy" / "SQLiteLocalQualificationIntegrationTest.java").read_text(encoding="utf-8")
+scheduled_worker_paths = [
+    "apps/platform-server/src/main/java/com/universalplatform/communication/AnnouncementPublishingWorker.java",
+    "apps/platform-server/src/main/java/com/universalplatform/content/ContentRetentionWorker.java",
+    "apps/platform-server/src/main/java/com/universalplatform/content/StorageCleanupWorker.java",
+    "apps/platform-server/src/main/java/com/universalplatform/content/UploadCleanupWorker.java",
+    "apps/platform-server/src/main/java/com/universalplatform/integration/WebhookEventFanoutWorker.java",
+    "apps/platform-server/src/main/java/com/universalplatform/integration/WebhookWorker.java",
+    "apps/platform-server/src/main/java/com/universalplatform/messaging/MessagingRetentionWorker.java",
+    "apps/platform-server/src/main/java/com/universalplatform/notification/NotificationEmailWorker.java",
+    "apps/platform-server/src/main/java/com/universalplatform/recording/RecordingWorker.java",
+    "apps/platform-server/src/main/java/com/universalplatform/storage/StorageQuotaReconciliationWorker.java",
+]
 workflow = workflow_path.read_text(encoding="utf-8")
 
 checks = {
@@ -200,6 +215,37 @@ checks.update({
         and "Protect-File $StateFile" in launcher
         and "Protect-File $rolesFile" in launcher
         and "Protect-File $accountsFile" in launcher
+    ),
+    "Windows setup requires a full JDK and supports dependency upgrades/fallbacks": (
+        "javac.exe" in launcher
+        and "EclipseAdoptium.Temurin.21.JDK" in launcher
+        and "nodejs.org/en/download" in launcher
+        and "winget.exe upgrade --id 'OpenJS.NodeJS.LTS'" in launcher
+        and "System Maven is too old or invalid" in launcher
+        and "Maven 3.9+ could not be located" in launcher
+    ),
+    "local Keycloak import has a development-only bootstrap client and scalar tenant mapper": (
+        any(client.get("clientId") == "uep-local-bootstrap"
+            and client.get("directAccessGrantsEnabled") is True
+            and any(mapper.get("name") == "tenant-id"
+                and mapper.get("config", {}).get("user.attribute") == "tenant_id"
+                and mapper.get("config", {}).get("claim.name") == "tenant_id"
+                and mapper.get("config", {}).get("access.token.claim") == "true"
+                and mapper.get("config", {}).get("multivalued") == "false"
+                for mapper in client.get("protocolMappers", []))
+            for client in local_realm.get("clients", []))
+        and "$verifiedLocalAdmin = Get-LocalUser" in launcher
+        and "Keycloak did not persist the local owner tenant_id user attribute" in launcher
+    ),
+    "all scheduled background worker beans are gated by the local worker opt-in": all(
+        '@ConditionalOnProperty(prefix = "platform.background-workers", name = "enabled", havingValue = "true", matchIfMissing = true)' in
+        (ROOT / worker_path).read_text(encoding="utf-8")
+        for worker_path in scheduled_worker_paths
+    ),
+    "SQLite backend integration test asserts scheduler and worker suppression": (
+        "localSqliteProfileDisablesSchedulingAndEveryBackgroundWorker" in sqlite_test
+        and "storageQuotaReconciliationWorker" in sqlite_test
+        and '"platform.background-workers.enabled=false"' in sqlite_test
     ),
     "Windows SQLite presentation runs Playwright before process cleanup in the same step": (
         (launch_start := workflow.find("- name: Start Real + Demo SQLite and run the native OIDC-to-SQLite browser test")) >= 0
