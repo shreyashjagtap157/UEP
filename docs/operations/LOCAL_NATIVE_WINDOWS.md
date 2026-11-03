@@ -28,18 +28,37 @@ The root-level `startuep.ps1` is a compatibility wrapper for `scripts/Start-UEP.
 
 ## Requirements
 
+The launcher inventories prerequisites before installation or startup.
+
 For `Demo` only: Windows PowerShell, Node.js 22.22.0+, npm and the repository frontend dependencies.
 
 For `Real`, `Both` or `Presentation`:
 
-- x64 Windows and PowerShell 5.1 or PowerShell 7.
-- JDK 21+ and Maven 3.9+.
-- Node.js 22.22.0+ and npm.
+- x64 Windows with PowerShell 5.1 or PowerShell 7.
+- Node.js 22.22.0+ with npm.
+- A **full JDK 21+**, including both `java.exe` and `javac.exe` (a JRE is insufficient).
+- Maven 3.9+.
 - Keycloak 26.7.5 (the launcher obtains the official native ZIP and checks its pinned SHA-256).
 - SQLite mode is the default and does not require PostgreSQL, psql, a PostgreSQL service, containers or a cloud database.
 - PostgreSQL 17 or 18 is optional and selected explicitly with `-Database PostgreSQL`.
+- Internet access for first-time Maven/Keycloak downloads and npm/Maven dependency resolution.
+- Ports 5173 and 8080/8081 available; paired modes also require port 5174.
 
-Maven and Keycloak are downloaded into the ignored `.uep-local/tools` directory. The frontend lockfile is installed with `npm ci`. The launcher does not change machine-wide execution policy.
+### First-run dependency installation
+
+The launcher can install missing Node.js LTS and Eclipse Temurin JDK 21 through WinGet. It downloads Maven 3.10.0 into the ignored `.uep-local/tools` folder and verifies its SHA-512 checksum; it downloads Keycloak 26.7.5 into the same local tools folder and verifies its pinned SHA-256. It runs `npm ci` from the checked-in lockfile, and Maven downloads the backend dependencies from configured Maven repositories.
+
+If Node.js is installed but older than 22.22.0, the launcher attempts a WinGet upgrade and checks the installed version again. If a system Maven is older than 3.9, the launcher uses the verified local Maven distribution instead. Java discovery requires a JDK, not only a `java.exe` runtime.
+
+If WinGet is unavailable, install Microsoft App Installer from https://aka.ms/getwinget, or install the prerequisites manually:
+
+- Node.js 22.22.0 or later: https://nodejs.org/en/download
+- Eclipse Temurin JDK 21: https://adoptium.net/temurin/releases/?version=21
+- Apache Maven 3.9 or later: https://maven.apache.org/download.cgi
+
+After manual installation, close and reopen PowerShell so the updated PATH and `JAVA_HOME` are visible, then rerun the launcher. Do not paste passwords, access tokens or `.env` content into logs or chat.
+
+SQLite is provided by the backend's Xerial JDBC dependency; it does not require a separate SQLite server installation. Keycloak uses its own local `dev-file` store and does not share the application SQLite file.
 
 ## Start the paired presentation
 
