@@ -148,9 +148,13 @@ checks = {
 # Regression guards for defects found during native launcher source review.
 checks.update({
     "Presentation SQLite provisions only the real OIDC owner, not unqualified backend personas": (
-        "elif ($Mode -eq 'Presentation' -and $Database -eq 'SQLite')" in launcher
+        "elseif ($Mode -eq 'Presentation' -and $Database -eq 'SQLite')" in launcher
         and "SKIPPED — the separate Offline Demo has its own seeded personas" in launcher
         and "Ensure-LocalTestAccounts $localAdminToken $adminToken" in launcher
+    ),
+    "launcher avoids assignment to PowerShell's read-only HOME automatic variable": (
+        not re.search(r"(?im)^\s*\$home\s*=", launcher)
+        and "$keycloakInstallDir = Join-Path $ToolDir 'keycloak-26.7.5'" in launcher
     ),
     "launcher defines each process/readiness helper exactly once": all(
         len(re.findall(rf"(?m)^function\s+{name}\s*\(", launcher)) == 1
