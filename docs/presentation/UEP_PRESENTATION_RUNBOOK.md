@@ -17,7 +17,7 @@ From the repository root on Windows:
 .\startuep.ps1 -Mode Presentation -Database SQLite
 ```
 
-In this paired SQLite presentation mode, the launcher creates or reuses only the Real application's local local API authentication owner account. It intentionally does not provision the optional 13 backend test personas: the Offline Demo has its own independent seeded personas, and those broader membership/role workflows are outside the current SQLite qualification boundary.
+In this paired SQLite presentation mode, the launcher creates or reuses only the Real application's local API authentication owner account. It intentionally does not provision the optional 13 backend test personas: the Offline Demo has its own independent seeded personas, and those broader membership/role workflows are outside the current SQLite qualification boundary.
 
 Expected endpoints:
 
@@ -25,7 +25,7 @@ Expected endpoints:
 |---|---|---|
 | Real UEP | http://localhost:5173 | Local-authenticated React UI; API requests go through Vite to Spring Boot |
 | Offline Demo | http://localhost:5174 | Seeded personas, simulated sign-in and browser-local sample state |
-| Swagger UI | http://127.0.0.1:8080/swagger-ui.html | Separate interactive backend API reference |
+| Swagger UI | http://127.0.0.1:8080/swagger-ui.html | Separate interactive backend API reference (local-native profile only) |
 | Spring Boot API | http://127.0.0.1:8080 | Local backend; generated OpenAPI JSON at `/v3/api-docs` |
 | SQLite file | `.uep-local\uep-local.sqlite` | Local qualification data for Real UEP |
 
