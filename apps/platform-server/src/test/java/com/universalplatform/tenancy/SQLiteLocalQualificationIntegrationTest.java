@@ -76,7 +76,7 @@ class SQLiteLocalQualificationIntegrationTest {
         try (ConfigurableApplicationContext restarted = new SpringApplicationBuilder(PlatformServerApplication.class)
                 .run(
                         "--spring.profiles.active=local-sqlite",
-                        "--UEP_SQLITE_JDBC_URL=jdbc:sqlite:target/uep-sqlite-qualification.db",
+                        "--spring.datasource.url=jdbc:sqlite:target/uep-sqlite-qualification.db",
                         "--PLATFORM_DEV_MODE=true",
                         "--platform.background-workers.enabled=false",
                         "--server.port=0")) {
