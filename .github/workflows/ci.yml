@@ -474,13 +474,8 @@ jobs:
             }
             throw
           }
-          finally {
-            if ($launcher -and -not $launcher.HasExited) {
-              & taskkill.exe /PID $launcher.Id /T /F *> $null
-              Start-Sleep -Seconds 3
-            }
-          }
 
+      # Keep the native services alive across steps; Playwright must exercise the running SQLite-backed Real app.
       - name: Install Playwright Chromium
         run: npm --prefix apps/web exec -- playwright install chromium
 
