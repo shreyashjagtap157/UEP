@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.universalplatform.BackgroundWorkerConfiguration;
+import com.universalplatform.PlatformServerApplication;
 import com.universalplatform.security.TenantMutationLock;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -14,6 +15,8 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -65,6 +68,26 @@ class SQLiteLocalQualificationIntegrationTest {
                     assertThat(columns.next()).as("SQLite column metadata for existing table %s", tableName).isTrue();
                 }
             }
+        }
+    }
+
+    @Test
+    void existingSqliteDatabaseCanStartASecondRealApplicationContext() {
+        try (ConfigurableApplicationContext restarted = new SpringApplicationBuilder(PlatformServerApplication.class)
+                .run(
+                        "--spring.profiles.active=local-sqlite",
+                        "--UEP_SQLITE_JDBC_URL=jdbc:sqlite:target/uep-sqlite-qualification.db",
+                        "--PLATFORM_DEV_MODE=true",
+                        "--platform.background-workers.enabled=false",
+                        "--server.port=0")) {
+            assertThat(restarted.getEnvironment().getProperty(
+                    "spring.jpa.properties.hibernate.hbm2ddl.jdbc_metadata_extraction_strategy"))
+                    .isEqualTo("individually");
+            JdbcTemplate restartedJdbc = restarted.getBean(JdbcTemplate.class);
+            Integer existingTables = restartedJdbc.queryForObject(
+                    "select count(*) from sqlite_master where type = 'table' and name not like 'sqlite_%'",
+                    Integer.class);
+            assertThat(existingTables).isGreaterThan(50);
         }
     }
 
