@@ -1,72 +1,40 @@
 /**
- * Layer A E2E Test: Schedule and announcements
- *
- * Verifies publishing/ seeding a class and announcement, and confirming only
- * in-scope personas see relevant records.
- *
- * @tag layerA
- * @tag schedule
- * @tag announcements
+ * Layer A E2E: assigned schedules are visible to in-scope participants and
+ * communication uses the recipient-scoped Inbox workflow.
  */
 import { test, expect } from '@playwright/test'
+import { signInToDemo, switchDemoUser } from './_helpers'
 
-test.describe('Layer A: Schedule and announcements', () => {
-  test('teacher publishes a class, student sees it', async ({ page }) => {
-    // Teacher signs in
-    await page.goto('/')
-    await page.fill('input[type="email"]', 'teacher@demo.uep')
-    await page.fill('input[type="password"]', 'demo')
-    await page.click('button[type="submit"]')
-    await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
+test.describe('Layer A: Schedule and recipient-scoped communication', () => {
+  test('teacher and student see only the classes in their schedule scope', async ({ page }) => {
+    await signInToDemo(page, 'teacher@demo.uep')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'My classes' }).click()
+    const teacherSchedule = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Assigned classes' }) })
+    await expect(teacherSchedule).toContainText('Full Stack Web Development')
+    await expect(teacherSchedule).toContainText('Database Systems checkpoint')
 
-    // Navigate to schedule and create a class
-    await page.click('nav.nav-list button:has-text("Schedule")')
-    await page.click('button:has-text("Add class")')
-    await page.fill('input[placeholder*="title"]', 'Full Stack Web Development Lab')
-    await page.selectOption('select[aria-label*="duration"]', '90')
-    await page.click('button:has-text("Schedule")')
-    await expect(page.locator('.success-toast')).toBeVisible({ timeout: 3000 })
-
-    // Student signs in and sees the class
-    await page.click('button:text("Switch Role / Sign out")')
-    await page.goto('/')
-    await page.fill('input[type="email"]', 'student@demo.uep')
-    await page.fill('input[type="password"]', 'demo')
-    await page.click('button[type="submit"]')
-    await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
-
-    await page.click('nav.nav-list button:has-text("Calendar & classes")')
-    const classCards = page.locator('.class-card')
-    await expect(classCards).toHaveCountGreaterThan(0)
+    await switchDemoUser(page)
+    await signInToDemo(page, 'student@demo.uep')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Calendar & classes' }).click()
+    const studentSchedule = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Assigned classes' }) })
+    await expect(studentSchedule).toContainText('Full Stack Web Development')
+    await expect(studentSchedule).toContainText('Database Systems checkpoint')
   })
 
-  test('teacher publishes an announcement, only in-scope personas see it', async ({
-    page,
-  }) => {
-    // Teacher signs in
-    await page.goto('/')
-    await page.fill('input[type="email"]', 'teacher@demo.uep')
-    await page.fill('input[type="password"]', 'demo')
-    await page.click('button[type="submit"]')
-    await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
+  test('teacher can send a recipient-scoped message that appears in the student Inbox', async ({ page }) => {
+    await signInToDemo(page, 'teacher@demo.uep')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Inbox' }).click()
+    await page.getByLabel('Recipient').selectOption('student-asha')
+    await page.getByLabel('Subject').fill('Class schedule confirmation')
+    await page.getByLabel('Message').fill('The Database Systems checkpoint remains scheduled for the next class.')
+    await page.getByRole('button', { name: 'Send message', exact: true }).click()
+    await expect(page.getByText('Message sent to the selected recipient.')).toBeVisible()
 
-    // Publish announcement
-    await page.click('nav.nav-list button:has-text("Announcements")')
-    await page.click('button:has-text("Create announcement")')
-    await page.fill('textarea', 'Welcome back for the new semester!')
-    await page.click('button:has-text("Publish")')
-    await expect(page.locator('.success-toast')).toBeVisible({ timeout: 3000 })
-
-    // Student signs in and sees the announcement
-    await page.click('button:text("Switch Role / Sign out")')
-    await page.goto('/')
-    await page.fill('input[type="email"]', 'student@demo.uep')
-    await page.fill('input[type="password"]', 'demo')
-    await page.click('button[type="submit"]')
-    await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
-
-    await page.click('nav.nav-list button:has-text("Announcements")')
-    const announcementText = page.locator('.announcement-text')
-    await expect(announcementText).toContainText('Welcome back')
+    await switchDemoUser(page)
+    await signInToDemo(page, 'student@demo.uep')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Inbox' }).click()
+    const inbox = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Inbox' }) })
+    await expect(inbox).toContainText('Class schedule confirmation')
+    await expect(inbox).toContainText('The Database Systems checkpoint remains scheduled for the next class.')
   })
 })

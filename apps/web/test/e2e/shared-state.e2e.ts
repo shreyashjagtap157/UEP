@@ -1,91 +1,53 @@
 /**
- * Layer A E2E Test: Shared-state behavior - persistence after reload and
- * cross-tab updates in local demo mode.
- *
- * Verifies that changes persist after reload and that the UI surfaces
- * storage warnings instead of silently pretending changes were saved.
- *
- * @tag layerA
- * @tag shared-state
- * @tag persistence
+ * Layer A E2E: Demo submissions, grades and browser-local persistence survive
+ * reloads and are shared across browser tabs.
  */
 import { test, expect } from '@playwright/test'
+import { signInToDemo } from './_helpers'
 
 test.describe('Layer A: Shared state persistence', () => {
-  test('student submission persists after reload', async ({ page }) => {
-    // Student signs in
-    await page.goto('/')
-    await page.fill('input[type="email"]', 'student@demo.uep')
-    await page.fill('input[type="password"]', 'demo')
-    await page.click('button[type="submit"]')
-    await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
+  test('student assignment submission persists after reload', async ({ page }) => {
+    await signInToDemo(page, 'student@demo.uep')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Assignments' }).click()
 
-    // Submit an assignment
-    await page.click('nav.nav-list button:has-text("Assignments")')
-    await page.click('button:has-text("Submit assignment")')
-    await page.fill('textarea', 'Completed work submission')
-    await page.click('button[type="submit"]')
-    await expect(page.locator('.submission-success')).toBeVisible({ timeout: 3000 })
+    const assignment = page.locator('article.local-module').filter({ hasText: 'Deployment reflection' })
+    await assignment.getByRole('button', { name: 'Submit work' }).click()
+    await expect(assignment).toContainText('Submitted')
 
-    // Reload the page
     await page.reload()
-    await page.waitForLoadState('networkidle')
-
-    // Submission should persist after reload
-    const submittedWork = page.locator('.submission-item').first()
-    await expect(submittedWork).toBeVisible()
-    const submissionText = await submittedWork.textContent()
-    expect(submissionText).toContain('Completed work submission')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Assignments' }).click()
+    await expect(page.locator('article.local-module').filter({ hasText: 'Deployment reflection' })).toContainText('Submitted')
   })
 
-  test('teacher grade persists after cross-tab navigation', async ({ page }) => {
-    // Teacher signs in
-    await page.goto('/')
-    await page.fill('input[type="email"]', 'teacher@demo.uep')
-    await page.fill('input[type="password"]', 'demo')
-    await page.click('button[type="submit"]')
-    await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
+  test('teacher grade persists after opening the same shared state in another tab', async ({ page }) => {
+    await signInToDemo(page, 'teacher@demo.uep')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Submission queue' }).click()
 
-    // Navigate to submissions and grade one
-    await page.click('nav.nav-list button:has-text("Submission queue")')
-    await page.click('button:has-text("Grade")')
-    await page.fill('input[aria-label*="score"]', '85')
-    await page.click('button[type="submit"]')
-    await expect(page.locator('.grade-success')).toBeVisible({ timeout: 3000 })
+    const gradable = page.locator('article.local-module').filter({ has: page.getByRole('button', { name: /^Grade / }) }).first()
+    const title = await gradable.locator('strong').textContent() ?? ''
+    const detail = await gradable.locator('p').first().textContent() ?? ''
+    await gradable.getByRole('button', { name: /^Grade / }).click()
+    await expect(gradable).toContainText('85/100')
 
-    // Open the same page in a new tab
     const newPage = await page.context().newPage()
-    await newPage.goto('/')
-    await newPage.fill('input[type="email"]', 'teacher@demo.uep')
-    await newPage.fill('input[type="password"]', 'demo')
-    await newPage.click('button[type="submit"]')
-    await expect(newPage.locator('.app-frame')).toBeVisible({ timeout: 5000 })
-
-    // Check that the graded status persists in the new tab
-    await newPage.click('nav.nav-list button:has-text("Submission queue")')
-    const gradedBadge = newPage.locator('.chip:has-text("Graded")')
-    await expect(gradedBadge).toBeVisible()
-
+    await signInToDemo(newPage, 'teacher@demo.uep')
+    await newPage.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Submission queue' }).click()
+    const reloadedGrade = newPage.locator('article.local-module').filter({ hasText: title }).filter({ hasText: detail })
+    await expect(reloadedGrade).toContainText('85/100')
     await newPage.close()
   })
 
-  test('UI surfaces storage warning when browser storage is unavailable', async ({
-    page,
-  }) => {
-    // Student signs in
-    await page.goto('/')
-    await page.fill('input[type="email"]', 'student@demo.uep')
-    await page.fill('input[type="password"]', 'demo')
-    await page.click('button[type="submit"]')
-    await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
-
-    // Attempt an action that saves to localStorage
-    await page.click('nav.nav-list button:has-text("Today")')
-    // The UI should show a warning about demo mode storage limitations
-    const smallText = page.locator('small.muted')
-    const smallTextContent = await smallText.textContent()
-    // In demo mode, there should be a note about browser storage limitations
-    expect(smallTextContent).toContain('demo')
-expect(smallTextContent).toContain('local mode')
+  test('UI surfaces the current-tab-only warning when browser storage is unavailable', async ({ page }) => {
+    await page.addInitScript(() => {
+      const originalSetItem = Storage.prototype.setItem
+      Storage.prototype.setItem = function (key: string, value: string) {
+        if (key === 'uep.local-demo-data.v5') throw new DOMException('Storage disabled for this test', 'QuotaExceededError')
+        return originalSetItem.call(this, key, value)
+      }
+    })
+    await signInToDemo(page, 'student@demo.uep')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'My learning' }).click()
+    await page.getByRole('button', { name: 'Record progress +10%' }).first().click()
+    await expect(page.getByText('Change is visible in this tab only. Browser storage is unavailable, so reloading may discard it.')).toBeVisible()
   })
 })
