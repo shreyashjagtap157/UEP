@@ -175,12 +175,12 @@ function Ensure-Java {
         Refresh-Path
         $java = Find-Java
     }
+    if (-not $java) { throw 'A full JDK 21 or later (java.exe and javac.exe) is required. Install Eclipse Temurin JDK 21 from https://adoptium.net/temurin/releases/?version=21, then reopen PowerShell and rerun this launcher.' }
     $javaRuntimeText = (& $java -version 2>&1 | Out-String)
     $javaCompiler = Join-Path (Split-Path $java -Parent) 'javac.exe'
     $javaCompilerText = (& $javaCompiler -version 2>&1 | Out-String)
     Write-Status 'Java runtime' (($javaRuntimeText -split "`r?`n" | Select-Object -First 1).Trim()) Gray
     Write-Status 'Java compiler' (($javaCompilerText -split "`r?`n" | Select-Object -First 1).Trim()) Gray
-    if (-not $java) { throw 'A full JDK 21 or later (java.exe and javac.exe) is required. Install Eclipse Temurin JDK 21 from https://adoptium.net/temurin/releases/?version=21, then reopen PowerShell and rerun this launcher.' }
     $script:JavaHome = Split-Path (Split-Path $java -Parent) -Parent
     $javac = Join-Path (Split-Path $java -Parent) 'javac.exe'
     if (-not (Test-Path $javac)) { throw 'The selected Java installation is missing javac.exe; install a full JDK, not a JRE.' }
