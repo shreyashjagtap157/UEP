@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
  * (the previous top-100-oldest query would otherwise head-of-line block forever).
  */
 @Component
+@ConditionalOnProperty(prefix = "platform.background-workers", name = "enabled", havingValue = "true", matchIfMissing = true)
 class ContentRetentionWorker {
     private static final String RETENTION_ACTOR = "content-retention-worker";
 
