@@ -251,6 +251,11 @@ checks.update({
         and "$State.LocalAdminUserId = ''" in launcher
         and "preserving local credentials and database files" in launcher
     ),
+    "missing JDK is rejected before running java or javac diagnostics": (
+        launcher.find("if (-not $java) { throw 'A full JDK 21 or later") >= 0
+        and launcher.find("if (-not $java) { throw 'A full JDK 21 or later") < launcher.find("$javaRuntimeText = (& $java -version")
+        and launcher.find("if (-not $java) { throw 'A full JDK 21 or later") < launcher.find("$javaCompilerText = (& $javaCompiler -version")
+    ),
     "Windows backend launch pins matching JDK tools and performs a clean Java 21 compile": (
         "set \"JAVA_HOME=" in launcher
         and "set \"PATH=" in launcher
