@@ -7,7 +7,7 @@ Present two honest views of the same project:
 1. **Real UEP — local integrated build:** the current React application with a launcher-managed loopback session, Spring Boot API, separate backend Swagger UI and a local SQLite qualification database. Keycloak is not started in this local walkthrough.
 2. **Offline presentation demo:** the curated role-specific seeded workspaces used for the concise academic workflow walkthrough.
 
-These are two independent environments. The Offline Demo is not connected to the Real application and does not use its API, Keycloak session or SQLite database. The Real application is not a production deployment, and the SQLite profile is narrower than PostgreSQL production/CI qualification.
+These are two independent environments. The Offline Demo is not connected to the Real application and does not use its API session or SQLite database. The Real application is not a production deployment, and the SQLite profile is narrower than PostgreSQL production/CI qualification.
 
 ## One-command launch
 
@@ -58,7 +58,7 @@ Use the established four-slide speaker guide:
 
 1. Why UEP started — learner experience and the problem being addressed.
 2. What UEP brings together — role-specific education and institutional workflows.
-3. Technologies and architecture — React/TypeScript/Vite, Java/Spring Boot modular monolith, Keycloak local API authentication, PostgreSQL/Flyway target, and the limited local SQLite qualification profile.
+3. Technologies and architecture — React/TypeScript/Vite, Java/Spring Boot modular monolith, PostgreSQL/Flyway target, and the limited local SQLite qualification profile. External OIDC/Keycloak integration is not started for this local demonstration.
 4. What will be demonstrated — the current real integration slice and then the separate seeded offline demo.
 
 Keep the distinction explicit: source capability, demo behavior and runtime-verified behavior are three different things.

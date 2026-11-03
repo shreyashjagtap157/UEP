@@ -107,7 +107,7 @@ SQLite mode:
 - uses `.uep-local\uep-local.sqlite`;
 - selects Spring profile `local-sqlite`;
 - disables Flyway and creates/updates a local schema from JPA entity mappings;
-- does not start or contact an identity provider in the `local-native` profile;
+- does not start or contact an external identity provider in the `local-native` profile;
 - disables background workers that depend on PostgreSQL-specific advisory locks;
 - is intended for constrained local functional qualification, not production deployment.
 
@@ -162,5 +162,5 @@ For broader verification, run `mvn -f apps/platform-server/pom.xml verify`, `npm
 - SQLite files, local Keycloak state and credentials remain local. Do not commit `.uep-local`.
 - The launcher does not reset or delete user data automatically.
 - Do not expose the launcher-issued local session token or the protected `.uep-local` command files.
-- Never use Demo personas to imply real OIDC authentication, server-side RBAC or database persistence.
+- Never use Demo personas to imply a live local API session, server-side RBAC or database persistence.
 - Never use the local Real environment to claim production readiness. It is a development/qualification runtime.

@@ -54,25 +54,21 @@ Verify the data flow contract from source:
 - Vite proxies /api to 127.0.0.1:8080.
 - Frontend API helper uses fetch for data requests, attaches the launcher-issued `X-UEP-Local-Auth` header and supports GET, POST, PUT, PATCH and DELETE.
 - SQLite mode: backend uses `local-sqlite,local-native`, Flyway is disabled, Hibernate creates the local entity schema, background workers are disabled and no identity-provider process is started.
-- PostgreSQL mode: backend uses the local PostgreSQL datasource and `uep_local_runtime`; Flyway migration history is present and validated; Keycloak uses the separate `keycloak` schema.
+- PostgreSQL mode: backend uses the local PostgreSQL datasource and `uep_local_runtime`; Flyway migration history is present and validated; The local-native path does not start or contact Keycloak. Do not test or modify identity-provider schemas in this task.
 
-Inspect browser and build artifacts for leaked secrets. No database username/password or Keycloak bootstrap admin password may be present in frontend environment variables, Vite output, browser storage or JavaScript assets.
+Inspect browser and build artifacts for leaked secrets. No database username/password, PostgreSQL migration credential or launcher token may appear in frontend bundles, logs, screenshots or browser storage. The launcher token is supplied only to the Real Vite runtime and held in protected local process/command state.
 
 ## Phase 2 — Local API authentication and tenant context
 
 1. Open the actual Real frontend at http://localhost:5173.
-2. Confirm it redirects to the local Keycloak education realm.
-3. Inspect the OIDC discovery document and confirm:
-   - Issuer is exactly http://localhost:8081/realms/education.
-   - Authorization Code flow is used.
-   - PKCE S256 is used by the browser client.
-   - Implicit flow and direct access grants are disabled on platform-web.
-4. Sign in using the locally generated owner credentials from the protected LocalAppData UEP accounts file. Never include the password in logs or screenshots.
-5. Verify the returned token's issuer, audience/client, subject, expiry and tenant_id claim locally without publishing the token.
-6. Verify GET /api/v1/me returns the authenticated user's identity, active tenant and Organization Owner role.
-7. Verify anonymous access to protected API resources returns 401/403 as designed, while documented public health/version endpoints remain accessible.
-8. Verify an invalid tenant claim is rejected and an inactive/unknown tenant cannot access tenant-scoped resources.
-9. Confirm that the browser does not call any Keycloak origin or port.
+2. Confirm the Real UI stays at the local frontend and never redirects to port 8081.
+3. Confirm a GET to /api/v1/me is sent through the Vite proxy with the X-UEP-Local-Auth header and without an Authorization bearer token.
+4. Confirm /api/v1/me returns subject uep-local-demo-owner, an active tenant membership and the Organization Owner role.
+5. Confirm the same request without the local header returns 401; an invalid local header also returns 401.
+6. Verify the local authentication header is accepted only by the loopback-bound backend and only for /api routes.
+7. Verify invalid/unknown tenant context and inactive memberships remain denied by the normal tenant and identity services.
+8. Confirm the browser makes no request to port 8081 or any OIDC issuer.
+9. Open the backend Swagger UI separately and confirm its OpenAPI JSON loads without an API token.
 
 ## Phase 3 — Browser-to-API request proof
 
@@ -255,7 +251,7 @@ SQLite is the default local qualification database. PostgreSQL remains an explic
 .\startuep.ps1 -Mode Real -Database PostgreSQL
 ```
 
-SQLite mode does not install or start PostgreSQL and does not execute Flyway's PostgreSQL migrations. Hibernate generates the local qualification schema from the JPA entity model in `.uep-local\uep-local.sqlite`. Keycloak uses its own local `dev-file` development store. Runtime workers that depend on PostgreSQL advisory locks are disabled.
+SQLite mode does not install or start PostgreSQL and does not execute Flyway's PostgreSQL migrations. Hibernate generates the local qualification schema from the JPA entity model in `.uep-local\uep-local.sqlite`. The local-native profile does not start or contact an external identity provider. Runtime workers that depend on PostgreSQL advisory locks are disabled.
 
 After the launcher reports the backend healthy, run:
 
