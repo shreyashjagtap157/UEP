@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { activeUserForProfile, loadDemoState, subscribeDemoState } from './LocalDemoStore'
+import type { DemoRole } from './LocalDemoStore'
 import { demoAccounts, type LocalAccount } from './localDemoAccounts'
 import { SpecialistLocalDashboard } from './SpecialistLocalDashboard'
 
+const ACCOUNT_GROUPS: Array<{ title: string; description: string; roles: DemoRole[] }> = [
+  { title: 'Platform team', description: 'Builds and operates UEP, maintains products, and supports client institutions.', roles: ['developer', 'product-maintainer', 'support', 'admin', 'auditor'] },
+  { title: 'Client & institution management', description: 'Leads each institution and manages its finance and examination operations.', roles: ['client', 'finance-admin', 'exam-controller'] },
+  { title: 'Institution teaching & learning', description: 'The people who teach, support, evaluate and take part in learning.', roles: ['teacher', 'teaching-assistant', 'evaluator', 'mentor', 'student', 'guardian'] },
+]
 
 export function LocalExperience() {
   const [account, setAccount] = useState<LocalAccount | null>(() => readSessionAccount())
@@ -80,8 +86,8 @@ function LocalLogin({ onLogin }: { onLogin: (account: LocalAccount) => void }) {
       <section className="local-login-intro">
         <p className="eyebrow">Universal Education Platform</p>
         <h1>One platform, one workspace for each relationship.</h1>
-        <p>Local presentation mode uses a seeded, shared dataset. Each demo account receives its own role, navigation and permissions; roles cannot be switched from inside another user's workspace.</p>
-        <div className="local-login-note"><span>LOCAL MODE</span><strong>Shared presentation environment</strong></div>
+        <p>Explore UEP through three connected perspectives: the platform team, client institutions, and the teachers and learners in each institution. Every account opens a separate, role-scoped workspace.</p>
+        <div className="local-login-note local-mode-badge"><span>OFFLINE DEMO</span><strong>Seeded presentation environment</strong></div>
       </section>
       <section className="local-login-panel" aria-labelledby="local-login-title">
         <p className="eyebrow">Demo sign in</p>
@@ -93,16 +99,39 @@ function LocalLogin({ onLogin }: { onLogin: (account: LocalAccount) => void }) {
           {error && <p className="error-text" role="alert">{error}</p>}
           <button className="primary-button local-login-submit" type="submit">Sign in</button>
         </form>
-        <div className="panel">
-          <div className="panel-heading"><div><p className="eyebrow">Presentation accounts</p><h3>Choose a persona</h3></div></div>
-          <div className="chip-row">
-            {demoAccounts.map(account => (
-              <button key={account.email} className="text-button" type="button" onClick={() => setEmail(account.email)}>
-                {account.name}
-              </button>
-            ))}
-          </div>
+        <div className="persona-groups" aria-label="Demo accounts by organizational group">
+          {ACCOUNT_GROUPS.map(group => {
+            const groupId = group.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+            const groupAccounts = demoAccounts.filter(account => group.roles.includes(account.role))
+            return (
+              <section className="persona-group" key={group.title} aria-labelledby={groupId}>
+                <div className="persona-group-heading">
+                  <div>
+                    <h3 id={groupId}>{group.title}</h3>
+                    <p>{group.description}</p>
+                  </div>
+                  <span>{groupAccounts.length} roles</span>
+                </div>
+                <div className="persona-grid">
+                  {groupAccounts.map(account => (
+                    <button
+                      key={account.email}
+                      className={email === account.email ? 'persona-option selected' : 'persona-option'}
+                      type="button"
+                      aria-pressed={email === account.email}
+                      onClick={() => setEmail(account.email)}
+                    >
+                      <strong>{account.profile.label}</strong>
+                      <span>{account.profile.description}</span>
+                      <small>{account.email}</small>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )
+          })}
         </div>
+        <p className="local-login-footnote">Password for every seeded demo account: <strong>demo</strong>. Use <strong>Switch user</strong> inside a workspace to sign out and return here.</p>
       </section>
     </main>
   )

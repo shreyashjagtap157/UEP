@@ -504,3 +504,14 @@ jobs:
           foreach ($listener in $listeners) {
             try { & taskkill.exe /PID $listener.OwningProcess /T /F *> $null } catch {}
           }
+
+      - name: Run Offline Demo persona and role-navigation browser regression on Windows
+        if: always()
+        shell: pwsh
+        run: |
+          npm --prefix apps/web exec -- playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw "Playwright Chromium installation failed with exit code $LASTEXITCODE." }
+          $env:CI = 'true'
+          $env:VITE_LOCAL_MODE = 'true'
+          npm --prefix apps/web run test:e2e -- --project="Layer A: Local Demo"
+          if ($LASTEXITCODE -ne 0) { throw "Offline Demo browser regression failed with exit code $LASTEXITCODE." }

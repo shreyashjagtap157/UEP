@@ -7,6 +7,7 @@ import {
   availableCourseCountForProfile,
   linkedLearnerProgressForProfile,
   createDemoProduct,
+  publishDemoProduct,
   activeUserForProfile,
   attendanceForProfile,
   coursesForProfile,
@@ -68,14 +69,14 @@ globalThis.window = {
   },
 }
 
-test('local demo sign-in exposes all thirteen canonical profiles through one shared workspace', () => {
-  assert.equal(demoAccounts.length, 13)
-  assert.equal(new Set(demoAccounts.map((account) => account.email)).size, 13)
-  assert.equal(new Set(demoAccounts.map((account) => account.role)).size, 13)
+test('local demo sign-in exposes all fourteen canonical profiles through one shared workspace', () => {
+  assert.equal(demoAccounts.length, 14)
+  assert.equal(new Set(demoAccounts.map((account) => account.email)).size, 14)
+  assert.equal(new Set(demoAccounts.map((account) => account.role)).size, 14)
 
   assert.deepEqual(demoAccounts.map((account) => account.role).sort(), [
     'admin', 'auditor', 'client', 'developer', 'evaluator', 'exam-controller',
-    'finance-admin', 'guardian', 'mentor', 'student', 'support',
+    'finance-admin', 'guardian', 'mentor', 'product-maintainer', 'student', 'support',
     'teacher', 'teaching-assistant',
   ])
 
@@ -88,6 +89,7 @@ test('local demo sign-in exposes all thirteen canonical profiles through one sha
   assert.equal(demoAccounts.find((account) => account.email === 'student@demo.uep')?.profile.userId, 'student-asha')
   assert.equal(demoAccounts.find((account) => account.email === 'teacher@demo.uep')?.profile.userId, 'teacher-rahul')
   assert.equal(demoAccounts.find((account) => account.email === 'guardian@demo.uep')?.profile.userId, 'guardian-nina')
+  assert.equal(demoAccounts.find((account) => account.email === 'product-maintainer@demo.uep')?.profile.userId, 'product-maintainer-mira')
 })
 
 function profile(role) {
@@ -254,6 +256,7 @@ test('submission visibility is restricted to each persona learner/course scope',
   assert.deepEqual(ids('support'), [])
   assert.deepEqual(ids('auditor'), [])
   assert.deepEqual(ids('developer'), [])
+  assert.deepEqual(ids('product-maintainer'), [])
   assert.deepEqual(ids('finance-admin'), [])
 })
 
@@ -535,9 +538,14 @@ test('rapid product creation allocates unique IDs even when the clock has not ad
   Date.now = () => 1740000000000
   try {
     const developer = profile('developer')
+    const maintainer = profile('product-maintainer')
     const initial = resetDemoState()
-    const first = createDemoProduct(initial, 'Demo product one', 'First draft', developer)
-    const second = createDemoProduct(first, 'Demo product two', 'Second draft', developer)
+    assert.strictEqual(createDemoProduct(initial, 'Unauthorized product', 'Developer must not own releases.', developer), initial)
+    assert.strictEqual(publishDemoProduct(initial, 'product-ai-draft', developer), initial)
+    const first = createDemoProduct(initial, 'Demo product one', 'First draft', maintainer)
+    const second = createDemoProduct(first, 'Demo product two', 'Second draft', maintainer)
+    const published = publishDemoProduct(second, 'product-1740000000000', maintainer)
+    assert.equal(published.products.find(item => item.id === 'product-1740000000000')?.status, 'Published')
     const created = second.products.filter(item => item.title.startsWith('Demo product '))
 
     assert.equal(created.length, 2)
@@ -753,9 +761,10 @@ test('activity feeds do not expose global details to unrelated personas', () => 
   assert.ok(evaluatorEvents.some((item) => item.action === 'Grade published'))
   assert.ok(!evaluatorEvents.some((item) => item.action === 'Assignment submitted'))
 
-  const developerEvents = events('developer')
-  assert.ok(developerEvents.length > 0)
-  assert.ok(developerEvents.every((item) => item.action.toLowerCase().includes('product')))
+  assert.deepEqual(events('developer'), [])
+  const maintainerEvents = events('product-maintainer')
+  assert.ok(maintainerEvents.length > 0)
+  assert.ok(maintainerEvents.every((item) => item.action.toLowerCase().includes('product')))
   assert.deepEqual(events('support'), [])
   assert.deepEqual(events('finance-admin'), [])
   assert.equal(events('admin').length, state.activity.length)
@@ -778,10 +787,10 @@ test('legacy product activity hides ambiguous duplicate product titles', () => {
     products: [...state.products, { ...product, id: 'product-ai-draft-duplicate' }],
     activity: [event, ...state.activity],
   }
-  assert.ok(!activityForProfile(ambiguous, profile('developer')).some(item => item.id === event.id))
+  assert.ok(!activityForProfile(ambiguous, profile('product-maintainer')).some(item => item.id === event.id))
 
   const unambiguous = { ...state, activity: [event, ...state.activity] }
-  assert.ok(activityForProfile(unambiguous, profile('developer')).some(item => item.id === event.id))
+  assert.ok(activityForProfile(unambiguous, profile('product-maintainer')).some(item => item.id === event.id))
 })
 
 test('legacy organization and course-published events hide ambiguous duplicate titles', () => {
