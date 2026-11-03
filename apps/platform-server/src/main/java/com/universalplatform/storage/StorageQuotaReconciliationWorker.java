@@ -5,11 +5,13 @@ import java.time.Instant;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /** Reports ledger/aggregate drift without silently rewriting accounting history. */
 @Component
+@ConditionalOnProperty(prefix = "platform.background-workers", name = "enabled", havingValue = "true", matchIfMissing = true)
 class StorageQuotaReconciliationWorker {
     private static final Logger log = LoggerFactory.getLogger(StorageQuotaReconciliationWorker.class);
     private final StorageQuotaService quota;
