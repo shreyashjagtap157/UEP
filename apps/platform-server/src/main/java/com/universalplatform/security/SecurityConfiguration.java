@@ -61,7 +61,7 @@ class SecurityConfiguration {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
-                    auth.requestMatchers("/actuator/health", "/api/v1/platform/version", "/api/v1/credentials/verify/**").permitAll();
+                    auth.requestMatchers("/actuator/health", "/api/v1/platform/version", "/api/v1/credentials/verify/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
                     if (localAuthEnabled) {
                         auth.requestMatchers(
                                 "/swagger-ui.html", "/swagger-ui/**",
