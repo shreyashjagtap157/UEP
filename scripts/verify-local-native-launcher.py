@@ -201,14 +201,17 @@ checks.update({
         and "Protect-File $rolesFile" in launcher
         and "Protect-File $accountsFile" in launcher
     ),
-    "Windows presentation CI keeps services running through the SQLite browser smoke": (
-        (launch_start := workflow.find("- name: Start the documented Real + Demo SQLite presentation launcher")) >= 0
-        and (playwright_install := workflow.find("- name: Install Playwright Chromium", launch_start)) > launch_start
-        and (browser_test := workflow.find("- name: Verify actual Windows OIDC-to-SQLite browser write/readback", playwright_install)) > playwright_install
-        and (cleanup_start := workflow.find("- name: Ensure launcher processes are stopped", browser_test)) > browser_test
-        and "finally {" not in workflow[launch_start:playwright_install]
-        and "taskkill.exe" not in workflow[launch_start:cleanup_start]
+    "Windows SQLite presentation runs Playwright before process cleanup in the same step": (
+        (launch_start := workflow.find("- name: Start Real + Demo SQLite and run the native OIDC-to-SQLite browser test")) >= 0
+        and (cleanup_start := workflow.find("- name: Ensure launcher processes are stopped", launch_start)) > launch_start
+        and (playwright_install := workflow.find("npm --prefix apps/web exec -- playwright install chromium", launch_start)) > launch_start
+        and (browser_test := workflow.find("npm --prefix apps/web run test:e2e:native", playwright_install)) > playwright_install
+        and browser_test < cleanup_start
+        and "finally {" in workflow[launch_start:cleanup_start]
+        and "taskkill.exe /PID $launcher.Id /T /F" in workflow[launch_start:cleanup_start]
         and "if: always()" in workflow[cleanup_start:]
+        and "- name: Install Playwright Chromium" not in workflow
+        and "- name: Verify actual Windows OIDC-to-SQLite browser write/readback" not in workflow
     ),
 })
 

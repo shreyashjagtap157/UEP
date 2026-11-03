@@ -404,7 +404,7 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Start the documented Real + Demo SQLite presentation launcher
+      - name: Start Real + Demo SQLite and run the native OIDC-to-SQLite browser test
         shell: pwsh
         run: |
           $scriptPath = (Resolve-Path '.\startuep.ps1').Path
@@ -459,6 +459,14 @@ jobs:
               }
               Write-Host "PASS: $($check.Name) returned HTTP $($response.StatusCode)."
             }
+
+            Write-Host 'Installing Playwright Chromium before the browser test...'
+            npm --prefix apps/web exec -- playwright install chromium
+            if ($LASTEXITCODE -ne 0) { throw "Playwright Chromium installation failed with exit code $LASTEXITCODE." }
+
+            Write-Host 'Running the native OIDC-to-SQLite browser write/readback test while local services remain alive...'
+            npm --prefix apps/web run test:e2e:native
+            if ($LASTEXITCODE -ne 0) { throw "Native SQLite browser qualification failed with exit code $LASTEXITCODE." }
           }
           catch {
             Write-Host '---- launcher stdout (tail) ----'
@@ -474,13 +482,12 @@ jobs:
             }
             throw
           }
-
-      # Keep the native services alive across steps; Playwright must exercise the running SQLite-backed Real app.
-      - name: Install Playwright Chromium
-        run: npm --prefix apps/web exec -- playwright install chromium
-
-      - name: Verify actual Windows OIDC-to-SQLite browser write/readback
-        run: npm --prefix apps/web run test:e2e:native
+          finally {
+            if ($launcher -and -not $launcher.HasExited) {
+              & taskkill.exe /PID $launcher.Id /T /F *> $null
+              Start-Sleep -Seconds 3
+            }
+          }
 
       - name: Ensure launcher processes are stopped
         if: always()
