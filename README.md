@@ -93,15 +93,16 @@ npm --prefix apps/web run build
 
 ## Native Windows local development
 
-The launcher inventories local requirements before startup. It can install Node.js LTS and Eclipse Temurin JDK 21 through WinGet, downloads a SHA-512-verified Maven 3.10.0 into the ignored `.uep-local/tools` directory, installs locked frontend dependencies with `npm ci`, and resolves backend dependencies with Maven. The local Real launcher does not install or start Keycloak. Use a full JDK (including `javac.exe`), not a JRE. When WinGet is unavailable, use the manual installer links in [the Windows setup guide](docs/operations/LOCAL_NATIVE_WINDOWS.md).
+The launcher inventories local requirements before startup. It can install Node.js LTS and Eclipse Temurin JDK 21 through WinGet, downloads a SHA-512-verified Maven 3.10.0 into the ignored `.uep-local/tools` directory, installs locked frontend dependencies with `npm ci`, and resolves backend dependencies with Maven. The local Real launcher does not install, start or contact Keycloak. Its launcher-issued API token is injected by the Node-side Vite proxy; it is not embedded in browser JavaScript or sent in browser request headers. Use a full JDK (including `javac.exe`), not a JRE. When WinGet is unavailable, use the manual installer links in [the Windows setup guide](docs/operations/LOCAL_NATIVE_WINDOWS.md).
 
 No container runtime is required. The launcher checks prerequisites and starts Spring Boot and Vite as native Windows processes. SQLite is the default local qualification database and does not require PostgreSQL or Flyway; select `-Database PostgreSQL` only when explicitly qualifying the PostgreSQL migration/runtime-role path, which runs Flyway separately with the local migrator role before the API starts with the restricted runtime role.
 
 ```powershell
-# Run the real integrated application and the offline presentation demo side by side
-.\startuep.ps1 -Mode Presentation -Database SQLite
+# Default: start the actual Real implementation and the separate offline Demo together
+.\startuep.ps1
 
-# Real only or offline demo only
+# Equivalent explicit paired mode; or run only one environment
+.\startuep.ps1 -Mode Presentation -Database SQLite
 .\startuep.ps1 -Mode Real -Database SQLite
 .\startuep.ps1 -Mode Demo
 ```
@@ -113,7 +114,7 @@ Local backend API reference (available only while Real runs with the local-nativ
 
 See [Native Windows local development](docs/operations/LOCAL_NATIVE_WINDOWS.md) for requirements, URLs, local authentication, Swagger UI, SQLite/PostgreSQL boundaries, startup/stop behavior and local state. See [the UEP presentation runbook](docs/presentation/UEP_PRESENTATION_RUNBOOK.md) for the paired Real + Demo presentation. See [the local integration acceptance prompt](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) for browser-to-API-to-database qualification.
 
-For **all SQLite Real-mode launches** (Real, Both or Presentation), the backend provisions only the local API demonstration owner. It intentionally does not seed the additional backend test personas because their membership and role workflows are not yet SQLite-qualified. The offline Demo continues to use its separate seeded browser personas; PostgreSQL mode retains the broader backend test-persona bootstrap.
+For **all Real-mode launches**, whether SQLite or PostgreSQL, the backend provisions only the persisted local API owner, active membership and Organization Owner role. The no-Keycloak local-native launcher does not create OIDC test personas or Keycloak database roles. The Offline Demo has its own separate seeded browser personas; those synthetic personas are not backend accounts.
 
 The launcher uses `PLATFORM_DEV_MODE=true` only for local non-production execution. Never enable this setting with a production Spring profile.
 
@@ -124,7 +125,7 @@ npm --prefix apps/web exec -- playwright install chromium
 npm --prefix apps/web run test:e2e:native
 ```
 
-The SQLite native spec verifies local owner authentication, authenticated identity, a branch write through the UI and API readback after reload, plus the SQLite file signature. The PostgreSQL native spec additionally verifies analytics/CSV, custom-role CRUD, membership/role lifecycle and restricted runtime-role grants. Each database mode has a separate evidence boundary. Each run retains its unique test branch because no branch-delete API exists. These focused checks do not replace the wider multi-tenant/branch isolation matrix, all business workflows or restart-persistence acceptance.
+The SQLite native spec verifies that direct unauthenticated backend access returns 401, the Real browser loads the persisted owner through the Vite proxy without receiving the local credential, a branch write is read back after reload, and the SQLite file has the expected signature. The PostgreSQL native spec additionally verifies analytics/CSV, custom-role CRUD, membership/role lifecycle and restricted runtime-role grants. Each database mode has a separate evidence boundary. Each run retains its unique test branch because no branch-delete API exists. These focused checks do not replace the wider multi-tenant/branch isolation matrix, all business workflows or restart-persistence acceptance.
 
 ## Licensing
 
