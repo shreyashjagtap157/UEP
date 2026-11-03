@@ -15,7 +15,7 @@ test.describe('Layer A: Attendance isolation', () => {
     const markPresent = teacherPanel.getByRole('button', { name: 'Mark present' }).first()
     await expect(markPresent).toBeVisible()
     const markedRow = markPresent.locator('xpath=../..')
-    const markedLearner = await markedRow.textContent()
+    await expect(markedRow).toContainText('Ravi Nair')
     await markPresent.click()
     await expect(markedRow).toContainText('Present')
 
@@ -32,7 +32,6 @@ test.describe('Layer A: Attendance isolation', () => {
       await expect(studentRows.nth(index)).not.toContainText('Ravi Nair')
       await expect(studentRows.nth(index)).not.toContainText('Meera Iyer')
     }
-    expect(markedLearner).toBeTruthy()
   })
 
   test('guardian attendance is limited to the explicitly linked learner', async ({ page }) => {
