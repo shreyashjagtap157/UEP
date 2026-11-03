@@ -235,7 +235,7 @@ checks.update({
         and "Test-LocalApiProxy" in launcher
         and "set UEP_LOCAL_AUTH_TOKEN=" in launcher
         and "Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:8080/api/v1/me'" in launcher
-        and "Direct unauthenticated API returned HTTP 401" in launcher
+        and "direct unauthenticated API returned HTTP 401" in launcher
     ),
     "SQLite launcher disables background workers in the actual Spring Boot process": (
         "set PLATFORM_BACKGROUND_WORKERS_ENABLED=false" in launcher
