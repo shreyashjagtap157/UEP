@@ -18,6 +18,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Component
+@ConditionalOnProperty(prefix = "platform.background-workers", name = "enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnProperty(prefix = "platform.storage.cleanup", name = "enabled", havingValue = "true", matchIfMissing = true)
 class StorageCleanupWorker {
     private static final Logger log = LoggerFactory.getLogger(StorageCleanupWorker.class);
