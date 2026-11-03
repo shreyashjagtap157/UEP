@@ -52,17 +52,17 @@ Verify the data flow contract from source:
 - Real frontend has `VITE_LOCAL_MODE=false` and `VITE_LOCAL_API_MODE=true`.
 - Frontend does not compile in a remote API URL; the API base remains same-origin/relative.
 - Vite proxies /api to 127.0.0.1:8080.
-- Frontend API helper uses fetch for data requests, attaches the launcher-issued `X-UEP-Local-Auth` header and supports GET, POST, PUT, PATCH and DELETE.
+- Frontend API helper uses same-origin `fetch` for data requests and supports GET, POST, PUT, PATCH and DELETE. The browser sends no local-auth header and no bearer token; the Node-side Vite `/api` proxy injects the launcher-issued `X-UEP-Local-Auth` header before forwarding.
 - SQLite mode: backend uses `local-sqlite,local-native`, Flyway is disabled, Hibernate creates the local entity schema, background workers are disabled and no identity-provider process is started.
 - PostgreSQL mode: backend uses the local PostgreSQL datasource and `uep_local_runtime`; Flyway migration history is present and validated; The local-native path does not start or contact Keycloak. Do not test or modify identity-provider schemas in this task.
 
-Inspect browser and build artifacts for leaked secrets. No database username/password, PostgreSQL migration credential or launcher token may appear in frontend bundles, logs, screenshots or browser storage. The launcher token is supplied only to the Real Vite runtime and held in protected local process/command state.
+Inspect browser and build artifacts for leaked secrets. No database username/password, PostgreSQL migration credential or launcher token may appear in frontend bundles, browser request headers, logs, screenshots or browser storage. The launcher token is supplied only to the Node-side Real Vite process as `UEP_LOCAL_AUTH_TOKEN` (not a `VITE_` variable) and held in ACL-protected local process/command state. The proxy adds the header upstream; the browser never receives the secret.
 
 ## Phase 2 — Local API authentication and tenant context
 
 1. Open the actual Real frontend at http://localhost:5173.
 2. Confirm the Real UI stays at the local frontend and never redirects to port 8081.
-3. Confirm a GET to /api/v1/me is sent through the Vite proxy with the X-UEP-Local-Auth header and without an Authorization bearer token.
+3. Confirm the browser GET to `/api/v1/me` contains neither `X-UEP-Local-Auth` nor `Authorization`. Confirm the same-origin Vite proxy adds `X-UEP-Local-Auth` upstream, and a direct unauthenticated request to `http://127.0.0.1:8080/api/v1/me` returns HTTP 401.
 4. Confirm /api/v1/me returns subject uep-local-demo-owner, an active tenant membership and the Organization Owner role.
 5. Confirm the same request without the local header returns 401; an invalid local header also returns 401.
 6. Verify the local authentication header is accepted only by the loopback-bound backend and only for /api routes.
