@@ -57,7 +57,7 @@ The updated interface uses a warm ivory workspace, deep slate navigation, restra
 
 ## Validation and Windows run path
 
-The repository CI already contains a `windows-latest` presentation smoke that launches `.` + String.raw`\startuep.ps1 -Mode Presentation -Database SQLite -NoBrowser`, checks both frontends, Spring Boot, Vite API proxy, Swagger/OpenAPI and executes the native local-auth-to-SQLite browser test. This branch extends that Windows job to run the Offline Demo persona and navigation Playwright suite after the launcher processes have been stopped.
+The repository CI contains a `windows-latest` presentation smoke that launches `.\startuep.ps1 -Mode Presentation -Database SQLite -NoBrowser`, checks both frontends, Spring Boot, the Vite API proxy, Swagger/OpenAPI and executes the native local-auth-to-SQLite browser test. This branch extends that Windows job to run the Offline Demo persona and navigation Playwright suite after stopping the launcher processes.
 
 Useful local checks:
 
@@ -69,7 +69,7 @@ npm --prefix apps/web run build:production
 .\startuep.ps1 -Mode Presentation -Database SQLite
 ```
 
-The assistant environment cannot execute PowerShell or Windows desktop browsers. Windows acceptance must therefore be confirmed by the `windows-local-presentation-smoke` and Offline Demo browser regression results on the branch/PR. An empty or missing GitHub status is not a pass.
+The assistant environment cannot execute PowerShell or Windows desktop browsers. The first PR run reached the Real + Demo launcher and both frontends, but its native SQLite browser test exposed a duplicate `Timezone` label selector; the Offline Demo test was skipped because that first test failed. The cleanup step also exposed a PowerShell syntax defect in the added CI cleanup block. Both are corrected in the follow-up commit. The Windows job now runs the Offline Demo browser regression with `always()` so a Real native smoke failure does not suppress independent Demo coverage. The next Actions run must confirm both paths. An empty or missing GitHub status is not a pass.
 
 ## Claim boundary
 

@@ -53,7 +53,7 @@ test('SQLite mode: local-authenticated Real UI, API write/readback and durable S
   const branchName = 'SQLite persistence qualification ' + branchCode
   await page.getByLabel('Code').fill(branchCode)
   await page.getByLabel('Display name').fill(branchName)
-  await page.getByLabel('Timezone').fill('Asia/Kolkata')
+  await page.getByLabel('Timezone', { exact: true }).fill('Asia/Kolkata')
   const createPromise = page.waitForResponse(response => {
     const url = new URL(response.url())
     return url.origin === frontend && url.pathname === '/api/v1/organization/branches'

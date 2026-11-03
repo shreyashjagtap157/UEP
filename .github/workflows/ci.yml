@@ -503,8 +503,10 @@ jobs:
           $listeners = @(Get-NetTCPConnection -State Listen -LocalPort 5173,5174,8080,8081 -ErrorAction SilentlyContinue)
           foreach ($listener in $listeners) {
             try { & taskkill.exe /PID $listener.OwningProcess /T /F *> $null } catch {}
+          }
 
       - name: Run Offline Demo persona and role-navigation browser regression on Windows
+        if: always()
         shell: pwsh
         run: |
           npm --prefix apps/web exec -- playwright install chromium
