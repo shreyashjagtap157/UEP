@@ -33,6 +33,7 @@ scheduled_worker_paths = [
     "apps/platform-server/src/main/java/com/universalplatform/integration/WebhookWorker.java",
     "apps/platform-server/src/main/java/com/universalplatform/messaging/MessagingRetentionWorker.java",
     "apps/platform-server/src/main/java/com/universalplatform/notification/NotificationEmailWorker.java",
+    "apps/platform-server/src/main/java/com/universalplatform/notification/NotificationOutboxProcessor.java",
     "apps/platform-server/src/main/java/com/universalplatform/recording/RecordingWorker.java",
     "apps/platform-server/src/main/java/com/universalplatform/storage/StorageQuotaReconciliationWorker.java",
 ]
