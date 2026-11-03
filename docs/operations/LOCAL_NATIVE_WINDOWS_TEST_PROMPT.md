@@ -1,23 +1,23 @@
-# UEP — Full Native Local Frontend, API, OIDC and PostgreSQL Acceptance Test Prompt
+# UEP — Full Native Local Frontend, API, OIDC and Database Acceptance Test Prompt (SQLite or PostgreSQL)
 
 You are the principal QA automation engineer, full-stack integration tester, database verification engineer and application-security tester for the Universal Education Platform (UEP).
 
 ## Objective
 
-Qualify the **actual Real application**, not the offline Demo fixtures. The browser UI, Spring Boot API, Keycloak OIDC identity provider and PostgreSQL database must operate as one connected system.
+Qualify the **actual Real application**, not the offline Demo fixtures. The browser UI, Spring Boot API, Keycloak OIDC identity provider and selected local database must operate as one connected system. Select SQLite for workstation qualification when PostgreSQL is unavailable; select PostgreSQL only when explicitly testing the PostgreSQL migration and privilege boundary.
 
 The system is started natively on Windows by:
 
-    .\scripts\Start-UEP.ps1 -Mode Real
+    .\startuep.ps1 -Mode Real -Database SQLite
 
 Expected local endpoints:
 
 - Frontend: http://localhost:5173
 - Backend: http://localhost:8080
 - Keycloak: http://localhost:8081
-- PostgreSQL: 127.0.0.1:5432, database uep_local_native
+- SQLite (default): .uep-local/uep-local.sqlite. PostgreSQL is an optional separate mode.
 
-The backend must connect as uep_local_runtime. Flyway must already have run through DatabaseMigrationRunner as uep_local_migrator. Keycloak must connect as uep_local_keycloak using the keycloak schema.
+In SQLite mode, the backend uses the `local-sqlite` Spring profile and Hibernate entity schema generation; PostgreSQL Flyway migrations and database roles are not used. Keycloak uses its separate local `dev-file` store. In PostgreSQL mode, the backend connects as `uep_local_runtime`, Flyway is run by `DatabaseMigrationRunner` as `uep_local_migrator`, and Keycloak connects as `uep_local_keycloak` using the `keycloak` schema.
 
 ## Non-negotiable safety and truth requirements
 
@@ -26,7 +26,7 @@ The backend must connect as uep_local_runtime. Flyway must already have run thro
 3. Do not install additional infrastructure unless the owner explicitly approves. Use only the local tools provisioned by Start-UEP.ps1.
 4. Never print, commit, upload or copy passwords, access tokens, client secrets, JDBC URLs with credentials, or the contents of state.json/accounts.txt.
 5. Do not run DROP DATABASE, DROP SCHEMA, TRUNCATE, Flyway clean, baseline-on-migrate, restore-overwrite, or reset commands.
-6. Do not use the postgres superuser or migration credential from the backend process. Verify that the API uses uep_local_runtime.
+6. In PostgreSQL mode, do not use the postgres superuser or migration credential from the backend process; verify the API uses `uep_local_runtime`. In SQLite mode, verify the process uses the SQLite JDBC URL and local file only; no PostgreSQL credentials or process should be required.
 7. All test-created records must use a clear test prefix such as NATIVE-E2E-<run-id>. Track identifiers and clean up only records created by this test, through authorized API operations. If a record cannot safely be deleted, document it instead of using direct destructive SQL.
 8. Do not invent API paths or JSON request bodies. Read OpenAPI, controllers, DTOs, validation annotations, security rules and existing tests before exercising each feature.
 9. Distinguish actual backend/API/database behavior from UI fixture behavior. Never pass a frontend-only demo interaction as a successful Real-mode test.
@@ -38,7 +38,7 @@ Check all prerequisites and statuses:
 
 - Node version >= 22.22.0 and npm available.
 - JDK >= 21 and Maven >= 3.9.
-- PostgreSQL accepts local connections.
+- SQLite mode: the SQLite file is created by the backend and has a valid SQLite header. PostgreSQL mode: PostgreSQL accepts local connections.
 - Keycloak discovery endpoint returns the education realm metadata.
 - Spring Boot actuator health is UP.
 - Frontend page loads from port 5173.
@@ -52,10 +52,8 @@ Verify the data flow contract from source:
 - Frontend does not compile in a remote API URL; the API base remains same-origin/relative.
 - Vite proxies /api to 127.0.0.1:8080.
 - Frontend API helper uses fetch for data requests, attaches the Keycloak bearer token and supports GET, POST, PUT, PATCH and DELETE.
-- Backend uses the local PostgreSQL datasource and uep_local_runtime.
-- Runtime Flyway is disabled.
-- The database migration history is present and migrations are validated.
-- Keycloak uses the local database and the keycloak schema; it is not sharing the public application schema.
+- SQLite mode: backend uses `local-sqlite`, Flyway is disabled, Hibernate creates the local entity schema, background workers are disabled, and Keycloak uses `dev-file` independently.
+- PostgreSQL mode: backend uses the local PostgreSQL datasource and `uep_local_runtime`; Flyway migration history is present and validated; Keycloak uses the separate `keycloak` schema.
 
 Inspect browser and build artifacts for leaked secrets. No database username/password or Keycloak bootstrap admin password may be present in frontend environment variables, Vite output, browser storage or JavaScript assets.
 
@@ -134,9 +132,9 @@ At minimum, qualify this lifecycle if the repository exposes the corresponding A
 
 For areas not currently available through the UI, do not fake completion. Report the absent UI integration and separately test the API only when an existing documented endpoint supports it.
 
-## Phase 5 — Database persistence and least-privilege proof
+## Phase 5 — PostgreSQL database persistence and least-privilege proof (PostgreSQL mode only)
 
-Use psql or an approved local database client. Do not display passwords.
+Run this phase only in PostgreSQL mode. In SQLite mode, do not invoke psql or run PostgreSQL role/grant assertions; use the dedicated SQLite native Playwright test and verify the file signature plus API readback instead. Use psql or an approved local database client only for PostgreSQL mode. Do not display passwords.
 
 Verify:
 
@@ -242,7 +240,7 @@ Use the SQLite profile when PostgreSQL is unavailable. The launcher accepts a SQ
 The SQLite native test validates OIDC login, authenticated branch creation, browser reload/readback and the SQLite file signature. PostgreSQL role/grant tests remain a separate PostgreSQL-only acceptance suite. SQLite results must not be represented as PostgreSQL migration, privilege, concurrency or production-equivalence evidence.
 
 
-## SQLite local qualification mode
+## SQLite local qualification mode — use this path when PostgreSQL is unavailable
 
 Use SQLite when PostgreSQL is unavailable. From the repository root:
 
