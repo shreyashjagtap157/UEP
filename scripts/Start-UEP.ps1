@@ -971,7 +971,11 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
                 'set DATABASE_POOL_SIZE=1',
                 'set PORT=8080',
                 ('cd /d "' + $ApiDir + '"'),
-                ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 clean spring-boot:run -Dspring-boot.run.arguments=--platform.background-workers.enabled=false')
+                ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 clean compile'),
+                'if errorlevel 1 exit /b %errorlevel%',
+                ('powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $RepoRoot 'scripts\verify-java-class-version.ps1') + '" -ClassRoot "' + (Join-Path $ApiDir 'target\classes') + '" -ExpectedMajor 65 -RequiredClass "com\universalplatform\grading\package-info.class"'),
+                'if errorlevel 1 exit /b %errorlevel%',
+                ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 spring-boot:run -Dspring-boot.run.arguments=--platform.background-workers.enabled=false')
             )
         } else {
             $backendLines = @(
@@ -990,19 +994,28 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
                 'set DATABASE_POOL_SIZE=10',
                 'set PORT=8080',
                 ('cd /d "' + $ApiDir + '"'),
-                ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 clean spring-boot:run')
+                ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 clean compile'),
+                'if errorlevel 1 exit /b %errorlevel%',
+                ('powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $RepoRoot 'scripts\verify-java-class-version.ps1') + '" -ClassRoot "' + (Join-Path $ApiDir 'target\classes') + '" -ExpectedMajor 65 -RequiredClass "com\universalplatform\grading\package-info.class"'),
+                'if errorlevel 1 exit /b %errorlevel%',
+                ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 spring-boot:run')
             )
         }
         # Pin the runtime and compiler to the exact JDK discovered by Ensure-Java.
         # Maven's forked Spring Boot process inherits this JAVA_HOME and PATH.
         $javaBin = Join-Path $script:JavaHome 'bin'
+        $commandHeader = $backendLines[0]
         $backendLines = @(
+            $commandHeader,
             ('set "JAVA_HOME=' + $script:JavaHome + '"'),
             ('set "PATH=' + $javaBin + ';%PATH%"'),
+            'echo === Selected Java runtime ===',
             'java -version',
+            'echo === Selected Java compiler ===',
             'javac -version',
+            'echo === Selected Maven runtime ===',
             ('call "' + $MavenCmd + '" -version')
-        ) + $backendLines
+        ) + @($backendLines | Select-Object -Skip 1)
         $apiFile = Write-CommandFile 'run-api' $backendLines
         Start-ManagedProcess 'Backend' $apiFile $ApiDir
         if (-not (Wait-ForHttp 'http://127.0.0.1:8080/actuator/health' 180 'Backend')) { throw 'Backend did not become healthy. Inspect .uep-local\logs\Backend.log.' }
