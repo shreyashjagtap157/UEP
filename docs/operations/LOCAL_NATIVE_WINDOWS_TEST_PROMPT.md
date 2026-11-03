@@ -8,7 +8,7 @@ Qualify the **actual Real application**, not the offline Demo fixtures. The Real
 
 The system is started natively on Windows by:
 
-    .\startuep.ps1 -Mode Real -Database SQLite
+    .\startuep.ps1 -Mode Presentation -Database SQLite
 
 Expected local endpoints:
 
@@ -63,7 +63,7 @@ Inspect browser and build artifacts for leaked secrets. No database username/pas
 1. Open the actual Real frontend at http://localhost:5173.
 2. Confirm the Real UI stays at the local frontend and never redirects to port 8081.
 3. Confirm the browser GET to `/api/v1/me` contains neither `X-UEP-Local-Auth` nor `Authorization`. Confirm the same-origin Vite proxy adds `X-UEP-Local-Auth` upstream, and a direct unauthenticated request to `http://127.0.0.1:8080/api/v1/me` returns HTTP 401.
-4. Confirm /api/v1/me returns subject uep-local-demo-owner, an active tenant membership and the Organization Owner role.
+4. Confirm `/api/v1/me` returns subject `uep-local-demo-owner`, an active tenant membership and the Organization Owner role.
 5. Confirm the same request without the local header returns 401; an invalid local header also returns 401.
 6. Verify the local authentication header is accepted only by the loopback-bound backend and only for /api routes.
 7. Verify invalid/unknown tenant context and inactive memberships remain denied by the normal tenant and identity services.
@@ -74,12 +74,12 @@ Inspect browser and build artifacts for leaked secrets. No database username/pas
 
 Use browser automation and browser network instrumentation.
 
-Start with the committed native Real smoke suite after the launcher reports all four local services ready:
+Start with the committed native Real smoke suite after the launcher reports successful frontend, backend health, Vite proxy, Swagger UI and OpenAPI readiness:
 
     npm --prefix apps/web exec -- playwright install chromium
     npm --prefix apps/web run test:e2e:native
 
-This test must run on the same Windows account that initialized the protected local state. It checks local-authenticated API calls from the Vite origin, downloads the attendance CSV, creates a uniquely prefixed branch through the UI, reloads the browser and reads the branch back. It then creates a synthetic role-free membership through the People UI, assigns the existing Student role at tenant scope through authenticated POST, verifies the `role_assignment` row exists through the restricted PostgreSQL runtime role, removes that assignment through authenticated DELETE, verifies the row is absent, repeats the assignment/removal at branch scope against the newly created branch and verifies the persisted scope kind and branch ID, updates the membership's status and external reference through authenticated PATCH with optimistic version 0, verifies the response increments the version to 1, reloads and reads the updated membership through GET, and directly reads the committed membership row from PostgreSQL using the protected `uep_local_runtime` credentials. It then creates a uniquely prefixed custom role in the Roles workspace, updates its name/description/permissions through PUT using optimistic version 0, verifies version 1 in the response and PostgreSQL, deletes it through the UI after explicit browser confirmation, and verifies that the role and cascading permission rows are absent through the restricted runtime role. System-managed roles have no edit/delete controls, and the backend must reject deletion of an assigned custom role. It also verifies the database role's no-CREATE/no-Flyway-history boundary. It deliberately does not print credentials or tokens. The uniquely named branch and synthetic membership are annotated and retained because the current UI/API has no delete operation for either resource; the test never deletes data with direct SQL.
+The PostgreSQL native test must run on the same Windows account that initialized the protected local state. It checks browser calls without exposing the local credential (Vite adds it upstream), downloads the attendance CSV, creates a uniquely prefixed branch through the UI, reloads the browser and reads the branch back. It then creates a synthetic role-free membership through the People UI, assigns the existing Student role at tenant scope through authenticated POST, verifies the `role_assignment` row exists through the restricted PostgreSQL runtime role, removes that assignment through authenticated DELETE, verifies the row is absent, repeats the assignment/removal at branch scope against the newly created branch and verifies the persisted scope kind and branch ID, updates the membership's status and external reference through authenticated PATCH with optimistic version 0, verifies the response increments the version to 1, reloads and reads the updated membership through GET, and directly reads the committed membership row from PostgreSQL using the protected `uep_local_runtime` credentials. It then creates a uniquely prefixed custom role in the Roles workspace, updates its name/description/permissions through PUT using optimistic version 0, verifies version 1 in the response and PostgreSQL, deletes it through the UI after explicit browser confirmation, and verifies that the role and cascading permission rows are absent through the restricted runtime role. System-managed roles have no edit/delete controls, and the backend must reject deletion of an assigned custom role. It also verifies the database role's no-CREATE/no-Flyway-history boundary. It deliberately does not print credentials or tokens. The uniquely named branch and synthetic membership are annotated and retained because the current UI/API has no delete operation for either resource; the test never deletes data with direct SQL.
 
 A successful run is evidence for this specific end-to-end path only; continue with the wider method, workflow and tenant/branch isolation matrix below.
 
@@ -112,7 +112,7 @@ Inspect browser console and network logs. There must be no:
 
 ## Phase 4 — End-to-end persisted business workflows
 
-Use the real frontend and the seeded local personas. Inspect the current API contracts first and then execute the workflows that are implemented.
+Use the real frontend and the persisted local owner identity. Create synthetic test records only through supported UI/API operations, prefixed with a unique run identifier. The no-Keycloak local-native launcher does not seed additional backend/OIDC personas. Inspect the current API contracts first and then execute the workflows that are implemented.
 
 At minimum, qualify this lifecycle if the repository exposes the corresponding APIs and UI:
 
