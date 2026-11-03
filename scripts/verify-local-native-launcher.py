@@ -68,11 +68,15 @@ checks = {
     ),
     "Demo mode enables local fixture authentication": "set VITE_LOCAL_MODE=true" in launcher,
     "Real mode disables local fixture authentication": "set VITE_LOCAL_MODE=false" in launcher,
-    "Real mode uses the launcher-issued local API header instead of OIDC": (
+    "Real mode keeps the local API credential in the Node-side Vite proxy": (
         "set VITE_LOCAL_API_MODE=true" in launcher
-        and "VITE_LOCAL_API_AUTH_TOKEN=" in launcher
-        and "X-UEP-Local-Auth" in (ROOT / "apps" / "web" / "src" / "platform" / "api-core.ts").read_text(encoding="utf-8")
-        and "VITE_KEYCLOAK_URL=http://localhost:8081" not in launcher
+        and "set UEP_LOCAL_AUTH_TOKEN=" in launcher
+        and "process.env.UEP_LOCAL_AUTH_TOKEN" in vite
+        and "headers: localApiProxyHeaders" in vite
+        and "'X-UEP-Local-Auth': localApiAuthToken" in vite
+        and "VITE_LOCAL_API_AUTH_TOKEN" not in launcher
+        and "VITE_LOCAL_API_AUTH_TOKEN" not in (ROOT / "apps" / "web" / "src" / "platform" / "api-core.ts").read_text(encoding="utf-8")
+        and "X-UEP-Local-Auth" not in (ROOT / "apps" / "web" / "src" / "platform" / "api-core.ts").read_text(encoding="utf-8")
     ),
     "Real mode leaves the API base URL same-origin for Vite proxying": "set VITE_BACKEND_URL=" in launcher,
     "Vite proxies API requests to the IPv4 loopback backend": (
@@ -94,11 +98,13 @@ checks = {
         "PostgreSQL 18.4" in launcher and "pg_isready.exe" in launcher
         and not re.search(r"\b(?:docker|podman)\s+(?:run|compose|build)\b", launcher, re.I)
     ),
-    "Real launcher does not install, start or probe Keycloak": (
-        "Ensure-Keycloak\n        Test-PortAvailable 8080" not in launcher
-        and "Test-PortAvailable 8081" not in launcher
-        and "Start-ManagedProcess 'Keycloak'" not in launcher
-        and "Wait-ForHttp 'http://127.0.0.1:8081" not in launcher
+    "Local-native launcher has no Keycloak installer, user bootstrap, endpoints or database role provisioning": (
+        all(marker not in launcher for marker in (
+            "function Ensure-Keycloak", "function Ensure-RealIdentity",
+            "function Get-KeycloakAdminToken", "function Ensure-LocalTestAccounts",
+            "http://127.0.0.1:8081", "uep_local_keycloak", "__KEYCLOAK_USER__"
+        ))
+        and "The local Real startup does not start or contact Keycloak" in launcher
     ),
     "Maven installation verifies the downloaded SHA-512": (
         "apache-maven-3.10.0-bin.zip" in launcher and "Get-FileHash" in launcher
@@ -124,11 +130,13 @@ checks = {
         "uep-local-demo-owner" in (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "identity" / "LocalDevelopmentIdentityBootstrapper.java").read_text(encoding="utf-8")
         and "SystemRoleKey.ORGANIZATION_OWNER" in (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "identity" / "LocalDevelopmentIdentityBootstrapper.java").read_text(encoding="utf-8")
     ),
-    "requirement inventory runs before installers and service startup": (
+    "requirement inventory runs before installers and checks backend prerequisites only outside Demo mode": (
         "function Show-RequirementInventory" in launcher
         and "Show-RequirementInventory" in launcher
         and launcher.index("Show-RequirementInventory") < launcher.index("Ensure-Node")
         and "Frontend lockfile" in launcher
+        and "if ($Mode -ne 'Demo')" in launcher[launcher.index("function Show-RequirementInventory"):launcher.index("function Write-Section")]
+        and "Backend Maven project" in launcher
         and "Database migration runner" in launcher
         and "PostgreSQL service" in launcher
         and "SQLite local profile" in launcher
@@ -166,6 +174,37 @@ checks = {
 
 # Regression guards for defects found during native launcher source review.
 checks.update({
+    "root and native launchers default to paired Real plus Demo presentation": (
+        "[string]$Mode = 'Presentation'" in launcher
+        and "[string]$Mode = 'Presentation'" in wrapper
+        and "ValidateSet('Demo', 'Real', 'Both', 'Presentation')" in wrapper
+    ),
+    "readiness requires the managed process to remain alive, not just a responding port": (
+        "Get-Process -Id $managedEntry.ProcessId" in launcher
+        and "ProcessName = ''" in launcher
+        and "Wait-ForHttp 'http://127.0.0.1:5173/api/v1/platform/version' 90 'Vite API proxy' 'Real frontend'" in launcher
+        and "Wait-ForHttp 'http://127.0.0.1:8080/swagger-ui/index.html' 60 'Backend Swagger UI' 'Backend'" in launcher
+    ),
+    "live database status is based on a successful authenticated identity read through the real API": (
+        "Invoke-RestMethod -Uri 'http://127.0.0.1:5173/api/v1/me' -TimeoutSec 4" in launcher
+        and "UP — persisted owner/tenant identity read through the API" in launcher
+        and "Get-Item -LiteralPath $State.SQLiteDatabasePath).Length -gt 0" not in launcher
+    ),
+    "local PostgreSQL provisions only the migration and restricted runtime roles": (
+        "__MIGRATION_USER__" in launcher
+        and "__RUNTIME_USER__" in launcher
+        and "__KEYCLOAK_USER__" not in launcher
+        and "uep_local_keycloak" not in launcher
+        and "CREATE SCHEMA keycloak" not in launcher
+    ),
+    "anonymous Swagger and OpenAPI access is local-native only": (
+        'auth.requestMatchers("/actuator/health", "/api/v1/platform/version", "/api/v1/credentials/verify/**").permitAll();' in
+        (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "SecurityConfiguration.java").read_text(encoding="utf-8")
+        and 'if (localAuthEnabled)' in
+        (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "SecurityConfiguration.java").read_text(encoding="utf-8")
+        and '"/v3/api-docs", "/v3/api-docs/**"' in
+        (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "SecurityConfiguration.java").read_text(encoding="utf-8")
+    ),
     "Swagger UI and OpenAPI are local-native only and covered by integration tests": (
         "springdoc-openapi-starter-webmvc-ui" in pom
         and "PLATFORM_API_DOCS_ENABLED:false" in (ROOT / "apps" / "platform-server" / "src" / "main" / "resources" / "application.yaml").read_text(encoding="utf-8")
@@ -188,12 +227,14 @@ checks.update({
         and "localNativeProfileCannotBeCombinedWithProductionProfiles" in
         (ROOT / "apps" / "platform-server" / "src" / "test" / "java" / "com" / "universalplatform" / "security" / "ProductionSecretGuardTest.java").read_text(encoding="utf-8")
     ),
-    "Real launcher verifies the Vite API proxy and actual persisted identity": (
+    "Real launcher verifies server-side proxy authentication, backend auth boundary and persisted identity": (
         "set SPRING_PROFILES_ACTIVE=local-sqlite,local-native" in launcher
         and "set VITE_LOCAL_API_MODE=true" in launcher
         and "Wait-ForHttp 'http://127.0.0.1:5173/api/v1/platform/version'" in launcher
         and "Test-LocalApiProxy" in launcher
-        and "UEP_LOCAL_AUTH_TOKEN=" in launcher
+        and "set UEP_LOCAL_AUTH_TOKEN=" in launcher
+        and "Invoke-RestMethod -Method Get -Uri 'http://127.0.0.1:8080/api/v1/me'" in launcher
+        and "Direct unauthenticated API returned HTTP 401" in launcher
     ),
     "SQLite launcher disables background workers in the actual Spring Boot process": (
         "set PLATFORM_BACKGROUND_WORKERS_ENABLED=false" in launcher
@@ -229,11 +270,14 @@ checks.update({
         and "Get-PostgresService" in launcher
         and "Sort-Object Name -Descending" not in launcher
     ),
-    "launcher-issued tokens are written only to ACL-protected command files": (
+    "launcher-issued tokens are written only to ACL-protected command files and never VITE_ client variables": (
         "function Protect-File" in launcher
         and "Protect-File $StateFile" in launcher
         and "function Write-CommandFile" in launcher
         and "Protect-File $path" in launcher
+        and "set UEP_LOCAL_AUTH_TOKEN=" in launcher
+        and "VITE_LOCAL_API_AUTH_TOKEN" not in launcher
+        and "VITE_LOCAL_API_AUTH_TOKEN" not in (ROOT / "apps" / "web" / "src" / "platform" / "api-core.ts").read_text(encoding="utf-8")
     ),
     "Windows setup requires a full JDK and supports dependency upgrades/fallbacks": (
         "javac.exe" in launcher
