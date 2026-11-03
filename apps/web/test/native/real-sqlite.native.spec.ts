@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 const frontend = 'http://localhost:5173'
@@ -106,5 +106,12 @@ test('SQLite mode: OIDC login, authenticated branch write/readback and durable S
 
   expect(existsSync(databasePath)).toBe(true)
   expect(statSync(databasePath).size).toBeGreaterThan(100)
-  expect(readFileSync(databasePath).subarray(0, 16).toString('binary')).toBe('SQLite format 3\u0000')
+  const databaseHandle = openSync(databasePath, 'r')
+  try {
+    const signature = Buffer.alloc(16)
+    expect(readSync(databaseHandle, signature, 0, 16, 0)).toBe(16)
+    expect(signature.toString('binary')).toBe('SQLite format 3\u0000')
+  } finally {
+    closeSync(databaseHandle)
+  }
 })
