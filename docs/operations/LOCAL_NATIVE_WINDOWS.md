@@ -2,7 +2,9 @@
 
 ## Purpose
 
-The native launcher can show either the real integrated UEP application, the curated offline presentation demo, or both side by side. It uses local Windows processes; no hosted database or production deployment is needed.
+The native launcher can show either the real integrated UEP application, the curated offline presentation demo, or both side by side. It uses local Windows processes and **does not use Docker, Podman, Kubernetes, containers, a cloud database or a paid execution service**; no hosted database or production deployment is needed.
+
+The implementation entry point is `scripts/Start-UEP.ps1`, with the root `startuep.ps1` acting as a compatibility wrapper.
 
 The two experiences are intentionally separate:
 
@@ -82,7 +84,7 @@ It does **not** run the 50 PostgreSQL Flyway migrations, create PostgreSQL roles
 
 ## Real UEP presentation walkthrough
 
-The Real window is the application with OIDC authentication and API-backed pages. It is not the fixture-based LocalExperience. Recommended sequence:
+The Real window is the application with OIDC authentication and API-backed pages. Browser requests to same-origin `/api` are proxied by Vite to the Spring Boot API at `http://127.0.0.1:8080`; the browser never connects directly to SQLite or PostgreSQL. It is not the fixture-based LocalExperience. Recommended sequence:
 
 1. Complete the Keycloak login with the local owner account created by the launcher. Credentials are stored in the protected current-user LocalAppData folder; do not copy them into slides, shared documents or logs.
 2. Show the signed-in identity, tenant context and role-specific navigation. Explain that the browser calls the Spring API through Vite's same-origin `/api` proxy.

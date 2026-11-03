@@ -93,7 +93,7 @@ npm --prefix apps/web run build
 
 ## Native Windows local development
 
-No container runtime is required. The launcher checks prerequisites, starts PostgreSQL, Keycloak, Spring Boot and Vite as native Windows services/processes, runs Flyway separately with the local migrator role, then starts the API with the restricted runtime role.
+No container runtime is required. The launcher checks prerequisites and starts Keycloak, Spring Boot and Vite as native Windows processes. SQLite is the default local qualification database and does not require PostgreSQL or Flyway; select `-Database PostgreSQL` only when explicitly qualifying the PostgreSQL migration/runtime-role path, which runs Flyway separately with the local migrator role before the API starts with the restricted runtime role.
 
 ```powershell
 # Run the real integrated application and the offline presentation demo side by side
