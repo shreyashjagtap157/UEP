@@ -501,3 +501,10 @@ No hosted production deployment was started or modified by these commits. All ch
 - `SQLiteLocalQualificationIntegrationTest` now asserts the selected strategy and iterates the existing SQLite tables, requesting JDBC column metadata separately for each table. The test expects more than 50 non-internal tables to ensure it exercises the larger schema.
 - The fix retains `ddl-auto:update` and does not delete or recreate `.uep-local/uep-local.sqlite`. The owner should sync the latest main and rerun the Real SQLite startup using the existing database file. If a different exception remains, preserve the database and share the Backend log's first Hibernate/SQLite exception and full SQL error context; do not perform a database reset.
 - The change is committed to main; its Maven/Windows CI result still needs to be checked before claiming it is qualified on the owner's workstation.
+
+
+## 2026-11-03 follow-up — existing SQLite database restart regression
+
+- The SQLite backend test now starts a second `SpringApplicationBuilder` context against the same `target/uep-sqlite-qualification.db` after the primary test context has already created the full JPA schema. The second context uses `local-sqlite`, `ddl-auto:update`, the same per-entity metadata strategy and a random HTTP port, then asserts that the existing tables are still present.
+- The test also exercises Xerial `DatabaseMetaData.getColumns()` one existing table at a time and verifies the schema contains more than 50 non-internal tables. It avoids holding the one-connection Hikari pool while using `JdbcTemplate`.
+- This is the intended repeat-start regression for the user's 86-entity SQLite metadata issue. Latest main source is committed; CI currently has a queued run, so do not claim the new test passed until Maven/Windows jobs finish.
