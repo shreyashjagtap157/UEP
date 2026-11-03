@@ -263,4 +263,4 @@ Set-Location apps\web
 npm run test:e2e:native
 ```
 
-The SQLite native test validates OIDC login, authenticated branch creation, browser reload/readback and the SQLite file signature. PostgreSQL role/grant checks are a separate suite and are skipped in SQLite mode. SQLite does not establish PostgreSQL migration, role/grant, concurrency, backup/restore or production-equivalence qualification.
+The SQLite native test validates OIDC login, authenticated branch creation, browser reload/readback and the SQLite file signature. PostgreSQL role/grant checks are a separate suite and are skipped in SQLite mode. This is a narrow local workflow qualification, not proof that every UEP module supports SQLite. Do not count membership lifecycle, role administration, analytics, scheduling, messaging, finance, notification delivery, or background-worker workflows as SQLite-qualified until their PostgreSQL-specific query and locking paths have dedicated SQLite tests. SQLite does not establish PostgreSQL migration, role/grant, concurrency, backup/restore or production-equivalence qualification.

@@ -410,7 +410,7 @@ No hosted production deployment was started or modified by these commits. All ch
 - The profile uses a single Hikari connection and disables scheduled/background workers because several worker/locking paths use PostgreSQL-only SQL/advisory locks. `TenantMutationLock` retains tenant-existence validation but does not issue `SELECT ... FOR UPDATE` on SQLite.
 - PostgreSQL remains the production and CI database. The PostgreSQL migrations, database migration runner and CI matrix remain unchanged.
 - Keycloak is a separate process and must use its supported local `dev-file` database for SQLite mode; it does not share the UEP SQLite file.
-- The first SQLite qualification scope is local OIDC login, current identity, tenant membership, role management/assignment and branch persistence through the API/browser. PostgreSQL-specific analytics casts, JSONB survey operations, advisory-lock paths, background delivery workers and provider/database grant tests are not qualified by this profile.
+- The first SQLite qualification scope is local OIDC login, current identity and branch create/readback through the API/browser. Tenant membership lifecycle, role management/assignment, analytics, JSONB survey operations, advisory-lock paths, background delivery workers and provider/database grant tests are not yet qualified by this profile.
 - Runtime start-up, schema generation and local Windows execution are pending actual verification. Do not label the profile qualified until the dedicated SQLite integration test and native Windows run pass.
 
 
@@ -435,4 +435,4 @@ No hosted production deployment was started or modified by these commits. All ch
 - The launcher contract/policy job passed on commit `b775309`; the web lint/build failure from that run was fixed in `4502b5e` by renaming duplicate state variables. The web job passed on commit `4502b5e`.
 - A follow-up changed the SQLite native test to read only the 16-byte SQLite signature instead of loading the entire database file into memory (`45a8fba`).
 - The corrected SQLite persistence test and PostgreSQL 17/18 Maven jobs were still running at the time of this handoff update. Do not report backend CI as green until those exact jobs complete successfully.
-- The SQLite native browser test has not yet been executed on the user's Windows machine. The Linux CI job only verifies test discovery.
+- The SQLite native browser test has not yet been executed on the user's Windows machine. The Linux CI job only verifies test discovery. The backend SQLite integration test verifies SQLite startup, Hibernate schema creation, tenant persistence and SQLite UUID existence lookup; it does not qualify the full application API.
