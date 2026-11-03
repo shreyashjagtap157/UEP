@@ -3,11 +3,13 @@ package com.universalplatform.tenancy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
+import com.universalplatform.BackgroundWorkerConfiguration;
 import com.universalplatform.security.TenantMutationLock;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -16,13 +18,31 @@ import org.springframework.transaction.support.TransactionTemplate;
         "spring.profiles.active=local-sqlite",
         "UEP_SQLITE_JDBC_URL=jdbc:sqlite:target/uep-sqlite-qualification.db",
         "PLATFORM_DEV_MODE=true",
-        "PLATFORM_BACKGROUND_WORKERS_ENABLED=false"
+        "platform.background-workers.enabled=false"
 })
 class SQLiteLocalQualificationIntegrationTest {
     @Autowired JdbcTemplate jdbc;
+    @Autowired ApplicationContext applicationContext;
     @Autowired TenantRepository tenants;
     @Autowired TenantMutationLock tenantMutationLock;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
+
+    @Test
+    void localSqliteProfileDisablesSchedulingAndEveryBackgroundWorker() {
+        assertThat(applicationContext.getEnvironment().getProperty("platform.background-workers.enabled", Boolean.class))
+                .isFalse();
+        assertThat(applicationContext.getBeansOfType(BackgroundWorkerConfiguration.class)).isEmpty();
+        assertThat(applicationContext.containsBean("announcementPublishingWorker")).isFalse();
+        assertThat(applicationContext.containsBean("contentRetentionWorker")).isFalse();
+        assertThat(applicationContext.containsBean("storageCleanupWorker")).isFalse();
+        assertThat(applicationContext.containsBean("uploadCleanupWorker")).isFalse();
+        assertThat(applicationContext.containsBean("webhookEventFanoutWorker")).isFalse();
+        assertThat(applicationContext.containsBean("webhookWorker")).isFalse();
+        assertThat(applicationContext.containsBean("messagingRetentionWorker")).isFalse();
+        assertThat(applicationContext.containsBean("notificationEmailWorker")).isFalse();
+        assertThat(applicationContext.containsBean("recordingWorker")).isFalse();
+        assertThat(applicationContext.containsBean("storageQuotaReconciliationWorker")).isFalse();
+    }
 
     @Test
     void localProfileStartsAgainstSqliteAndPersistsJpaTenantRows() {
