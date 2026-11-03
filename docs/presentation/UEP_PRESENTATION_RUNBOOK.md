@@ -4,18 +4,20 @@
 
 Present two honest views of the same project:
 
-1. **Real UEP — local integrated build:** the current React application with a launcher-managed loopback session, Spring Boot API, separate backend Swagger UI and a local SQLite qualification database. Keycloak is not started in this local walkthrough.
+1. **Real UEP — local integrated build:** the current React application with a launcher-managed loopback session, Spring Boot API, separate backend Swagger UI and a selected local SQLite or PostgreSQL qualification database (SQLite is the default). Keycloak is not started in this local walkthrough.
 2. **Offline presentation demo:** the curated role-specific seeded workspaces used for the concise academic workflow walkthrough.
 
 These are two independent environments. The Offline Demo is not connected to the Real application and does not use its API session or SQLite database. The Real application is not a production deployment, and the SQLite profile is narrower than PostgreSQL production/CI qualification.
 
 ## One-command launch
 
-From the repository root on Windows:
+From the repository root on Windows, the default command starts both Real UEP and the separate Offline Demo:
 
 ```powershell
-.\startuep.ps1 -Mode Presentation -Database SQLite
+.\startuep.ps1
 ```
+
+The equivalent explicit SQLite command is `.\startuep.ps1 -Mode Presentation -Database SQLite`.
 
 In every Real local-native mode, the launcher creates or reuses only the persisted local API owner account, active tenant membership and Organization Owner role in the selected database (SQLite or PostgreSQL). It does not create OIDC test accounts or start Keycloak. The Offline Demo has its own independent browser-seeded personas; they are synthetic and are not backend users.
 
