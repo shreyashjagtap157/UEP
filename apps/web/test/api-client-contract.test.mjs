@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
 const apiCore = readFileSync(fileURLToPath(new URL('../src/platform/api-core.ts', import.meta.url)), 'utf8')
+const viteConfig = readFileSync(fileURLToPath(new URL('../vite.config.ts', import.meta.url)), 'utf8')
+const sqliteNative = readFileSync(fileURLToPath(new URL('./native/real-sqlite.native.spec.ts', import.meta.url)), 'utf8')
 const apiBusiness = readFileSync(fileURLToPath(new URL('../src/platform/api-business.ts', import.meta.url)), 'utf8')
 const apiTypes = readFileSync(fileURLToPath(new URL('../src/platform/api.ts', import.meta.url)), 'utf8')
 const nativeSmoke = readFileSync(fileURLToPath(new URL('./native/real-analytics-export.native.spec.ts', import.meta.url)), 'utf8')
@@ -15,8 +17,13 @@ test('CSV export uses the shared authenticated API transport', () => {
   assert.match(apiCore, /export async function requestText/)
   assert.ok(apiCore.includes("authorizedResponse(path,init,'text/csv')"))
   assert.match(apiCore, /headers\.set\('Authorization',/)
-  assert.match(apiCore, /headers\.set\('X-UEP-Local-Auth',localToken\)/)
   assert.ok(apiCore.includes('if(localApiMode)'))
+  assert.doesNotMatch(apiCore, /VITE_LOCAL_API_AUTH_TOKEN|X-UEP-Local-Auth/)
+  assert.match(viteConfig, /process\.env\.UEP_LOCAL_AUTH_TOKEN/)
+  assert.match(viteConfig, /headers: localApiProxyHeaders/)
+  assert.match(viteConfig, /'X-UEP-Local-Auth': localApiAuthToken/)
+  assert.ok(sqliteNative.includes("directBackendAnonymous.status()).toBe(401)"))
+  assert.ok(sqliteNative.includes("identityHeaders['x-uep-local-auth']).toBeUndefined()"))
   assert.match(apiCore, /headers\.set\('Accept',accept\)/)
 
   assert.match(apiBusiness, /import \{ request, requestText \} from '\.\/api-core'/)
