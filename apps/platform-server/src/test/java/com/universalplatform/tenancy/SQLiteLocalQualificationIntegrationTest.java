@@ -14,10 +14,10 @@ import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -77,7 +77,6 @@ class SQLiteLocalQualificationIntegrationTest {
                 .run(
                         "--spring.profiles.active=local-sqlite",
                         "--spring.datasource.url=jdbc:sqlite:target/uep-sqlite-qualification.db",
-                        "--PLATFORM_DEV_MODE=true",
                         "--platform.background-workers.enabled=false",
                         "--server.port=0")) {
             assertThat(restarted.getEnvironment().getProperty(
