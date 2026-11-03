@@ -93,6 +93,8 @@ npm --prefix apps/web run build
 
 ## Native Windows local development
 
+The launcher inventories local requirements before startup. It can install Node.js LTS and Eclipse Temurin JDK 21 through WinGet, downloads a SHA-512-verified Maven 3.10.0 and SHA-256-verified Keycloak 26.7.5 into the ignored `.uep-local/tools` directory, installs locked frontend dependencies with `npm ci`, and resolves backend dependencies with Maven. Use a full JDK (including `javac.exe`), not a JRE. When WinGet is unavailable, use the manual installer links in [the Windows setup guide](docs/operations/LOCAL_NATIVE_WINDOWS.md).
+
 No container runtime is required. The launcher checks prerequisites and starts Keycloak, Spring Boot and Vite as native Windows processes. SQLite is the default local qualification database and does not require PostgreSQL or Flyway; select `-Database PostgreSQL` only when explicitly qualifying the PostgreSQL migration/runtime-role path, which runs Flyway separately with the local migrator role before the API starts with the restricted runtime role.
 
 ```powershell
