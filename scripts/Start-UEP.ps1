@@ -393,13 +393,28 @@ function Initialize-LocalState {
         $script:State = Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
         if (-not $State.TestAccounts) { $State | Add-Member -NotePropertyName TestAccounts -NotePropertyValue @() -Force }
         if (-not ($State.PSObject.Properties.Name -contains 'DatabaseProvider')) {
-            $State | Add-Member -NotePropertyName DatabaseProvider -NotePropertyValue 'PostgreSQL'
+            $State | Add-Member -NotePropertyName DatabaseProvider -NotePropertyValue 'PostgreSQL' -Force
         }
         if (-not ($State.PSObject.Properties.Name -contains 'SQLiteDatabasePath')) {
-            $State | Add-Member -NotePropertyName SQLiteDatabasePath -NotePropertyValue ''
+            $State | Add-Member -NotePropertyName SQLiteDatabasePath -NotePropertyValue '' -Force
+        }
+        $previousProvider = [string]$State.DatabaseProvider
+        $sqlitePath = Join-Path $LocalDir 'uep-local.sqlite'
+        $sqliteMissingOrEmpty = -not (Test-Path -LiteralPath $sqlitePath -PathType Leaf)
+        if (-not $sqliteMissingOrEmpty) {
+            $sqliteMissingOrEmpty = (Get-Item -LiteralPath $sqlitePath).Length -eq 0
+        }
+        $providerChanged = -not [string]::Equals($previousProvider, $Database, [StringComparison]::OrdinalIgnoreCase)
+        $sqliteIdentityMustBeRecreated = ($Database -eq 'SQLite' -and $sqliteMissingOrEmpty)
+        if ($providerChanged -or $sqliteIdentityMustBeRecreated) {
+            $reason = if ($providerChanged) { "database provider changed from $previousProvider to $Database" } else { 'the local SQLite database file is missing or empty' }
+            Write-Status 'Local state' ("Reinitializing database-specific tenant identity because " + $reason + '; preserving local credentials and database files') Yellow
+            $State.TenantId = ''
+            $State.LocalAdminUserId = ''
+            $State.TestAccounts = @()
         }
         $State.DatabaseProvider = $Database
-        if ($Database -eq 'SQLite') { $State.SQLiteDatabasePath = Join-Path $LocalDir 'uep-local.sqlite' }
+        if ($Database -eq 'SQLite') { $State.SQLiteDatabasePath = $sqlitePath }
         Save-State
         return
     }
