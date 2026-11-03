@@ -8,6 +8,7 @@
 - Driver: Xerial SQLite JDBC.
 - Dialect: Hibernate community `SQLiteDialect`.
 - Schema: Hibernate `ddl-auto=update` from JPA entity mappings.
+- Metadata extraction: Hibernate `hibernate.hbm2ddl.jdbc_metadata_extraction_strategy=individually` so existing-table inspection runs per entity/table instead of one grouped metadata query across the full schema.
 - Flyway: disabled only in this profile. The 50 PostgreSQL migrations are not executed or translated.
 - Database file: `.uep-local/uep-local.sqlite` (ignored by Git).
 - Connection pool: one connection for the local process.
@@ -15,6 +16,14 @@
 - Background workers: disabled in this profile.
 - Keycloak: separate `dev-file` local development store; never shares the UEP SQLite file.
 - Production and CI database: PostgreSQL remains unchanged.
+
+## SQLite schema metadata scaling
+
+Xerial SQLite JDBC implements `DatabaseMetaData.getColumns()` by collecting column metadata for the matching tables. Hibernate's grouped schema-metadata strategy can ask for the complete mapped schema in one operation; with the UEP entity/table count and column count this can exceed SQLite's default compound-SELECT term limit during `ddl-auto:update` on a later startup.
+
+The local SQLite profile therefore sets `hibernate.hbm2ddl.jdbc_metadata_extraction_strategy=individually`. Hibernate inspects each mapped entity/table separately. This keeps `ddl-auto:update` enabled, avoids increasing SQLite's global `SQLITE_LIMIT_COMPOUND_SELECT` to an unbounded value, and does not require deleting or recreating the database.
+
+The backend integration test asserts the Hibernate strategy and requests JDBC column metadata for every existing non-internal SQLite table one table at a time. Re-run the real application against the existing `.uep-local/uep-local.sqlite` after syncing the fix; do not delete the file as a workaround.
 
 ## Verified in CI so far
 
