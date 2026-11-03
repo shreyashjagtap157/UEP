@@ -40,6 +40,7 @@ class SQLiteLocalQualificationIntegrationTest {
         assertThat(applicationContext.containsBean("webhookWorker")).isFalse();
         assertThat(applicationContext.containsBean("messagingRetentionWorker")).isFalse();
         assertThat(applicationContext.containsBean("notificationEmailWorker")).isFalse();
+        assertThat(applicationContext.containsBean("notificationOutboxProcessor")).isFalse();
         assertThat(applicationContext.containsBean("recordingWorker")).isFalse();
         assertThat(applicationContext.containsBean("storageQuotaReconciliationWorker")).isFalse();
     }
