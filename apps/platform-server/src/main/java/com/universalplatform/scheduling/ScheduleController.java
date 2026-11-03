@@ -1,5 +1,7 @@
 package com.universalplatform.scheduling;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "Schedule Management", description = "Endpoints for managing schedule series, calendar occurrences, conflicts, rescheduling, and cancellations")
 @RestController
 @RequestMapping("/api/v1/schedule")
 class ScheduleController {
@@ -28,27 +31,47 @@ class ScheduleController {
 
     ScheduleController(ScheduleService service) { this.service = service; }
 
+    @Operation(
+            summary = "List schedule series",
+            description = "Retrieves a paginated list of schedule recurring or single series. Accepts optional page and size query parameters."
+    )
     @GetMapping("/series")
     ScheduleService.SchedulePage<ScheduleService.SeriesView> series(@RequestParam(defaultValue = "0") int page,
                                                                      @RequestParam(defaultValue = "25") int size) {
         return service.listSeries(page, size);
     }
 
+    @Operation(
+            summary = "List occurrences calendar view",
+            description = "Retrieves calendar occurrences falling within the specified time range. Requires 'from' and 'to' timestamp query parameters."
+    )
     @GetMapping("/occurrences")
     List<ScheduleService.OccurrenceView> occurrences(@RequestParam Instant from, @RequestParam Instant to) {
         return service.calendar(from, to);
     }
 
+    @Operation(
+            summary = "Preflight check for schedule conflicts",
+            description = "Checks for potential scheduling conflicts (teacher, room, batch) prior to creating a series. Requires a CreateSeriesRequest body."
+    )
     @PostMapping("/conflicts")
     List<ScheduleConflict> conflicts(@Valid @RequestBody CreateSeriesRequest request) {
         return service.preflight(request.command());
     }
 
+    @Operation(
+            summary = "Create schedule series",
+            description = "Creates a new schedule series with recurrence rules and generates occurrences. Requires a CreateSeriesRequest body."
+    )
     @PostMapping("/series")
     ScheduleService.SeriesCreateResult create(@Valid @RequestBody CreateSeriesRequest request) {
         return service.create(request.command());
     }
 
+    @Operation(
+            summary = "Reschedule occurrence",
+            description = "Reschedules a specific occurrence to a new start time, duration, room, or substitute teacher. Requires occurrence ID in path and RescheduleRequest body with expectedVersion."
+    )
     @PostMapping("/occurrences/{id}/reschedule")
     ScheduleService.OccurrenceView reschedule(@PathVariable UUID id, @Valid @RequestBody RescheduleRequest request) {
         return service.reschedule(id, new ScheduleService.RescheduleCommand(request.startLocal(), request.durationMinutes(),
@@ -56,11 +79,19 @@ class ScheduleController {
                 request.conflictOverrideReason(), request.expectedVersion()));
     }
 
+    @Operation(
+            summary = "Cancel occurrence",
+            description = "Cancels a specific occurrence. Requires the occurrence ID in the path and a CancelRequest body with reason and expectedVersion."
+    )
     @PostMapping("/occurrences/{id}/cancel")
     ScheduleService.OccurrenceView cancelOccurrence(@PathVariable UUID id, @Valid @RequestBody CancelRequest request) {
         return service.cancelOccurrence(id, new ScheduleService.CancelOccurrenceCommand(request.reason(), request.expectedVersion()));
     }
 
+    @Operation(
+            summary = "Cancel schedule series",
+            description = "Cancels an entire recurring schedule series. Requires the series ID in the path and a CancelRequest body with reason and expectedVersion."
+    )
     @PostMapping("/series/{id}/cancel")
     ScheduleService.SeriesView cancelSeries(@PathVariable UUID id, @Valid @RequestBody CancelRequest request) {
         return service.cancelSeries(id, new ScheduleService.CancelSeriesCommand(request.reason(), request.expectedVersion()));

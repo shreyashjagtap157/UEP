@@ -16,8 +16,9 @@ if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) {
 }
 
 # Start Keycloak on port 8081 if requested or in paired/Real modes
-$kcJob = $null
+$kcProc = $null
 $kcBat = Join-Path $PSScriptRoot '.uep-local\tools\keycloak-26.7.5\bin\kc.bat'
+$kcDir = Join-Path $PSScriptRoot '.uep-local\tools\keycloak-26.7.5'
 if ($WithKeycloak -or $Mode -in @('Both', 'Presentation', 'Real')) {
     if (Test-Path -LiteralPath $kcBat -PathType Leaf) {
         $kcListening = $false
@@ -35,13 +36,21 @@ if ($WithKeycloak -or $Mode -in @('Both', 'Presentation', 'Real')) {
         if (-not $kcListening) {
             Write-Host 'Starting Keycloak 26.7.5 on port 8081...' -ForegroundColor Cyan
             $realmSource = Join-Path $PSScriptRoot 'infra\keycloak\education-realm.json'
-            $importDir = Join-Path $PSScriptRoot '.uep-local\tools\keycloak-26.7.5\data\import'
+            $importDir = Join-Path $kcDir 'data\import'
             if (Test-Path -LiteralPath $realmSource -PathType Leaf) {
                 if (-not (Test-Path $importDir)) { New-Item -ItemType Directory -Path $importDir -Force | Out-Null }
                 Copy-Item -LiteralPath $realmSource -Destination (Join-Path $importDir 'education-realm.json') -Force
             }
-            $kcJob = Start-Process -FilePath $kcBat -ArgumentList 'start-dev', '--http-port', '8081', '--import-realm' -WorkingDirectory (Join-Path $PSScriptRoot '.uep-local\tools\keycloak-26.7.5') -PassThru -WindowStyle Minimized
-            Write-Host "Keycloak process started (PID: $($kcJob.Id))." -ForegroundColor Green
+            $env:KEYCLOAK_ADMIN = 'admin'
+            $env:KEYCLOAK_ADMIN_PASSWORD = 'admin'
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = 'cmd.exe'
+            $psi.Arguments = '/c ""' + $kcBat + '"" start-dev --http-port=8081 --import-realm'
+            $psi.WorkingDirectory = $kcDir
+            $psi.UseShellExecute = $true
+            $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Minimized
+            $kcProc = [System.Diagnostics.Process]::Start($psi)
+            Write-Host "Keycloak process started (PID: $($kcProc.Id))." -ForegroundColor Green
         } else {
             Write-Host 'Keycloak is already listening on port 8081.' -ForegroundColor Green
         }
@@ -51,7 +60,7 @@ if ($WithKeycloak -or $Mode -in @('Both', 'Presentation', 'Real')) {
 try {
     & $launcher -Mode $Mode -Database $Database -NoBrowser:$NoBrowser -SkipAccountSeeding:$SkipAccountSeeding
 } finally {
-    if ($null -ne $kcJob -and -not $kcJob.HasExited) {
-        try { Stop-Process -Id $kcJob.Id -Force } catch {}
+    if ($null -ne $kcProc -and -not $kcProc.HasExited) {
+        try { Stop-Process -Id $kcProc.Id -Force } catch {}
     }
 }

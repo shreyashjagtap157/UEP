@@ -1,5 +1,7 @@
 package com.universalplatform.organization;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "Organization Management", description = "Endpoints for managing organization branches and organization settings")
 @RestController
 @RequestMapping("/api/v1/organization")
 class OrganizationController {
@@ -26,6 +29,10 @@ class OrganizationController {
         this.organization = organization;
     }
 
+    @Operation(
+            summary = "List branches",
+            description = "Retrieves a paginated list of organization branches. Accepts optional page and size query parameters."
+    )
     @GetMapping("/branches")
     OrganizationPage<OrganizationService.BranchView> branches(
             @RequestParam(defaultValue = "0") int page,
@@ -33,16 +40,28 @@ class OrganizationController {
         return organization.listBranches(page, size);
     }
 
+    @Operation(
+            summary = "Get branch by ID",
+            description = "Retrieves details of a branch by its unique identifier passed in the path variable."
+    )
     @GetMapping("/branches/{branchId}")
     OrganizationService.BranchView branch(@PathVariable UUID branchId) {
         return organization.branch(branchId);
     }
 
+    @Operation(
+            summary = "Create branch",
+            description = "Creates a new branch for the organization. Requires a BranchRequest body containing branch code, displayName, and timezone."
+    )
     @PostMapping("/branches")
     OrganizationService.BranchView createBranch(@Valid @RequestBody BranchRequest request) {
         return organization.createBranch(request.code(), request.displayName(), request.timezone());
     }
 
+    @Operation(
+            summary = "Update branch",
+            description = "Updates an existing branch's details and status. Requires the branch ID in the path and a BranchRequest body with status and expectedVersion for optimistic locking."
+    )
     @PutMapping("/branches/{branchId}")
     OrganizationService.BranchView updateBranch(@PathVariable UUID branchId, @Valid @RequestBody BranchRequest request) {
         if (request.status() == null) throw new IllegalArgumentException("Branch status is required when updating a branch");
@@ -50,11 +69,19 @@ class OrganizationController {
                 request.status(), request.expectedVersion());
     }
 
+    @Operation(
+            summary = "Get organization settings",
+            description = "Retrieves current organization-wide settings including default timezone, locale, week start day, and support contacts."
+    )
     @GetMapping("/settings")
     OrganizationService.SettingsView settings() {
         return organization.settings();
     }
 
+    @Operation(
+            summary = "Update organization settings",
+            description = "Updates organization-wide settings. Requires a SettingsRequest body with default timezone, locale, week starts on, optional support email/url, and expectedVersion for optimistic locking."
+    )
     @PutMapping("/settings")
     OrganizationService.SettingsView updateSettings(@Valid @RequestBody SettingsRequest request) {
         return organization.updateSettings(request.defaultTimezone(), request.defaultLocale(), request.weekStartsOn(),
