@@ -1,4 +1,4 @@
-export type DemoRole = 'student' | 'teacher' | 'client' | 'developer' | 'admin' | 'guardian' | 'exam-controller' | 'finance-admin' | 'teaching-assistant' | 'evaluator' | 'mentor' | 'support' | 'auditor'
+export type DemoRole = 'student' | 'teacher' | 'client' | 'developer' | 'product-maintainer' | 'admin' | 'guardian' | 'exam-controller' | 'finance-admin' | 'teaching-assistant' | 'evaluator' | 'mentor' | 'support' | 'auditor'
 
 export interface DemoProfile {
   role: DemoRole
@@ -13,7 +13,8 @@ export const DEMO_PROFILES: DemoProfile[] = [
   { role: 'student', label: 'Student', name: 'Asha Sharma', email: 'asha.student@demo.uep', userId: 'student-asha', description: 'Courses, assignments, assessments, results and attendance.' },
   { role: 'teacher', label: 'Teacher', name: 'Rahul Deshmukh', email: 'rahul.teacher@demo.uep', userId: 'teacher-rahul', description: 'Classes, learner submissions, grading, content and analytics.' },
   { role: 'client', label: 'Client / Institution', name: 'Priya Kulkarni', email: 'priya.client@demo.uep', userId: 'client-priya', description: 'Programs, learners, usage, reports and billing.' },
-  { role: 'developer', label: 'Product Developer', name: 'Dev Patel', email: 'dev.product@demo.uep', userId: 'developer-dev', description: 'Educational products, drafts, publishing and integrations.' },
+  { role: 'developer', label: 'Platform Developer', name: 'Dev Patel', email: 'dev.product@demo.uep', userId: 'developer-dev', description: 'Platform integrations, webhooks and technical operations for client services.' },
+  { role: 'product-maintainer', label: 'Product Maintainer', name: 'Mira Shah', email: 'mira.maintainer@demo.uep', userId: 'product-maintainer-mira', description: 'Educational product catalogue, lifecycle, release review and publishing.' },
   { role: 'admin', label: 'Platform Administrator', name: 'Morgan Admin', email: 'admin.platform@demo.uep', userId: 'admin-platform', description: 'People, academics, operations and configuration.' },
   { role: 'guardian', label: 'Parent / Guardian', name: 'Nina Sharma', email: 'nina.guardian@demo.uep', userId: 'guardian-nina', description: 'Progress and communications for the linked learner.' },
   { role: 'exam-controller', label: 'Exam Controller', name: 'Aarav Shah', email: 'aarav.exams@demo.uep', userId: 'exam-aarav', description: 'Assessment schedules, readiness and submissions.' },
@@ -165,7 +166,7 @@ export interface DemoTenant {
 }
 
 export interface DemoState {
-  schemaVersion: 4
+  schemaVersion: 5
   users: DemoUser[]
   courses: DemoCourse[]
   submissions: DemoSubmission[]
@@ -183,8 +184,8 @@ export interface DemoState {
   activity: DemoActivity[]
 }
 
-const STORAGE_KEY = 'uep.local-demo-data.v4'
-const LEGACY_STORAGE_KEYS = ['uep.local-demo-data.v3', 'uep.local-demo-data.v2', 'uep.local-demo-data.v1'] as const
+const STORAGE_KEY = 'uep.local-demo-data.v5'
+const LEGACY_STORAGE_KEYS = ['uep.local-demo-data.v4', 'uep.local-demo-data.v3', 'uep.local-demo-data.v2', 'uep.local-demo-data.v1'] as const
 const STORE_CHANGED_EVENT = 'uep:local-demo-data-updated'
 
 // Retain the last known state in this tab if browser storage becomes temporarily unavailable.
@@ -195,7 +196,8 @@ const ROLE_RECORD_NAMES: Record<DemoRole, string> = {
   student: 'Student',
   teacher: 'Teacher',
   client: 'Client Administrator',
-  developer: 'Product Developer',
+  developer: 'Platform Developer',
+  'product-maintainer': 'Product Maintainer',
   admin: 'Platform Administrator',
   guardian: 'Guardian',
   'exam-controller': 'Exam Controller',
@@ -309,7 +311,8 @@ function seedDemoState(): DemoState {
     { id: 'student-meera', name: 'Meera Iyer', email: 'meera.student@demo.uep', role: 'Student', status: 'Active', organization: 'Northstar Learning Institute', courseIds: ['course-web', 'course-data', 'course-cloud'] },
     { id: 'teacher-rahul', name: 'Rahul Deshmukh', email: 'rahul.teacher@demo.uep', role: 'Teacher', status: 'Active', organization: 'Northstar Learning Institute', courseIds: ['course-web', 'course-data', 'course-cloud'] },
     { id: 'client-priya', name: 'Priya Kulkarni', email: 'priya.client@demo.uep', role: 'Client Administrator', status: 'Active', organization: 'Northstar Learning Institute', courseIds: [] },
-    { id: 'developer-dev', name: 'Dev Patel', email: 'dev.product@demo.uep', role: 'Product Developer', status: 'Active', organization: 'UEP Product Team', courseIds: [] },
+    { id: 'developer-dev', name: 'Dev Patel', email: 'dev.product@demo.uep', role: 'Platform Developer', status: 'Active', organization: 'UEP Product Team', courseIds: [] },
+    { id: 'product-maintainer-mira', name: 'Mira Shah', email: 'mira.maintainer@demo.uep', role: 'Product Maintainer', status: 'Active', organization: 'UEP Product Team', courseIds: [] },
     { id: 'admin-platform', name: 'Morgan Admin', email: 'admin.platform@demo.uep', role: 'Platform Administrator', status: 'Active', organization: 'UEP Platform', courseIds: [] },
     { id: 'guardian-nina', name: 'Nina Sharma', email: 'nina.guardian@demo.uep', role: 'Guardian', status: 'Active', organization: 'Northstar Learning Institute', courseIds: ['course-web', 'course-data', 'course-cloud'] },
     { id: 'exam-aarav', name: 'Aarav Shah', email: 'aarav.exams@demo.uep', role: 'Exam Controller', status: 'Active', organization: 'Northstar Learning Institute', courseIds: ['course-data'] },
@@ -397,7 +400,7 @@ function seedDemoState(): DemoState {
     { id: 'webhook-attendance', name: 'Attendance updates', endpoint: 'https://client.example.test/hooks/attendance', status: 'Needs attention', successfulDeliveries: 39, failedDeliveries: 4 },
   ]
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     users,
     courses,
     submissions,
@@ -425,13 +428,35 @@ function seedDemoState(): DemoState {
 }
 
 type PersistedDemoState = Omit<DemoState, 'schemaVersion' | 'organizationActions' | 'invoices' | 'supportCases' | 'messages' | 'materials' | 'tenants'> & {
-  schemaVersion: 1 | 2 | 3 | 4
+  schemaVersion: 1 | 2 | 3 | 4 | 5
   organizationActions?: DemoOrganizationAction[]
   invoices?: DemoInvoice[]
   supportCases?: DemoSupportCase[]
   messages?: DemoMessage[]
   materials?: DemoMaterial[]
   tenants?: DemoTenant[]
+}
+
+function migrateDemoUsers(persistedUsers: DemoUser[], seededUsers: DemoUser[]): DemoUser[] {
+  let changed = false
+  // The v4 Developer persona was also the Product Developer. Preserve the row,
+  // status and organization while migrating it to the integrations-focused role.
+  const users = persistedUsers.map(user => {
+    if (user.id === 'developer-dev' && user.role === 'Product Developer') {
+      changed = true
+      return { ...user, role: 'Platform Developer' }
+    }
+    return user
+  })
+
+  // Product Maintainer is a new seeded persona. Add it only when absent; do not
+  // overwrite a deliberately suspended or otherwise edited existing user.
+  const productMaintainer = seededUsers.find(user => user.id === 'product-maintainer-mira')
+  if (productMaintainer && !users.some(user => user.id === productMaintainer.id)) {
+    users.push(productMaintainer)
+    changed = true
+  }
+  return changed ? users : persistedUsers
 }
 
 export function loadDemoState(): DemoState {
@@ -450,9 +475,11 @@ export function loadDemoState(): DemoState {
       const parsed: unknown = JSON.parse(stored.raw)
       if (!isPersistedDemoState(parsed)) continue
       const seed = seedDemoState()
+      const migratedUsers = migrateDemoUsers(parsed.users, seed.users)
       const state: DemoState = {
         ...parsed,
-        schemaVersion: 4,
+        schemaVersion: 5,
+        users: migratedUsers,
         organizationActions: Array.isArray(parsed.organizationActions) ? parsed.organizationActions : seed.organizationActions,
         invoices: Array.isArray(parsed.invoices) ? parsed.invoices : seed.invoices,
         supportCases: Array.isArray(parsed.supportCases) ? parsed.supportCases : seed.supportCases,
@@ -461,7 +488,7 @@ export function loadDemoState(): DemoState {
         tenants: Array.isArray(parsed.tenants) ? parsed.tenants : seed.tenants,
       }
       latestDemoState = state
-      if (stored.key !== STORAGE_KEY || parsed.schemaVersion !== 4
+      if (stored.key !== STORAGE_KEY || parsed.schemaVersion !== 5 || migratedUsers !== parsed.users
           || !Array.isArray(parsed.organizationActions)
           || !Array.isArray(parsed.invoices)
           || !Array.isArray(parsed.supportCases)
@@ -484,7 +511,7 @@ export function loadDemoState(): DemoState {
 function isPersistedDemoState(value: unknown): value is PersistedDemoState {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Partial<PersistedDemoState>
-  return (candidate.schemaVersion === 1 || candidate.schemaVersion === 2 || candidate.schemaVersion === 3 || candidate.schemaVersion === 4)
+  return (candidate.schemaVersion === 1 || candidate.schemaVersion === 2 || candidate.schemaVersion === 3 || candidate.schemaVersion === 4 || candidate.schemaVersion === 5)
     && Array.isArray(candidate.users)
     && Array.isArray(candidate.courses)
     && Array.isArray(candidate.submissions)
@@ -679,7 +706,7 @@ export function updateDemoAttendance(state: DemoState, attendanceId: string, sta
 
 export function createDemoProduct(state: DemoState, title: string, description: string, actor: DemoProfile): DemoState {
   const user = activeActor(state, actor)
-  if (actor.role !== 'developer' || !user) return state
+  if (actor.role !== 'product-maintainer' || !user) return state
   const cleanTitle = title.trim()
   if (!cleanTitle) return state
   const baseId = 'product-' + Date.now()
@@ -698,7 +725,7 @@ export function createDemoProduct(state: DemoState, title: string, description: 
 
 export function publishDemoProduct(state: DemoState, productId: string, actor: DemoProfile): DemoState {
   const user = activeActor(state, actor)
-  if (actor.role !== 'developer' || !user) return state
+  if (actor.role !== 'product-maintainer' || !user) return state
   const target = state.products.find(item => item.id === productId && item.status !== 'Published')
   if (!target) return state
   const products = state.products.map(item => item.id === productId ? { ...item, status: 'Published' as const, version: item.version + 1, updatedAt: new Date().toISOString() } : item)
@@ -970,7 +997,7 @@ export function activityForProfile(state: DemoState, profile: DemoProfile): Demo
   // These personas must not infer individual learning details from a global event feed.
   if (profile.role === 'support' || profile.role === 'finance-admin') return []
 
-  if (profile.role === 'developer') {
+  if (profile.role === 'product-maintainer') {
     const productIds = new Set(state.products.map(item => item.id))
     const legacyProductActivityMatches = (item: DemoActivity): boolean => {
       const title = item.detail.trim().toLocaleLowerCase()

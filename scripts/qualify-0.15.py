@@ -354,7 +354,7 @@ for required in [
         errors.append(f'MANUAL payment provider is missing an explicit settlement/refund guard: {required}')
 if 'settlementReference' not in finance_service or 'Confirm that the funds have settled' not in finance_service:
     errors.append('finance service must require explicit settlement reference and confirmation')
-if '@NotBlank @Size(max=120) String settlementReference' not in finance_controller or '@jakarta.validation.constraints.AssertTrue Boolean confirmSettlement' not in finance_controller:
+if not re.search(r'@NotBlank\s+@Size\(\s*max\s*=\s*120\s*\)\s+String\s+settlementReference', finance_controller) or not re.search(r'@NotNull\s+@jakarta\.validation\.constraints\.AssertTrue\s+Boolean\s+confirmSettlement', finance_controller):
     errors.append('finance payment request must validate settlement evidence and confirmation')
 if 'uq_payment_tenant_provider_reference' not in payment_migration:
     errors.append('duplicate external settlement references must be rejected per tenant/provider')
@@ -658,6 +658,23 @@ v023 = text('apps/platform-server/src/main/resources/db/migration/V023__reliabil
 for index_name in sorted(required_indexes):
     if index_name not in v023:
         errors.append(f'V023 is missing required performance index {index_name}')
+# Local-native logout must revoke the process-owned launcher session without exposing its token.
+local_auth_filter = text('apps/platform-server/src/main/java/com/universalplatform/security/LocalDevelopmentAuthenticationFilter.java')
+local_auth_controller = text('apps/platform-server/src/main/java/com/universalplatform/security/LocalDevelopmentSessionController.java')
+local_auth_control = text('apps/platform-server/src/main/java/com/universalplatform/security/LocalDevelopmentSessionControl.java')
+if 'sessionControl.isActive()' not in local_auth_filter or 'restart the native launcher to reconnect' not in local_auth_filter:
+    errors.append('local-native authentication must reject a launcher token after explicit logout')
+if '@PostMapping("/logout")' not in local_auth_controller or 'session.revoke(' not in local_auth_controller:
+    errors.append('local-native logout endpoint must revoke only the authenticated current session')
+if 'AtomicBoolean' not in local_auth_control or 'active.compareAndSet(true, false)' not in local_auth_control:
+    errors.append('local-native session revocation must be monotonic and process-local')
+local_web_app = text('apps/web/src/app/App.tsx')
+local_web_api = text('apps/web/src/platform/api-core.ts')
+if 'logoutLocalDevelopmentSession()' not in local_web_app or '/api/v1/local/session/logout' not in local_web_api:
+    errors.append('Real local-native UI must call the authenticated local-session logout endpoint')
+if 'Reconnect after restarting the launcher' not in local_web_app:
+    errors.append('Real local-native signed-out state must explain how a fresh owner session is established')
+
 # Local demo authentication must remain separate from the real OIDC identity query.
 app_source = text('apps/web/src/app/App.tsx')
 if 'queryFn: localMode ? fetchLocalCurrentIdentity : fetchCurrentIdentity' in app_source or 'fetchLocalCurrentIdentity' in app_source:
@@ -701,11 +718,20 @@ if 'subscribeDemoState(() =>' not in local_experience or "sessionStorage.removeI
     errors.append('an active demo session must be revoked when the shared store suspends its account')
 if "from './LocalDashboard'" in local_experience or 'from "./LocalDashboard"' in local_experience or 'LocalDemoWorkflowStore' in local_experience:
     errors.append('local demo entry point still splits roles across separate stores')
-for role in ['student', 'teacher', 'client', 'developer', 'admin', 'guardian', 'exam-controller', 'finance-admin', 'teaching-assistant', 'evaluator', 'mentor', 'support', 'auditor']:
+for role in ['student', 'teacher', 'client', 'developer', 'product-maintainer', 'admin', 'guardian', 'exam-controller', 'finance-admin', 'teaching-assistant', 'evaluator', 'mentor', 'support', 'auditor']:
     if f"'{role}'" not in specialist_dashboard:
         errors.append(f'missing shared dashboard scope for role: {role}')
-if 'local demo sign-in exposes all thirteen canonical profiles through one shared workspace' not in text('apps/web/test/LocalDemoStore.test.mjs'):
-    errors.append('missing regression test proving all thirteen profiles use the shared demo state')
+if 'local demo sign-in exposes all fourteen canonical profiles through one shared workspace' not in text('apps/web/test/LocalDemoStore.test.mjs'):
+    errors.append('missing regression test proving all fourteen profiles use the shared demo state')
+local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
+if "actor.role !== 'product-maintainer'" not in local_demo_store:
+    errors.append('product lifecycle mutations must be restricted to the Product Maintainer persona')
+if "profile.role === 'product-maintainer'" not in specialist_dashboard:
+    errors.append('Product Maintainer must have a dedicated role-scoped product workspace')
+if 'Switch user' not in specialist_dashboard or "sessionStorage.removeItem('uep-local-account')" not in local_experience:
+    errors.append('the authenticated Demo workspace must provide a working account-switch/sign-out path')
+if 'Platform team' not in local_experience or 'Client & institution management' not in local_experience or 'Institution teaching & learning' not in local_experience:
+    errors.append('the local sign-in selector must group all Demo personas by the three organizational constituencies')
 
 # Student and guardian academic records must always be constrained by enrollment/course scope.
 local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
@@ -774,12 +800,14 @@ if "examRows.every((item) => item.courseId === 'course-data' && item.examSchedul
 local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
 local_specialist = text('apps/web/src/dashboard/SpecialistLocalDashboard.tsx')
 local_demo_tests = text('apps/web/test/LocalDemoStore.test.mjs')
+if 'migrateDemoUsers(parsed.users, seed.users)' not in local_demo_store or 'v4 demo state migrates the old Product Developer and adds Product Maintainer' not in local_demo_tests:
+    errors.append('missing v4-to-v5 migration for the Developer/Product Maintainer account split')
 if 'while (state.products.some(existing => existing.id === id))' not in local_demo_store:
     errors.append('product creation must avoid duplicate IDs within the shared dataset')
 if 'rapid product creation allocates unique IDs even when the clock has not advanced' not in local_demo_tests:
     errors.append('missing rapid product ID collision regression')
 for required in [
-    "const STORAGE_KEY = 'uep.local-demo-data.v4'",
+    "const STORAGE_KEY = 'uep.local-demo-data.v5'",
     'invoices: Array.isArray(parsed.invoices) ? parsed.invoices : seed.invoices',
     'supportCases: Array.isArray(parsed.supportCases) ? parsed.supportCases : seed.supportCases',
     'messages: Array.isArray(parsed.messages) ? parsed.messages : seed.messages',
@@ -823,7 +851,7 @@ if 'schedule and attendance queries enforce active identity, enrollment and orga
 for required in ['invoices.map', 'state.supportCases.map', 'updateDemoSupportCase(fresh, caseId, status, profile)', 'messagesForProfile(state, profile)', 'markDemoMessageRead(fresh, messageId, profile)']:
     if required not in local_specialist:
         errors.append(f'specialist dashboard is not wired to finance/support state: {required}')
-for required in ['legacy browser state migrates to v4 with finance, support and inbox backfills', 'shared inbox is recipient-scoped and read state persists per recipient', 'finance ledger is seeded and support case transitions are role-scoped and persistent']:
+for required in ['legacy browser state migrates to v5 with finance, support and inbox backfills', 'shared inbox is recipient-scoped and read state persists per recipient', 'finance ledger is seeded and support case transitions are role-scoped and persistent']:
     if required not in local_demo_tests:
         errors.append(f'missing finance/support regression test: {required}')
 

@@ -6,6 +6,8 @@ import {
   enrollPasskey,
   isAuthenticated as isOidcAuthenticated,
   logout,
+  markLocalApiSessionEnded,
+  reconnectLocalApiSession,
   onOidcStatus,
   openAccountManagement,
   signIn,
@@ -43,6 +45,8 @@ import {
   fetchOrganizationSettings,
   fetchPlatformVersion,
   fetchRoles,
+  logoutLocalDevelopmentSession,
+  PlatformApiError,
   fetchRoleAssignments,
   provisionMembership,
   revokeOwnSession,
@@ -85,6 +89,18 @@ export function App() {
 
   useEffect(() => onOidcStatus(setOidcAuthenticated), [])
 
+  // A local-native logout revokes the single launcher session for every tab.
+  // Tabs whose sessionStorage marker is absent or unavailable also transition
+  // to the signed-out screen when their next authenticated identity read returns 401.
+  useEffect(() => {
+    if (localApiMode && identity.isError
+        && identity.error instanceof PlatformApiError && identity.error.status === 401) {
+      queryClient.clear()
+      markLocalApiSessionEnded()
+      setOidcAuthenticated(false)
+    }
+  }, [identity.error, identity.isError, queryClient])
+
   // Determine initial dashboard section based on user role after authentication
   useEffect(() => {
     if (oidcAuthenticated && identity.data) {
@@ -125,14 +141,30 @@ export function App() {
   }
 
   function handleSignOut() {
-    queryClient.clear()
-    // Clear any local demo session if in local mode
+    // Clear the Offline Demo tab session and return to its own account selector.
     if (localMode) {
+      queryClient.clear()
       sessionStorage.removeItem('uep-local-account')
       setOidcAuthenticated(false)
       setSignInPending(false)
+      return
     }
-    // Perform Keycloak logout for production mode
+    // Revoke the real in-process launcher session before changing browser state.
+    if (localApiMode) {
+      setSignInPending(true)
+      setSignInError(null)
+      void logoutLocalDevelopmentSession()
+        .then(() => {
+          queryClient.clear()
+          markLocalApiSessionEnded()
+          setOidcAuthenticated(false)
+        })
+        .catch(error => setSignInError(error instanceof Error ? error.message : 'The local session could not be revoked.'))
+        .finally(() => setSignInPending(false))
+      return
+    }
+    queryClient.clear()
+    // Perform Keycloak logout for production OIDC sessions.
     void logout()
       .then(() => {
         setOidcAuthenticated(false)
@@ -143,6 +175,23 @@ export function App() {
         setOidcAuthenticated(false)
         setSignInPending(false)
       })
+  }
+
+  if (!oidcAuthenticated && localApiMode) {
+    return (
+      <main className="centered-status">
+        <section className="hero-card">
+          <p className="eyebrow">Real UEP · local-native session</p>
+          <h1>Signed out</h1>
+          <p>The launcher-managed Organization Owner session has been revoked by the API. To start a fresh Real UEP session, stop and restart the PowerShell launcher, then reconnect here. This local-native mode has one owner identity; use the separate Offline Demo to explore other roles.</p>
+          <div className="button-row">
+            <button className="primary-button" onClick={() => { reconnectLocalApiSession(); window.location.reload() }}>Reconnect after restarting the launcher</button>
+            <a className="secondary-button" href="http://127.0.0.1:5174/" target="_blank" rel="noopener noreferrer">Open demo accounts</a>
+          </div>
+          {signInError && <p className="error-text" role="alert">{signInError}</p>}
+        </section>
+      </main>
+    )
   }
 
   if (!oidcAuthenticated) {
@@ -189,7 +238,7 @@ export function App() {
     { id: 'people', label: 'People', visible: has(me, 'USERS_VIEW') },
     { id: 'roles', label: 'Roles', visible: has(me, 'ROLES_VIEW') },
     { id: 'organization', label: 'Organization', visible: has(me, 'ORGANIZATION_VIEW') || has(me, 'BRANCHES_VIEW') },
-    { id: 'security', label: 'Security', visible: true },
+    { id: 'security', label: 'Security', visible: has(me, 'SESSIONS_VIEW') || has(me, 'SESSIONS_MANAGE') },
     
   ]
 
@@ -238,13 +287,15 @@ export function App() {
               </span>
               {localApiMode
                 ? (<>
-                    <span className="chip" title="Local-only session; restart the launcher to rotate it">Local API session</span>
-                    <button className="secondary-button" onClick={handleSignOut} title="End your session">Sign out</button>
+                    <span className="chip" title="The local owner session is managed by the PowerShell launcher">Launcher-managed session</span>
+                    <button className="secondary-button" disabled={signInPending} onClick={handleSignOut} title="Revoke and sign out of this local owner session">{signInPending ? 'Signing out…' : 'Sign out'}</button>
+                    <a className="secondary-button" href="http://127.0.0.1:5174/" target="_blank" rel="noopener noreferrer" title="Open the separate Offline Demo account selector">Open demo accounts</a>
                   </>)
-                : <button className="secondary-button" onClick={handleSignOut} title="End your session">Sign out</button>}
+                : <button className="secondary-button" onClick={handleSignOut} title="Sign out of UEP">Sign out</button>}
             </div>
           </div>
         </header>
+        {signInError && <p className="error-text" role="alert">{signInError}</p>}
 
         {section === 'overview' && <Overview me={me} />}
         {section === 'advanced' && <AdvancedAcademicWorkspace me={me} />}
@@ -692,7 +743,7 @@ function Security({ me }: { me: CurrentIdentity }) {
           <Metric label="WebAuthn evidence" value={assurance.webAuthnEvidence ? 'Present' : 'Not present'} />
         </div>
         {localApiMode
-          ? <p className="muted small">Keycloak is intentionally not started in this local demonstration. The launcher-issued session is accepted only from loopback and maps to a persisted local owner membership. OIDC, OTP and passkey enrollment remain unchanged outside this local profile.</p>
+          ? <p className="muted small">Keycloak is intentionally not started in this local-native profile. This Real UEP window uses one persisted Organization Owner identity and a launcher-managed loopback session; it does not impersonate seeded personas. Sign out revokes the current local session in the running API process; restart the PowerShell launcher before reconnecting to Real UEP. Use Open demo accounts to explore the separate role-specific demo identities. Production OIDC sessions retain the normal identity-provider Sign out flow.</p>
           : <div className="button-row">
               <button className="primary-button" onClick={() => void enrollPasskey()}>Register passkey</button>
               <button className="secondary-button" onClick={() => void enrollOtp()}>Configure OTP</button>
