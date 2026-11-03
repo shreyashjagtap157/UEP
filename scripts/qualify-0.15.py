@@ -851,7 +851,7 @@ if 'schedule and attendance queries enforce active identity, enrollment and orga
 for required in ['invoices.map', 'state.supportCases.map', 'updateDemoSupportCase(fresh, caseId, status, profile)', 'messagesForProfile(state, profile)', 'markDemoMessageRead(fresh, messageId, profile)']:
     if required not in local_specialist:
         errors.append(f'specialist dashboard is not wired to finance/support state: {required}')
-for required in ['legacy browser state migrates to v4 with finance, support and inbox backfills', 'shared inbox is recipient-scoped and read state persists per recipient', 'finance ledger is seeded and support case transitions are role-scoped and persistent']:
+for required in ['legacy browser state migrates to v5 with finance, support and inbox backfills', 'shared inbox is recipient-scoped and read state persists per recipient', 'finance ledger is seeded and support case transitions are role-scoped and persistent']:
     if required not in local_demo_tests:
         errors.append(f'missing finance/support regression test: {required}')
 
