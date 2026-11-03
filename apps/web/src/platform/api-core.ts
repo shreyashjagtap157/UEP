@@ -1,4 +1,4 @@
-import { accessToken } from '../auth/keycloak'
+import { accessToken, localApiMode } from '../auth/keycloak'
 import { joinBackendUrl, resolveBackendBaseUrl } from './api-url'
 import type { PermissionKey } from './api'
 export type { PermissionKey } from './api'
@@ -26,14 +26,20 @@ export const backendUrl = () => resolveBackendBaseUrl(
   import.meta.env.VITE_LOCAL_BACKEND_URL,
 )
 async function authorizedResponse(path:string,init:RequestInit,accept:string):Promise<Response>{
-  let token:string
-  try{token=await accessToken()}catch(error){
-    const reason=error instanceof Error&&error.message?error.message:String(error)
-    throw new PlatformApiError(0,`Network error: the authentication session could not provide an access token (${reason})`)
-  }
   const headers=new Headers(init.headers)
   headers.set('Accept',accept)
-  headers.set('Authorization',`Bearer ${token}`)
+  if(localApiMode){
+    const localToken=import.meta.env.VITE_LOCAL_API_AUTH_TOKEN
+    if(!localToken)throw new PlatformApiError(0,'The local API session is not configured. Restart UEP with the native launcher.')
+    headers.set('X-UEP-Local-Auth',localToken)
+  }else{
+    let token:string
+    try{token=await accessToken()}catch(error){
+      const reason=error instanceof Error&&error.message?error.message:String(error)
+      throw new PlatformApiError(0,`Network error: the authentication session could not provide an access token (${reason})`)
+    }
+    headers.set('Authorization',`Bearer ${token}`)
+  }
   if(init.body&&!headers.has('Content-Type'))headers.set('Content-Type','application/json')
   const fullPath = joinBackendUrl(backendUrl(),path)
   try{

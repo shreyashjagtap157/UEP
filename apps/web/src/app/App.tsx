@@ -10,6 +10,7 @@ import {
   openAccountManagement,
   signIn,
   localMode,
+  localApiMode,
 } from '../auth/keycloak'
 import { AcademicOverview } from '../academic/AcademicOverview'
 import { AcademicWorkspace } from '../academic/AcademicWorkspace'
@@ -235,7 +236,9 @@ export function App() {
                 <strong>{me.displayName}</strong>
                 <small>{me.roles[0] ?? 'Signed in'}</small>
               </span>
-              <button className="secondary-button" onClick={handleSignOut} title="End your session">Sign out</button>
+              {localApiMode
+                ? <span className="chip" title="Local-only session; restart the launcher to rotate it">Local API session</span>
+                : <button className="secondary-button" onClick={handleSignOut} title="End your session">Sign out</button>}
             </div>
           </div>
         </header>
@@ -685,11 +688,13 @@ function Security({ me }: { me: CurrentIdentity }) {
           <Metric label="OTP evidence" value={assurance.otpEvidence ? 'Present' : 'Not present'} />
           <Metric label="WebAuthn evidence" value={assurance.webAuthnEvidence ? 'Present' : 'Not present'} />
         </div>
-        <div className="button-row">
-          <button className="primary-button" onClick={() => void enrollPasskey()}>Register passkey</button>
-          <button className="secondary-button" onClick={() => void enrollOtp()}>Configure OTP</button>
-          <button className="secondary-button" onClick={() => void openAccountManagement()}>Identity account</button>
-        </div>
+        {localApiMode
+          ? <p className="muted small">Keycloak is intentionally not started in this local demonstration. The launcher-issued session is accepted only from loopback and maps to a persisted local owner membership. OIDC, OTP and passkey enrollment remain unchanged outside this local profile.</p>
+          : <div className="button-row">
+              <button className="primary-button" onClick={() => void enrollPasskey()}>Register passkey</button>
+              <button className="secondary-button" onClick={() => void enrollOtp()}>Configure OTP</button>
+              <button className="secondary-button" onClick={() => void openAccountManagement()}>Identity account</button>
+            </div>}
       </section>
 
       <section className="panel">
@@ -705,7 +710,9 @@ function Security({ me }: { me: CurrentIdentity }) {
                 <div>
                   {session.revokedAt
                     ? <span className="danger-chip">Revoked</span>
-                    : <button className="text-button" disabled={revoke.isPending} onClick={() => revoke.mutate(session.id)}>Revoke</button>}
+                    : localApiMode && session.current
+                      ? <span className="chip">Launcher-managed</span>
+                      : <button className="text-button" disabled={revoke.isPending} onClick={() => revoke.mutate(session.id)}>Revoke</button>}
                 </div>
               </div>
             ))}

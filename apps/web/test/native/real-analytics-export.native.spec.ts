@@ -3,12 +3,8 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const frontend = 'http://localhost:5173'
-const keycloakIssuer = 'http://localhost:8081/realms/education'
-
+const frontend = 'http://127.0.0.1:5173'
 type LocalBootstrapState = {
-  LocalAdminUsername?: unknown
-  LocalAdminPassword?: unknown
   DatabaseName?: unknown
   RuntimeUser?: unknown
   RuntimePassword?: unknown
@@ -17,37 +13,12 @@ type LocalBootstrapState = {
 }
 
 type CurrentIdentity = {
+  oidcSubject: string
+  displayName: string
   tenantId: string
   membershipStatus: string
   roles: string[]
   permissions: string[]
-}
-
-function loadLocalOwnerCredentials(): { username: string; password: string } {
-  const localAppData = process.env.LOCALAPPDATA
-  if (!localAppData) {
-    throw new Error('Native Windows test requires the same Windows user profile that initialized UEP.')
-  }
-
-  let state: LocalBootstrapState
-  try {
-    const statePath = join(localAppData, 'UEP', 'local-native', 'state.json')
-    state = JSON.parse(readFileSync(statePath, 'utf8').replace(/^\uFEFF/, '')) as LocalBootstrapState
-  } catch {
-    throw new Error('Protected local UEP bootstrap state is unavailable. Start Real mode under this Windows user first.')
-  }
-
-  if (
-    typeof state.LocalAdminUsername !== 'string' ||
-    !state.LocalAdminUsername ||
-    typeof state.LocalAdminPassword !== 'string' ||
-    !state.LocalAdminPassword
-  ) {
-    throw new Error('Protected local UEP owner credentials are missing. Re-run the native launcher without displaying the state file.')
-  }
-
-  // Credentials remain in process memory only. Never log, attach or persist them.
-  return { username: state.LocalAdminUsername, password: state.LocalAdminPassword }
 }
 
 function requireLocalRuntimeDatabase(state: LocalBootstrapState): { database: string; username: string; password: string } {
@@ -130,12 +101,16 @@ function expectRuntimeRoleDenial(
   expect(denied, 'the restricted Spring Boot database role must not perform this operation').toBe(true)
 }
 
-test('PostgreSQL mode: real OIDC owner proves authenticated analytics, branch and membership persistence through restricted PostgreSQL', async ({ page, request }) => {
+test('PostgreSQL mode: local owner proves authenticated analytics, branch and membership persistence through restricted PostgreSQL', async ({ page }) => {
   const bootstrapStatePath = join(process.env.LOCALAPPDATA || '', 'UEP', 'local-native', 'state.json')
   const bootstrapState = JSON.parse(readFileSync(bootstrapStatePath, 'utf8').replace(/^\uFEFF/, '')) as LocalBootstrapState
   test.skip(bootstrapState.DatabaseProvider === 'SQLite', 'PostgreSQL role/grant assertions run only in PostgreSQL qualification mode')
-  const credentials = loadLocalOwnerCredentials()
   const browserApiOrigins = new Set<string>()
+  const keycloakRequests: string[] = []
+  page.on('request', browserRequest => {
+    const url = new URL(browserRequest.url())
+    if (url.port === '8081' || url.pathname.includes('/realms/education')) keycloakRequests.push(url.origin + url.pathname)
+  })
 
   page.on('request', request => {
     const url = new URL(request.url())
@@ -148,35 +123,23 @@ test('PostgreSQL mode: real OIDC owner proves authenticated analytics, branch an
       && url.pathname === '/api/v1/me'
       && response.request().method() === 'GET'
   })
-  const authorizationRequestPromise = page.waitForRequest(request => {
-    const url = new URL(request.url())
-    return url.origin === 'http://localhost:8081'
-      && url.pathname === '/realms/education/protocol/openid-connect/auth'
-  })
 
   await page.goto(frontend)
-  const authorizationRequest = await authorizationRequestPromise
-  const authorizationUrl = new URL(authorizationRequest.url())
-  expect(authorizationUrl.searchParams.get('client_id')).toBe('platform-web')
-  expect(authorizationUrl.searchParams.get('response_type')).toBe('code')
-  expect(authorizationUrl.searchParams.get('code_challenge_method')).toBe('S256')
-  expect(authorizationUrl.searchParams.get('code_challenge')).toBeTruthy()
-  const username = page.locator('input[name="username"]')
-  const password = page.locator('input[name="password"]')
-  await expect(username, 'Real mode must redirect to the local Keycloak login form').toBeVisible()
-  await username.fill(credentials.username)
-  await password.fill(credentials.password)
-  await page.locator('#kc-login').click()
-
   const identityResponse = await identityResponsePromise
   expect(identityResponse.status()).toBe(200)
+  const identityHeaders = await identityResponse.request().allHeaders()
+  expect(typeof identityHeaders['x-uep-local-auth']).toBe('string')
+  expect(identityHeaders.authorization).toBeUndefined()
   const identity = await identityResponse.json() as CurrentIdentity
+  expect(identity.oidcSubject).toBe('uep-local-demo-owner')
+  expect(identity.displayName).toBe('UEP Local Development Owner')
   expect(identity.membershipStatus).toBe('ACTIVE')
   expect(identity.roles).toContain('Organization Owner')
   expect(identity.permissions).toContain('ANALYTICS_VIEW')
   expect(identity.permissions).toContain('REPORTS_EXPORT')
   expect(identity.tenantId).toBeTruthy()
   await expect(page.locator('.app-frame')).toBeVisible()
+  expect(keycloakRequests).toEqual([])
 
   const overviewPromise = page.waitForResponse(response => {
     const url = new URL(response.url())
@@ -204,14 +167,10 @@ test('PostgreSQL mode: real OIDC owner proves authenticated analytics, branch an
   expect(download.suggestedFilename()).toBe('uep-attendance-report.csv')
 
   const requestHeaders = await csvResponse.request().allHeaders()
-  // Assert only the presence of a bearer header; never include the token in test output.
-  expect(requestHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
+  // Assert only the presence of the launcher-issued local header; never log its value.
+  expect(typeof requestHeaders['x-uep-local-auth']).toBe('string')
+  expect(requestHeaders.authorization).toBeUndefined()
   expect([...browserApiOrigins]).toEqual([frontend])
-
-  const discovery = await request.get(keycloakIssuer + '/.well-known/openid-configuration')
-  expect(discovery.status()).toBe(200)
-  const metadata = await discovery.json() as { issuer?: string }
-  expect(metadata.issuer).toBe(keycloakIssuer)
 
   // Create a real tenant branch from the authenticated UI, then prove the same
   // committed row survives a browser reload and is readable with the API runtime role.
@@ -249,7 +208,8 @@ test('PostgreSQL mode: real OIDC owner proves authenticated analytics, branch an
   })
 
   const createHeaders = await createBranchResponse.request().allHeaders()
-  expect(createHeaders.authorization?.startsWith('Bearer ') === true).toBe(true)
+  expect(typeof createHeaders['x-uep-local-auth']).toBe('string')
+  expect(createHeaders.authorization).toBeUndefined()
 
   // Register the response waiter before reload so a fast local response cannot be missed.
   const reloadedIdentityPromise = page.waitForResponse(response => {

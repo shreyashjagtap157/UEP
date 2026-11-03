@@ -2,16 +2,12 @@ import { expect, test } from '@playwright/test'
 import { closeSync, existsSync, openSync, readSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
-const frontend = 'http://localhost:5173'
-const keycloakIssuer = 'http://localhost:8081/realms/education'
-
+const frontend = 'http://127.0.0.1:5173'
 type LocalBootstrapState = {
-  LocalAdminUsername?: unknown
-  LocalAdminPassword?: unknown
   DatabaseProvider?: unknown
   SQLiteDatabasePath?: unknown
 }
-type CurrentIdentity = { tenantId: string; membershipStatus: string; roles: string[] }
+type CurrentIdentity = { oidcSubject: string; displayName: string; tenantId: string; membershipStatus: string; roles: string[] }
 
 function localState(): LocalBootstrapState {
   const root = process.env.LOCALAPPDATA
@@ -20,48 +16,38 @@ function localState(): LocalBootstrapState {
   return JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, '')) as LocalBootstrapState
 }
 
-test('SQLite mode: OIDC login, authenticated branch write/readback and durable SQLite file', async ({ page, request }) => {
+test('SQLite mode: local-authenticated Real UI, API write/readback and durable SQLite file', async ({ page, request }) => {
   const state = localState()
   test.skip(state.DatabaseProvider !== 'SQLite', 'SQLite native checks run only in SQLite qualification mode')
-  expect(typeof state.LocalAdminUsername).toBe('string')
-  expect(typeof state.LocalAdminPassword).toBe('string')
   expect(typeof state.SQLiteDatabasePath).toBe('string')
-  const usernameValue = state.LocalAdminUsername as string
-  const passwordValue = state.LocalAdminPassword as string
   const databasePath = state.SQLiteDatabasePath as string
+  const keycloakRequests: string[] = []
+  page.on('request', browserRequest => {
+    const url = new URL(browserRequest.url())
+    if (url.port === '8081' || url.pathname.includes('/realms/education')) keycloakRequests.push(url.origin + url.pathname)
+  })
 
+  const anonymous = await request.get(frontend + '/api/v1/me')
+  expect(anonymous.status()).toBe(401)
   const identityPromise = page.waitForResponse(response => {
     const url = new URL(response.url())
     return url.origin === frontend && url.pathname === '/api/v1/me' && response.request().method() === 'GET'
   })
-  const authorizationPromise = page.waitForRequest(request => {
-    const url = new URL(request.url())
-    return url.origin === 'http://localhost:8081'
-      && url.pathname === '/realms/education/protocol/openid-connect/auth'
-  })
   await page.goto(frontend)
-  const authorization = await authorizationPromise
-  const authorizationUrl = new URL(authorization.url())
-  expect(authorizationUrl.searchParams.get('client_id')).toBe('platform-web')
-  expect(authorizationUrl.searchParams.get('response_type')).toBe('code')
-  expect(authorizationUrl.searchParams.get('code_challenge_method')).toBe('S256')
-  expect(authorizationUrl.searchParams.get('code_challenge')).toBeTruthy()
-
-  await expect(page.locator('input[name="username"]')).toBeVisible()
-  await page.locator('input[name="username"]').fill(usernameValue)
-  await page.locator('input[name="password"]').fill(passwordValue)
-  await page.locator('#kc-login').click()
   const identityResponse = await identityPromise
   expect(identityResponse.status()).toBe(200)
+  const identityHeaders = await identityResponse.request().allHeaders()
+  expect(typeof identityHeaders['x-uep-local-auth']).toBe('string')
+  expect(identityHeaders['x-uep-local-auth'].length).toBeGreaterThan(20)
+  expect(identityHeaders.authorization).toBeUndefined()
   const identity = await identityResponse.json() as CurrentIdentity
+  expect(identity.oidcSubject).toBe('uep-local-demo-owner')
+  expect(identity.displayName).toBe('UEP Local Development Owner')
   expect(identity.membershipStatus).toBe('ACTIVE')
   expect(identity.roles).toContain('Organization Owner')
   expect(identity.tenantId).toBeTruthy()
   await expect(page.locator('.app-frame')).toBeVisible()
-
-  const discovery = await request.get(keycloakIssuer + '/.well-known/openid-configuration')
-  expect(discovery.status()).toBe(200)
-  expect((await discovery.json() as { issuer?: string }).issuer).toBe(keycloakIssuer)
+  expect(keycloakRequests).toEqual([])
 
   await page.getByRole('button', { name: 'Organization', exact: true }).click()
   const branchCode = 'SQLITE-E2E-' + Date.now().toString()

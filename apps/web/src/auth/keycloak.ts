@@ -5,6 +5,8 @@ import Keycloak from 'keycloak-js'
 // endpoints (previously it probed localhost ports, including the backend's).
 let instance: Keycloak | null = null
 export const localMode = import.meta.env.VITE_LOCAL_MODE === 'true'
+// Separate from the fixture-backed offline Demo: this mode uses the actual API.
+export const localApiMode = import.meta.env.VITE_LOCAL_API_MODE === 'true'
 
 function ensureKeycloak(): Keycloak {
   if (instance) return instance
@@ -23,7 +25,7 @@ function ensureKeycloak(): Keycloak {
 let initialized = false
 
 export async function initializeAuthentication(): Promise<void> {
-  if (localMode) return
+  if (localMode || localApiMode) return
   const keycloak = ensureKeycloak()
   if (!initialized) {
     const authenticated = await keycloak.init({
@@ -38,12 +40,12 @@ export async function initializeAuthentication(): Promise<void> {
 }
 
 export function isAuthenticated(): boolean {
-  return localMode || instance?.authenticated === true
+  return localMode || localApiMode || instance?.authenticated === true
 }
 
 /** Subscribes to OIDC session transitions; returns an unsubscribe function. */
 export function onOidcStatus(callback: (authenticated: boolean) => void): () => void {
-  if (localMode) return () => undefined
+  if (localMode || localApiMode) return () => undefined
   const keycloak = ensureKeycloak()
   const notify = () => callback(keycloak.authenticated === true)
   const previousSuccess = keycloak.onAuthSuccess
@@ -63,28 +65,32 @@ export function onOidcStatus(callback: (authenticated: boolean) => void): () => 
 }
 
 export function signIn(): Promise<void> {
-  if (localMode) return Promise.resolve()
+  if (localMode || localApiMode) return Promise.resolve()
   return ensureKeycloak().login()
 }
 
 export async function logout(): Promise<void> {
-  if (localMode) return
+  if (localMode || localApiMode) return
   await ensureKeycloak().logout({ redirectUri: window.location.origin })
 }
 
 export async function openAccountManagement(): Promise<void> {
+  if (localApiMode) throw new Error('Keycloak account management is unavailable in local API mode.')
   await ensureKeycloak().accountManagement()
 }
 
 export function enrollOtp(): Promise<void> {
+  if (localApiMode) return Promise.reject(new Error('Keycloak OTP enrollment is unavailable in local API mode.'))
   return ensureKeycloak().login({ action: 'CONFIGURE_TOTP' })
 }
 
 export function enrollPasskey(): Promise<void> {
+  if (localApiMode) return Promise.reject(new Error('Keycloak passkey enrollment is unavailable in local API mode.'))
   return ensureKeycloak().login({ action: 'webauthn-register-passwordless:skip_if_exists' })
 }
 
 export async function accessToken(): Promise<string> {
+  if (localApiMode) throw new Error('Local API mode uses the launcher-issued local API header, not an OIDC bearer token.')
   const keycloak = ensureKeycloak()
   await keycloak.updateToken(30)
   if (!keycloak.token) throw new Error('Authenticated access token is unavailable')

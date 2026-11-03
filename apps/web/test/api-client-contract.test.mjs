@@ -15,6 +15,8 @@ test('CSV export uses the shared authenticated API transport', () => {
   assert.match(apiCore, /export async function requestText/)
   assert.ok(apiCore.includes("authorizedResponse(path,init,'text/csv')"))
   assert.match(apiCore, /headers\.set\('Authorization',/)
+  assert.match(apiCore, /headers\.set\('X-UEP-Local-Auth',localToken\)/)
+  assert.ok(apiCore.includes('if(localApiMode)'))
   assert.match(apiCore, /headers\.set\('Accept',accept\)/)
 
   assert.match(apiBusiness, /import \{ request, requestText \} from '\.\/api-core'/)
@@ -122,7 +124,7 @@ test('custom role CRUD uses authenticated PUT/DELETE, optimistic versions and th
   assert.deepEqual([...editablePermissions].sort(), [...declaredPermissions].sort())
 })
 
-test('native Real browser smoke proves API persistence and database-role boundaries', () => {
+test('native Real browser smoke proves local-authenticated persistence and database-role boundaries', () => {
   assert.ok(nativeSmoke.includes("response.request().method() === 'POST'"))
   assert.ok(nativeSmoke.includes("response.request().method() === 'GET'"))
   assert.ok(nativeSmoke.includes('FROM public.branch'))
