@@ -1,16 +1,95 @@
 # Implementation Status
 
-## Current verified state — 2026-11-02
+## Current verified state — 2026-11-03
 
-The current source-bearing `main` commit is `e6acf6d4d80c057b5f601fcb4c637ee586b15847`. The latest fully completed all-green main-branch CI run is [UEP CI #936](https://github.com/shreyashjagtap157/UEP/actions/runs/41424440276) on documentation-only commit `8132e74b135c23a6e0b67c2870f72d54ba351dcb`. All six jobs passed; that commit did not change executable source from the code-bearing commit `a29485b7b73f522a553a94e769a8318d5b774702`, which was also green in run #935.
+### Repository and evidence boundary
 
-[UEP CI #939](https://github.com/shreyashjagtap157/UEP/actions/runs/41425009098) is running on the current source commit. Confirmed passed jobs: web lint/demo workflow tests/production build, repository policy and 0.15 qualification, Java/web dependency scanning, and Keycloak OCI/ARM64 validation. Within both backend matrices, Maven verification (including the new failure-persistence model tests), PostgreSQL migration callback checks, least-privilege runtime grants/function ACL checks, and native-architecture API image builds have passed. Backend ARM64 API image smoke and packaged-server startup/health steps have not yet reached a terminal result. Therefore #939 is not yet a completed full-CI qualification.
+- Repository: `https://github.com/shreyashjagtap157/UEP`
+- Development branch: `main`
+- Version: `0.15.0.0-SNAPSHOT` (not a stable release).
+- The latest source review for the native launcher and Real/ Demo integration was performed through commit [`d467bd948668c960b384f20a1376a46674c51bbb`](https://github.com/shreyashjagtap157/UEP/commit/d467bd948668c960b384f20a1376a46674c51bbb). Subsequent commits in this session updated documentation and handoff instructions; always fetch the actual current `main` head before making another change.
+- The current-head GitHub combined-status and commit-workflow queries returned no status/workflow records during this review. This is **not** evidence of a green CI run. The older run records below belong to the previous 2-November snapshot and do not qualify the 3-November launcher changes.
+- No local Windows runtime, Maven test run, Playwright run or browser/API/database request was executed from this session. The target workstation still must run the documented acceptance sequence. Source inspection and committed tests are not runtime proof.
 
-Current source enforces safe error persistence at the notification-outbox, email-delivery, webhook-event-outbox, outbound-webhook-delivery and webhook-subscription model boundaries. The tests verify that arbitrary provider URLs, query credentials, addresses and null failure input do not become persisted error text, while stable exception categories and bounded operational labels remain usable. Repository qualification now requires these guards and their regression tests.
+### Real local implementation and offline Demo
 
-The announcement retry/dead-letter implementation remains covered by green [run #932](https://github.com/shreyashjagtap157/UEP/actions/runs/41404638692). The source includes publication-time audience resolution, tenant/branch-scoped dead-letter inspection and administrator replay, per-item worker exception isolation, bounded retries, and tests for audience materialization, replay authorization, retry state and worker continuation.
+The launcher now defaults to a paired presentation topology:
 
-CI evidence is repository-only. It does not imply production deployment, external provider delivery, production-scale capacity, WCAG conformance or a completed production backup/restore drill. `0.15.0.0-SNAPSHOT` remains unreleased.
+```powershell
+.\startuep.ps1
+```
+
+That is Presentation mode with SQLite. The separately selectable modes remain:
+
+```powershell
+.\startuep.ps1 -Mode Real -Database SQLite
+.\startuep.ps1 -Mode Demo
+.\startuep.ps1 -Mode Presentation -Database SQLite -NoBrowser
+.\startuep.ps1 -Mode Real -Database PostgreSQL
+```
+
+- **Real UEP** uses the actual React application (`VITE_LOCAL_MODE=false`), the Spring Boot API, local-native authentication and the selected local database. Vite serves same-origin `/api` requests and proxies them to `127.0.0.1:8080`.
+- **Offline Demo** uses the separate seeded browser-local experience (`VITE_LOCAL_MODE=true`). It does not call Spring Boot, SQLite or PostgreSQL and is not a live API demonstration.
+- In paired mode Real is available at `http://127.0.0.1:5173`; Demo is at `http://127.0.0.1:5174`. Swagger UI is at `http://127.0.0.1:8080/swagger-ui.html`; OpenAPI JSON is at `http://127.0.0.1:8080/v3/api-docs`.
+- Local-native provisions one persisted owner identity, active tenant membership and Organization Owner role. It does not provision additional Keycloak/OIDC test users. Demo personas are synthetic browser data, not backend accounts.
+
+### Security and launcher changes now in source
+
+- The random 12-hour local API credential is passed to the Real Vite **Node process** as `UEP_LOCAL_AUTH_TOKEN`, not a `VITE_` variable. The Vite proxy attaches `X-UEP-Local-Auth` to the upstream request. The browser bundle, browser storage and browser request headers must not receive this credential or a bearer token.
+- The native SQLite and PostgreSQL browser suites now check that direct unauthenticated backend `/api/v1/me` returns 401, while browser-origin API requests contain neither local-auth nor bearer headers. The Vite proxy is responsible for server-side injection.
+- Anonymous Swagger UI/OpenAPI access is permitted only in the explicit `local-native` profile; regular protected API routes remain authenticated.
+- The local launcher no longer includes its unused Keycloak installer/account-bootstrap code or creates/modifies Keycloak PostgreSQL roles/schema. Any pre-existing local Keycloak database objects are deliberately left untouched.
+- Demo-only prerequisite inventory checks the frontend and Node/npm path; it does not require backend source files, a JDK, Maven or PostgreSQL.
+- Real-mode startup requires the relevant backend prerequisites, checks the Vite/API ports before running `npm ci`, detects managed-process early exits during readiness checks and waits for the Real page, proxied API version endpoint, backend health, Swagger UI and OpenAPI document.
+- Startup verifies the OpenAPI title and calls `/api/v1/me` through Vite without supplying the token from the caller. It then verifies direct backend access without the proxy returns HTTP 401.
+- Live status reports DB/API read and identity as UP only after the persisted local owner identity is returned by the authenticated API. A non-empty SQLite file is no longer accepted as sufficient database health evidence.
+- SQLite is the default local qualification database: `local-sqlite,local-native`, local schema generation via Hibernate, no Flyway, no PostgreSQL service and disabled PostgreSQL-dependent background workers.
+- PostgreSQL remains an explicit qualification option: local PostgreSQL 17/18, tracked Flyway migrations via `DatabaseMigrationRunner` and `uep_local_migrator`, then Spring Boot under the restricted `uep_local_runtime` role with Flyway disabled. The launcher provisions only the migration/runtime roles.
+- The root `startuep.ps1` remains a compatibility wrapper around `scripts/Start-UEP.ps1`; both default to paired Presentation mode. The data files and protected local state are retained during normal stop/failure cleanup.
+
+### Current source-level implementation coverage
+
+The repository contains substantial source implementations across multi-tenancy, identity/RBAC, branches and organization settings; academic structure, enrollment and teaching assignments; scheduling; announcements and notifications; learning resources and storage; question banks and assessments; assignments, submissions, grading and gradebook; attendance, live classrooms and recordings; finance; analytics; integrations/federation/interoperability foundations; and operations/security qualification tooling. The Offline Demo separately contains role-based simulated education workflows.
+
+This inventory describes source implementation, not full end-to-end acceptance of every domain in the local Real app. The native SQLite browser path currently targets local owner identity plus branch creation/readback. The PostgreSQL native suite additionally targets analytics/CSV, branch persistence, role CRUD, membership/role assignments and restricted database-role boundaries. These tests are committed but were not executed in this review.
+
+### CI status
+
+The previous 2-November snapshot recorded completed run #936 on documentation-only commit `8132e74b135c23a6e0b67c2870f72d54ba351dcb` and run #935 on source commit `a29485b7b73f522a553a94e769a8318d5b774702`, as well as an in-progress #939 observation. Those results are historical. None demonstrates that the current local-proxy, launcher, verifier, security and documentation changes from 3 November passed CI.
+
+Before accepting the changes, inspect the current `main` workflow run and confirm terminal results for:
+- backend Maven verification and packaged API startup;
+- frontend dependency install, contract tests, lint and production build;
+- repository policy and native-launcher static verification;
+- Windows local Presentation smoke, including Real, Demo, API proxy, Swagger, OpenAPI and no port 8081;
+- Playwright native SQLite/API persistence test;
+- dependency/vulnerability scanning.
+
+A queued, missing or empty status is pending/unverified, not a pass.
+
+### Remaining implementation / qualification gaps
+
+The wider implementation roadmap remains larger than the local integration slice. Continue work on the documented outstanding areas, including:
+
+1. Persistent communication threads, delivery/read state, moderation, blocking/reporting and abuse controls.
+2. Advanced academic review, moderation/double grading, final adjudication and reproducible regrading.
+3. Device-based attendance (NFC/RFID/biometric boundaries), import/API, offline sync and conflict resolution.
+4. Configurable workflow states/transitions, approvals, deadlines, escalation, retries/idempotency and history.
+5. Permission-aware tenant-safe global search, indexing/reindexing and rate/scale controls.
+6. Finance discounts/credits/allocation, reconciliation, accounting exports and real provider qualification.
+7. Multi-provider federation lifecycle, mappings, deprovisioning and security qualification.
+8. Complete interoperability including LTI, CASE, xAPI, Caliper, SCORM, mature OneRoster/QTI and Open Badges/CLR.
+9. Credential portability, issuer trust, status/revocation and verification.
+10. Tenant white-label themes/templates and tenant-specific communications.
+11. Live classroom reconnect/recovery, stale heartbeat cleanup, poor-network and large-class qualification.
+12. Crash-safe recording workers, retries/recovery, transcoding/distribution, archive migration and storage recovery.
+13. Longitudinal analytics, cohort comparison, competency progression and intervention/remediation.
+14. PWA installability, service worker, cache, push and safe offline sync.
+15. Native Windows/macOS/Linux/iOS/Android/kiosk clients integrated with stable platform contracts.
+
+### Production release qualification
+
+UEP is **not qualified for production release**. Before Production Web GA / 1.0, the project still needs independent evidence for security/penetration and abuse testing; production-like p50/p95/p99 load and capacity; WCAG 2.2 AA accessibility; PostgreSQL PITR/full restore and object-storage recovery; measured RPO/RTO; failure injection; provider degradation/failover; migrations/upgrades/rollback; external provider qualification; operational readiness; privacy and legal review. A green repository CI run alone is insufficient.
 
 ## Historical status snapshot — 2026-10-28
 
