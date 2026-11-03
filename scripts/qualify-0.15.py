@@ -706,11 +706,12 @@ for role in ['student', 'teacher', 'client', 'developer', 'product-maintainer', 
         errors.append(f'missing shared dashboard scope for role: {role}')
 if 'local demo sign-in exposes all fourteen canonical profiles through one shared workspace' not in text('apps/web/test/LocalDemoStore.test.mjs'):
     errors.append('missing regression test proving all fourteen profiles use the shared demo state')
+local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
 if "actor.role !== 'product-maintainer'" not in local_demo_store:
     errors.append('product lifecycle mutations must be restricted to the Product Maintainer persona')
-if "profile.role === 'product-maintainer'" not in local_specialist:
+if "profile.role === 'product-maintainer'" not in specialist_dashboard:
     errors.append('Product Maintainer must have a dedicated role-scoped product workspace')
-if 'Switch user' not in local_specialist or "sessionStorage.removeItem('uep-local-account')" not in local_experience:
+if 'Switch user' not in specialist_dashboard or "sessionStorage.removeItem('uep-local-account')" not in local_experience:
     errors.append('the authenticated Demo workspace must provide a working account-switch/sign-out path')
 if 'Platform team' not in local_experience or 'Client & institution management' not in local_experience or 'Institution teaching & learning' not in local_experience:
     errors.append('the local sign-in selector must group all Demo personas by the three organizational constituencies')
