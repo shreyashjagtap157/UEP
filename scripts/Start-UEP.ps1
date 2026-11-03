@@ -544,8 +544,14 @@ function Ensure-KeycloakUser([string]$Username, [string]$Email, [string]$FirstNa
         $user = Get-LocalUser $Username $AdminToken
         if (-not $user) { throw "Keycloak did not create the local test user '$Username'." }
     } else {
-        if (-not $user.attributes) { $user | Add-Member -NotePropertyName attributes -NotePropertyValue @{} -Force }
-        if (-not $user.attributes.PSObject.Properties.Match('tenant_id').Count) { $user.attributes | Add-Member -NotePropertyName tenant_id -NotePropertyValue @() -Force }
+        $attributesProperty = $user.PSObject.Properties['attributes']
+        if ($null -eq $attributesProperty -or $null -eq $attributesProperty.Value) {
+            $user | Add-Member -NotePropertyName attributes -NotePropertyValue ([pscustomobject]@{}) -Force
+        }
+        $tenantAttributeProperty = $user.attributes.PSObject.Properties['tenant_id']
+        if ($null -eq $tenantAttributeProperty) {
+            $user.attributes | Add-Member -NotePropertyName tenant_id -NotePropertyValue @() -Force
+        }
         $user.attributes.tenant_id = @($TenantId)
         $user.enabled = $true
         Invoke-KeycloakAdmin 'Put' ("/admin/realms/education/users/" + $user.id) $AdminToken $user | Out-Null
