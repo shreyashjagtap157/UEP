@@ -401,3 +401,14 @@ For runs 1088–1090, backend job logs were not yet published by GitHub while jo
 The native Playwright Real-mode spec is discovered in web CI (one test in one file), but the GitHub Linux web job does not execute it. The local Windows Real-mode service/browser/PostgreSQL run, full native browser workflow, multi-persona and cross-tenant/branch isolation phases, service/database restart persistence, and local operator evidence collection remain **NOT TESTED** in this assistant session. The user must run the native Windows prompt in the same Windows profile that initialized the protected LocalAppData state; do not expose its credentials.
 
 No hosted production deployment was started or modified by these commits. All changes above are source, tests and documentation on `main`.
+
+
+## 2026-11-03 follow-up — local SQLite qualification profile
+
+- Added the explicit Spring profile `local-sqlite`. It uses a file-backed SQLite database, the Xerial JDBC driver and Hibernate's community `SQLiteDialect`.
+- The profile disables Flyway and uses Hibernate `ddl-auto=update` to create/update a **local qualification schema from the JPA entity model**. It does not run the 50 existing PostgreSQL migrations, and it does not certify PostgreSQL migration, SQL, locking, row-grant or concurrency behavior.
+- The profile uses a single Hikari connection and disables scheduled/background workers because several worker/locking paths use PostgreSQL-only SQL/advisory locks. `TenantMutationLock` retains tenant-existence validation but does not issue `SELECT ... FOR UPDATE` on SQLite.
+- PostgreSQL remains the production and CI database. The PostgreSQL migrations, database migration runner and CI matrix remain unchanged.
+- Keycloak is a separate process and must use its supported local `dev-file` database for SQLite mode; it does not share the UEP SQLite file.
+- The first SQLite qualification scope is local OIDC login, current identity, tenant membership, role management/assignment and branch persistence through the API/browser. PostgreSQL-specific analytics casts, JSONB survey operations, advisory-lock paths, background delivery workers and provider/database grant tests are not qualified by this profile.
+- Runtime start-up, schema generation and local Windows execution are pending actual verification. Do not label the profile qualified until the dedicated SQLite integration test and native Windows run pass.

@@ -1,0 +1,36 @@
+# Local-only qualification profile. This does not execute the PostgreSQL Flyway migrations.
+# Hibernate creates/updates the local SQLite schema from the JPA entity model.
+# This profile is not a substitute for PostgreSQL production/CI qualification.
+spring:
+  datasource:
+    url: ${UEP_SQLITE_JDBC_URL:jdbc:sqlite:./.uep-local/uep-local.sqlite}
+    driver-class-name: org.sqlite.JDBC
+    username: ""
+    password: ""
+    hikari:
+      maximum-pool-size: 1
+      minimum-idle: 1
+      connection-timeout: 10000
+      validation-timeout: 5000
+      connection-init-sql: PRAGMA foreign_keys=ON
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: false
+
+platform:
+  development-mode: true
+  background-workers:
+    enabled: false
+  live-learning:
+    livekit:
+      enabled: false
+  malware-scan:
+    clamav:
+      enabled: false

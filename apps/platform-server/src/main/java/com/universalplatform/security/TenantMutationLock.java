@@ -21,8 +21,12 @@ public class TenantMutationLock {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void lockTenant(UUID tenantId) {
+        String lockQuery = jdbc.execute((org.springframework.jdbc.core.ConnectionCallback<String>) connection ->
+                "SQLite".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName())
+                        ? "select id from tenant where id = ?"
+                        : "select id from tenant where id = ? for update");
         List<UUID> locked = jdbc.query(
-                "select id from tenant where id = ? for update",
+                lockQuery,
                 (resultSet, rowNumber) -> resultSet.getObject(1, UUID.class),
                 tenantId);
         if (locked.isEmpty()) {

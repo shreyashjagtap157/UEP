@@ -32,7 +32,6 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
-          default_schema: public
           eclipse:
             namespace: true
   flyway:
