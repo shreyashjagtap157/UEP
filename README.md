@@ -106,13 +106,18 @@ No container runtime is required. The launcher checks prerequisites and starts S
 .\startuep.ps1 -Mode Demo
 ```
 
+Local backend API reference (available only while Real runs with the local-native profile):
+
+- Swagger UI: `http://127.0.0.1:8080/swagger-ui.html`
+- OpenAPI JSON: `http://127.0.0.1:8080/v3/api-docs`
+
 See [Native Windows local development](docs/operations/LOCAL_NATIVE_WINDOWS.md) for requirements, URLs, local authentication, Swagger UI, SQLite/PostgreSQL boundaries, startup/stop behavior and local state. See [the UEP presentation runbook](docs/presentation/UEP_PRESENTATION_RUNBOOK.md) for the paired Real + Demo presentation. See [the local integration acceptance prompt](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) for browser-to-API-to-database qualification.
 
-For **all SQLite Real-mode launches** (Real, Both or Presentation), the launcher provisions only the real OIDC owner. It intentionally does not seed the additional backend test personas because their membership and role workflows are not yet SQLite-qualified. The offline Demo continues to use its separate seeded browser personas; PostgreSQL mode retains the broader backend test-persona bootstrap.
+For **all SQLite Real-mode launches** (Real, Both or Presentation), the backend provisions only the local API demonstration owner. It intentionally does not seed the additional backend test personas because their membership and role workflows are not yet SQLite-qualified. The offline Demo continues to use its separate seeded browser personas; PostgreSQL mode retains the broader backend test-persona bootstrap.
 
 The launcher uses `PLATFORM_DEV_MODE=true` only for local non-production execution. Never enable this setting with a production Spring profile.
 
-After starting Real mode with `.\startuep.ps1 -Mode Real -Database SQLite -NoBrowser` or Presentation mode, run the database-specific native OIDC/API browser smoke from a second PowerShell window (install Chromium once as needed):
+After starting Real mode with `.\startuep.ps1 -Mode Real -Database SQLite -NoBrowser` or Presentation mode, run the database-specific local-auth/API browser smoke from a second PowerShell window (install Chromium once as needed):
 
 ```powershell
 npm --prefix apps/web exec -- playwright install chromium
