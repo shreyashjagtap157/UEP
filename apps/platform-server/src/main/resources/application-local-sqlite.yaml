@@ -19,6 +19,8 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
+        hbm2ddl:
+          jdbc_metadata_extraction_strategy: individually
         jdbc:
           time_zone: UTC
   flyway:
