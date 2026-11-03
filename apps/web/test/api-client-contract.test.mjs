@@ -24,6 +24,10 @@ test('CSV export uses the shared authenticated API transport', () => {
   assert.match(viteConfig, /'X-UEP-Local-Auth': localApiAuthToken/)
   assert.ok(sqliteNative.includes("directBackendAnonymous.status()).toBe(401)"))
   assert.ok(sqliteNative.includes("identityHeaders['x-uep-local-auth']).toBeUndefined()"))
+  assert.ok(nativeSmoke.includes("directBackendAnonymous.status()).toBe(401)"))
+  assert.ok(nativeSmoke.includes("identityHeaders['x-uep-local-auth']).toBeUndefined()"))
+  assert.ok(nativeSmoke.includes("requestHeaders['x-uep-local-auth']).toBeUndefined()"))
+  assert.doesNotMatch(nativeSmoke, /authorization\?\.startsWith\('Bearer '/)
   assert.match(apiCore, /headers\.set\('Accept',accept\)/)
 
   assert.match(apiBusiness, /import \{ request, requestText \} from '\.\/api-core'/)
