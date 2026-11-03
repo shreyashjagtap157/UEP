@@ -354,7 +354,7 @@ for required in [
         errors.append(f'MANUAL payment provider is missing an explicit settlement/refund guard: {required}')
 if 'settlementReference' not in finance_service or 'Confirm that the funds have settled' not in finance_service:
     errors.append('finance service must require explicit settlement reference and confirmation')
-if not re.search(r'@NotBlank\\s+@Size\\(\\s*max\\s*=\\s*120\\s*\\)\\s+String\\s+settlementReference', finance_controller) or not re.search(r'@NotNull\\s+@jakarta\\.validation\\.constraints\\.AssertTrue\\s+Boolean\\s+confirmSettlement', finance_controller):
+if not re.search(r'@NotBlank\s+@Size\(\s*max\s*=\s*120\s*\)\s+String\s+settlementReference', finance_controller) or not re.search(r'@NotNull\s+@jakarta\.validation\.constraints\.AssertTrue\s+Boolean\s+confirmSettlement', finance_controller):
     errors.append('finance payment request must validate settlement evidence and confirmation')
 if 'uq_payment_tenant_provider_reference' not in payment_migration:
     errors.append('duplicate external settlement references must be rejected per tenant/provider')
