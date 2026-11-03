@@ -14,12 +14,14 @@ wrapper_path = ROOT / "startuep.ps1"
 vite_path = ROOT / "apps" / "web" / "vite.config.ts"
 pom_path = ROOT / "apps" / "platform-server" / "pom.xml"
 migration_path = ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "DatabaseMigrationRunner.java"
+workflow_path = ROOT / ".github" / "workflows" / "ci.yml"
 
 launcher = launcher_path.read_text(encoding="utf-8")
 wrapper = wrapper_path.read_text(encoding="utf-8")
 vite = vite_path.read_text(encoding="utf-8")
 pom = pom_path.read_text(encoding="utf-8")
 migration = migration_path.read_text(encoding="utf-8")
+workflow = workflow_path.read_text(encoding="utf-8")
 
 checks = {
     "launcher supports Demo, Real, Both and Presentation modes": (
@@ -197,6 +199,15 @@ checks.update({
         and "Protect-File $StateFile" in launcher
         and "Protect-File $rolesFile" in launcher
         and "Protect-File $accountsFile" in launcher
+    ),
+    "Windows presentation CI keeps services running through the SQLite browser smoke": (
+        (launch_start := workflow.find("- name: Start the documented Real + Demo SQLite presentation launcher")) >= 0
+        and (playwright_install := workflow.find("- name: Install Playwright Chromium", launch_start)) > launch_start
+        and (browser_test := workflow.find("- name: Verify actual Windows OIDC-to-SQLite browser write/readback", playwright_install)) > playwright_install
+        and (cleanup_start := workflow.find("- name: Ensure launcher processes are stopped", browser_test)) > browser_test
+        and "finally {" not in workflow[launch_start:playwright_install]
+        and "taskkill.exe" not in workflow[launch_start:cleanup_start]
+        and "if: always()" in workflow[cleanup_start:]
     ),
 })
 
