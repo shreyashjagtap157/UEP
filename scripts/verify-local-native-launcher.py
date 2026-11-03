@@ -18,6 +18,8 @@ migration_path = ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "
 sqlite_profile_path = ROOT / "apps" / "platform-server" / "src" / "main" / "resources" / "application-local-sqlite.yaml"
 local_native_profile_path = ROOT / "apps" / "platform-server" / "src" / "main" / "resources" / "application-local-native.yaml"
 local_native_profile = local_native_profile_path.read_text(encoding="utf-8")
+local_tenant_bootstrap_path = ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "tenancy" / "LocalTenantBootstrapService.java"
+local_tenant_bootstrap = local_tenant_bootstrap_path.read_text(encoding="utf-8")
 workflow_path = ROOT / ".github" / "workflows" / "ci.yml"
 
 launcher = launcher_path.read_text(encoding="utf-8")
@@ -136,8 +138,9 @@ checks = {
         and "scopeId = $testBranch.id" in launcher
         and "tenantScoped" in launcher
     ),
-    "local tenant is marked local rather than as a hosted deployment": (
-        "platform=local&status=active" in launcher
+    "backend marks the persisted local tenant as local development": (
+        'setDeploymentPlatform("local")' in local_tenant_bootstrap
+        and 'setDeploymentStatus("active")' in local_tenant_bootstrap
     ),
     "SQL bootstrap script is written without a UTF-8 BOM": (
         "$roleSql | Set-Content -LiteralPath $rolesFile -Encoding ASCII" in launcher

@@ -18,7 +18,7 @@ Expected local endpoints:
 - OpenAPI JSON: http://localhost:8080/v3/api-docs
 - SQLite (default): .uep-local/uep-local.sqlite. PostgreSQL is an optional separate mode.
 
-In SQLite mode, the backend uses the `local-sqlite,local-native` Spring profiles and Hibernate entity schema generation; PostgreSQL Flyway migrations and database roles are not used. In PostgreSQL mode, the backend connects as `uep_local_runtime` and Flyway is run by `DatabaseMigrationRunner` as `uep_local_migrator`. The local-native profile binds the backend to `127.0.0.1`, enables launcher-issued local API authentication and exposes Swagger only on this workstation. No Keycloak process is started or contacted in either local database mode.
+In SQLite mode, the backend uses the `local-sqlite,local-native` Spring profiles and Hibernate entity schema generation; PostgreSQL Flyway migrations and database roles are not used. In PostgreSQL mode, the backend connects as `uep_local_runtime` and Flyway is run by `DatabaseMigrationRunner` as `uep_local_migrator`. The local-native profile binds the backend to `127.0.0.1`, enables launcher-issued local API authentication and exposes Swagger only on this workstation. No identity-provider process is started or contacted by the Real UI in either local database mode.
 
 ## Non-negotiable safety and truth requirements
 

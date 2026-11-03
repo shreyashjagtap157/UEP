@@ -94,7 +94,7 @@ Use PostgreSQL only when it is installed and intentionally selected. The Postgre
 
 The backend Maven project targets Java 21 bytecode (`maven.compiler.release=21`). The Windows launcher selects one full JDK whose `java.exe` and `javac.exe` major versions match (preferring JDK 21), pins that JDK in the backend command file, and records `java -version`, `javac -version` and `mvn -version` in the Backend log. Before Spring Boot starts, it runs `mvn -B -Dmaven.compiler.release=21 clean compile`, then `scripts/verify-java-class-version.ps1` checks that `com/universalplatform/grading/package-info.class` is major 65 and that no class under `target/classes` is newer than major 65. Only after that check passes does it run `spring-boot:run` with the same JDK and release property.
 
-If you see `UnsupportedClassVersionError` reporting `67.0` while Java supports only `65.0`, the offending output was compiled for Java 23 and is too new for Java 21. Use the repository launcher rather than a stale IDE output/run configuration. The launcher removes backend `target` output with Maven's `clean` phase, recompiles it to Java 21 bytecode, and reports the exact incompatible class paths if any remain. This clean build does **not** remove `.uep-local/uep-local.sqlite`, Keycloak state, or local credentials.
+If you see `UnsupportedClassVersionError` reporting `67.0` while Java supports only `65.0`, the offending output was compiled for Java 23 and is too new for Java 21. Use the repository launcher rather than a stale IDE output/run configuration. The launcher removes backend `target` output with Maven's `clean` phase, recompiles it to Java 21 bytecode, and reports the exact incompatible class paths if any remain. This clean build does **not** remove `.uep-local/uep-local.sqlite`, existing local API data or protected launcher state.
 
 ### SQLite existing-schema metadata extraction
 
@@ -159,7 +159,7 @@ For broader verification, run `mvn -f apps/platform-server/pom.xml verify`, `npm
 ## Safety and data preservation
 
 - The launcher does not connect to hosted or production databases.
-- SQLite files, local Keycloak state and credentials remain local. Do not commit `.uep-local`.
+- SQLite files, local API data and protected launcher state remain local. Do not commit `.uep-local`.
 - The launcher does not reset or delete user data automatically.
 - Do not expose the launcher-issued local session token or the protected `.uep-local` command files.
 - Never use Demo personas to imply a live local API session, server-side RBAC or database persistence.
