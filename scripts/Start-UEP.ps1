@@ -582,7 +582,24 @@ function Assert-TenantTokenContext([string]$Token, [string]$ExpectedTenantId) {
 function Invoke-Api([string]$Method, [string]$Path, [string]$Token, $Body = $null) {
     $params = @{ Method = $Method; Uri = ('http://127.0.0.1:8080' + $Path); Headers = @{ Authorization = "Bearer $Token"; Accept = 'application/json' }; TimeoutSec = 30 }
     if ($null -ne $Body) { $params.ContentType = 'application/json'; $params.Body = ConvertTo-Json -InputObject $Body -Depth 20 }
-    return Invoke-RestMethod @params
+    try {
+        return Invoke-RestMethod @params
+    } catch {
+        $statusCode = $null
+        $responseBody = $null
+        if ($null -ne $_.Exception.Response) {
+            try { $statusCode = [int]$_.Exception.Response.StatusCode } catch {}
+            try {
+                $stream = $_.Exception.Response.GetResponseStream()
+                if ($null -ne $stream) {
+                    $reader = [System.IO.StreamReader]::new($stream)
+                    try { $responseBody = $reader.ReadToEnd() } finally { $reader.Dispose() }
+                }
+            } catch {}
+        }
+        $detail = if ($responseBody) { $responseBody } else { $_.Exception.Message }
+        throw "UEP API $Method $Path failed (HTTP $statusCode): $detail"
+    }
 }
 function Ensure-RealIdentity {
     Write-Section 'Keycloak local realm and owner bootstrap'
