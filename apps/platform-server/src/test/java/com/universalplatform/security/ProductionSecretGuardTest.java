@@ -55,6 +55,18 @@ class ProductionSecretGuardTest {
     }
 
     @Test
+    void localNativeProfileCannotBeCombinedWithProductionProfiles() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty(ProductionSecretGuard.DEV_MODE_PROPERTY, "false");
+        environment.setActiveProfiles("local-native", "prod");
+        ProductionSecretGuard guard = new ProductionSecretGuard(environment);
+
+        assertThatThrownBy(guard::rejectDevelopmentDefaults)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("local-native profile cannot be combined");
+    }
+
+    @Test
     void acceptsStrongNonDefaultProductionSecrets() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("spring.datasource.password", "S3cure-database-password-2026")

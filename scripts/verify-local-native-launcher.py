@@ -182,6 +182,12 @@ checks.update({
         "@Profile(\"local-native\")" in (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalNativeJwtDecoderConfiguration.java").read_text(encoding="utf-8")
         and "OIDC bearer tokens are disabled" in (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalNativeJwtDecoderConfiguration.java").read_text(encoding="utf-8")
     ),
+    "local-native profile cannot be combined with prod or production": (
+        "local-native profile cannot be combined with the prod/production Spring profile" in
+        (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "ProductionSecretGuard.java").read_text(encoding="utf-8")
+        and "localNativeProfileCannotBeCombinedWithProductionProfiles" in
+        (ROOT / "apps" / "platform-server" / "src" / "test" / "java" / "com" / "universalplatform" / "security" / "ProductionSecretGuardTest.java").read_text(encoding="utf-8")
+    ),
     "Real launcher verifies the Vite API proxy and actual persisted identity": (
         "set SPRING_PROFILES_ACTIVE=local-sqlite,local-native" in launcher
         and "set VITE_LOCAL_API_MODE=true" in launcher
