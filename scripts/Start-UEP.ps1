@@ -129,9 +129,9 @@ function Refresh-Path {
 function Invoke-WingetInstall([string]$PackageId, [string]$DisplayName, [switch]$Interactive) {
     if (-not (Test-Command 'winget.exe')) { throw "$DisplayName is missing and winget.exe is not available. Install Microsoft App Installer, then rerun." }
     Write-Host "Installing $DisplayName from the official winget source..." -ForegroundColor Yellow
-    $args = @('install', '--id', $PackageId, '--exact', '--source', 'winget', '--accept-source-agreements', '--accept-package-agreements')
-    if ($Interactive) { $args += '--interactive' } else { $args += @('--silent', '--disable-interactivity') }
-    & winget.exe @args
+    $wingetArguments = @('install', '--id', $PackageId, '--exact', '--source', 'winget', '--accept-source-agreements', '--accept-package-agreements')
+    if ($Interactive) { $wingetArguments += '--interactive' } else { $wingetArguments += @('--silent', '--disable-interactivity') }
+    & winget.exe @wingetArguments
     if ($LASTEXITCODE -ne 0) { throw "winget failed to install $DisplayName (exit code $LASTEXITCODE)." }
     Refresh-Path
 }
