@@ -152,7 +152,7 @@ test('unauthorized role, learner and course mutations are rejected', () => {
 
 test('storage failures are reported without publishing a stale-state change event', () => {
   const state = resetDemoState()
-  const persistedBefore = localStorage.getItem('uep.local-demo-data.v4')
+  const persistedBefore = localStorage.getItem('uep.local-demo-data.v5')
   const originalSetItem = localStorage.setItem
   let notifications = 0
   const unsubscribe = subscribeDemoState(() => { notifications += 1 })
@@ -164,7 +164,7 @@ test('storage failures are reported without publishing a stale-state change even
   try {
     localStorage.setItem = () => { throw new Error('storage quota exceeded') }
     assert.equal(saveDemoState(next), false)
-    assert.equal(localStorage.getItem('uep.local-demo-data.v4'), persistedBefore, 'failed write must leave persisted data untouched')
+    assert.equal(localStorage.getItem('uep.local-demo-data.v5'), persistedBefore, 'failed write must leave persisted data untouched')
     assert.equal(loadDemoState().courseProgress['student-asha:course-web'], 79, 'later actions must read the unsaved in-memory state rather than stale storage')
     assert.equal(notifications, 0, 'failed write must not ask subscribers to reload stale persisted state')
   } finally {
@@ -174,7 +174,7 @@ test('storage failures are reported without publishing a stale-state change even
 
   const recovered = loadDemoState()
   assert.equal(recovered.courseProgress['student-asha:course-web'], 79, 'storage recovery must retain the in-memory change')
-  assert.equal(JSON.parse(localStorage.getItem('uep.local-demo-data.v4')).courseProgress['student-asha:course-web'], 79, 'the next load should durably persist the recovered state')
+  assert.equal(JSON.parse(localStorage.getItem('uep.local-demo-data.v5')).courseProgress['student-asha:course-web'], 79, 'the next load should durably persist the recovered state')
 })
 
 test('authorized attendance changes propagate through the shared persisted state', () => {
@@ -598,28 +598,57 @@ test('client organization actions resolve only for their matching active organiz
   assert.strictEqual(resolveDemoOrganizationAction(unrelatedOrgState, actionId, client), unrelatedOrgState)
 })
 
-test('legacy browser state migrates to v4 with finance, support and inbox backfills', () => {
+test('v4 demo state migrates the old Product Developer and adds Product Maintainer without resetting user data', () => {
+  const seeded = resetDemoState()
+  const priorUsers = seeded.users
+    .filter(user => user.id !== 'product-maintainer-mira')
+    .map(user => user.id === 'developer-dev' ? { ...user, role: 'Product Developer' } : user)
+  const priorState = {
+    ...seeded,
+    schemaVersion: 4,
+    users: priorUsers,
+    courseProgress: { ...seeded.courseProgress, 'student-asha:course-web': 73 },
+    products: seeded.products.map(product => product.id === 'product-ai-draft'
+      ? { ...product, title: 'Existing v4 product draft' }
+      : product),
+  }
+  localStorage.removeItem('uep.local-demo-data.v5')
+  localStorage.setItem('uep.local-demo-data.v4', JSON.stringify(priorState))
+
+  const migrated = loadDemoState()
+  assert.equal(migrated.schemaVersion, 5)
+  assert.equal(activeUserForProfile(migrated, profile('developer'))?.role, 'Platform Developer')
+  assert.equal(activeUserForProfile(migrated, profile('product-maintainer'))?.role, 'Product Maintainer')
+  assert.equal(migrated.users.filter(user => user.id === 'product-maintainer-mira').length, 1)
+  assert.equal(migrated.users.find(user => user.id === 'developer-dev')?.status, 'Active')
+  assert.equal(migrated.courseProgress['student-asha:course-web'], 73)
+  assert.equal(migrated.products.find(product => product.id === 'product-ai-draft')?.title, 'Existing v4 product draft')
+  assert.ok(localStorage.getItem('uep.local-demo-data.v5'))
+  localStorage.removeItem('uep.local-demo-data.v4')
+})
+
+test('legacy browser state migrates to v5 with finance, support and inbox backfills', () => {
   let state = resetDemoState()
   state = advanceDemoProgress(state, 'course-web', profile('student'))
   saveDemoState(state)
 
-  const current = JSON.parse(localStorage.getItem('uep.local-demo-data.v4'))
+  const current = JSON.parse(localStorage.getItem('uep.local-demo-data.v5'))
   current.schemaVersion = 1
   delete current.organizationActions
   delete current.invoices
   delete current.supportCases
   delete current.messages
   localStorage.setItem('uep.local-demo-data.v1', JSON.stringify(current))
-  localStorage.removeItem('uep.local-demo-data.v4')
+  localStorage.removeItem('uep.local-demo-data.v5')
 
   const migrated = loadDemoState()
-  assert.equal(migrated.schemaVersion, 4)
+  assert.equal(migrated.schemaVersion, 5)
   assert.equal(migrated.courseProgress['student-asha:course-web'], 78)
   assert.equal(migrated.organizationActions.length, 3)
   assert.equal(migrated.invoices.length, 3)
   assert.equal(migrated.supportCases.length, 3)
   assert.ok(migrated.messages.some(message => message.id === 'message-student-weekly'))
-  assert.ok(localStorage.getItem('uep.local-demo-data.v4'))
+  assert.ok(localStorage.getItem('uep.local-demo-data.v5'))
 
   for (const legacyVersion of [2, 3]) {
     const oldState = { ...migrated, schemaVersion: legacyVersion }
@@ -629,13 +658,13 @@ test('legacy browser state migrates to v4 with finance, support and inbox backfi
       delete oldState.supportCases
     }
     localStorage.setItem(`uep.local-demo-data.v${legacyVersion}`, JSON.stringify(oldState))
-    localStorage.removeItem('uep.local-demo-data.v4')
+    localStorage.removeItem('uep.local-demo-data.v5')
     const migratedLegacy = loadDemoState()
-    assert.equal(migratedLegacy.schemaVersion, 4)
+    assert.equal(migratedLegacy.schemaVersion, 5)
     assert.equal(migratedLegacy.invoices.length, 3)
     assert.equal(migratedLegacy.supportCases.length, 3)
     assert.ok(migratedLegacy.messages.some(message => message.id === 'message-student-weekly'))
-    assert.ok(localStorage.getItem('uep.local-demo-data.v4'))
+    assert.ok(localStorage.getItem('uep.local-demo-data.v5'))
   }
 })
 

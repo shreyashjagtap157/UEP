@@ -723,6 +723,8 @@ for role in ['student', 'teacher', 'client', 'developer', 'product-maintainer', 
         errors.append(f'missing shared dashboard scope for role: {role}')
 if 'local demo sign-in exposes all fourteen canonical profiles through one shared workspace' not in text('apps/web/test/LocalDemoStore.test.mjs'):
     errors.append('missing regression test proving all fourteen profiles use the shared demo state')
+if 'migrateDemoUsers(parsed.users, seed.users)' not in local_demo_store or 'v4 demo state migrates the old Product Developer and adds Product Maintainer' not in local_demo_tests:
+    errors.append('missing v4-to-v5 migration for the Developer/Product Maintainer account split')
 local_demo_store = text('apps/web/src/dashboard/LocalDemoStore.ts')
 if "actor.role !== 'product-maintainer'" not in local_demo_store:
     errors.append('product lifecycle mutations must be restricted to the Product Maintainer persona')
@@ -805,7 +807,7 @@ if 'while (state.products.some(existing => existing.id === id))' not in local_de
 if 'rapid product creation allocates unique IDs even when the clock has not advanced' not in local_demo_tests:
     errors.append('missing rapid product ID collision regression')
 for required in [
-    "const STORAGE_KEY = 'uep.local-demo-data.v4'",
+    "const STORAGE_KEY = 'uep.local-demo-data.v5'",
     'invoices: Array.isArray(parsed.invoices) ? parsed.invoices : seed.invoices',
     'supportCases: Array.isArray(parsed.supportCases) ? parsed.supportCases : seed.supportCases',
     'messages: Array.isArray(parsed.messages) ? parsed.messages : seed.messages',

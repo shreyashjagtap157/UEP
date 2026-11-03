@@ -166,7 +166,7 @@ export interface DemoTenant {
 }
 
 export interface DemoState {
-  schemaVersion: 4
+  schemaVersion: 5
   users: DemoUser[]
   courses: DemoCourse[]
   submissions: DemoSubmission[]
@@ -184,8 +184,8 @@ export interface DemoState {
   activity: DemoActivity[]
 }
 
-const STORAGE_KEY = 'uep.local-demo-data.v4'
-const LEGACY_STORAGE_KEYS = ['uep.local-demo-data.v3', 'uep.local-demo-data.v2', 'uep.local-demo-data.v1'] as const
+const STORAGE_KEY = 'uep.local-demo-data.v5'
+const LEGACY_STORAGE_KEYS = ['uep.local-demo-data.v4', 'uep.local-demo-data.v3', 'uep.local-demo-data.v2', 'uep.local-demo-data.v1'] as const
 const STORE_CHANGED_EVENT = 'uep:local-demo-data-updated'
 
 // Retain the last known state in this tab if browser storage becomes temporarily unavailable.
@@ -400,7 +400,7 @@ function seedDemoState(): DemoState {
     { id: 'webhook-attendance', name: 'Attendance updates', endpoint: 'https://client.example.test/hooks/attendance', status: 'Needs attention', successfulDeliveries: 39, failedDeliveries: 4 },
   ]
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     users,
     courses,
     submissions,
@@ -428,13 +428,35 @@ function seedDemoState(): DemoState {
 }
 
 type PersistedDemoState = Omit<DemoState, 'schemaVersion' | 'organizationActions' | 'invoices' | 'supportCases' | 'messages' | 'materials' | 'tenants'> & {
-  schemaVersion: 1 | 2 | 3 | 4
+  schemaVersion: 1 | 2 | 3 | 4 | 5
   organizationActions?: DemoOrganizationAction[]
   invoices?: DemoInvoice[]
   supportCases?: DemoSupportCase[]
   messages?: DemoMessage[]
   materials?: DemoMaterial[]
   tenants?: DemoTenant[]
+}
+
+function migrateDemoUsers(persistedUsers: DemoUser[], seededUsers: DemoUser[]): DemoUser[] {
+  let changed = false
+  // The v4 Developer persona was also the Product Developer. Preserve the row,
+  // status and organization while migrating it to the integrations-focused role.
+  const users = persistedUsers.map(user => {
+    if (user.id === 'developer-dev' && user.role === 'Product Developer') {
+      changed = true
+      return { ...user, role: 'Platform Developer' }
+    }
+    return user
+  })
+
+  // Product Maintainer is a new seeded persona. Add it only when absent; do not
+  // overwrite a deliberately suspended or otherwise edited existing user.
+  const productMaintainer = seededUsers.find(user => user.id === 'product-maintainer-mira')
+  if (productMaintainer && !users.some(user => user.id === productMaintainer.id)) {
+    users.push(productMaintainer)
+    changed = true
+  }
+  return changed ? users : persistedUsers
 }
 
 export function loadDemoState(): DemoState {
@@ -453,9 +475,11 @@ export function loadDemoState(): DemoState {
       const parsed: unknown = JSON.parse(stored.raw)
       if (!isPersistedDemoState(parsed)) continue
       const seed = seedDemoState()
+      const migratedUsers = migrateDemoUsers(parsed.users, seed.users)
       const state: DemoState = {
         ...parsed,
-        schemaVersion: 4,
+        schemaVersion: 5,
+        users: migratedUsers,
         organizationActions: Array.isArray(parsed.organizationActions) ? parsed.organizationActions : seed.organizationActions,
         invoices: Array.isArray(parsed.invoices) ? parsed.invoices : seed.invoices,
         supportCases: Array.isArray(parsed.supportCases) ? parsed.supportCases : seed.supportCases,
@@ -464,7 +488,7 @@ export function loadDemoState(): DemoState {
         tenants: Array.isArray(parsed.tenants) ? parsed.tenants : seed.tenants,
       }
       latestDemoState = state
-      if (stored.key !== STORAGE_KEY || parsed.schemaVersion !== 4
+      if (stored.key !== STORAGE_KEY || parsed.schemaVersion !== 5 || migratedUsers !== parsed.users
           || !Array.isArray(parsed.organizationActions)
           || !Array.isArray(parsed.invoices)
           || !Array.isArray(parsed.supportCases)
@@ -487,7 +511,7 @@ export function loadDemoState(): DemoState {
 function isPersistedDemoState(value: unknown): value is PersistedDemoState {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Partial<PersistedDemoState>
-  return (candidate.schemaVersion === 1 || candidate.schemaVersion === 2 || candidate.schemaVersion === 3 || candidate.schemaVersion === 4)
+  return (candidate.schemaVersion === 1 || candidate.schemaVersion === 2 || candidate.schemaVersion === 3 || candidate.schemaVersion === 4 || candidate.schemaVersion === 5)
     && Array.isArray(candidate.users)
     && Array.isArray(candidate.courses)
     && Array.isArray(candidate.submissions)
