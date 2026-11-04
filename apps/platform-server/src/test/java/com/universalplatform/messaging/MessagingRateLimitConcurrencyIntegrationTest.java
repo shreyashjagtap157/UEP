@@ -108,6 +108,84 @@ class MessagingRateLimitConcurrencyIntegrationTest {
         assertThat(persistedReports).isEqualTo(Math.toIntExact(accepted));
     }
 
+    @Test
+    void messageQuotasAreIsolatedForOneIdentityAcrossTenantMemberships() throws Exception {
+        UUID tenantA = UUID.randomUUID();
+        UUID tenantB = UUID.randomUUID();
+        UUID senderUserId = UUID.randomUUID();
+        UUID peerAUserId = UUID.randomUUID();
+        UUID peerBUserId = UUID.randomUUID();
+        UUID senderMembershipA = UUID.randomUUID();
+        UUID senderMembershipB = UUID.randomUUID();
+        UUID peerMembershipA = UUID.randomUUID();
+        UUID peerMembershipB = UUID.randomUUID();
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        String senderSubject = "multi-tenant-rate-owner-" + suffix;
+        String peerASubject = "multi-tenant-rate-peer-a-" + suffix;
+        String peerBSubject = "multi-tenant-rate-peer-b-" + suffix;
+
+        jdbc.update("""
+                insert into tenant(id, slug, display_name, status)
+                values (?, ?, 'Messaging Quota Tenant A', 'ACTIVE')
+                """, tenantA, "message-rate-a-" + suffix);
+        jdbc.update("""
+                insert into tenant(id, slug, display_name, status)
+                values (?, ?, 'Messaging Quota Tenant B', 'ACTIVE')
+                """, tenantB, "message-rate-b-" + suffix);
+        jdbc.update("""
+                insert into user_account(id, oidc_subject, email, display_name, status)
+                values (?, ?, ?, 'Multi-tenant Sender', 'ACTIVE')
+                """, senderUserId, senderSubject, "multi-tenant-sender-" + suffix + "@example.test");
+        jdbc.update("""
+                insert into user_account(id, oidc_subject, email, display_name, status)
+                values (?, ?, ?, 'Tenant A Peer', 'ACTIVE')
+                """, peerAUserId, peerASubject, "tenant-a-peer-" + suffix + "@example.test");
+        jdbc.update("""
+                insert into user_account(id, oidc_subject, email, display_name, status)
+                values (?, ?, ?, 'Tenant B Peer', 'ACTIVE')
+                """, peerBUserId, peerBSubject, "tenant-b-peer-" + suffix + "@example.test");
+
+        jdbc.update("""
+                insert into tenant_membership(id, tenant_id, user_id, status)
+                values (?, ?, ?, 'ACTIVE')
+                """, senderMembershipA, tenantA, senderUserId);
+        jdbc.update("""
+                insert into tenant_membership(id, tenant_id, user_id, status)
+                values (?, ?, ?, 'ACTIVE')
+                """, senderMembershipB, tenantB, senderUserId);
+        jdbc.update("""
+                insert into tenant_membership(id, tenant_id, user_id, status)
+                values (?, ?, ?, 'ACTIVE')
+                """, peerMembershipA, tenantA, peerAUserId);
+        jdbc.update("""
+                insert into tenant_membership(id, tenant_id, user_id, status)
+                values (?, ?, ?, 'ACTIVE')
+                """, peerMembershipB, tenantB, peerBUserId);
+        jdbc.update("""
+                insert into message_tenant_policy(tenant_id, max_messages_per_minute, max_reports_per_hour)
+                values (?, 1, 1), (?, 1, 1)
+                """, tenantA, tenantB);
+
+        Fixture fixtureA = new Fixture(tenantA, senderMembershipA, peerMembershipA, senderSubject, peerASubject);
+        Fixture fixtureB = new Fixture(tenantB, senderMembershipB, peerMembershipB, senderSubject, peerBSubject);
+        UUID conversationA = createConversation(fixtureA);
+        UUID conversationB = createConversation(fixtureB);
+
+        int tenantAStatus = sendMessage(fixtureA, conversationA, "Tenant A quota");
+        int tenantBStatus = sendMessage(fixtureB, conversationB, "Tenant B quota");
+
+        assertThat(tenantAStatus).isEqualTo(200);
+        assertThat(tenantBStatus).isEqualTo(200);
+        assertThat(jdbc.queryForObject("""
+                select message_count from message_rate_window
+                where tenant_id = ? and membership_id = ? and window_type = 'MINUTE'
+                """, Integer.class, tenantA, senderMembershipA)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                select message_count from message_rate_window
+                where tenant_id = ? and membership_id = ? and window_type = 'MINUTE'
+                """, Integer.class, tenantB, senderMembershipB)).isEqualTo(1);
+    }
+
     private Fixture createFixture(int maxMessagesPerMinute, int maxReportsPerHour) {
         UUID tenantId = UUID.randomUUID();
         UUID senderUserId = UUID.randomUUID();
