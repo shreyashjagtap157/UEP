@@ -22,7 +22,9 @@ import {
   invoicesForFinanceProfile,
   loadDemoState,
   markDemoMessageRead,
+  messageRecipientsForProfile,
   messagesForProfile,
+  sendDemoMessage,
   resetDemoState,
   saveDemoState,
   setDemoUserStatus,
@@ -671,6 +673,79 @@ test('legacy browser state migrates to v5 with finance, support and inbox backfi
     assert.ok(migratedLegacy.messages.some(message => message.id === 'message-student-weekly'))
     assert.ok(localStorage.getItem('uep.local-demo-data.v5'))
   }
+})
+
+test('message discovery and send mutations enforce one shared recipient policy', () => {
+  const state = resetDemoState()
+  const student = profile('student')
+  const guardian = profile('guardian')
+  const teacher = profile('teacher')
+  const developer = profile('developer')
+  const support = profile('support')
+  const admin = profile('admin')
+
+  const studentRecipients = messageRecipientsForProfile(state, student)
+  assert.ok(studentRecipients.length > 0)
+  assert.ok(studentRecipients.every(user =>
+    user.organization === 'Northstar Learning Institute'
+      && ['Teacher', 'Teaching Assistant', 'Mentor'].includes(user.role)))
+  assert.ok(!studentRecipients.some(user => user.id === 'student-ravi'))
+
+  const guardianRecipients = messageRecipientsForProfile(state, guardian)
+  assert.ok(guardianRecipients.every(user =>
+    user.organization === 'Northstar Learning Institute'
+      && ['Teacher', 'Teaching Assistant', 'Mentor'].includes(user.role)))
+
+  for (const platformProfile of [developer, support]) {
+    const recipients = messageRecipientsForProfile(state, platformProfile)
+    assert.ok(recipients.every(user => user.organization === 'UEP Product Team'))
+    assert.ok(!recipients.some(user => user.id === 'student-asha' || user.id === 'teacher-rahul'))
+  }
+
+  const forgedStudentToStudent = sendDemoMessage(state, {
+    subject: 'Out-of-policy message',
+    body: 'A student must not bypass the permitted recipient list.',
+    recipientIds: ['student-ravi'],
+  }, student)
+  assert.strictEqual(forgedStudentToStudent, state)
+
+  const forgedGuardianToClient = sendDemoMessage(state, {
+    subject: 'Out-of-policy message',
+    body: 'A guardian must not bypass the permitted recipient list.',
+    recipientIds: ['client-priya'],
+  }, guardian)
+  assert.strictEqual(forgedGuardianToClient, state)
+
+  const crossOrganizationDeveloperMessage = sendDemoMessage(state, {
+    subject: 'Cross-organization message',
+    body: 'Platform Developer is restricted to its organization in the Demo.',
+    recipientIds: ['student-asha'],
+  }, developer)
+  assert.strictEqual(crossOrganizationDeveloperMessage, state)
+
+  const validStudentMessage = sendDemoMessage(state, {
+    subject: 'Question for my teacher',
+    body: 'Could you clarify the next lesson?',
+    recipientIds: ['teacher-rahul'],
+  }, student)
+  assert.notStrictEqual(validStudentMessage, state)
+  assert.deepEqual(validStudentMessage.messages[0]?.recipientIds, ['teacher-rahul'])
+
+  const validTeacherMessage = sendDemoMessage(state, {
+    subject: 'Class update',
+    body: 'Please review the next assignment.',
+    recipientIds: ['student-asha'],
+  }, teacher)
+  assert.notStrictEqual(validTeacherMessage, state)
+  assert.deepEqual(validTeacherMessage.messages[0]?.recipientIds, ['student-asha'])
+
+  const administratorCrossOrganizationMessage = sendDemoMessage(state, {
+    subject: 'Platform announcement',
+    body: 'This administrator action may reach the other organization.',
+    recipientIds: ['student-asha'],
+  }, admin)
+  assert.notStrictEqual(administratorCrossOrganizationMessage, state)
+  assert.deepEqual(administratorCrossOrganizationMessage.messages[0]?.recipientIds, ['student-asha'])
 })
 
 test('shared inbox is recipient-scoped and read state persists per recipient', () => {
