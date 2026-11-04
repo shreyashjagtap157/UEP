@@ -108,7 +108,7 @@ test.describe('Layer A: Recipient-scoped inbox communication', () => {
     await expect(explicitlySelectedRecipient.locator('.chip')).toHaveText('Unread')
   })
 
-  test('suspending the signed-in sender removes the composer and explains the restriction', async ({ page }) => {
+  test('suspending the signed-in sender revokes the session and explains the restriction', async ({ page }) => {
     await signInToDemo(page, 'student@demo.uep')
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Inbox', exact: true }).click()
     await expect(page.getByLabel('Recipient')).toBeVisible()
@@ -129,9 +129,38 @@ test.describe('Layer A: Recipient-scoped inbox communication', () => {
     })
     await updater.close()
 
-    await expect(page.getByText('Messaging is unavailable because this account is inactive.', { exact: true })).toBeVisible()
+    // A suspended sender is signed out at the application boundary. The
+    // workspace and composer must be unmounted, and the login screen explains
+    // why the current session was revoked.
+    await expect(page.locator('.local-login-intro')).toBeVisible()
+    await expect(page.getByText(
+      'Your demo session ended because this account is inactive. Sign in with an active account or ask an administrator to reactivate it.',
+      { exact: true },
+    )).toBeVisible()
+    await expect(page.locator('.app-frame')).toHaveCount(0)
     await expect(page.getByLabel('Recipient')).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Send request', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Switch user', exact: true })).toHaveCount(0)
+    expect(await page.evaluate(() => sessionStorage.getItem('uep-local-account'))).toBeNull()
+
+    // Reactivating the record must not restore the revoked browser session.
+    const reactivator = await page.context().newPage()
+    await reactivator.goto('/')
+    await reactivator.evaluate(() => {
+      const key = 'uep.local-demo-data.v5'
+      const raw = window.localStorage.getItem(key)
+      if (!raw) throw new Error('The suspended Demo state was not persisted.')
+      const state = JSON.parse(raw) as {
+        users: Array<{ id: string; status: string }>
+      }
+      state.users = state.users.map(user =>
+        user.id === 'student-asha' ? { ...user, status: 'Active' } : user,
+      )
+      window.localStorage.setItem(key, JSON.stringify(state))
+    })
+    await reactivator.close()
+    await expect(page.locator('.local-login-intro')).toBeVisible()
+    await expect(page.locator('.app-frame')).toHaveCount(0)
+    expect(await page.evaluate(() => sessionStorage.getItem('uep-local-account'))).toBeNull()
   })
 
   test('guardian recipient options remain limited to same-institution teaching contacts', async ({ page }) => {
