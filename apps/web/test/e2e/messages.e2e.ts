@@ -66,6 +66,26 @@ test.describe('Layer A: Recipient-scoped inbox communication', () => {
 
     await expect(recipient.locator('option').filter({ hasText: 'Rahul Deshmukh' })).toHaveCount(0)
     await expect(recipient).toHaveValue('')
+
+    // Re-activating the same contact must not resurrect the old selection.
+    const reactivator = await page.context().newPage()
+    await reactivator.goto('/')
+    await reactivator.evaluate(() => {
+      const key = 'uep.local-demo-data.v5'
+      const raw = window.localStorage.getItem(key)
+      if (!raw) throw new Error('The updated Demo state was not persisted.')
+      const state = JSON.parse(raw) as {
+        users: Array<{ id: string; status: string }>
+      }
+      state.users = state.users.map(user =>
+        user.id === 'teacher-rahul' ? { ...user, status: 'Active' } : user,
+      )
+      window.localStorage.setItem(key, JSON.stringify(state))
+    })
+    await reactivator.close()
+    await expect(recipient.locator('option').filter({ hasText: 'Rahul Deshmukh' })).toHaveCount(1)
+    await expect(recipient).toHaveValue('')
+
     await page.getByLabel('Subject').fill('Question for the active teaching assistant')
     await page.getByLabel('Message').fill('Could you help with the assigned class?')
     await expect(page.getByRole('button', { name: 'Send request', exact: true })).toBeDisabled()

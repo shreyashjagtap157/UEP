@@ -713,6 +713,9 @@ function MessagesPanel({ state, profile, messages, onMarkRead, onSend }: { state
   const activeSender = activeUserForProfile(state, profile)
   const recipients = messageRecipientsForProfile(state, profile)
   const [recipientId, setRecipientId] = useState(recipients[0]?.id ?? '')
+  useEffect(() => {
+    if (recipientId && !recipients.some(user => user.id === recipientId)) setRecipientId('')
+  }, [recipientId, recipients])
   const selectedRecipientId = recipients.some(user => user.id === recipientId) ? recipientId : ''
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
