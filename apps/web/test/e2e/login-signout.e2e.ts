@@ -72,9 +72,9 @@ test.describe('Layer A: Common login and sign-out', () => {
         'guardian@demo.uep': ['Learner overview', 'Learner progress', 'Assignments & results', 'Calendar', 'Attendance', 'Inbox'],
         'exam-controller@demo.uep': ['Exam overview', 'Exam schedule', 'Exam submissions', 'Exam activity'],
         'finance-admin@demo.uep': ['Finance overview', 'Invoices & payments'],
-        'teaching-assistant@demo.uep': ['Teaching overview', 'Assigned classes', 'Submission triage', 'Attendance', 'My activity'],
+        'teaching-assistant@demo.uep': ['Teaching overview', 'Assigned classes', 'Submission triage', 'Attendance', 'My activity', 'Inbox'],
         'evaluator@demo.uep': ['Evaluation overview', 'Grading queue', 'Evaluation activity'],
-        'mentor@demo.uep': ['Mentor overview', 'Mentee progress', 'Learning evidence', 'Mentoring activity'],
+        'mentor@demo.uep': ['Mentor overview', 'Mentee progress', 'Learning evidence', 'Mentoring activity', 'Inbox'],
         'support@demo.uep': ['Support overview', 'Support queue'],
         'auditor@demo.uep': ['Audit overview', 'Audit log'],
       }
