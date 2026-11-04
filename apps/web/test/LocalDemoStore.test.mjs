@@ -796,6 +796,21 @@ test('message discovery and send mutations enforce one shared recipient policy',
   }, student)
   assert.strictEqual(mixedRecipientMessage, state)
 
+  const unknownRecipientMessage = sendDemoMessage(state, {
+    subject: 'Question for my teacher',
+    body: 'A known recipient cannot be used to mask an unknown recipient ID.',
+    recipientIds: ['teacher-rahul', 'missing-user-id'],
+  }, student)
+  assert.strictEqual(unknownRecipientMessage, state)
+
+  const duplicateRecipientMessage = sendDemoMessage(state, {
+    subject: 'Question for my teacher',
+    body: 'Duplicate recipient IDs should be normalized to one delivery.',
+    recipientIds: ['teacher-rahul', 'teacher-rahul'],
+  }, student)
+  assert.notStrictEqual(duplicateRecipientMessage, state)
+  assert.deepEqual(duplicateRecipientMessage.messages[0]?.recipientIds, ['teacher-rahul'])
+
   const validTeacherMessage = sendDemoMessage(state, {
     subject: 'Class update',
     body: 'Please review the next assignment.',
