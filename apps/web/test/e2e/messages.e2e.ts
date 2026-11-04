@@ -87,6 +87,32 @@ test.describe('Layer A: Recipient-scoped inbox communication', () => {
     await expect(explicitlySelectedRecipient.locator('.chip')).toHaveText('Unread')
   })
 
+  test('suspending the signed-in sender removes the composer and explains the restriction', async ({ page }) => {
+    await signInToDemo(page, 'student@demo.uep')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Inbox', exact: true }).click()
+    await expect(page.getByLabel('Recipient')).toBeVisible()
+
+    const updater = await page.context().newPage()
+    await updater.goto('/')
+    await updater.evaluate(() => {
+      const key = 'uep.local-demo-data.v5'
+      const raw = window.localStorage.getItem(key)
+      if (!raw) throw new Error('The seeded Demo state was not persisted.')
+      const state = JSON.parse(raw) as {
+        users: Array<{ id: string; status: string }>
+      }
+      state.users = state.users.map(user =>
+        user.id === 'student-asha' ? { ...user, status: 'Suspended' } : user,
+      )
+      window.localStorage.setItem(key, JSON.stringify(state))
+    })
+    await updater.close()
+
+    await expect(page.getByText('Messaging is unavailable because this account is inactive.', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('Recipient')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Send request', exact: true })).toHaveCount(0)
+  })
+
   test('guardian recipient options remain limited to same-institution teaching contacts', async ({ page }) => {
     await signInToDemo(page, 'guardian@demo.uep')
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Inbox', exact: true }).click()
