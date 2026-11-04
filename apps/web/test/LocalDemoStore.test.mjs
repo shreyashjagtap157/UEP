@@ -721,7 +721,9 @@ test('message discovery and send mutations enforce one shared recipient policy',
 
   for (const platformProfile of [developer, support]) {
     const recipients = messageRecipientsForProfile(state, platformProfile)
-    assert.ok(recipients.every(user => user.organization === 'UEP Product Team'))
+    const platformActor = activeUserForProfile(state, platformProfile)
+    assert.ok(platformActor)
+    assert.ok(recipients.every(user => user.organization === platformActor.organization))
     assert.ok(!recipients.some(user => user.id === 'student-asha' || user.id === 'teacher-rahul'))
   }
 
