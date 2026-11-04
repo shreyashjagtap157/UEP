@@ -861,16 +861,24 @@ export interface DemoMessageInput {
   recipientIds: string[]
 }
 
+function canMessageRecipient(actor: DemoProfile, current: DemoUser, recipient: DemoUser): boolean {
+  if (recipient.id === current.id || recipient.status !== 'Active') return false
+  if (actor.role === 'admin') return true
+  if (recipient.organization !== current.organization) return false
+  if (actor.role === 'student' || actor.role === 'guardian') {
+    return recipient.role === 'Teacher' || recipient.role === 'Teaching Assistant' || recipient.role === 'Mentor'
+  }
+  return true
+}
+
 export function sendDemoMessage(state: DemoState, input: DemoMessageInput, actor: DemoProfile): DemoState {
   const current = activeActor(state, actor)
   if (!current) return state
   const subject = input.subject.trim()
   const body = input.body.trim()
   if (!subject || !body || input.recipientIds.length === 0) return state
-  const recipients = state.users.filter(user => input.recipientIds.includes(user.id)
-    && user.status === 'Active'
-    && user.id !== current.id
-    && (actor.role === 'admin' || user.organization === current.organization))
+  const recipients = state.users.filter(user =>
+    input.recipientIds.includes(user.id) && canMessageRecipient(actor, current, user))
   if (!recipients.length) return state
   const message: DemoMessage = {
     id: 'message-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
@@ -911,13 +919,7 @@ export function addDemoMaterial(state: DemoState, input: { courseId: string; tit
 export function messageRecipientsForProfile(state: DemoState, profile: DemoProfile): DemoUser[] {
   const current = activeActor(state, profile)
   if (!current) return []
-  const active = state.users.filter(user => user.status === 'Active' && user.id !== current.id)
-  if (profile.role === 'admin' || profile.role === 'developer' || profile.role === 'support') return active
-  const sameOrganization = active.filter(user => user.organization === current.organization)
-  if (profile.role === 'student' || profile.role === 'guardian') {
-    return sameOrganization.filter(user => user.role === 'Teacher' || user.role === 'Teaching Assistant' || user.role === 'Mentor')
-  }
-  return sameOrganization
+  return state.users.filter(user => canMessageRecipient(profile, current, user))
 }
 
 export function submissionsForProfile(state: DemoState, profile: DemoProfile): DemoSubmission[] {
