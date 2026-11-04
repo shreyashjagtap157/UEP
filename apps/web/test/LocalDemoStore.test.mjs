@@ -179,6 +179,46 @@ test('storage failures are reported without publishing a stale-state change even
   assert.equal(JSON.parse(localStorage.getItem('uep.local-demo-data.v5')).courseProgress['student-asha:course-web'], 79, 'the next load should durably persist the recovered state')
 })
 
+test('cross-document storage events reload persisted Demo state and ignore unrelated keys', () => {
+  const initial = resetDemoState()
+  const student = profile('student')
+  let observedStatus = initial.users.find(user => user.id === student.userId)?.status
+  let notifications = 0
+  const unsubscribe = subscribeDemoState(() => {
+    notifications += 1
+    observedStatus = loadDemoState().users.find(user => user.id === student.userId)?.status
+  })
+
+  try {
+    window.dispatchEvent({ type: 'storage', key: 'unrelated.application.key' })
+    assert.equal(notifications, 0, 'unrelated localStorage changes must not refresh the Demo store')
+
+    const suspended = {
+      ...initial,
+      users: initial.users.map(user => user.id === student.userId ? { ...user, status: 'Suspended' } : user),
+    }
+    localStorage.setItem('uep.local-demo-data.v5', JSON.stringify(suspended))
+    window.dispatchEvent({ type: 'storage', key: 'uep.local-demo-data.v5' })
+
+    assert.equal(notifications, 1)
+    assert.equal(observedStatus, 'Suspended', 'subscribers must reload the value written by another same-origin tab')
+
+    const reactivated = {
+      ...suspended,
+      users: suspended.users.map(user => user.id === student.userId ? { ...user, status: 'Active' } : user),
+    }
+    localStorage.setItem('uep.local-demo-data.v5', JSON.stringify(reactivated))
+    window.dispatchEvent({ type: 'storage', key: 'uep.local-demo-data.v5' })
+
+    assert.equal(notifications, 2)
+    assert.equal(observedStatus, 'Active')
+    window.dispatchEvent({ type: 'storage', key: null })
+    assert.equal(notifications, 3, 'clear events must refresh the Demo store')
+  } finally {
+    unsubscribe()
+  }
+})
+
 test('authorized attendance changes propagate through the shared persisted state', () => {
   const original = resetDemoState()
   const teacher = profile('teacher')
