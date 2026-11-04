@@ -115,6 +115,7 @@ const NAVIGATION: Record<DemoRole, NavigationItem[]> = {
     { id: 'submissions', label: 'Submission triage' },
     { id: 'attendance', label: 'Attendance' },
     { id: 'activity', label: 'My activity' },
+    { id: 'messages', label: 'Inbox' },
   ],
   evaluator: [
     { id: 'today', label: 'Evaluation overview' },
@@ -126,6 +127,7 @@ const NAVIGATION: Record<DemoRole, NavigationItem[]> = {
     { id: 'mentee', label: 'Mentee progress' },
     { id: 'submissions', label: 'Learning evidence' },
     { id: 'activity', label: 'Mentoring activity' },
+    { id: 'messages', label: 'Inbox' },
   ],
   support: [
     { id: 'today', label: 'Support overview' },
