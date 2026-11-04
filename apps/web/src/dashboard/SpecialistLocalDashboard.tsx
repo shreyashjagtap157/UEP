@@ -271,14 +271,15 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
     changeState(next, 'User invited to the organization.', fresh)
   }
 
-  function sendMessage(subject: string, body: string, recipientId: string) {
+  function sendMessage(subject: string, body: string, recipientId: string): boolean {
     const fresh = loadDemoState()
     const next = sendDemoMessage(fresh, { subject, body, recipientIds: recipientId ? [recipientId] : [] }, profile)
     if (next === fresh) {
-      setNotice('Message was not sent; choose a recipient and enter a subject and message.')
-      return
+      setNotice('Message was not sent; choose an active, authorized recipient and enter a subject and message.')
+      return false
     }
     changeState(next, 'Message sent to the selected recipient.', fresh)
+    return true
   }
 
   function addMaterial(courseId: string, title: string, summary: string) {
@@ -697,25 +698,23 @@ function IntegrationsPanel({ state, profile }: { state: DemoState; profile: Demo
   return <PanelList eyebrow="Integration health" title="Webhook delivery summary" items={state.webhooks.map(item => ({ title: item.name, detail: item.endpoint, status: item.status + ' · ' + item.successfulDeliveries + ' delivered · ' + item.failedDeliveries + ' failed' }))} />
 }
 
-function MessagesPanel({ state, profile, messages, onMarkRead, onSend }: { state: DemoState; profile: DemoProfile; messages: DemoState['messages']; onMarkRead: (id: string) => void; onSend: (subject: string, body: string, recipientId: string) => void }) {
+function MessagesPanel({ state, profile, messages, onMarkRead, onSend }: { state: DemoState; profile: DemoProfile; messages: DemoState['messages']; onMarkRead: (id: string) => void; onSend: (subject: string, body: string, recipientId: string) => boolean }) {
   const unread = messages.filter(message => !message.readBy.includes(profile.userId)).length
   const recipients = messageRecipientsForProfile(state, profile)
   const [recipientId, setRecipientId] = useState(recipients[0]?.id ?? '')
-  const selectedRecipientId = recipients.some(user => user.id === recipientId)
-    ? recipientId
-    : recipients[0]?.id ?? ''
+  const selectedRecipientId = recipients.some(user => user.id === recipientId) ? recipientId : ''
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   function send() {
     if (!selectedRecipientId || !subject.trim() || !body.trim()) return
-    onSend(subject, body, selectedRecipientId)
+    if (!onSend(subject, body, selectedRecipientId)) return
     setSubject('')
     setBody('')
   }
   return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Recipient-scoped communication</p><h3>Inbox</h3></div><span className="count-badge">{unread} unread</span></div>
     {recipients.length > 0 && <div className="local-form" style={{ marginBottom: '1.25rem' }}>
       <p className="eyebrow" style={{ margin: 0 }}>{profile.role === 'student' ? 'Ask a teacher' : 'Send a message'}</p>
-      <label>Recipient<select value={selectedRecipientId} onChange={event => setRecipientId(event.target.value)}>{recipients.map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select></label>
+      <label>Recipient<select value={selectedRecipientId} onChange={event => setRecipientId(event.target.value)}><option value="" disabled>Select an active recipient</option>{recipients.map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select></label>
       <label>Subject<input value={subject} onChange={event => setSubject(event.target.value)} placeholder="Request a meeting or ask a question" /></label>
       <label>Message<textarea value={body} onChange={event => setBody(event.target.value)} rows={3} placeholder="Describe what you need help with" /></label>
       <button type="button" className="primary-button" disabled={!selectedRecipientId || !subject.trim() || !body.trim()} onClick={send}>{profile.role === 'student' ? 'Send request' : 'Send message'}</button>
