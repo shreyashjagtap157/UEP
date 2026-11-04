@@ -701,20 +701,24 @@ function MessagesPanel({ state, profile, messages, onMarkRead, onSend }: { state
   const unread = messages.filter(message => !message.readBy.includes(profile.userId)).length
   const recipients = messageRecipientsForProfile(state, profile)
   const [recipientId, setRecipientId] = useState(recipients[0]?.id ?? '')
+  const selectedRecipientId = recipients.some(user => user.id === recipientId)
+    ? recipientId
+    : recipients[0]?.id ?? ''
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   function send() {
-    onSend(subject, body, recipientId)
+    if (!selectedRecipientId || !subject.trim() || !body.trim()) return
+    onSend(subject, body, selectedRecipientId)
     setSubject('')
     setBody('')
   }
   return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Recipient-scoped communication</p><h3>Inbox</h3></div><span className="count-badge">{unread} unread</span></div>
     {recipients.length > 0 && <div className="local-form" style={{ marginBottom: '1.25rem' }}>
       <p className="eyebrow" style={{ margin: 0 }}>{profile.role === 'student' ? 'Ask a teacher' : 'Send a message'}</p>
-      <label>Recipient<select value={recipientId} onChange={event => setRecipientId(event.target.value)}>{recipients.map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select></label>
+      <label>Recipient<select value={selectedRecipientId} onChange={event => setRecipientId(event.target.value)}>{recipients.map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select></label>
       <label>Subject<input value={subject} onChange={event => setSubject(event.target.value)} placeholder="Request a meeting or ask a question" /></label>
       <label>Message<textarea value={body} onChange={event => setBody(event.target.value)} rows={3} placeholder="Describe what you need help with" /></label>
-      <button type="button" className="primary-button" onClick={send}>{profile.role === 'student' ? 'Send request' : 'Send message'}</button>
+      <button type="button" className="primary-button" disabled={!selectedRecipientId || !subject.trim() || !body.trim()} onClick={send}>{profile.role === 'student' ? 'Send request' : 'Send message'}</button>
     </div>}
     {messages.length ? <div className="local-module-list">{messages.map(message => <article className="local-module" key={message.id}><div><strong>{message.subject}</strong><p>{message.body}</p><small className="muted">From {state.users.find(person => person.id === message.senderId)?.name ?? 'Platform'} · {new Date(message.sentAt).toLocaleString()}</small></div><div><span className="chip">{message.readBy.includes(profile.userId) ? 'Read' : 'Unread'}</span>{!message.readBy.includes(profile.userId) && <button type="button" className="text-button" onClick={() => onMarkRead(message.id)}>Mark as read</button>}</div></article>)}</div> : <p className="muted">No messages are addressed to this account.</p>}
   </section>
