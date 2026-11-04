@@ -15,9 +15,9 @@ const personas = [
   { email: 'guardian@demo.uep', label: 'Parent / Guardian', name: 'Nina Sharma', nav: ['Learner overview', 'Learner progress', 'Assignments & results', 'Calendar', 'Attendance', 'Inbox'] },
   { email: 'exam-controller@demo.uep', label: 'Exam Controller', name: 'Aarav Shah', nav: ['Exam overview', 'Exam schedule', 'Exam submissions', 'Exam activity'] },
   { email: 'finance-admin@demo.uep', label: 'Finance Administrator', name: 'Anaya Joshi', nav: ['Finance overview', 'Invoices & payments'] },
-  { email: 'teaching-assistant@demo.uep', label: 'Teaching Assistant', name: 'Ishaan Patil', nav: ['Teaching overview', 'Assigned classes', 'Submission triage', 'Attendance', 'My activity'] },
+  { email: 'teaching-assistant@demo.uep', label: 'Teaching Assistant', name: 'Ishaan Patil', nav: ['Teaching overview', 'Assigned classes', 'Submission triage', 'Attendance', 'My activity', 'Inbox'] },
   { email: 'evaluator@demo.uep', label: 'Evaluator', name: 'Sara Khan', nav: ['Evaluation overview', 'Grading queue', 'Evaluation activity'] },
-  { email: 'mentor@demo.uep', label: 'Mentor', name: 'Rohan Mehta', nav: ['Mentor overview', 'Mentee progress', 'Learning evidence', 'Mentoring activity'] },
+  { email: 'mentor@demo.uep', label: 'Mentor', name: 'Rohan Mehta', nav: ['Mentor overview', 'Mentee progress', 'Learning evidence', 'Mentoring activity', 'Inbox'] },
   { email: 'support@demo.uep', label: 'Support Operator', name: 'Alex Support', nav: ['Support overview', 'Support queue'] },
   { email: 'auditor@demo.uep', label: 'Auditor', name: 'Jordan Audit', nav: ['Audit overview', 'Audit log'] },
 ]
