@@ -70,7 +70,7 @@ test('SQLite mode: local-authenticated Real UI, API write/readback and durable S
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(navigation).toHaveCSS('display', 'flex')
   await expect(navigation).toHaveCSS('overflow-x', 'auto')
-  await expect(navigation).toHaveCSS('scroll-snap-type', 'x proximity')
+  await expect(navigation).toHaveCSS('scroll-snap-type', 'x')
   await page.setViewportSize({ width: 1440, height: 900 })
 
   await page.getByRole('button', { name: 'Organization', exact: true }).click()
