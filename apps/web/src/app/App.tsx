@@ -243,6 +243,12 @@ export function App() {
             type="search"
             value={navFilter}
             onChange={event => setNavFilter(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Escape' && navFilter) {
+                event.preventDefault()
+                setNavFilter('')
+              }
+            }}
             placeholder="Find a section…"
             autoComplete="off"
           />
