@@ -38,6 +38,38 @@ test.describe('Layer A: Recipient-scoped inbox communication', () => {
     await expect(delivered.locator('.chip')).toHaveText('Read')
   })
 
+  test('an open Inbox drops a suspended recipient and selects a still-authorized contact', async ({ page }) => {
+    await signInToDemo(page, 'student@demo.uep')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Inbox', exact: true }).click()
+
+    const recipient = page.getByLabel('Recipient')
+    await expect(recipient).toHaveValue('teacher-rahul')
+    await expect(recipient.locator('option')).toContainText('Rahul Deshmukh · Teacher')
+
+    // Simulate an account suspension arriving from another open workspace/tab.
+    await page.evaluate(() => {
+      const key = 'uep.local-demo-data.v5'
+      const raw = window.localStorage.getItem(key)
+      if (!raw) throw new Error('The seeded Demo state was not persisted.')
+      const state = JSON.parse(raw) as {
+        users: Array<{ id: string; status: string }>
+      }
+      state.users = state.users.map(user =>
+        user.id === 'teacher-rahul' ? { ...user, status: 'Suspended' } : user,
+      )
+      window.localStorage.setItem(key, JSON.stringify(state))
+      window.dispatchEvent(new Event('uep:local-demo-data-updated'))
+    })
+
+    await expect(recipient.locator('option').filter({ hasText: 'Rahul Deshmukh' })).toHaveCount(0)
+    await expect(recipient).toHaveValue('ta-ishaan')
+    await expect(page.getByRole('button', { name: 'Send request', exact: true })).toBeDisabled()
+
+    await page.getByLabel('Subject').fill('Question for the active teaching assistant')
+    await page.getByLabel('Message').fill('Could you help with the assigned class?')
+    await expect(page.getByRole('button', { name: 'Send request', exact: true })).toBeEnabled()
+  })
+
   test('guardian recipient options remain limited to same-institution teaching contacts', async ({ page }) => {
     await signInToDemo(page, 'guardian@demo.uep')
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Inbox', exact: true }).click()
