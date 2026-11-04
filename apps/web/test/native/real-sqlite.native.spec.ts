@@ -16,7 +16,7 @@ function localState(): LocalBootstrapState {
   return JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, '')) as LocalBootstrapState
 }
 
-test('SQLite mode: local-authenticated Real UI, API write/readback and durable SQLite file', async ({ page, request }) => {
+test('SQLite mode: local-authenticated Real UI, API persistence and working sign-out', async ({ page, request }) => {
   const state = localState()
   test.skip(state.DatabaseProvider !== 'SQLite', 'SQLite native checks run only in SQLite qualification mode')
   expect(typeof state.SQLiteDatabasePath).toBe('string')
@@ -125,4 +125,24 @@ test('SQLite mode: local-authenticated Real UI, API write/readback and durable S
   } finally {
     closeSync(databaseHandle)
   }
+
+  const logoutPromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend && url.pathname === '/api/v1/local/session/logout'
+      && response.request().method() === 'POST'
+  })
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click()
+  const logoutResponse = await logoutPromise
+  expect(logoutResponse.status()).toBe(204)
+  const logoutHeaders = await logoutResponse.request().allHeaders()
+  expect(logoutHeaders['x-uep-local-auth']).toBeUndefined()
+  expect(logoutHeaders.authorization).toBeUndefined()
+
+  await expect(page.getByRole('heading', { name: 'Signed out', exact: true })).toBeVisible()
+  await expect(page.locator('.app-frame')).toHaveCount(0)
+
+  // The proxy still supplies its server-side launcher credential, but the API
+  // must reject it after the UI-triggered revocation.
+  const afterLogoutIdentity = await request.get(`${frontend}/api/v1/me`)
+  expect(afterLogoutIdentity.status()).toBe(401)
 })
