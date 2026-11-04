@@ -9,6 +9,33 @@ Present two honest views of the same project:
 
 These are two independent environments. The Offline Demo is not connected to the Real application and does not use its API session or SQLite database. The Real application is not a production deployment, and the SQLite profile is narrower than PostgreSQL production/CI qualification.
 
+## Account groups and user responsibilities
+
+The Offline Demo presents three groups so the audience can understand how responsibility is divided across UEP:
+
+**1. Platform team**
+- **Platform Developer:** builds and operates the platform, manages technical integrations and webhook health, and supports platform-level operations. This workspace does not expose student learning content, course authoring or assignment queues.
+- **Product Maintainer:** owns the educational product catalogue, drafts, release review, versioning and publishing. This is a distinct product lifecycle role, not the integrations-focused Developer role.
+- **Support Operator:** handles institution support cases and issue triage, with academic details restricted by the support view.
+- **Platform Administrator:** manages platform-wide accounts, organizations, configuration and operations.
+- **Auditor:** reviews audit activity and compliance records in a read-only workspace.
+
+**2. Client & institution management**
+- **Client / Institution:** represents the institution's leadership/administrative contact and sees its programs, people, service actions, delivery schedule and outcomes.
+- **Finance Administrator:** manages institution invoices, payments and account status.
+- **Exam Controller:** oversees examination schedules, exam-linked submissions and examination operations.
+- In the connected tenant model, institution management is further divided into Organization Administrator, Branch Administrator and Academic Administrator permissions. Those roles are scoped by the tenant and branch; they are not interchangeable with the platform Developer.
+
+**3. Institution teaching & learning**
+- **Teacher:** manages assigned classes, learners, submissions, grading, attendance and course materials.
+- **Teaching Assistant:** supports assigned classes, attendance and submission triage.
+- **Evaluator:** works on assigned assessment and grading queues.
+- **Mentor:** follows the progress and evidence of linked learners.
+- **Student:** sees their enrolled learning, assignments, results, schedule and attendance.
+- **Parent / Guardian:** sees only progress and records for the learner linked to that guardian.
+
+The Offline Demo includes 14 seeded personas across those groups. Use **Switch user** in an authenticated Demo workspace to sign out and return to the grouped account selector. The Real local-native app deliberately has one persisted Organization Owner, not 14 simulated backend users. Its **Sign out** button revokes the active launcher session in the Spring process; restart the PowerShell launcher before reconnecting to Real UEP. The separate Offline Demo remains available for role exploration. Production OIDC users have the normal identity-provider Sign out flow.
+
 ## One-command launch
 
 From the repository root on Windows, the default command starts both Real UEP and the separate Offline Demo:
@@ -74,8 +101,9 @@ Say: “This is the actual UEP application path. The frontend calls the Spring B
 3. Explain the request path: Browser (no credential header) → same-origin Vite proxy (adds the launcher token server-side) → Spring Boot → selected local database. The browser never connects directly to the database.
 4. Open Organization and, after the local SQLite native smoke has passed, create a uniquely named branch. Reload the page and show that it is returned by the backend again.
 5. Optionally show role/permission or security surfaces only after rehearsing those exact operations in this SQLite runtime. Do not use visible navigation or source-code presence as proof that every module works end to end.
+6. As the final Real interaction, click **Sign out**. Expect the signed-out screen; this revokes the running local-native launcher session. Restart the launcher before reconnecting. Do not sign out while further Real workflow steps are still needed.
 
-The branch create/readback step is the current primary real integration proof for SQLite mode. If the native Windows smoke test has not been run successfully, do not claim that step as verified; show the screen as an implementation preview and call the live workflow unqualified.
+The branch create/readback and local sign-out steps are covered by the current Windows CI browser qualification. Verify them once on the actual presentation workstation before relying on them in a live presentation. If the native Windows smoke test has not been run successfully, do not claim that step as verified; show the screen as an implementation preview and call the live workflow unqualified.
 
 ### Offline demo walkthrough — seeded academic journey
 
@@ -84,8 +112,8 @@ Say: “I will now switch to the separate offline demo. These records are seeded
 1. Student Today — show role-specific sample metrics and pending tasks.
 2. My Learning and Calendar & classes — show the seeded courses, materials, progress and schedule.
 3. Assignments — submit one prepared assignment; say that this changes local demo state only.
-4. Sign out and select Teacher — open Submission queue and grade the prepared sample submission.
-5. Return to Student — show Results & feedback.
+4. Select **Switch user** in the workspace header, choose Teacher from Institution teaching & learning, then open Submission queue and grade the prepared sample submission.
+5. Switch back to Student — show Results & feedback.
 6. Optionally show sample Attendance or Inbox direct messaging.
 
 Limitations to state when relevant:
@@ -101,7 +129,8 @@ Limitations to state when relevant:
 |---|---|
 | Offline student/teacher workspace and seeded academic journey | Demo implementation; browser-local state only |
 | Local API session and tenant identity in Real UEP | Real native SQLite browser test must pass on the presentation machine |
-| Branch API write and readback after reload | Real native SQLite browser test must pass on the presentation machine |
+| Branch API write and readback after reload | Real native SQLite browser test passed in GitHub Windows CI run #1322; repeat on the presentation machine |
+| Real local-native Sign out revokes the launcher session | Sign out browser test passed in GitHub Windows CI run #1322; repeat on the presentation machine |
 | SQLite schema generation and tenant persistence | Backend SQLite integration test in CI |
 | PostgreSQL migrations, UUIDv7 and restricted runtime grants | PostgreSQL CI matrix only; not proven by SQLite |
 | Other domain workspaces (assessment, announcements, finance, integrations, analytics, live learning) | Describe as source implementation unless separately runtime-tested in the active local profile |
@@ -109,9 +138,10 @@ Limitations to state when relevant:
 
 ## Before presenting
 
-- Sync the latest repository `main`.
+- Sync the product branch being demonstrated; for this workstream use `feat/product-ui-role-navigation-auth-session` until it is merged.
 - Run the launcher once in Presentation mode and confirm both windows display their correct environment labels.
 - Open Real UEP and complete the local-authenticated branch create/reload/readback smoke.
+- Exercise Real **Sign out** as the final Real action, verify the signed-out screen, and restart the launcher if the Real session is needed again. The GitHub Windows CI run does not replace this workstation-specific preflight.
 - Prepare the Student and Teacher offline demo flow and verify the seeded records still appear.
 - Close unrelated browser tabs; keep Real at :5173 and Demo at :5174.
 - Keep local credential files private. Do not paste or put passwords into the presentation.
@@ -122,5 +152,5 @@ Limitations to state when relevant:
 
 - SQLite profile disables Flyway and PostgreSQL-specific background workers.
 - SQLite is not a replacement for PostgreSQL production/CI qualification.
-- The native Playwright Real-mode tests must be executed on Windows; Linux CI only validates test discovery.
+- Run #1322 executed the native Real-mode Playwright test and 32-test Offline Demo regression on GitHub's Windows runner. The actual presentation workstation still needs a preflight because runner success does not verify its local paths, services or configuration.
 - The full UEP implementation and production qualification are ongoing. This presentation demonstrates the current working slice and the curated offline role experience, not completion of the entire platform.

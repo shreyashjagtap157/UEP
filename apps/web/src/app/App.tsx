@@ -6,6 +6,8 @@ import {
   enrollPasskey,
   isAuthenticated as isOidcAuthenticated,
   logout,
+  markLocalApiSessionEnded,
+  reconnectLocalApiSession,
   onOidcStatus,
   openAccountManagement,
   signIn,
@@ -43,6 +45,8 @@ import {
   fetchOrganizationSettings,
   fetchPlatformVersion,
   fetchRoles,
+  logoutLocalDevelopmentSession,
+  PlatformApiError,
   fetchRoleAssignments,
   provisionMembership,
   revokeOwnSession,
@@ -53,8 +57,10 @@ import {
   unassignRole,
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, MemberView, OrganizationSettings, PermissionKey, RoleAssignmentView, RoleView } from '../platform/api'
+import { buildWorkspaceNavigation, filterWorkspaceNavigation } from './workspace-navigation'
+import type { WorkspaceSection } from './workspace-navigation'
 
-type Section = 'overview' | 'advanced' | 'integrations' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
+type Section = WorkspaceSection
 
 const permissionOptions: PermissionKey[] = [
   'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
@@ -75,6 +81,7 @@ const permissionOptions: PermissionKey[] = [
 
 export function App() {
   const [section, setSection] = useState<Section>('overview')
+  const [navFilter, setNavFilter] = useState('')
   const [oidcAuthenticated, setOidcAuthenticated] = useState<boolean>(() => isOidcAuthenticated())
   const [signInPending, setSignInPending] = useState(false)
   const [signInError, setSignInError] = useState<string | null>(null)
@@ -84,6 +91,18 @@ export function App() {
   const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated && !localMode })
 
   useEffect(() => onOidcStatus(setOidcAuthenticated), [])
+
+  // A local-native logout revokes the single launcher session for every tab.
+  // Tabs whose sessionStorage marker is absent or unavailable also transition
+  // to the signed-out screen when their next authenticated identity read returns 401.
+  useEffect(() => {
+    if (localApiMode && identity.isError
+        && identity.error instanceof PlatformApiError && identity.error.status === 401) {
+      queryClient.clear()
+      markLocalApiSessionEnded()
+      setOidcAuthenticated(false)
+    }
+  }, [identity.error, identity.isError, queryClient])
 
   // Determine initial dashboard section based on user role after authentication
   useEffect(() => {
@@ -125,14 +144,30 @@ export function App() {
   }
 
   function handleSignOut() {
-    queryClient.clear()
-    // Clear any local demo session if in local mode
+    // Clear the Offline Demo tab session and return to its own account selector.
     if (localMode) {
+      queryClient.clear()
       sessionStorage.removeItem('uep-local-account')
       setOidcAuthenticated(false)
       setSignInPending(false)
+      return
     }
-    // Perform Keycloak logout for production mode
+    // Revoke the real in-process launcher session before changing browser state.
+    if (localApiMode) {
+      setSignInPending(true)
+      setSignInError(null)
+      void logoutLocalDevelopmentSession()
+        .then(() => {
+          queryClient.clear()
+          markLocalApiSessionEnded()
+          setOidcAuthenticated(false)
+        })
+        .catch(error => setSignInError(error instanceof Error ? error.message : 'The local session could not be revoked.'))
+        .finally(() => setSignInPending(false))
+      return
+    }
+    queryClient.clear()
+    // Perform Keycloak logout for production OIDC sessions.
     void logout()
       .then(() => {
         setOidcAuthenticated(false)
@@ -143,6 +178,23 @@ export function App() {
         setOidcAuthenticated(false)
         setSignInPending(false)
       })
+  }
+
+  if (!oidcAuthenticated && localApiMode) {
+    return (
+      <main className="centered-status">
+        <section className="hero-card">
+          <p className="eyebrow">Real UEP · local-native session</p>
+          <h1>Signed out</h1>
+          <p>The launcher-managed Organization Owner session has been revoked by the API. To start a fresh Real UEP session, stop and restart the PowerShell launcher, then reconnect here. This local-native mode has one owner identity; use the separate Offline Demo to explore other roles.</p>
+          <div className="button-row">
+            <button className="primary-button" onClick={() => { reconnectLocalApiSession(); window.location.reload() }}>Reconnect after restarting the launcher</button>
+            <a className="secondary-button" href="http://127.0.0.1:5174/" target="_blank" rel="noopener noreferrer">Open demo accounts</a>
+          </div>
+          {signInError && <p className="error-text" role="alert">{signInError}</p>}
+        </section>
+      </main>
+    )
   }
 
   if (!oidcAuthenticated) {
@@ -170,28 +222,11 @@ export function App() {
 
   const me = identity.data
   const initials = me.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('') || 'U'
-  const nav: Array<{ id: Section; label: string; visible: boolean }> = [
-    { id: 'overview', label: 'Today', visible: true },
-    { id: 'analytics', label: 'Analytics & Operations', visible: has(me, 'ANALYTICS_VIEW') },
-    { id: 'integrations', label: 'Integrations', visible: has(me, 'API_VIEW') || has(me, 'WEBHOOKS_VIEW') || has(me, 'FEDERATION_VIEW') || has(me, 'INTEROPERABILITY_VIEW') },
-    { id: 'live', label: 'Live Learning', visible: has(me, 'LIVE_CLASS_VIEW') || has(me, 'LIVE_CLASS_MANAGE') },
-    { id: 'recordings', label: 'Recordings', visible: has(me, 'RECORDINGS_VIEW') || has(me, 'RECORDINGS_MANAGE') },
-    { id: 'finance', label: 'Finance', visible: has(me, 'FINANCE_VIEW') || has(me, 'FINANCE_MANAGE') },
-    { id: 'schedule', label: 'Schedule', visible: hasScoped(me, 'SCHEDULE_VIEW') },
-    { id: 'announcements', label: 'Announcements', visible: hasScoped(me, 'ANNOUNCEMENTS_VIEW') },
-    { id: 'notifications', label: 'Notifications', visible: true },
-    { id: 'assessment', label: 'Assessments', visible: has(me, 'ASSESSMENTS_VIEW') || has(me, 'ASSESSMENTS_TAKE') },
-    { id: 'assignments', label: 'Assignments', visible: has(me, 'ASSIGNMENTS_VIEW') || has(me, 'ASSIGNMENTS_TAKE') || has(me, 'GRADEBOOK_VIEW') },
-    { id: 'content', label: 'Learning Content', visible: has(me, 'CONTENT_VIEW') },
-    { id: 'academics', label: 'Academics', visible: has(me, 'ACADEMICS_VIEW') || has(me, 'CURRICULUM_VIEW') },
-    { id: 'advanced', label: 'Advanced Academics', visible: has(me, 'LEARNING_OUTCOMES_MANAGE') || has(me, 'CREDENTIALS_MANAGE') || has(me, 'MENTORING_MANAGE') || has(me, 'SURVEYS_MANAGE') || has(me, 'LEARNING_OUTCOMES_VIEW') || has(me, 'CREDENTIALS_VIEW') || has(me, 'MENTORING_VIEW') || has(me, 'SURVEYS_VIEW') || has(me, 'FEEDBACK_MANAGE') },
-    { id: 'enrollment', label: 'Enrollment', visible: has(me, 'ENROLLMENTS_VIEW') || has(me, 'TEACHING_ASSIGNMENTS_VIEW') },
-    { id: 'people', label: 'People', visible: has(me, 'USERS_VIEW') },
-    { id: 'roles', label: 'Roles', visible: has(me, 'ROLES_VIEW') },
-    { id: 'organization', label: 'Organization', visible: has(me, 'ORGANIZATION_VIEW') || has(me, 'BRANCHES_VIEW') },
-    { id: 'security', label: 'Security', visible: true },
-    
-  ]
+  const navGroups = buildWorkspaceNavigation({
+    has: permission => has(me, permission),
+    hasScoped: permission => hasScoped(me, permission),
+  })
+  const visibleNavGroups = filterWorkspaceNavigation(navGroups, navFilter)
 
   return (
     <div className="app-frame">
@@ -200,13 +235,46 @@ export function App() {
           <p className="product-kicker">Universal Education</p>
           <h1 className="product-title">Operations Platform</h1>
         </div>
-        <nav aria-label="Primary navigation" className="nav-list">
-          {nav.filter(item => item.visible).map(item => (
-            <button key={item.id} className={section === item.id ? 'nav-item active' : 'nav-item'} onClick={() => setSection(item.id)}>
-              {item.label}
-            </button>
-          ))}
-        </nav>
+        <div className="sidebar-navigation">
+          <label className="sr-only" htmlFor="workspace-navigation-filter">Filter workspace sections</label>
+          <input
+            id="workspace-navigation-filter"
+            className="nav-filter"
+            type="search"
+            value={navFilter}
+            onChange={event => setNavFilter(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Escape' && navFilter) {
+                event.preventDefault()
+                setNavFilter('')
+              }
+            }}
+            placeholder="Find a section…"
+            autoComplete="off"
+          />
+          <nav aria-label="Primary navigation" className="nav-list">
+            {visibleNavGroups.length > 0 ? visibleNavGroups.map(group => (
+              <section className="nav-group" key={group.label} aria-label={group.label}>
+                <h2 className="nav-group-title">{group.label}</h2>
+                <div className="nav-group-items">
+                  {group.items.map(item => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={section === item.id ? 'nav-item active' : 'nav-item'}
+                      aria-current={section === item.id ? 'page' : undefined}
+                      onClick={() => setSection(item.id)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )) : (
+              <p className="nav-empty" role="status">No sections match “{navFilter.trim()}”.</p>
+            )}
+          </nav>
+        </div>
         <div className="sidebar-footer">
           <p className="signed-in">{me.displayName}</p>
           <p className="muted small">{me.roles.join(' · ') || 'No assigned role'}</p>
@@ -238,13 +306,15 @@ export function App() {
               </span>
               {localApiMode
                 ? (<>
-                    <span className="chip" title="Local-only session; restart the launcher to rotate it">Local API session</span>
-                    <button className="secondary-button" onClick={handleSignOut} title="End your session">Sign out</button>
+                    <span className="chip" title="The local owner session is managed by the PowerShell launcher">Launcher-managed session</span>
+                    <button className="secondary-button" disabled={signInPending} onClick={handleSignOut} title="Revoke and sign out of this local owner session">{signInPending ? 'Signing out…' : 'Sign out'}</button>
+                    <a className="secondary-button" href="http://127.0.0.1:5174/" target="_blank" rel="noopener noreferrer" title="Open the separate Offline Demo account selector">Open demo accounts</a>
                   </>)
-                : <button className="secondary-button" onClick={handleSignOut} title="End your session">Sign out</button>}
+                : <button className="secondary-button" onClick={handleSignOut} title="Sign out of UEP">Sign out</button>}
             </div>
           </div>
         </header>
+        {signInError && <p className="error-text" role="alert">{signInError}</p>}
 
         {section === 'overview' && <Overview me={me} />}
         {section === 'advanced' && <AdvancedAcademicWorkspace me={me} />}
@@ -277,9 +347,9 @@ function Overview({ me }: { me: CurrentIdentity }) {
       <section className="hero-card">
         <p className="eyebrow">Today</p>
         <h3>Welcome, {me.displayName}</h3>
-        <p>Your classes, examinations, institutional operations, announcements, and unread work are brought together here.</p>
+        <p>Your workspace summary reflects the responsibilities and permissions assigned to your current membership.</p>
       </section>
-      <TodayOverview />
+      <TodayOverview enabled={hasScoped(me, 'SCHEDULE_VIEW') || hasScoped(me, 'SCHEDULE_MANAGE')} />
       <section className="metric-grid" aria-label="Identity overview">
         <Metric label="Membership" value={me.membershipStatus} />
         <Metric label="Roles" value={String(me.roles.length)} />
@@ -692,7 +762,7 @@ function Security({ me }: { me: CurrentIdentity }) {
           <Metric label="WebAuthn evidence" value={assurance.webAuthnEvidence ? 'Present' : 'Not present'} />
         </div>
         {localApiMode
-          ? <p className="muted small">Keycloak is intentionally not started in this local demonstration. The launcher-issued session is accepted only from loopback and maps to a persisted local owner membership. OIDC, OTP and passkey enrollment remain unchanged outside this local profile.</p>
+          ? <p className="muted small">Keycloak is intentionally not started in this local-native profile. This Real UEP window uses one persisted Organization Owner identity and a launcher-managed loopback session; it does not impersonate seeded personas. Sign out revokes the current local session in the running API process; restart the PowerShell launcher before reconnecting to Real UEP. Use Open demo accounts to explore the separate role-specific demo identities. Production OIDC sessions retain the normal identity-provider Sign out flow.</p>
           : <div className="button-row">
               <button className="primary-button" onClick={() => void enrollPasskey()}>Register passkey</button>
               <button className="secondary-button" onClick={() => void enrollOtp()}>Configure OTP</button>
