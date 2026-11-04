@@ -62,11 +62,13 @@ test.describe('Layer A: Recipient-scoped inbox communication', () => {
     })
 
     await expect(recipient.locator('option').filter({ hasText: 'Rahul Deshmukh' })).toHaveCount(0)
-    await expect(recipient).toHaveValue('ta-ishaan')
-    await expect(page.getByRole('button', { name: 'Send request', exact: true })).toBeDisabled()
-
+    await expect(recipient).toHaveValue('')
     await page.getByLabel('Subject').fill('Question for the active teaching assistant')
     await page.getByLabel('Message').fill('Could you help with the assigned class?')
+    await expect(page.getByRole('button', { name: 'Send request', exact: true })).toBeDisabled()
+
+    // Removing a selected recipient must not silently redirect the message.
+    await recipient.selectOption('ta-ishaan')
     await expect(page.getByRole('button', { name: 'Send request', exact: true })).toBeEnabled()
   })
 
