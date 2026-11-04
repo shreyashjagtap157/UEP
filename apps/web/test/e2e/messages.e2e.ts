@@ -138,7 +138,7 @@ test.describe('Layer A: Recipient-scoped inbox communication', () => {
     await signInToDemo(page, 'guardian@demo.uep')
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Inbox', exact: true }).click()
 
-    const labels = await page.getByLabel('Recipient').locator('option').allTextContents()
+    const labels = await page.getByLabel('Recipient').locator('option:not([value=""])').allTextContents()
     expect(labels.length).toBeGreaterThan(0)
     expect(labels.every(label => /Teacher|Teaching Assistant|Mentor/.test(label))).toBe(true)
     expect(labels.some(label => /Student|Client Administrator|Platform Developer|Finance Administrator/.test(label))).toBe(false)
