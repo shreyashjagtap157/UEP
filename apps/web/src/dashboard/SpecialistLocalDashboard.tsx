@@ -710,6 +710,7 @@ function IntegrationsPanel({ state, profile }: { state: DemoState; profile: Demo
 
 function MessagesPanel({ state, profile, messages, onMarkRead, onSend }: { state: DemoState; profile: DemoProfile; messages: DemoState['messages']; onMarkRead: (id: string) => void; onSend: (subject: string, body: string, recipientId: string) => boolean }) {
   const unread = messages.filter(message => !message.readBy.includes(profile.userId)).length
+  const activeSender = activeUserForProfile(state, profile)
   const recipients = messageRecipientsForProfile(state, profile)
   const [recipientId, setRecipientId] = useState(recipients[0]?.id ?? '')
   const selectedRecipientId = recipients.some(user => user.id === recipientId) ? recipientId : ''
@@ -722,7 +723,9 @@ function MessagesPanel({ state, profile, messages, onMarkRead, onSend }: { state
     setBody('')
   }
   return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Recipient-scoped communication</p><h3>Inbox</h3></div><span className="count-badge">{unread} unread</span></div>
-    {recipients.length > 0 && <div className="local-form" style={{ marginBottom: '1.25rem' }}>
+    {!activeSender && <p className="muted" role="status">Messaging is unavailable because this account is inactive.</p>}
+    {activeSender && recipients.length === 0 && <p className="muted" role="status">No active recipients are currently available for this account.</p>}
+    {activeSender && recipients.length > 0 && <div className="local-form" style={{ marginBottom: '1.25rem' }}>
       <p className="eyebrow" style={{ margin: 0 }}>{profile.role === 'student' ? 'Ask a teacher' : 'Send a message'}</p>
       <label>Recipient<select value={selectedRecipientId} onChange={event => setRecipientId(event.target.value)}><option value="" disabled>Select an active recipient</option>{recipients.map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select></label>
       <label>Subject<input value={subject} onChange={event => setSubject(event.target.value)} placeholder="Request a meeting or ask a question" /></label>
