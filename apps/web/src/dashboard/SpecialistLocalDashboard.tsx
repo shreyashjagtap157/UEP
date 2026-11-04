@@ -303,7 +303,17 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
           <p className="muted small">{profile.name}</p>
         </div>
         <nav aria-label="Primary navigation" className="nav-list">
-          {nav.map(item => <button key={item.id} className={section === item.id ? 'nav-item active' : 'nav-item'} onClick={() => openSection(item.id)}>{item.label}</button>)}
+          {nav.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              className={section === item.id ? 'nav-item active' : 'nav-item'}
+              aria-current={section === item.id ? 'page' : undefined}
+              onClick={() => openSection(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
         <div className="sidebar-footer">
           <p className="signed-in">{profile.email}</p>
@@ -362,7 +372,7 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
         {section === 'activity' && <PanelList eyebrow={profile.role === 'auditor' ? 'Compliance' : 'Scoped activity'} title={profile.role === 'auditor' ? 'Audit log' : 'Relevant recorded activity'} items={activity.map(item => ({ title: item.action, detail: `${item.at} · ${item.actor} · ${item.detail}`, status: 'Recorded' }))} />}
         {section === 'finance' && <FinanceScopePanel invoices={financeInvoices} users={state.users} />}
         {section === 'support' && <SupportScopePanel state={state} profile={profile} onStatus={updateSupportCase} />}
-        <section className="panel" aria-live="polite"><p>{notice}</p></section>
+        <section className="panel" role="status" aria-live="polite" aria-atomic="true"><p>{notice}</p></section>
       </main>
     </div>
   )
