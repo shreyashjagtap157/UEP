@@ -46,8 +46,11 @@ test.describe('Layer A: Recipient-scoped inbox communication', () => {
     await expect(recipient).toHaveValue('teacher-rahul')
     await expect(recipient.locator('option')).toContainText('Rahul Deshmukh · Teacher')
 
-    // Simulate an account suspension arriving from another open workspace/tab.
-    await page.evaluate(() => {
+    // Suspend the selected contact from a second same-origin tab. The first
+    // tab must react through the browser's real cross-document StorageEvent.
+    const updater = await page.context().newPage()
+    await updater.goto('/')
+    await updater.evaluate(() => {
       const key = 'uep.local-demo-data.v5'
       const raw = window.localStorage.getItem(key)
       if (!raw) throw new Error('The seeded Demo state was not persisted.')
@@ -58,8 +61,8 @@ test.describe('Layer A: Recipient-scoped inbox communication', () => {
         user.id === 'teacher-rahul' ? { ...user, status: 'Suspended' } : user,
       )
       window.localStorage.setItem(key, JSON.stringify(state))
-      window.dispatchEvent(new Event('uep:local-demo-data-updated'))
     })
+    await updater.close()
 
     await expect(recipient.locator('option').filter({ hasText: 'Rahul Deshmukh' })).toHaveCount(0)
     await expect(recipient).toHaveValue('')
