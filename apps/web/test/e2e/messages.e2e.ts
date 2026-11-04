@@ -44,7 +44,8 @@ test.describe('Layer A: Recipient-scoped inbox communication', () => {
 
     const recipient = page.getByLabel('Recipient')
     await expect(recipient).toHaveValue('teacher-rahul')
-    await expect(recipient.locator('option')).toContainText('Rahul Deshmukh · Teacher')
+    const initialRecipientLabels = await recipient.locator('option').allTextContents()
+    expect(initialRecipientLabels).toContain('Rahul Deshmukh · Teacher')
 
     // Suspend the selected contact from a second same-origin tab. The first
     // tab must react through the browser's real cross-document StorageEvent.
