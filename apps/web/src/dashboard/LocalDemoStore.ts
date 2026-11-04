@@ -861,12 +861,17 @@ export interface DemoMessageInput {
   recipientIds: string[]
 }
 
-function canMessageRecipient(actor: DemoProfile, current: DemoUser, recipient: DemoUser): boolean {
+function canMessageRecipient(state: DemoState, actor: DemoProfile, current: DemoUser, recipient: DemoUser): boolean {
   if (recipient.id === current.id || recipient.status !== 'Active') return false
   if (actor.role === 'admin') return true
   if (recipient.organization !== current.organization) return false
   if (actor.role === 'student' || actor.role === 'guardian') {
-    return recipient.role === 'Teacher' || recipient.role === 'Teaching Assistant' || recipient.role === 'Mentor'
+    const learner = actor.role === 'student' ? current : linkedLearnerForProfile(state, actor)
+    if (!learner) return false
+    const enrolledPublishedCourses = new Set(learner.courseIds.filter(courseId =>
+      courseFor(state, courseId)?.status === 'Published'))
+    return (recipient.role === 'Teacher' || recipient.role === 'Teaching Assistant' || recipient.role === 'Mentor')
+      && recipient.courseIds.some(courseId => enrolledPublishedCourses.has(courseId))
   }
   return true
 }
@@ -878,7 +883,7 @@ export function sendDemoMessage(state: DemoState, input: DemoMessageInput, actor
   const body = input.body.trim()
   if (!subject || !body || input.recipientIds.length === 0) return state
   const recipients = state.users.filter(user =>
-    input.recipientIds.includes(user.id) && canMessageRecipient(actor, current, user))
+    input.recipientIds.includes(user.id) && canMessageRecipient(state, actor, current, user))
   if (!recipients.length) return state
   const message: DemoMessage = {
     id: 'message-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
@@ -919,7 +924,7 @@ export function addDemoMaterial(state: DemoState, input: { courseId: string; tit
 export function messageRecipientsForProfile(state: DemoState, profile: DemoProfile): DemoUser[] {
   const current = activeActor(state, profile)
   if (!current) return []
-  return state.users.filter(user => canMessageRecipient(profile, current, user))
+  return state.users.filter(user => canMessageRecipient(state, profile, current, user))
 }
 
 export function submissionsForProfile(state: DemoState, profile: DemoProfile): DemoSubmission[] {
