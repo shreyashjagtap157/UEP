@@ -13,6 +13,7 @@ const ACCOUNT_GROUPS: Array<{ title: string; description: string; roles: DemoRol
 
 export function LocalExperience() {
   const [account, setAccount] = useState<LocalAccount | null>(() => readSessionAccount())
+  const [sessionNotice, setSessionNotice] = useState('')
   useEffect(() => subscribeDemoState(() => {
     const raw = sessionStorage.getItem('uep-local-account')
     if (!raw) return
@@ -21,23 +22,27 @@ export function LocalExperience() {
       const current = demoAccounts.find(item => item.email === parsed.email && item.role === parsed.role)
       if (!current || !activeUserForProfile(loadDemoState(), current.profile)) {
         sessionStorage.removeItem('uep-local-account')
+        setSessionNotice('Your demo session ended because this account is inactive. Sign in with an active account or ask an administrator to reactivate it.')
         setAccount(null)
       }
     } catch {
       sessionStorage.removeItem('uep-local-account')
+      setSessionNotice('Your demo session could not be validated. Sign in again.')
       setAccount(null)
     }
   }), [])
   function handleLogin(nextAccount: LocalAccount) {
     sessionStorage.setItem('uep-local-account', JSON.stringify(nextAccount))
+    setSessionNotice('')
     setAccount(nextAccount)
   }
   function handleLogout() {
     sessionStorage.removeItem('uep-local-account')
+    setSessionNotice('')
     setAccount(null)
   }
 
-  if (!account) return <LocalLogin onLogin={handleLogin} />
+  if (!account) return <LocalLogin onLogin={handleLogin} notice={sessionNotice} />
   return <SpecialistLocalDashboard profile={account.profile} onSignOut={handleLogout} />
 }
 
@@ -61,7 +66,7 @@ function readSessionAccount(): LocalAccount | null {
   }
 }
 
-function LocalLogin({ onLogin }: { onLogin: (account: LocalAccount) => void }) {
+function LocalLogin({ onLogin, notice }: { onLogin: (account: LocalAccount) => void; notice?: string }) {
   const [email, setEmail] = useState('student@demo.uep')
   const [password, setPassword] = useState('demo')
   const [error, setError] = useState('')
@@ -93,6 +98,7 @@ function LocalLogin({ onLogin }: { onLogin: (account: LocalAccount) => void }) {
         <p className="eyebrow">Demo sign in</p>
         <h2 id="local-login-title">Enter your workspace</h2>
         <p className="local-login-help">Use a supplied account below. The password for every account is <strong>demo</strong>.</p>
+        {notice && <p className="muted" role="status">{notice}</p>}
         <form className="local-login-form" onSubmit={submit}>
           <label>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="student@demo.uep" autoComplete="username" /></label>
           <label>Password<input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" /></label>
