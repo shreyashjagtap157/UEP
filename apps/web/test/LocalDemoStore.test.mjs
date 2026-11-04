@@ -791,11 +791,10 @@ test('message discovery and send mutations enforce one shared recipient policy',
 
   const mixedRecipientMessage = sendDemoMessage(state, {
     subject: 'Question for my teacher',
-    body: 'Only the authorized teacher should receive this message.',
+    body: 'A mixed authorized and unauthorized audience must be rejected atomically.',
     recipientIds: ['teacher-rahul', 'student-ravi'],
   }, student)
-  assert.notStrictEqual(mixedRecipientMessage, state)
-  assert.deepEqual(mixedRecipientMessage.messages[0]?.recipientIds, ['teacher-rahul'])
+  assert.strictEqual(mixedRecipientMessage, state)
 
   const validTeacherMessage = sendDemoMessage(state, {
     subject: 'Class update',

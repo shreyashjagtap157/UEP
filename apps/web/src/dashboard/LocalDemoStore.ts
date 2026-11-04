@@ -882,9 +882,13 @@ export function sendDemoMessage(state: DemoState, input: DemoMessageInput, actor
   const subject = input.subject.trim()
   const body = input.body.trim()
   if (!subject || !body || input.recipientIds.length === 0) return state
+  const requestedRecipientIds = [...new Set(input.recipientIds)]
+  if (!requestedRecipientIds.length) return state
   const recipients = state.users.filter(user =>
-    input.recipientIds.includes(user.id) && canMessageRecipient(state, actor, current, user))
-  if (!recipients.length) return state
+    requestedRecipientIds.includes(user.id) && canMessageRecipient(state, actor, current, user))
+  // Treat the requested audience as an atomic authorization boundary. Never
+  // silently send to a valid subset when any requested recipient is invalid.
+  if (recipients.length !== requestedRecipientIds.length) return state
   const message: DemoMessage = {
     id: 'message-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
     senderId: current.id,
