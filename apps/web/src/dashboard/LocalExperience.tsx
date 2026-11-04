@@ -14,30 +14,33 @@ const ACCOUNT_GROUPS: Array<{ title: string; description: string; roles: DemoRol
 export function LocalExperience() {
   const [account, setAccount] = useState<LocalAccount | null>(() => readSessionAccount())
   const [sessionNotice, setSessionNotice] = useState('')
-  useEffect(() => subscribeDemoState(() => {
-    const raw = sessionStorage.getItem('uep-local-account')
-    if (!raw) return
-    try {
-      const parsed = JSON.parse(raw) as Partial<LocalAccount>
-      const current = demoAccounts.find(item => item.email === parsed.email && item.role === parsed.role)
-      if (!current || !activeUserForProfile(loadDemoState(), current.profile)) {
-        sessionStorage.removeItem('uep-local-account')
-        setSessionNotice('Your demo session ended because this account is inactive. Sign in with an active account or ask an administrator to reactivate it.')
-        setAccount(null)
-      }
-    } catch {
-      sessionStorage.removeItem('uep-local-account')
-      setSessionNotice('Your demo session could not be validated. Sign in again.')
+  useEffect(() => {
+    if (!account) return
+
+    const validateSession = () => {
+      if (activeUserForProfile(loadDemoState(), account.profile)) return
+      clearStoredDemoAccount()
+      setSessionNotice('Your demo session ended because this account is inactive. Sign in with an active account or ask an administrator to reactivate it.')
       setAccount(null)
     }
-  }), [])
+
+    const unsubscribe = subscribeDemoState(validateSession)
+    // Close the gap between the initial account read and effect subscription.
+    validateSession()
+    return unsubscribe
+  }, [account])
   function handleLogin(nextAccount: LocalAccount) {
-    sessionStorage.setItem('uep-local-account', JSON.stringify(nextAccount))
+    try {
+      sessionStorage.setItem('uep-local-account', JSON.stringify(nextAccount))
+    } catch {
+      setSessionNotice('Browser session storage is unavailable. Enable it and try signing in again.')
+      return
+    }
     setSessionNotice('')
     setAccount(nextAccount)
   }
   function handleLogout() {
-    sessionStorage.removeItem('uep-local-account')
+    clearStoredDemoAccount()
     setSessionNotice('')
     setAccount(null)
   }
@@ -55,14 +58,22 @@ function readSessionAccount(): LocalAccount | null {
     const parsed = JSON.parse(raw) as Partial<LocalAccount>
     const account = demoAccounts.find(item => item.email === parsed.email && item.role === parsed.role)
     if (!account || !activeUserForProfile(loadDemoState(), account.profile)) {
-      sessionStorage.removeItem('uep-local-account')
+      clearStoredDemoAccount()
       return null
     }
     return account
   } catch {
-    // ignore storage/parse failures - treat as no session
-    try { sessionStorage.removeItem('uep-local-account') } catch { /* ignore */ }
+    // Storage access can be denied by browser policy. Fail closed without throwing.
+    clearStoredDemoAccount()
     return null
+  }
+}
+
+function clearStoredDemoAccount() {
+  try {
+    sessionStorage.removeItem('uep-local-account')
+  } catch {
+    // The in-memory account is still revoked; a reload will fail closed in readSessionAccount.
   }
 }
 

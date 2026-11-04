@@ -163,6 +163,80 @@ test.describe('Layer A: Recipient-scoped inbox communication', () => {
     expect(await page.evaluate(() => sessionStorage.getItem('uep-local-account'))).toBeNull()
   })
 
+
+  test('session revocation remains safe when browser sessionStorage access is denied', async ({ page }) => {
+    await signInToDemo(page, 'student@demo.uep')
+    const pageErrors: string[] = []
+    page.on('pageerror', error => pageErrors.push(error.message))
+
+    await page.evaluate(() => {
+      const originalGetItem = Storage.prototype.getItem
+      const originalRemoveItem = Storage.prototype.removeItem
+      Storage.prototype.getItem = function (this: Storage, key: string) {
+        if (this === window.sessionStorage) {
+          throw new DOMException('Session storage access denied', 'SecurityError')
+        }
+        return originalGetItem.call(this, key)
+      }
+      Storage.prototype.removeItem = function (this: Storage, key: string) {
+        if (this === window.sessionStorage) {
+          throw new DOMException('Session storage access denied', 'SecurityError')
+        }
+        return originalRemoveItem.call(this, key)
+      }
+    })
+
+    const updater = await page.context().newPage()
+    await updater.goto('/')
+    await updater.evaluate(() => {
+      const key = 'uep.local-demo-data.v5'
+      const raw = window.localStorage.getItem(key)
+      if (!raw) throw new Error('The seeded Demo state was not persisted.')
+      const state = JSON.parse(raw) as {
+        users: Array<{ id: string; status: string }>
+      }
+      state.users = state.users.map(user =>
+        user.id === 'student-asha' ? { ...user, status: 'Suspended' } : user,
+      )
+      window.localStorage.setItem(key, JSON.stringify(state))
+    })
+    await updater.close()
+
+    await expect(page.locator('.local-login-intro')).toBeVisible()
+    await expect(page.getByText(
+      'Your demo session ended because this account is inactive. Sign in with an active account or ask an administrator to reactivate it.',
+      { exact: true },
+    )).toBeVisible()
+    await expect(page.locator('.app-frame')).toHaveCount(0)
+    await expect(page.getByLabel('Recipient')).toHaveCount(0)
+    expect(pageErrors).toEqual([])
+  })
+
+  test('Demo sign-in reports sessionStorage write denial without throwing', async ({ page }) => {
+    await page.goto('/')
+    const pageErrors: string[] = []
+    page.on('pageerror', error => pageErrors.push(error.message))
+    await page.evaluate(() => {
+      const originalSetItem = Storage.prototype.setItem
+      Storage.prototype.setItem = function (this: Storage, key: string, value: string) {
+        if (this === window.sessionStorage) {
+          throw new DOMException('Session storage access denied', 'SecurityError')
+        }
+        return originalSetItem.call(this, key, value)
+      }
+    })
+
+    await page.getByLabel('Email').fill('student@demo.uep')
+    await page.getByLabel('Password').fill('demo')
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+
+    await expect(page.getByRole('status')).toHaveText(
+      'Browser session storage is unavailable. Enable it and try signing in again.',
+    )
+    await expect(page.locator('.app-frame')).toHaveCount(0)
+    expect(pageErrors).toEqual([])
+  })
+
   test('guardian recipient options remain limited to same-institution teaching contacts', async ({ page }) => {
     await signInToDemo(page, 'guardian@demo.uep')
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Inbox', exact: true }).click()
