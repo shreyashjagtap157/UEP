@@ -73,6 +73,18 @@ test.describe('Layer A: Recipient-scoped inbox communication', () => {
     // Removing a selected recipient must not silently redirect the message.
     await recipient.selectOption('ta-ishaan')
     await expect(page.getByRole('button', { name: 'Send request', exact: true })).toBeEnabled()
+    await page.getByRole('button', { name: 'Send request', exact: true }).click()
+    await expect(page.getByLabel('Subject')).toHaveValue('')
+    await expect(page.getByLabel('Message')).toHaveValue('')
+
+    await switchDemoUser(page)
+    await signInToDemo(page, 'teaching-assistant@demo.uep')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Inbox', exact: true }).click()
+    const explicitlySelectedRecipient = page.locator('article.local-module')
+      .filter({ hasText: 'Question for the active teaching assistant' })
+    await expect(explicitlySelectedRecipient).toContainText('Could you help with the assigned class?')
+    await expect(explicitlySelectedRecipient).toContainText('From Asha Sharma')
+    await expect(explicitlySelectedRecipient.locator('.chip')).toHaveText('Unread')
   })
 
   test('guardian recipient options remain limited to same-institution teaching contacts', async ({ page }) => {
