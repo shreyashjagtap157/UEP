@@ -696,6 +696,29 @@ test('message discovery and send mutations enforce one shared recipient policy',
     user.organization === 'Northstar Learning Institute'
       && ['Teacher', 'Teaching Assistant', 'Mentor'].includes(user.role)))
 
+  const narrowCourseState = {
+    ...state,
+    users: [
+      ...state.users.map(user => user.id === student.userId ? { ...user, courseIds: ['course-web'] } : user),
+      {
+        id: 'teacher-data-only',
+        name: 'Data-only Teacher',
+        email: 'data.teacher@demo.uep',
+        role: 'Teacher',
+        status: 'Active',
+        organization: 'Northstar Learning Institute',
+        courseIds: ['course-data'],
+      },
+    ],
+  }
+  const narrowStudentRecipients = messageRecipientsForProfile(narrowCourseState, student)
+  assert.ok(narrowStudentRecipients.some(user => user.id === 'teacher-rahul'))
+  assert.ok(!narrowStudentRecipients.some(user => user.id === 'teacher-data-only'),
+    'a learner must not see teaching contacts who are assigned only to unrelated courses')
+  const narrowGuardianRecipients = messageRecipientsForProfile(narrowCourseState, guardian)
+  assert.ok(!narrowGuardianRecipients.some(user => user.id === 'teacher-data-only'),
+    'a guardian must use the linked learner course scope')
+
   for (const platformProfile of [developer, support]) {
     const recipients = messageRecipientsForProfile(state, platformProfile)
     assert.ok(recipients.every(user => user.organization === 'UEP Product Team'))
@@ -715,6 +738,13 @@ test('message discovery and send mutations enforce one shared recipient policy',
     recipientIds: ['client-priya'],
   }, guardian)
   assert.strictEqual(forgedGuardianToClient, state)
+
+  const forgedStudentToUnassignedEvaluator = sendDemoMessage(state, {
+    subject: 'Out-of-policy message',
+    body: 'A learner cannot address an evaluator who is not a supported teaching contact.',
+    recipientIds: ['evaluator-sara'],
+  }, student)
+  assert.strictEqual(forgedStudentToUnassignedEvaluator, state)
 
   const crossOrganizationDeveloperMessage = sendDemoMessage(state, {
     subject: 'Cross-organization message',
