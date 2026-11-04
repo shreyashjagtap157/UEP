@@ -9,6 +9,12 @@ on:
       - main
   workflow_dispatch: {}
 
+# A push to this feature PR supersedes its earlier qualification runs. Keep the
+# newest commit's seven-job matrix; main pushes remain in a separate group.
+concurrency:
+  group: uep-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
