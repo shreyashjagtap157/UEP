@@ -74,6 +74,7 @@ test('SQLite mode: local-authenticated Real UI, API write/readback and durable S
   await page.setViewportSize({ width: 1440, height: 900 })
 
   await page.getByRole('button', { name: 'Organization', exact: true }).click()
+  await expect(navigation.getByRole('button', { name: 'Organization', exact: true })).toHaveAttribute('aria-current', 'page')
   const branchCode = 'SQLITE-E2E-' + Date.now().toString()
   const branchName = 'SQLite persistence qualification ' + branchCode
   await page.getByLabel('Code').fill(branchCode)
