@@ -101,8 +101,9 @@ Say: “This is the actual UEP application path. The frontend calls the Spring B
 3. Explain the request path: Browser (no credential header) → same-origin Vite proxy (adds the launcher token server-side) → Spring Boot → selected local database. The browser never connects directly to the database.
 4. Open Organization and, after the local SQLite native smoke has passed, create a uniquely named branch. Reload the page and show that it is returned by the backend again.
 5. Optionally show role/permission or security surfaces only after rehearsing those exact operations in this SQLite runtime. Do not use visible navigation or source-code presence as proof that every module works end to end.
+6. As the final Real interaction, click **Sign out**. Expect the signed-out screen; this revokes the running local-native launcher session. Restart the launcher before reconnecting. Do not sign out while further Real workflow steps are still needed.
 
-The branch create/readback step is the current primary real integration proof for SQLite mode. If the native Windows smoke test has not been run successfully, do not claim that step as verified; show the screen as an implementation preview and call the live workflow unqualified.
+The branch create/readback and local sign-out steps are covered by the current Windows CI browser qualification. Verify them once on the actual presentation workstation before relying on them in a live presentation. If the native Windows smoke test has not been run successfully, do not claim that step as verified; show the screen as an implementation preview and call the live workflow unqualified.
 
 ### Offline demo walkthrough — seeded academic journey
 
@@ -128,7 +129,8 @@ Limitations to state when relevant:
 |---|---|
 | Offline student/teacher workspace and seeded academic journey | Demo implementation; browser-local state only |
 | Local API session and tenant identity in Real UEP | Real native SQLite browser test must pass on the presentation machine |
-| Branch API write and readback after reload | Real native SQLite browser test must pass on the presentation machine |
+| Branch API write and readback after reload | Real native SQLite browser test passed in GitHub Windows CI run #1322; repeat on the presentation machine |
+| Real local-native Sign out revokes the launcher session | Sign out browser test passed in GitHub Windows CI run #1322; repeat on the presentation machine |
 | SQLite schema generation and tenant persistence | Backend SQLite integration test in CI |
 | PostgreSQL migrations, UUIDv7 and restricted runtime grants | PostgreSQL CI matrix only; not proven by SQLite |
 | Other domain workspaces (assessment, announcements, finance, integrations, analytics, live learning) | Describe as source implementation unless separately runtime-tested in the active local profile |
@@ -139,6 +141,7 @@ Limitations to state when relevant:
 - Sync the product branch being demonstrated; for this workstream use `feat/product-ui-role-navigation-auth-session` until it is merged.
 - Run the launcher once in Presentation mode and confirm both windows display their correct environment labels.
 - Open Real UEP and complete the local-authenticated branch create/reload/readback smoke.
+- Exercise Real **Sign out** as the final Real action, verify the signed-out screen, and restart the launcher if the Real session is needed again. The GitHub Windows CI run does not replace this workstation-specific preflight.
 - Prepare the Student and Teacher offline demo flow and verify the seeded records still appear.
 - Close unrelated browser tabs; keep Real at :5173 and Demo at :5174.
 - Keep local credential files private. Do not paste or put passwords into the presentation.
@@ -149,5 +152,5 @@ Limitations to state when relevant:
 
 - SQLite profile disables Flyway and PostgreSQL-specific background workers.
 - SQLite is not a replacement for PostgreSQL production/CI qualification.
-- The native Playwright Real-mode tests must be executed on Windows; Linux CI only validates test discovery.
+- Run #1322 executed the native Real-mode Playwright test and 32-test Offline Demo regression on GitHub's Windows runner. The actual presentation workstation still needs a preflight because runner success does not verify its local paths, services or configuration.
 - The full UEP implementation and production qualification are ongoing. This presentation demonstrates the current working slice and the curated offline role experience, not completion of the entire platform.
