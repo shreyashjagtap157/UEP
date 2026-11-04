@@ -696,6 +696,21 @@ test('message discovery and send mutations enforce one shared recipient policy',
     user.organization === 'Northstar Learning Institute'
       && ['Teacher', 'Teaching Assistant', 'Mentor'].includes(user.role)))
 
+  for (const inactiveProfile of [student, guardian]) {
+    const suspendedSenderState = {
+      ...state,
+      users: state.users.map(user =>
+        user.id === inactiveProfile.userId ? { ...user, status: 'Suspended' } : user,
+      ),
+    }
+    assert.deepEqual(messageRecipientsForProfile(suspendedSenderState, inactiveProfile), [])
+    assert.strictEqual(sendDemoMessage(suspendedSenderState, {
+      subject: 'Suspended sender attempt',
+      body: 'Inactive personas cannot send.',
+      recipientIds: ['teacher-rahul'],
+    }, inactiveProfile), suspendedSenderState)
+  }
+
   const narrowCourseState = {
     ...state,
     users: [
