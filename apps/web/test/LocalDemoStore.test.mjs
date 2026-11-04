@@ -755,6 +755,17 @@ test('message discovery and send mutations enforce one shared recipient policy',
   }, developer)
   assert.strictEqual(crossOrganizationDeveloperMessage, state)
 
+  const suspendedTeacherState = {
+    ...state,
+    users: state.users.map(user => user.id === 'teacher-rahul' ? { ...user, status: 'Suspended' } : user),
+  }
+  assert.ok(!messageRecipientsForProfile(suspendedTeacherState, student).some(user => user.id === 'teacher-rahul'))
+  assert.strictEqual(sendDemoMessage(suspendedTeacherState, {
+    subject: 'Question for suspended teacher',
+    body: 'This recipient is no longer active.',
+    recipientIds: ['teacher-rahul'],
+  }, student), suspendedTeacherState)
+
   const validStudentMessage = sendDemoMessage(state, {
     subject: 'Question for my teacher',
     body: 'Could you clarify the next lesson?',
@@ -762,6 +773,14 @@ test('message discovery and send mutations enforce one shared recipient policy',
   }, student)
   assert.notStrictEqual(validStudentMessage, state)
   assert.deepEqual(validStudentMessage.messages[0]?.recipientIds, ['teacher-rahul'])
+
+  const mixedRecipientMessage = sendDemoMessage(state, {
+    subject: 'Question for my teacher',
+    body: 'Only the authorized teacher should receive this message.',
+    recipientIds: ['teacher-rahul', 'student-ravi'],
+  }, student)
+  assert.notStrictEqual(mixedRecipientMessage, state)
+  assert.deepEqual(mixedRecipientMessage.messages[0]?.recipientIds, ['teacher-rahul'])
 
   const validTeacherMessage = sendDemoMessage(state, {
     subject: 'Class update',
