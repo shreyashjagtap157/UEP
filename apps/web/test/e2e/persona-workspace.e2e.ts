@@ -29,7 +29,12 @@ test.describe('Layer A: Persona workspace identification', () => {
       await signInToDemo(page, persona.email)
       await expect(page.locator('.workspace-header .eyebrow')).toContainText(persona.label)
       await expect(page.locator('.session-meta strong')).toHaveText(persona.name)
-      await expect(page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button')).toHaveText(persona.nav)
+      const navigation = page.getByRole('navigation', { name: 'Primary navigation' })
+      const navigationButtons = navigation.getByRole('button')
+      await expect(navigationButtons).toHaveText(persona.nav)
+      await expect(navigationButtons.first()).toHaveAttribute('aria-current', 'page')
+      await navigationButtons.nth(1).click()
+      await expect(navigationButtons.nth(1)).toHaveAttribute('aria-current', 'page')
 
       if (index < personas.length - 1) await switchDemoUser(page)
     }
