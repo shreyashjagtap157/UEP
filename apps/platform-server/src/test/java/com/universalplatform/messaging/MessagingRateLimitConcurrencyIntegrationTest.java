@@ -161,10 +161,13 @@ class MessagingRateLimitConcurrencyIntegrationTest {
                 insert into tenant_membership(id, tenant_id, user_id, status)
                 values (?, ?, ?, 'ACTIVE')
                 """, peerMembershipB, tenantB, peerBUserId);
-        jdbc.update("""
-                insert into message_tenant_policy(tenant_id, max_messages_per_minute, max_reports_per_hour)
-                values (?, 1, 1), (?, 1, 1)
-                """, tenantA, tenantB);
+        // V041 creates both default policy rows as each tenant is inserted.
+        // Set the restrictive test policy on those rows without duplicating their primary keys.
+        assertThat(jdbc.update("""
+                update message_tenant_policy
+                set max_messages_per_minute = 1, max_reports_per_hour = 1
+                where tenant_id in (?, ?)
+                """, tenantA, tenantB)).isEqualTo(2);
 
         Fixture fixtureA = new Fixture(tenantA, senderMembershipA, peerMembershipA, senderSubject, peerASubject);
         Fixture fixtureB = new Fixture(tenantB, senderMembershipB, peerMembershipB, senderSubject, peerBSubject);
@@ -216,10 +219,13 @@ class MessagingRateLimitConcurrencyIntegrationTest {
                 insert into tenant_membership(id, tenant_id, user_id, status)
                 values (?, ?, ?, 'ACTIVE')
                 """, peerMembershipId, tenantId, peerUserId);
-        jdbc.update("""
-                insert into message_tenant_policy(tenant_id, max_messages_per_minute, max_reports_per_hour)
-                values (?, ?, ?)
-                """, tenantId, maxMessagesPerMinute, maxReportsPerHour);
+        // V041 creates the default policy row from the tenant INSERT trigger.
+        // Update that row rather than inserting a duplicate tenant_id.
+        assertThat(jdbc.update("""
+                update message_tenant_policy
+                set max_messages_per_minute = ?, max_reports_per_hour = ?
+                where tenant_id = ?
+                """, maxMessagesPerMinute, maxReportsPerHour, tenantId)).isEqualTo(1);
 
         return new Fixture(tenantId, senderMembershipId, peerMembershipId, senderSubject, peerSubject);
     }
