@@ -714,8 +714,21 @@ if 'This demo account is inactive.' not in local_experience:
     errors.append('inactive demo sign-in must explain the account status to the user')
 if 'suspended demo profiles fail the centralized active-user guard' not in text('apps/web/test/LocalDemoStore.test.mjs'):
     errors.append('missing suspended-account identity regression test')
-if 'subscribeDemoState(() =>' not in local_experience or "sessionStorage.removeItem('uep-local-account')" not in local_experience:
-    errors.append('an active demo session must be revoked when the shared store suspends its account')
+session_validation_start = local_experience.find('const validateSession = () => {')
+session_validation_end = local_experience.find('const unsubscribe = subscribeDemoState(validateSession)', session_validation_start)
+session_validation = local_experience[session_validation_start:session_validation_end] if session_validation_start >= 0 and session_validation_end > session_validation_start else ''
+for required in [
+    'activeUserForProfile(loadDemoState(), account.profile)',
+    'clearStoredDemoAccount()',
+    'setSessionNotice(',
+    'setAccount(null)',
+]:
+    if required not in session_validation:
+        errors.append(f'Demo session revocation callback is missing its fail-closed behavior: {required}')
+if 'const unsubscribe = subscribeDemoState(validateSession)' not in local_experience or 'validateSession()' not in local_experience:
+    errors.append('active Demo sessions must subscribe to shared-store changes and close the initial-read race')
+if "sessionStorage.removeItem('uep-local-account')" not in local_experience:
+    errors.append('Demo session revocation must clear the stored account when browser storage is available')
 if "from './LocalDashboard'" in local_experience or 'from "./LocalDashboard"' in local_experience or 'LocalDemoWorkflowStore' in local_experience:
     errors.append('local demo entry point still splits roles across separate stores')
 for role in ['student', 'teacher', 'client', 'developer', 'product-maintainer', 'admin', 'guardian', 'exam-controller', 'finance-admin', 'teaching-assistant', 'evaluator', 'mentor', 'support', 'auditor']:
