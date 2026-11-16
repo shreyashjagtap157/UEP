@@ -10,12 +10,14 @@
 - announcements and messaging are no longer one duplicated component: `AnnouncementWorkspace` keeps announcements and the messaging implementation moved to its own workspace file.
 
 ### Fixed
+- the `identity` module now declares its `tenancy` dependency, which `LocalDevelopmentIdentityBootstrapper` already needed in local-native mode; `ModularityTest` previously failed on `main` with an `identity -> tenancy` violation;
 - the finance settlement-evidence check in `scripts/qualify-0.15.py` no longer depends on one exact annotation spacing, so the 0.15 qualification script passes on the current `FinanceController`;
 - `LocalDevelopmentAuthenticationIntegrationTest` supplies its local development token through `@DynamicPropertySource`, removing the env-style literal that tripped the hard-coded-secret heuristic in `scripts/verify-repository.sh`.
 
 ### Verification
 - branch `freebuff/fd16f35163c14ccd0458028e` (not merged, no CI run observed): `npm test` 54/54, `npm run build`, `npm run lint` (0 errors), `bash scripts/verify-repository.sh` and `python3 scripts/qualify-0.15.py` all passed in the Linux sandbox.
-- backend compilation/tests and browser rendering of the new workspace were not executed here (no JDK/Maven, no browser), so neither is claimed as verified.
+- backend: Temurin JDK 21.0.13, Maven 3.9.9 and a PostgreSQL 16.15 server provisioned locally ran `mvn -f apps/platform-server/pom.xml verify` to **BUILD SUCCESS**, 259 tests, 0 failures, 0 errors, 0 skipped, including `LocalDevelopmentAuthenticationIntegrationTest` and the messaging suites; `MessagingApiBoundaryIntegrationTest` now also asserts the exact JSON fields and versions used by the new web workspace;
+- browser rendering of the workspace was not executed here (no browser), so its visual layout is not claimed as verified.
 
 ## Unreleased — 2026-11-02
 

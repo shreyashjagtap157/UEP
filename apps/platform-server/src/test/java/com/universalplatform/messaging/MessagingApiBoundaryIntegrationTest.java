@@ -676,4 +676,174 @@ class MessagingApiBoundaryIntegrationTest {
                 .andExpect(jsonPath("$.code").value("MESSAGING_ACCESS_DENIED"))
                 .andExpect(jsonPath("$.message").value("Messaging requires active memberships in the authenticated tenant"));
     }
+
+    /**
+     * Pins the payloads consumed by apps/web/src/platform/api-messaging.ts and
+     * apps/web/src/communication/MessagingWorkspace.tsx: every field those TypeScript interfaces declare must be
+     * present with the same name and type, and the optimistic versions the workspace sends must be the ones the
+     * server enforces.
+     */
+    @Test
+    void webWorkspaceContractFieldsAndOptimisticVersionsMatchTheServedPayloads() throws Exception {
+        String conversationResponse = mvc.perform(post("/api/v1/messaging/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"subject":"Workspace contract","participantMembershipIds":["%s"]}
+                                """.formatted(MEMBERSHIP_A_PEER))
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isString())
+                .andExpect(jsonPath("$.subject").value("Workspace contract"))
+                .andExpect(jsonPath("$.createdByMembershipId").value(MEMBERSHIP_A.toString()))
+                .andExpect(jsonPath("$.createdAt").isString())
+                .andExpect(jsonPath("$.updatedAt").isString())
+                .andExpect(jsonPath("$.version").value(0))
+                .andExpect(jsonPath("$.participantCount").value(2))
+                .andExpect(jsonPath("$.unreadCount").value(0))
+                .andReturn().getResponse().getContentAsString();
+        UUID conversationId = UUID.fromString(objectMapper.readTree(conversationResponse).get("id").asText());
+
+        mvc.perform(get("/api/v1/messaging/conversations?page=0&size=25")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(conversationId.toString()))
+                .andExpect(jsonPath("$.items[0].subject").value("Workspace contract"))
+                .andExpect(jsonPath("$.items[0].participantCount").value(2))
+                .andExpect(jsonPath("$.items[0].unreadCount").value(0))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(25))
+                .andExpect(jsonPath("$.totalElements").isNumber())
+                .andExpect(jsonPath("$.totalPages").isNumber());
+
+        String messageResponse = mvc.perform(post("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"Workspace contract message\"}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isString())
+                .andExpect(jsonPath("$.conversationId").value(conversationId.toString()))
+                .andExpect(jsonPath("$.senderMembershipId").value(MEMBERSHIP_A.toString()))
+                .andExpect(jsonPath("$.body").value("Workspace contract message"))
+                .andExpect(jsonPath("$.createdAt").isString())
+                .andExpect(jsonPath("$.editedAt").hasJsonPath())
+                .andExpect(jsonPath("$.deletedAt").hasJsonPath())
+                .andExpect(jsonPath("$.version").value(0))
+                .andReturn().getResponse().getContentAsString();
+        UUID messageId = UUID.fromString(objectMapper.readTree(messageResponse).get("id").asText());
+
+        mvc.perform(get("/api/v1/messaging/conversations/" + conversationId + "/messages?page=0&size=50")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(messageId.toString()))
+                .andExpect(jsonPath("$.items[0].conversationId").value(conversationId.toString()))
+                .andExpect(jsonPath("$.items[0].senderMembershipId").value(MEMBERSHIP_A.toString()))
+                .andExpect(jsonPath("$.items[0].version").value(0))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(50))
+                .andExpect(jsonPath("$.totalElements").isNumber())
+                .andExpect(jsonPath("$.totalPages").isNumber());
+
+        // The workspace renders its receipt panel from this collection; a fresh send is PENDING for the recipient.
+        mvc.perform(get("/api/v1/messaging/messages/" + messageId + "/delivery")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].messageId").value(messageId.toString()))
+                .andExpect(jsonPath("$[0].recipientMembershipId").value(MEMBERSHIP_A_PEER.toString()))
+                .andExpect(jsonPath("$[0].status").value("PENDING"))
+                .andExpect(jsonPath("$[0].createdAt").isString())
+                .andExpect(jsonPath("$[0].deliveredAt").hasJsonPath())
+                .andExpect(jsonPath("$[0].readAt").hasJsonPath());
+
+        mvc.perform(put("/api/v1/messaging/blocks/" + MEMBERSHIP_A_PEER)
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/messaging/blocks")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].membershipId").value(MEMBERSHIP_A_PEER.toString()))
+                .andExpect(jsonPath("$[0].createdAt").isString());
+        mvc.perform(delete("/api/v1/messaging/blocks/" + MEMBERSHIP_A_PEER)
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(post("/api/v1/messaging/messages/" + messageId + "/reports")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Workspace contract report\"}")
+                        .with(jwt().jwt(token -> token.subject("messaging-api-peer").claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isString())
+                .andExpect(jsonPath("$.messageId").value(messageId.toString()))
+                .andExpect(jsonPath("$.conversationId").value(conversationId.toString()))
+                .andExpect(jsonPath("$.reporterMembershipId").value(MEMBERSHIP_A_PEER.toString()))
+                .andExpect(jsonPath("$.messageSenderMembershipId").value(MEMBERSHIP_A.toString()))
+                .andExpect(jsonPath("$.reportedMessageBody").value("Workspace contract message"))
+                .andExpect(jsonPath("$.messageCreatedAt").isString())
+                .andExpect(jsonPath("$.reason").value("Workspace contract report"))
+                .andExpect(jsonPath("$.status").value("OPEN"))
+                .andExpect(jsonPath("$.createdAt").isString())
+                .andExpect(jsonPath("$.reviewedAt").hasJsonPath())
+                .andExpect(jsonPath("$.reviewedByMembershipId").hasJsonPath())
+                .andExpect(jsonPath("$.resolution").hasJsonPath())
+                .andExpect(jsonPath("$.version").value(0));
+
+        mvc.perform(get("/api/v1/messaging/reports?page=0&size=25")
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].reportedMessageBody").value("Workspace contract message"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(25))
+                .andExpect(jsonPath("$.totalElements").isNumber())
+                .andExpect(jsonPath("$.totalPages").isNumber());
+
+        // The workspace sends expectedVersion on edit and delete and renders the returned message view.
+        mvc.perform(put("/api/v1/messaging/messages/" + messageId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"body\":\"Edited from the workspace\",\"expectedVersion\":0}")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.body").value("Edited from the workspace"))
+                .andExpect(jsonPath("$.editedAt").isString())
+                .andExpect(jsonPath("$.version").value(1));
+        mvc.perform(delete("/api/v1/messaging/messages/" + messageId + "?expectedVersion=1")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/messaging/conversations/" + conversationId + "/messages")
+                        .with(jwt().jwt(token -> token.subject(SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].deletedAt").isString())
+                .andExpect(jsonPath("$.items[0].version").value(2));
+
+        // The moderator panel reads the full policy view and writes the full update body with its version.
+        mvc.perform(get("/api/v1/messaging/policy")
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.messagingEnabled").isBoolean())
+                .andExpect(jsonPath("$.allowStudentToStudent").isBoolean())
+                .andExpect(jsonPath("$.messageRetentionDays").isNumber())
+                .andExpect(jsonPath("$.reportRetentionDays").isNumber())
+                .andExpect(jsonPath("$.maxMessagesPerMinute").isNumber())
+                .andExpect(jsonPath("$.maxReportsPerHour").isNumber())
+                .andExpect(jsonPath("$.updatedAt").hasJsonPath())
+                .andExpect(jsonPath("$.version").isNumber());
+        mvc.perform(put("/api/v1/messaging/policy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"messagingEnabled":true,"allowStudentToStudent":true,"messageRetentionDays":365,
+                                 "reportRetentionDays":1095,"maxMessagesPerMinute":20,"maxReportsPerHour":3,"expectedVersion":0}
+                                """)
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.maxMessagesPerMinute").value(20))
+                .andExpect(jsonPath("$.maxReportsPerHour").value(3))
+                .andExpect(jsonPath("$.updatedAt").isString())
+                .andExpect(jsonPath("$.version").value(1));
+        mvc.perform(put("/api/v1/messaging/policy")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"messagingEnabled":true,"allowStudentToStudent":true,"messageRetentionDays":365,
+                                 "reportRetentionDays":1095,"maxMessagesPerMinute":20,"maxReportsPerHour":3,"expectedVersion":0}
+                                """)
+                        .with(jwt().jwt(token -> token.subject(MODERATOR_SUBJECT).claim("tenant_id", TENANT_A.toString()))))
+                .andExpect(status().isConflict());
+    }
 }
