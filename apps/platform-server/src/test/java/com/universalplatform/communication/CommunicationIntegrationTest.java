@@ -23,9 +23,17 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Exercises the announcement API and the explicit {@code publishScheduled} path.
+ *
+ * <p>Scheduled background workers are disabled for this class: its teardown hard-deletes the seeded
+ * tenant, and a worker that is polling at the same time (observed with the notification outbox
+ * poller writing {@code notification_outbox} rows) deadlocks with the cascading delete, leaving the
+ * tenant behind and poisoning the next test. Publication here is driven directly, so no worker
+ * behaviour is lost from the assertions below.
+ */
 @SpringBootTest(properties = {
-        "platform.announcements.publish-poll-ms=3600000",
-        "platform.announcements.expiry-poll-ms=3600000"
+        "platform.background-workers.enabled=false"
 })
 @AutoConfigureMockMvc
 @Transactional
