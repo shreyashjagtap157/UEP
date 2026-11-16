@@ -16,6 +16,7 @@ import { AcademicOverview } from '../academic/AcademicOverview'
 import { AcademicWorkspace } from '../academic/AcademicWorkspace'
 import { EnrollmentWorkspace } from '../academic/EnrollmentWorkspace'
 import { AnnouncementWorkspace } from '../communication/AnnouncementWorkspace'
+import { MessagingWorkspace } from '../communication/MessagingWorkspace'
 import { TodayOverview } from '../dashboard/TodayOverview'
 import { NotificationWorkspace } from '../notifications/NotificationWorkspace'
 import { ScheduleWorkspace } from '../scheduling/ScheduleWorkspace'
@@ -54,7 +55,7 @@ import {
 } from '../platform/api'
 import type { BranchView, CurrentIdentity, MemberView, OrganizationSettings, PermissionKey, RoleAssignmentView, RoleView } from '../platform/api'
 
-type Section = 'overview' | 'advanced' | 'integrations' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
+type Section = 'overview' | 'advanced' | 'integrations' | 'analytics' | 'live' | 'recordings' | 'finance' | 'assessment' | 'assignments' | 'content' | 'schedule' | 'announcements' | 'messages' | 'notifications' | 'academics' | 'enrollment' | 'people' | 'roles' | 'organization' | 'security'
 
 const permissionOptions: PermissionKey[] = [
   'ORGANIZATION_VIEW', 'ORGANIZATION_MANAGE', 'BRANCHES_VIEW', 'BRANCHES_MANAGE',
@@ -179,6 +180,7 @@ export function App() {
     { id: 'finance', label: 'Finance', visible: has(me, 'FINANCE_VIEW') || has(me, 'FINANCE_MANAGE') },
     { id: 'schedule', label: 'Schedule', visible: hasScoped(me, 'SCHEDULE_VIEW') },
     { id: 'announcements', label: 'Announcements', visible: hasScoped(me, 'ANNOUNCEMENTS_VIEW') },
+    { id: 'messages', label: 'Messages', visible: true },
     { id: 'notifications', label: 'Notifications', visible: true },
     { id: 'assessment', label: 'Assessments', visible: has(me, 'ASSESSMENTS_VIEW') || has(me, 'ASSESSMENTS_TAKE') },
     { id: 'assignments', label: 'Assignments', visible: has(me, 'ASSIGNMENTS_VIEW') || has(me, 'ASSIGNMENTS_TAKE') || has(me, 'GRADEBOOK_VIEW') },
@@ -255,6 +257,7 @@ export function App() {
         {section === 'recordings' && <RecordingWorkspace me={me} />}
         {section === 'finance' && <FinanceWorkspace me={me} />}
         {section === 'announcements' && <AnnouncementWorkspace me={me} />}
+        {section === 'messages' && <MessagingWorkspace me={me} />}
         {section === 'notifications' && <NotificationWorkspace />}
         {section === 'assessment' && <AssessmentWorkspace me={me} />}
         {section === 'assignments' && <AssignmentWorkspace me={me} />}
@@ -789,4 +792,4 @@ function has(me: CurrentIdentity, permission: PermissionKey) { return me.permiss
 function hasScoped(me: CurrentIdentity, permission: PermissionKey) { return me.permissions.includes(permission) || me.primaryBranchPermissions.includes(permission) }
 function shortId(value: string) { return value.slice(0, 8) }
 function humanize(value: string) { return value.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()) }
-function sectionTitle(section: Section) { return ({ overview: 'Today', advanced: 'Advanced academics', integrations: 'Integrations', analytics: 'Analytics & Operations', live: 'Live Learning', recordings: 'Classroom recordings', finance: 'Finance', assessment: 'Assessments & grading', assignments: 'Assignments & gradebook', content: 'Learning Content', schedule: 'Schedule', announcements: 'Announcements', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }
+function sectionTitle(section: Section) { return ({ overview: 'Today', advanced: 'Advanced academics', integrations: 'Integrations', analytics: 'Analytics & Operations', live: 'Live Learning', recordings: 'Classroom recordings', finance: 'Finance', assessment: 'Assessments & grading', assignments: 'Assignments & gradebook', content: 'Learning Content', schedule: 'Schedule', announcements: 'Announcements', messages: 'Messages', notifications: 'Notifications', academics: 'Academic core', enrollment: 'Enrollment & teaching', people: 'People & membership', roles: 'Roles & permissions', organization: 'Organization', security: 'Security & sessions' })[section] }

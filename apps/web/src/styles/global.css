@@ -1858,3 +1858,157 @@ td span {
   .local-attendance-actions { justify-content: flex-start; }
 }
 
+/* Institution messaging workspace */
+.messaging-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+.conversation-list {
+  display: grid;
+  gap: .45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.conversation-button {
+  width: 100%;
+  display: grid;
+  gap: .3rem;
+  justify-items: start;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: .8rem;
+  padding: .75rem .85rem;
+  background: white;
+  color: #172033;
+}
+.conversation-button:hover,
+.conversation-button:focus-visible {
+  border-color: #93c5fd;
+  background: #f8fafc;
+}
+.conversation-button.active {
+  border-color: #1d4ed8;
+  background: #eff6ff;
+}
+.conversation-subject {
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+.conversation-meta {
+  color: #64748b;
+  font-size: .74rem;
+}
+.message-thread {
+  display: grid;
+  gap: .7rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.message-entry {
+  display: flex;
+  justify-content: flex-start;
+}
+.message-entry.own {
+  justify-content: flex-end;
+}
+.message-bubble {
+  width: min(100%, 46rem);
+  border: 1px solid #e2e8f0;
+  border-radius: .9rem;
+  padding: .85rem 1rem;
+  background: white;
+}
+.message-entry.own .message-bubble {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+.message-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  font-size: .74rem;
+  color: #64748b;
+}
+.message-meta strong {
+  color: #172033;
+  font-size: .82rem;
+}
+.message-body {
+  margin: .55rem 0 .3rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+  margin-top: .35rem;
+}
+.message-report summary {
+  cursor: pointer;
+  color: #2563eb;
+  font-weight: 700;
+  font-size: .8rem;
+}
+.message-composer {
+  display: grid;
+  gap: .55rem;
+  margin-top: .6rem;
+}
+.message-composer label {
+  display: grid;
+  gap: .35rem;
+  font-size: .8rem;
+  font-weight: 700;
+  color: #334155;
+}
+.message-composer textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: .7rem;
+  padding: .65rem .75rem;
+  color: #0f172a;
+  background: white;
+}
+.message-composer textarea:focus {
+  outline: 3px solid rgb(59 130 246 / .18);
+  border-color: #3b82f6;
+}
+.new-conversation {
+  margin-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+  padding-top: .85rem;
+}
+.new-conversation summary {
+  cursor: pointer;
+  color: #1d4ed8;
+  font-weight: 750;
+  font-size: .85rem;
+}
+.new-conversation .form-grid {
+  margin-top: .85rem;
+}
+.receipt-list {
+  display: grid;
+  gap: .35rem;
+  margin-top: .55rem;
+  border-top: 1px dashed #cbd5e1;
+  padding-top: .55rem;
+}
+.receipt-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  font-size: .78rem;
+}
+@media (max-width: 900px) {
+  .messaging-layout { grid-template-columns: 1fr; }
+}

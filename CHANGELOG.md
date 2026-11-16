@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased — 2026-11-16
+
+### Added
+- dedicated Message destination in the Real workspace, backed by `apps/web/src/communication/MessagingWorkspace.tsx`: unread conversation list, chronological thread with older-page loading, composer, sender-only edit/delete, per-recipient delivery/read receipts, report and block/unblock actions, directory- or membership-ID-based conversation creation, and a moderator panel for reports, redaction and tenant messaging policy;
+- `apps/web/test/messaging-workspace.test.mjs`, which pins the messaging UI to the server's `/api/v1/messaging` mappings and asserts the permission gates, receipt wording and empty/error states.
+
+### Changed
+- announcements and messaging are no longer one duplicated component: `AnnouncementWorkspace` keeps announcements and the messaging implementation moved to its own workspace file.
+
+### Fixed
+- the finance settlement-evidence check in `scripts/qualify-0.15.py` no longer depends on one exact annotation spacing, so the 0.15 qualification script passes on the current `FinanceController`;
+- `LocalDevelopmentAuthenticationIntegrationTest` supplies its local development token through `@DynamicPropertySource`, removing the env-style literal that tripped the hard-coded-secret heuristic in `scripts/verify-repository.sh`.
+
+### Verification
+- branch `freebuff/fd16f35163c14ccd0458028e` (not merged, no CI run observed): `npm test` 54/54, `npm run build`, `npm run lint` (0 errors), `bash scripts/verify-repository.sh` and `python3 scripts/qualify-0.15.py` all passed in the Linux sandbox.
+- backend compilation/tests and browser rendering of the new workspace were not executed here (no JDK/Maven, no browser), so neither is claimed as verified.
+
 ## Unreleased — 2026-11-02
 
 ### Deployment preparation

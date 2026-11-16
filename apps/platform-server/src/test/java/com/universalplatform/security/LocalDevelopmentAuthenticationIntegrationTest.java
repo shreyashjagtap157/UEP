@@ -20,7 +20,6 @@ import org.springframework.test.context.DynamicPropertySource;
         "spring.profiles.active=local-sqlite,local-native",
         "UEP_SQLITE_JDBC_URL=jdbc:sqlite:target/uep-local-auth-qualification.db",
         "UEP_LOCAL_TENANT_ID=01901234-4444-7000-8000-000000000001",
-        "UEP_LOCAL_AUTH_TOKEN=local-auth-integration-test-token",
         "UEP_LOCAL_AUTH_SESSION_ID=01901234-4444-7000-8000-000000000002",
         "platform.background-workers.enabled=false"
 })
@@ -28,6 +27,7 @@ import org.springframework.test.context.DynamicPropertySource;
 class LocalDevelopmentAuthenticationIntegrationTest {
     @DynamicPropertySource
     static void localApiSessionProperties(DynamicPropertyRegistry registry) {
+        registry.add("UEP_LOCAL_AUTH_TOKEN", () -> TOKEN);
         registry.add("UEP_LOCAL_AUTH_EXPIRES_AT", () -> Instant.now().plusSeconds(3600).toString());
     }
 

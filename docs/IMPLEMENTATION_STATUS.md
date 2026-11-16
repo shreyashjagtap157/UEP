@@ -2,6 +2,16 @@
 
 ## Current verified state — 2026-11-04
 
+### Messaging workspace consolidation (unmerged work branch, 2026-11-16)
+
+- Work on branch `freebuff/fd16f35163c14ccd0458028e`, based on `main` commit `51c4dd7`. It is **not merged** and has **no GitHub Actions evidence**; the checks below were executed in a Linux cloud sandbox.
+- `apps/web/src/communication/MessagingWorkspace.tsx` now owns the institution messaging experience (conversation list with unread counts, chronological thread with "load older messages" pagination, composer, sender-only edit/delete, per-recipient delivery/read receipts, report/block/unblock, directory-or-membership-ID conversation creation, and a moderator panel for reports, redaction notes and the tenant policy). It replaces the copy embedded in `AnnouncementWorkspace.tsx`, so announcements and messaging are no longer one duplicated component.
+- The Real navigation exposes a dedicated `Messages` destination to every signed-in member. Moderation and policy remain hidden without `MESSAGING_MODERATE`, and directory-backed participant selection remains gated by `USERS_VIEW`; without it the workspace accepts membership IDs only.
+- Receipt copy states that `DELIVERED`/`READ` are server-recorded platform access states and not proof of external email or push delivery.
+- Repository gates repaired on this branch: the finance settlement-evidence check in `scripts/qualify-0.15.py` now tolerates annotation whitespace instead of matching one exact spacing; `LocalDevelopmentAuthenticationIntegrationTest` supplies `UEP_LOCAL_AUTH_TOKEN` through `@DynamicPropertySource` instead of a literal in `@SpringBootTest` properties, clearing the hard-coded-secret heuristic in `scripts/verify-repository.sh`.
+- Verified locally on this branch: `npm test` (54/54, including the new `messaging-workspace.test.mjs` contract test), `npm run build`, `npm run lint` (0 errors, 10 warnings), `bash scripts/verify-repository.sh`, and `python3 scripts/qualify-0.15.py` all exit 0.
+- Not verified here: the backend was neither compiled nor tested (no JDK or Maven in the sandbox), and the UI was not opened in a browser, so messaging behaviour against a running API and visual layout remain unconfirmed.
+
 ### Repository and evidence boundary
 
 - Repository: `https://github.com/shreyashjagtap157/UEP`
