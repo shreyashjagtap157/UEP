@@ -16,7 +16,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MAIN = ROOT / "apps" / "platform-server" / "src" / "main"
-MIGRATIONS = ROOT / "apps" / "platform-server" / "src" / "main" / "resources" / "db" / "migration"
 
 PATTERNS = [
     re.compile(r"delete\s+from\s+tenant\b", re.IGNORECASE),
@@ -44,7 +43,6 @@ def scan(root: Path, suffixes: tuple[str, ...]) -> list[str]:
 
 def main() -> int:
     hits = scan(MAIN, (".java", ".sql", ".yaml", ".yml", ".properties"))
-    hits += scan(MIGRATIONS, (".sql",))
     if hits:
         print("Production tenant-deletion path detected (forbidden):", file=sys.stderr)
         for hit in hits:

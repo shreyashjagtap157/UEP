@@ -84,7 +84,7 @@ class NotificationOutboxProcessor {
                     ? processingFailure.getCause() : processingFailure;
             try {
                 failureTransaction.executeWithoutResult(status -> {
-                    if (lockTenant(id) == null) return;
+                    if (!lockTenant(id)) return;
                     outbox.lockById(id).ifPresent(event -> {
                     if (event.processedAt() == null && event.deadLetteredAt() == null) {
                         Instant now = clock.instant();
@@ -108,7 +108,7 @@ class NotificationOutboxProcessor {
     private void processWithinTransaction(UUID id, org.springframework.transaction.TransactionStatus status) {
         // Lock the tenant row before the outbox row so the lock order is consistent
         // with a tenant deletion (tenant -> outbox) and cannot deadlock with it.
-        if (lockTenant(id) == null) return;
+        if (!lockTenant(id)) return;
         NotificationOutbox event = outbox.lockById(id).orElse(null);
         if (event == null || event.processedAt() != null || event.deadLetteredAt() != null
                 || event.availableAt().isAfter(clock.instant())) return;
@@ -125,22 +125,18 @@ class NotificationOutboxProcessor {
     }
 
     /**
-     * Resolve and lock the tenant row that owns the given outbox event before the
-     * outbox row itself is locked, so the lock order (tenant -> outbox) matches a
-     * tenant deletion and cannot deadlock with it. Returns the tenant id, or null
-     * if the event or its tenant no longer exists.
+     * Lock the tenant row that owns the given outbox event before the outbox row
+     * itself is locked, so the lock order (tenant -> outbox) matches a tenant
+     * deletion and cannot deadlock with it. Returns false if the event or its
+     * tenant no longer exists.
      */
-    private UUID lockTenant(UUID outboxId) {
-        List<UUID> tenantIds = jdbc.query(
-                "SELECT tenant_id FROM notification_outbox WHERE id = ?",
+    private boolean lockTenant(UUID outboxId) {
+        List<UUID> locked = jdbc.query(
+                "SELECT o.tenant_id FROM notification_outbox o "
+                        + "JOIN tenant t ON t.id = o.tenant_id "
+                        + "WHERE o.id = ? FOR KEY SHARE OF t",
                 (rs, rowNum) -> (UUID) rs.getObject(1), outboxId);
-        if (tenantIds.isEmpty()) return null;
-        UUID tenantId = tenantIds.get(0);
-        List<Integer> locked = jdbc.query(
-                "SELECT 1 FROM tenant WHERE id = ? FOR KEY SHARE",
-                (rs, rowNum) -> 1, tenantId);
-        if (locked.isEmpty()) return null;
-        return tenantId;
+        return !locked.isEmpty();
     }
 
     private static final class NotificationOutboxProcessingException extends RuntimeException {
