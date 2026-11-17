@@ -34,6 +34,7 @@ python3 scripts/verify-contract-parity.py
 python3 scripts/qualify-0.15.py
 python3 scripts/verify-local-deployment-boundary.py
 python3 scripts/verify-local-native-launcher.py
+python3 scripts/verify-no-tenant-deletion.py
 
 git diff --check
 printf 'repository policy checks passed for %s\n' "$version"
