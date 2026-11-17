@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Materializes due outbox events into per-recipient notifications and email deliveries.
@@ -31,6 +32,7 @@ class NotificationOutboxProcessor {
     private final NotificationPreferenceRepository preferences;
     private final PlatformNotificationRepository notifications;
     private final NotificationDeliveryRepository deliveries;
+    private final JdbcTemplate jdbc;
     private final TransactionTemplate processingTransaction;
     private final TransactionTemplate failureTransaction;
     private final boolean emailDeliveryEnabled;
@@ -42,12 +44,14 @@ class NotificationOutboxProcessor {
                                 PlatformNotificationRepository notifications,
                                 NotificationDeliveryRepository deliveries,
                                 PlatformTransactionManager transactionManager,
+                                JdbcTemplate jdbc,
                                 @Value("${platform.notifications.email.enabled:false}") boolean emailDeliveryEnabled) {
         this.outbox = outbox;
         this.recipients = recipients;
         this.preferences = preferences;
         this.notifications = notifications;
         this.deliveries = deliveries;
+        this.jdbc = jdbc;
         this.processingTransaction = new TransactionTemplate(transactionManager);
         this.processingTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.failureTransaction = new TransactionTemplate(transactionManager);
@@ -79,15 +83,18 @@ class NotificationOutboxProcessor {
                     && processingFailure.getCause() != null
                     ? processingFailure.getCause() : processingFailure;
             try {
-                failureTransaction.executeWithoutResult(status -> outbox.lockById(id).ifPresent(event -> {
+                failureTransaction.executeWithoutResult(status -> {
+                    if (lockTenant(id) == null) return;
+                    outbox.lockById(id).ifPresent(event -> {
                     if (event.processedAt() == null && event.deadLetteredAt() == null) {
                         Instant now = clock.instant();
                         int attempt = event.attemptCount() + 1;
                         long seconds = Math.min(3600, 5L << Math.min(attempt, 9));
                         // Persist only a safe failure class, not provider/database messages or payload data.
                         event.failed(reason.getClass().getSimpleName(), now, now.plusSeconds(seconds));
-                    }
-                }));
+                        }
+                    });
+                });
             } catch (RuntimeException persistenceFailure) {
                 processingFailure.addSuppressed(persistenceFailure);
                 log.error("Could not persist notification outbox retry state for event {} (failure type {})",
@@ -99,6 +106,9 @@ class NotificationOutboxProcessor {
     }
 
     private void processWithinTransaction(UUID id, org.springframework.transaction.TransactionStatus status) {
+        // Lock the tenant row before the outbox row so the lock order is consistent
+        // with a tenant deletion (tenant -> outbox) and cannot deadlock with it.
+        if (lockTenant(id) == null) return;
         NotificationOutbox event = outbox.lockById(id).orElse(null);
         if (event == null || event.processedAt() != null || event.deadLetteredAt() != null
                 || event.availableAt().isAfter(clock.instant())) return;
@@ -112,6 +122,25 @@ class NotificationOutboxProcessor {
             status.setRollbackOnly();
             throw new NotificationOutboxProcessingException(failure);
         }
+    }
+
+    /**
+     * Resolve and lock the tenant row that owns the given outbox event before the
+     * outbox row itself is locked, so the lock order (tenant -> outbox) matches a
+     * tenant deletion and cannot deadlock with it. Returns the tenant id, or null
+     * if the event or its tenant no longer exists.
+     */
+    private UUID lockTenant(UUID outboxId) {
+        List<UUID> tenantIds = jdbc.query(
+                "SELECT tenant_id FROM notification_outbox WHERE id = ?",
+                (rs, rowNum) -> (UUID) rs.getObject(1), outboxId);
+        if (tenantIds.isEmpty()) return null;
+        UUID tenantId = tenantIds.get(0);
+        List<Integer> locked = jdbc.query(
+                "SELECT 1 FROM tenant WHERE id = ? FOR KEY SHARE",
+                (rs, rowNum) -> 1, tenantId);
+        if (locked.isEmpty()) return null;
+        return tenantId;
     }
 
     private static final class NotificationOutboxProcessingException extends RuntimeException {
