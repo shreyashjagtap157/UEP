@@ -13,14 +13,14 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Disables scheduled background workers for this class: its teardown hard-deletes the seeded tenant,
- * and the notification outbox poller (active by default, 1s) processes the {@code notification_outbox}
- * row seeded in {@code @BeforeEach}, which deadlocks with the cascading delete. The webhook fanout
- * worker is already disabled via poll-ms and is driven directly in the tests, so no worker behaviour
- * is lost from the assertions below.
+ * Disables the notification outbox poller for this class (poll-ms pushed out to an hour): its
+ * teardown hard-deletes the seeded tenant, and the poller (1s by default) processes the
+ * {@code notification_outbox} row seeded in {@code @BeforeEach}, which can conflict with the
+ * cascading delete. Background workers stay enabled so {@code WebhookEventFanoutWorker} remains
+ * available (the test drives it directly); the fanout worker itself is disabled via poll-ms.
  */
 @SpringBootTest(properties = {
-        "platform.background-workers.enabled=false",
+        "platform.notifications.outbox-poll-ms=3600000",
         "platform.integrations.webhooks.poll-ms=3600000",
         "platform.integrations.webhooks.fanout-poll-ms=3600000",
         "platform.integrations.webhooks.poll-initial-delay-ms=3600000",
