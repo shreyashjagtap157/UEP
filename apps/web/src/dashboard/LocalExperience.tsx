@@ -7,31 +7,48 @@ import { SpecialistLocalDashboard } from './SpecialistLocalDashboard'
 
 export function LocalExperience() {
   const [account, setAccount] = useState<LocalAccount | null>(() => readSessionAccount())
-  useEffect(() => subscribeDemoState(() => {
-    const raw = sessionStorage.getItem('uep-local-account')
-    if (!raw) return
-    try {
-      const parsed = JSON.parse(raw) as Partial<LocalAccount>
-      const current = demoAccounts.find(item => item.email === parsed.email && item.role === parsed.role)
-      if (!current || !activeUserForProfile(loadDemoState(), current.profile)) {
-        sessionStorage.removeItem('uep-local-account')
-        setAccount(null)
-      }
-    } catch {
-      sessionStorage.removeItem('uep-local-account')
+
+  useEffect(() => {
+    if (!account) return
+
+    const validateSession = () => {
+      if (activeUserForProfile(loadDemoState(), account.profile)) return
+      clearStoredDemoAccount()
+      setSessionNotice('Your demo session ended because this account is inactive. Sign in with an active account or ask an administrator to reactivate it.')
       setAccount(null)
     }
-  }), [])
+
+    const unsubscribe = subscribeDemoState(validateSession)
+    // Close the gap between the initial account read and effect subscription.
+    validateSession()
+    return unsubscribe
+  }, [account])
+
   function handleLogin(nextAccount: LocalAccount) {
-    sessionStorage.setItem('uep-local-account', JSON.stringify(nextAccount))
+    try {
+      sessionStorage.setItem('uep-local-account', JSON.stringify(nextAccount))
+    } catch {
+      setSessionNotice('Browser session storage is unavailable. Enable it and try signing in again.')
+      return
+    }
     setAccount(nextAccount)
   }
   function handleLogout() {
-    sessionStorage.removeItem('uep-local-account')
+    clearStoredDemoAccount()
     setAccount(null)
   }
+}
 
-  if (!account) return <LocalLogin onLogin={handleLogin} />
+function clearStoredDemoAccount() {
+  try {
+    sessionStorage.removeItem('uep-local-account')
+  } catch {
+    // The in-memory account is still revoked; a reload will fail closed in readSessionAccount.
+  }
+}
+
+if (!account) return <LocalLogin onLogin={handleLogin} />
+}
   return <SpecialistLocalDashboard profile={account.profile} onSignOut={handleLogout} />
 }
 
