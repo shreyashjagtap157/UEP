@@ -20,9 +20,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * available (the test drives it directly); the fanout worker itself is disabled via poll-ms.
  */
 @SpringBootTest(properties = {
-        "platform.notifications.outbox-poll-ms=3600000",
-        "platform.integrations.webhooks.poll-ms=3600000",
-        "platform.integrations.webhooks.fanout-poll-ms=3600000",
         "platform.integrations.webhooks.poll-initial-delay-ms=3600000",
         "platform.integrations.webhooks.fanout-initial-delay-ms=3600000"
 })

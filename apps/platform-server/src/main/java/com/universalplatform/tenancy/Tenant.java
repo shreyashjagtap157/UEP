@@ -75,6 +75,7 @@ class Tenant {
     String slug() { return slug; }
     String displayName() { return displayName; }
     TenantStatus status() { return status; }
+    void setStatus(TenantStatus status) { this.status = status; }
     String deploymentPlatform() { return deploymentPlatform; }
     String deploymentStatus() { return deploymentStatus; }
     int licensedUserCount() { return licensedUserCount; }

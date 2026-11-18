@@ -8,7 +8,24 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * Repository for Tenant entities.
+ * <p>
+ * This interface extends {@link JpaRepository} for CRUD operations, but delete
+ * operations are deliberately not exposed in the public API. All tenant lifecycle
+ * management must go through {@link TenantOffboarding}. The Python guard
+ * {@link scripts/verify-no-tenant-deletion.py} enforces this at the production
+ * code level, and the {@link TenantOffboarding} utility provides the only
+ * sanctioned path for status-based transitions.
+ * <p>
+ * Note: {@code JpaRepository} automatically provides {@code deleteById},
+ * {@code delete}, and {@code deleteAll}. These methods exist on the interface
+ * but are forbidden for production use. Code in {@code src/main} must not call
+ * them; any such call will be caught by the Python guard and the static
+ * analysis linter.
+ */
 interface TenantRepository extends JpaRepository<Tenant, UUID> {
+
     Optional<Tenant> findBySlug(String slug);
 
     @Query("SELECT t FROM Tenant t WHERE t.deploymentPlatform = :platform AND t.deploymentStatus = :status")

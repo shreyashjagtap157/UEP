@@ -283,6 +283,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Verify repository policy
         run: bash scripts/verify-repository.sh
+      - name: Verify lock-order invariant
+        run: bash scripts/verify-lock-order.sh
       - name: Parse native PowerShell launcher
         shell: pwsh
         run: |
