@@ -3,10 +3,13 @@ package com.universalplatform.storage;
 import jakarta.annotation.PreDestroy;
 import java.io.InputStream;
 import java.net.URI;
+import java.io.IOException;
 import java.time.Duration;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.http.MediaType;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -28,14 +31,19 @@ class S3StorageAdapter implements StorageAdapter {
     private final S3Client client;
     private final String bucket;
 
+    @Autowired
     S3StorageAdapter(@Value("${platform.storage.s3.endpoint}") URI endpoint,
                      @Value("${platform.storage.s3.region:us-east-1}") String region,
-                     @Value("${platform.storage.s3.access-key}") String accessKey,
-                     @Value("${platform.storage.s3.secret-key}") String secretKey,
-                     @Value("${platform.storage.s3.bucket}") String bucket) {
+                     @Value("${platform.storage.s3.access-key:}") String accessKey,
+                     @Value("${platform.storage.s3.secret-key:}") String secretKey,
+                     @Value("${platform.storage.s3.bucket}") String bucket,
+                     @Value("${platform.development-mode:false}") boolean developmentMode) {
         if (endpoint == null || endpoint.getHost() == null
                 || !("http".equalsIgnoreCase(endpoint.getScheme()) || "https".equalsIgnoreCase(endpoint.getScheme()))) {
             throw new IllegalArgumentException("S3 endpoint must be an absolute HTTP(S) URI");
+        }
+        if (!developmentMode && !"https".equalsIgnoreCase(endpoint.getScheme())) {
+            throw new IllegalArgumentException("S3 endpoint must use HTTPS outside development mode");
         }
         if (bucket == null || bucket.isBlank()) {
             throw new IllegalArgumentException("S3 bucket must be configured");
@@ -63,10 +71,15 @@ class S3StorageAdapter implements StorageAdapter {
                         .retryStrategy(AwsRetryStrategy.standardRetryStrategy().toBuilder()
                                 .maxAttempts(StorageQuotaService.PROVIDER_OPERATION_MAX_ATTEMPTS).build())
                         .build());
-        builder.credentialsProvider(accessKey.isBlank() || secretKey.isBlank()
+        builder.credentialsProvider(accessKeyMissing || secretKeyMissing
                 ? DefaultCredentialsProvider.create()
                 : StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)));
         this.client = builder.build();
+    }
+
+    // Preserve a concise production-mode constructor for focused adapter tests.
+    S3StorageAdapter(URI endpoint, String region, String accessKey, String secretKey, String bucket) {
+        this(endpoint, region, accessKey, secretKey, bucket, false);
     }
 
     @Override
@@ -75,11 +88,28 @@ class S3StorageAdapter implements StorageAdapter {
     }
 
     @Override
-    public String put(String key, InputStream source, long length, String contentType) {
+    public String put(String key, InputStream source, long length, String contentType) throws IOException {
+        if (key == null || key.isBlank()) {
+            throw new IOException("S3 object key must not be blank");
+        }
+        if (source == null || length < 0) {
+            throw new IOException("S3 object stream and non-negative content length are required");
+        }
+        String requestedContentType = contentType == null || contentType.isBlank()
+                ? "application/octet-stream" : contentType;
+        if (requestedContentType.chars().anyMatch(ch -> ch <= 0x1f || ch == 0x7f)) {
+            throw new IOException("S3 object content type is invalid");
+        }
+        final String validatedContentType;
+        try {
+            validatedContentType = MediaType.parseMediaType(requestedContentType).toString();
+        } catch (IllegalArgumentException invalidContentType) {
+            throw new IOException("S3 object content type is invalid");
+        }
         client.putObject(PutObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
-                .contentType(contentType)
+                .contentType(validatedContentType)
                 .build(), RequestBody.fromInputStream(source, length));
         return key;
     }

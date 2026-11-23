@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -18,7 +17,6 @@ import com.universalplatform.security.ActorContext;
 import com.universalplatform.security.TenantContext;
 import com.universalplatform.storage.StorageAdapter;
 import com.universalplatform.storage.StorageAdapterRegistry;
-import com.universalplatform.storage.StorageQuotaService;
 import com.universalplatform.storage.StorageProviderType;
 import com.universalplatform.storage.TenantStorageBindingResolver;
 import java.io.IOException;
@@ -54,7 +52,6 @@ class UploadFinalizationCompensationTest {
     @Mock UploadSessionRepository uploads;
     @Mock StorageObjectRepository objects;
     @Mock StorageAdapterRegistry adapters;
-    @Mock StorageQuotaService storageQuota;
     @Mock TenantStorageBindingResolver storageBindings;
     @Mock AuditService audit;
     @Mock MalwareScanner malwareScanner;
@@ -73,13 +70,15 @@ class UploadFinalizationCompensationTest {
         session = new UploadSession(uploadId, tenantId, actor, "report.bin", "application/octet-stream",
                 FILE_BYTES.length, null, StorageProviderType.LOCAL, stagingFile.toString(), Instant.now());
         session.receivedBytes = FILE_BYTES.length;
-        session.quotaReservationId = UUID.randomUUID();
         session.status = UploadStatus.UPLOADING;
-        service = new UploadService(tenants, actors, auth, uploads, objects, adapters, storageQuota, storageBindings, audit,
+
+        service = new UploadService(tenants, actors, auth, uploads, objects, adapters, storageBindings, audit,
                 malwareScanner, cleanupOutbox, stagingCleanup, tempDir.toString(), 1024, true);
 
         when(tenants.requireTenantId()).thenReturn(tenantId);
         when(actors.requireSubject()).thenReturn(actor);
+        when(uploads.lock(tenantId, uploadId)).thenReturn(Optional.of(session));
+        when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.CLEAN);
         lenient().when(adapters.require(StorageProviderType.LOCAL)).thenReturn(adapter);
         lenient().when(adapter.put(anyString(), any(), eq((long) FILE_BYTES.length), eq("application/octet-stream")))
                 .thenReturn("remote-locator");
@@ -97,70 +96,19 @@ class UploadFinalizationCompensationTest {
     }
 
     @Test
-    void initiationRollbackRemovesStagingFileCreatedBeforeDatabaseCommit() throws Exception {
-        UUID reservationId = UUID.randomUUID();
-        when(storageBindings.findByTenantId(tenantId))
-                .thenReturn(Optional.of(new com.universalplatform.storage.TenantStorageBinding(
-                        StorageProviderType.LOCAL, "")));
-        when(storageQuota.reserve(eq(tenantId), eq(StorageProviderType.LOCAL),
-                anyString(), isNull(), eq(16L))).thenReturn(reservationId);
+    void finalizationUsesTheStoragePrefixSnapshottedOnTheUploadSession() throws Exception {
+        session.objectPrefix = "course-assets";
 
-        service.initiate("new-upload.bin", "application/octet-stream", 16, null);
+        service.finalizeUpload(uploadId);
 
-        Path tenantStaging = tempDir.resolve(tenantId.toString());
-        Path createdFile;
-        try (var files = Files.list(tenantStaging)) {
-            createdFile = files.findFirst().orElseThrow();
-        }
-        assertThat(Files.exists(createdFile)).isTrue();
-
-        completeSynchronizations(TransactionSynchronization.STATUS_ROLLED_BACK);
-
-        assertThat(Files.exists(createdFile)).isFalse();
-    }
-
-    @Test
-    void truncatedStagingFileAbortsUploadReleasesQuotaAndReturnsConflict() throws Exception {
-        stubUploadSession();
-        Files.write(stagingFile, new byte[]{1, 2});
-
-        assertThatThrownBy(() -> service.append(uploadId, FILE_BYTES.length,
-                new java.io.ByteArrayInputStream(new byte[0]), 0))
-                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
-                .satisfies(error -> assertThat(
-                        ((org.springframework.web.server.ResponseStatusException) error).getStatusCode())
-                        .isEqualTo(org.springframework.http.HttpStatus.CONFLICT));
-
-        assertThat(session.status).isEqualTo(UploadStatus.ABORTED);
-        assertThat(session.stagingCleanedAt).isNotNull();
-        assertThat(Files.exists(stagingFile)).isFalse();
-        verify(storageQuota).release(tenantId, session.quotaReservationId);
-        verify(audit).record(tenantId, actor, "UPLOAD_ABORTED_STAGING_CORRUPTION",
-                "upload_session", uploadId.toString());
-    }
-
-    @Test
-    void missingStagingFileAbortsUploadReleasesQuotaAndReturnsConflict() throws Exception {
-        stubUploadSession();
-        Files.delete(stagingFile);
-
-        assertThatThrownBy(() -> service.append(uploadId, FILE_BYTES.length,
-                new java.io.ByteArrayInputStream(new byte[0]), 0))
-                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
-                .satisfies(error -> assertThat(
-                        ((org.springframework.web.server.ResponseStatusException) error).getStatusCode())
-                        .isEqualTo(org.springframework.http.HttpStatus.CONFLICT));
-
-        assertThat(session.status).isEqualTo(UploadStatus.ABORTED);
-        assertThat(session.stagingCleanedAt).isNotNull();
-        verify(storageQuota).release(tenantId, session.quotaReservationId);
-        verify(audit).record(tenantId, actor, "UPLOAD_ABORTED_STAGING_CORRUPTION",
-                "upload_session", uploadId.toString());
+        ArgumentCaptor<String> objectKey = ArgumentCaptor.forClass(String.class);
+        verify(adapter).put(objectKey.capture(), any(), eq((long) FILE_BYTES.length), eq("application/octet-stream"));
+        assertThat(objectKey.getValue()).startsWith("course-assets/" + tenantId + "/");
+        assertThat(objectKey.getValue()).endsWith("/report.bin");
     }
 
     @Test
     void malwareRejectionCommitsTerminalAbortAndRemovesStagingFile() throws Exception {
-        stubUploadSession();
         when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.REJECTED);
 
         assertThatThrownBy(() -> service.finalizeUpload(uploadId))
@@ -176,22 +124,18 @@ class UploadFinalizationCompensationTest {
 
     @Test
     void rollbackDeletesProviderObjectAndKeepsStagingFileForRetry() throws Exception {
-        stubUploadSession();
-        stubCleanScan();
         service.finalizeUpload(uploadId);
 
         completeSynchronizations(TransactionSynchronization.STATUS_ROLLED_BACK);
 
         verify(adapter).delete("remote-locator");
-        verify(cleanupOutbox, never()).enqueue(any(), any(), anyString(), anyString(), any(), any());
+        verify(cleanupOutbox, never()).enqueue(any(), any(), anyString(), anyString(), any());
         verify(stagingCleanup, never()).markCleaned(any(), any());
         assertThat(Files.exists(stagingFile)).isTrue();
     }
 
     @Test
     void rollbackPersistsDurableCleanupWhenProviderCompensationFails() throws Exception {
-        stubUploadSession();
-        stubCleanScan();
         doThrow(new IOException("provider failure")).when(adapter).delete("remote-locator");
 
         service.finalizeUpload(uploadId);
@@ -199,21 +143,19 @@ class UploadFinalizationCompensationTest {
 
         ArgumentCaptor<String> objectKey = ArgumentCaptor.forClass(String.class);
         verify(cleanupOutbox).enqueue(eq(tenantId), eq(StorageProviderType.LOCAL),
-                eq("remote-locator"), objectKey.capture(), eq(session.quotaReservationId), any(IOException.class));
+                eq("remote-locator"), objectKey.capture(), any(IOException.class));
         assertThat(objectKey.getValue()).contains(tenantId.toString()).contains("report.bin");
         assertThat(Files.exists(stagingFile)).isTrue();
     }
 
     @Test
     void commitKeepsProviderObjectAndRemovesStagingFile() throws Exception {
-        stubUploadSession();
-        stubCleanScan();
         service.finalizeUpload(uploadId);
 
         completeSynchronizations(TransactionSynchronization.STATUS_COMMITTED);
 
         verify(adapter, never()).delete("remote-locator");
-        verify(cleanupOutbox, never()).enqueue(any(), any(), anyString(), anyString(), any(), any());
+        verify(cleanupOutbox, never()).enqueue(any(), any(), anyString(), anyString(), any());
         verify(stagingCleanup).markCleaned(tenantId, uploadId);
         assertThat(Files.exists(stagingFile)).isFalse();
         assertThat(session.status).isEqualTo(UploadStatus.COMPLETED);
@@ -221,8 +163,6 @@ class UploadFinalizationCompensationTest {
 
     @Test
     void auditFailureCompensatesProviderObjectWhenTransactionRollsBack() throws Exception {
-        stubUploadSession();
-        stubCleanScan();
         doThrow(new IllegalStateException("audit unavailable"))
                 .when(audit).record(eq(tenantId), eq(actor), eq("UPLOAD_COMPLETED"), eq("storage_object"), anyString());
 
@@ -233,14 +173,6 @@ class UploadFinalizationCompensationTest {
 
         verify(adapter).delete("remote-locator");
         assertThat(Files.exists(stagingFile)).isTrue();
-    }
-
-    private void stubUploadSession() {
-        when(uploads.lock(tenantId, uploadId)).thenReturn(Optional.of(session));
-    }
-
-    private void stubCleanScan() throws IOException {
-        when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.CLEAN);
     }
 
     private static void completeSynchronizations(int status) {

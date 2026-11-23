@@ -1,5 +1,6 @@
 package com.universalplatform.storage;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.URI;
@@ -28,6 +29,56 @@ class S3StorageAdapterConfigurationTest {
                 "education-assets"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("absolute HTTP(S) URI");
+    }
+
+    @Test
+    void rejectsPlainHttpEndpointOutsideDevelopmentMode() {
+        assertThatThrownBy(() -> new S3StorageAdapter(
+                URI.create("http://s3.example.test"),
+                "us-east-1",
+                "access-key",
+                "secret-key",
+                "education-assets"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must use HTTPS outside development mode");
+    }
+
+    @Test
+    void acceptsHttpsEndpointOutsideDevelopmentMode() {
+        var adapter = new S3StorageAdapter(
+                URI.create("https://s3.example.test"),
+                "us-east-1",
+                "access-key",
+                "secret-key",
+                "education-assets",
+                false);
+        assertThat(adapter.type()).isEqualTo(StorageProviderType.S3_COMPATIBLE);
+        adapter.close();
+    }
+
+    @Test
+    void acceptsBothCredentialsOmittedForTheDefaultAwsCredentialChain() {
+        var adapter = new S3StorageAdapter(
+                URI.create("https://s3.example.test"),
+                "us-east-1",
+                "",
+                "",
+                "education-assets");
+        assertThat(adapter.type()).isEqualTo(StorageProviderType.S3_COMPATIBLE);
+        adapter.close();
+    }
+
+    @Test
+    void allowsPlainHttpEndpointOnlyInDevelopmentMode() {
+        var adapter = new S3StorageAdapter(
+                URI.create("http://localhost:9000"),
+                "us-east-1",
+                "access-key",
+                "secret-key",
+                "education-assets",
+                true);
+        assertThat(adapter.type()).isEqualTo(StorageProviderType.S3_COMPATIBLE);
+        adapter.close();
     }
 
     @Test

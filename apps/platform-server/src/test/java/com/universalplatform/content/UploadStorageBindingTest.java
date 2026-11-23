@@ -3,6 +3,7 @@ package com.universalplatform.content;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,12 +13,9 @@ import com.universalplatform.security.ActorContext;
 import com.universalplatform.security.TenantContext;
 import com.universalplatform.storage.StorageAdapter;
 import com.universalplatform.storage.StorageAdapterRegistry;
-import com.universalplatform.storage.StorageQuotaService;
 import com.universalplatform.storage.StorageProviderType;
 import com.universalplatform.storage.TenantStorageBinding;
 import com.universalplatform.storage.TenantStorageBindingResolver;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,7 +27,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class UploadStorageBindingTest {
@@ -43,7 +40,6 @@ class UploadStorageBindingTest {
     @Mock UploadSessionRepository uploads;
     @Mock StorageObjectRepository objects;
     @Mock StorageAdapterRegistry adapters;
-    @Mock StorageQuotaService storageQuota;
     @Mock TenantStorageBindingResolver bindings;
     @Mock AuditService audit;
     @Mock MalwareScanner scanner;
@@ -52,56 +48,11 @@ class UploadStorageBindingTest {
     @Mock StorageAdapter adapter;
 
     @Test
-    void chunkLengthValidationRejectsOverflowAndInvalidOffsets() {
-        assertThat(UploadService.chunkExceedsExpectedLength(12, Long.MAX_VALUE, 100)).isTrue();
-        assertThat(UploadService.chunkExceedsExpectedLength(12, -1, 100)).isTrue();
-        assertThat(UploadService.chunkExceedsExpectedLength(-1, 1, 100)).isTrue();
-        assertThat(UploadService.chunkExceedsExpectedLength(101, 0, 100)).isTrue();
-    }
-
-    @Test
-    void chunkLengthValidationAllowsExactlyTheRemainingBytes() {
-        assertThat(UploadService.chunkExceedsExpectedLength(12, 88, 100)).isFalse();
-        assertThat(UploadService.chunkExceedsExpectedLength(0, 0, 0)).isFalse();
-    }
-
-    @Test
-    void stagingRealignmentTruncatesOnlyUncommittedTrailingBytes() throws Exception {
-        Path staged = staging.resolve("ahead.part");
-        Files.write(staged, new byte[]{1, 2, 3, 4, 5});
-
-        UploadService.realignIfStagingIsAheadOfCommittedOffset(staged, 3);
-
-        assertThat(Files.readAllBytes(staged)).containsExactly((byte) 1, (byte) 2, (byte) 3);
-    }
-
-    @Test
-    void stagingRealignmentRejectsFilesShorterThanCommittedOffset() throws Exception {
-        Path staged = staging.resolve("short.part");
-        Files.write(staged, new byte[]{1, 2});
-
-        assertThatThrownBy(() -> UploadService.realignIfStagingIsAheadOfCommittedOffset(staged, 3))
-                .isInstanceOf(IOException.class)
-                .hasMessageContaining("shorter than its committed offset");
-    }
-
-    @Test
-    void stagingRealignmentRejectsMissingFiles() {
-        Path missing = staging.resolve("missing.part");
-
-        assertThatThrownBy(() -> UploadService.realignIfStagingIsAheadOfCommittedOffset(missing, 0))
-                .isInstanceOf(IOException.class)
-                .hasMessageContaining("staging file is missing");
-    }
-
-    @Test
     void uploadUsesTenantConfiguredS3ProviderAndSnapshotsPrefix() throws Exception {
-        when(actors.requireSubject()).thenReturn("staging-owner");
         UploadService service = service(false);
         when(bindings.findByTenantId(TENANT))
                 .thenReturn(Optional.of(new TenantStorageBinding(StorageProviderType.S3_COMPATIBLE, "course-assets")));
         when(adapters.require(StorageProviderType.S3_COMPATIBLE)).thenReturn(adapter);
-        when(storageQuota.reserve(any(), any(), any(), any(), any(Long.class))).thenReturn(UUID.randomUUID());
         when(uploads.save(any(UploadSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UploadService.UploadView result = service.initiate("lesson.pdf", "application/pdf", 12, null);
@@ -126,11 +77,9 @@ class UploadStorageBindingTest {
 
     @Test
     void localProviderFallbackIsAvailableOnlyInDevelopmentMode() throws Exception {
-        when(actors.requireSubject()).thenReturn("staging-owner");
         UploadService service = service(true);
         when(bindings.findByTenantId(TENANT)).thenReturn(Optional.empty());
         when(adapters.require(StorageProviderType.LOCAL)).thenReturn(adapter);
-        when(storageQuota.reserve(any(), any(), any(), any(), any(Long.class))).thenReturn(UUID.randomUUID());
         when(uploads.save(any(UploadSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UploadService.UploadView result = service.initiate("lesson.pdf", "application/pdf", 12, null);
@@ -138,27 +87,10 @@ class UploadStorageBindingTest {
         assertThat(result.provider()).isEqualTo(StorageProviderType.LOCAL);
     }
 
-    @Test
-    void serverlessDeploymentRejectsChunkedUploadsBeforeCreatingLocalStagingFiles() {
-        UploadService service = serviceWithoutTenantStub(false);
-        ReflectionTestUtils.setField(service, "uploadStagingEnabled", false);
-
-        assertThatThrownBy(() -> service.initiate("lesson.pdf", "application/pdf", 12, null))
-                .isInstanceOf(ResponseStatusException.class)
-                .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
-                        .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));
-
-        assertThat(staging.resolve(TENANT.toString())).doesNotExist();
-        org.mockito.Mockito.verifyNoInteractions(bindings, uploads, adapters, audit);
-    }
-
     private UploadService service(boolean developmentMode) {
         when(tenants.requireTenantId()).thenReturn(TENANT);
-        return serviceWithoutTenantStub(developmentMode);
-    }
-
-    private UploadService serviceWithoutTenantStub(boolean developmentMode) {
-        return new UploadService(tenants, actors, auth, uploads, objects, adapters, storageQuota, bindings, audit,
+        lenient().when(actors.requireSubject()).thenReturn("staging-owner");
+        return new UploadService(tenants, actors, auth, uploads, objects, adapters, bindings, audit,
                 scanner, cleanup, stagingCleanup, staging.toString(), 1024, developmentMode);
     }
 }

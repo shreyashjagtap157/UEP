@@ -1,0 +1,31 @@
+# fly.toml app configuration file generated for uep-backend-testing on 2026-10-31T13:11:45+05:30
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'uep-backend-testing'
+primary_region = 'syd'
+
+[build]
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Keep the API machine running; this service is not configured to stop on idle.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  processes = ['app']
+
+  # Gate traffic and deployment completion on the Spring Boot health endpoint.
+  # The application runs all pending Flyway migrations before it reports healthy.
+  [[http_service.checks]]
+    grace_period = "120s"
+    interval = "15s"
+    method = "GET"
+    timeout = "5s"
+    path = "/actuator/health"
+
+[[vm]]
+  memory = '2gb'
+  cpu_kind = 'shared'
+  cpus = 2
+  memory_mb = 2048
