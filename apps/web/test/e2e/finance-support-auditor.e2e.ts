@@ -1,85 +1,42 @@
 /**
- * Layer A E2E Test: Finance, support, and auditor read-only verification
- *
- * Verifies that read-only roles (auditor and any read-only scoped roles) cannot
- * mutate records via the UI. Also verifies finance/support/auditor documented
- * synthetic view/action flows.
- *
- * @tag layerA
- * @tag finance
- * @tag support
- * @tag auditor
- * @tag read-only
+ * Layer A E2E: finance is read-only, Support Operator can triage service cases,
+ * and Auditor can inspect activity without mutation controls.
  */
 import { test, expect } from '@playwright/test'
+import { signInToDemo } from './_helpers'
 
-test.describe('Layer A: Finance, support, and auditor read-only', () => {
-  test('auditor cannot mutate records via UI actions', async ({ page }) => {
-    // Auditor signs in
-    await page.goto('/')
-    await page.fill('input[type="email"]', 'auditor@demo.uep')
-    await page.fill('input[type="password"]', 'demo')
-    await page.click('button[type="submit"]')
-    await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
-
-    // Attempt actions that should be read-only
-    const pageBefore = page.locator('.audit-log-entry').count()
-
-    // Try to submit an assignment (should be disabled or have no effect)
-    const submitButton = page.locator('button:has-text("Submit assignment")')
-const _isDisabled = await submitButton.getAttribute('disabled')
-    // Auditor's submit should be disabled/grayed out
-
-    // Try to grade a submission (should be disabled or have no effect)
-    const gradeButton = page.locator('button:has-text("Grade")')
-    const _gradeDisabled = await gradeButton.getAttribute('disabled')
-    // Auditor's grade should be disabled
-
-    // The audit log count should not increase from unauthorized actions
-    const _pageAfter = page.locator('.audit-log-entry').nth(pageBefore)
-    // No new audit events should be created from denied actions
+test.describe('Layer A: Finance, support, and auditor role boundaries', () => {
+  test('Auditor receives a read-only audit workspace', async ({ page }) => {
+    await signInToDemo(page, 'auditor@demo.uep')
+    const navigation = page.getByRole('navigation', { name: 'Primary navigation' })
+    await expect(navigation.getByRole('button')).toHaveText(['Audit overview', 'Audit log'])
+    await navigation.getByRole('button', { name: 'Audit log' }).click()
+    const auditPanel = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Audit log' }) })
+    await expect(auditPanel).toBeVisible()
+    await expect(auditPanel.getByRole('button')).toHaveCount(0)
   })
 
-  test('finance-admin can view invoices but not modify them via UI', async ({ page }) => {
-    // Finance admin signs in
-    await page.goto('/')
-    await page.fill('input[type="email"]', 'finance-admin@demo.uep')
-    await page.fill('input[type="password"]', 'demo')
-    await page.click('button[type="submit"]')
-    await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
-
-    // Navigate to finance
-    await page.click('nav.nav-list button:has-text("Invoices & payments")')
-    const invoiceCount = page.locator('.invoice-item').count()
-    await expect(invoiceCount).toBeGreaterThan(0)
-
-    // Should be able to view invoice details
-    const firstInvoice = page.locator('.invoice-item').first()
-    await expect(firstInvoice).toBeVisible()
-
-    // Attempt to modify - should be read-only in demo mode
-    // No edit buttons should be visible or clickable
+  test('Finance Administrator can view invoices but has no edit controls', async ({ page }) => {
+    await signInToDemo(page, 'finance-admin@demo.uep')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Invoices & payments' }).click()
+    const financePanel = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Invoices and account status' }) })
+    await expect(financePanel).toBeVisible()
+    await expect(financePanel).toContainText('NLI-2026-041')
+    await expect(financePanel.locator('article.local-module')).toHaveCount(3)
+    await expect(financePanel.getByRole('button')).toHaveCount(0)
   })
 
-  test('support can view support cases but not create new ones outside scope', async ({
-    page,
-  }) => {
-    // Support operator signs in
-    await page.goto('/')
-    await page.fill('input[type="email"]', 'support@demo.uep')
-    await page.fill('input[type="password"]', 'demo')
-    await page.click('button[type="submit"]')
-    await expect(page.locator('.app-frame')).toBeVisible({ timeout: 5000 })
+  test('Support Operator can triage and resolve existing scoped cases', async ({ page }) => {
+    await signInToDemo(page, 'support@demo.uep')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Support queue' }).click()
+    const supportPanel = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Support cases' }) })
+    await expect(supportPanel).toBeVisible()
+    await expect(supportPanel.locator('article.local-module')).toHaveCount(3)
 
-    // Navigate to support queue
-    await page.click('nav.nav-list button:has-text("Support queue")')
-    const caseCount = page.locator('.support-case').count()
-    // Should see existing cases
-    await expect(caseCount).toBeGreaterThanOrEqual(0)
-
-    // Try to create new case - should be outside support scope or disabled
-    const createButton = page.locator('button:has-text("Create case")')
-    const _isVisible = await createButton.isVisible()
-    // In demo mode, support can view but creation may have limitations
+    const caseRow = supportPanel.locator('article.local-module').filter({ hasText: 'Open' }).first()
+    await caseRow.getByRole('button', { name: 'Start triage' }).click()
+    await expect(caseRow).toContainText('In progress')
+    await caseRow.getByRole('button', { name: 'Resolve case' }).click()
+    await expect(caseRow).toContainText('Resolved')
   })
 })

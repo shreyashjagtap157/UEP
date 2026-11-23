@@ -46,6 +46,7 @@ class SecurityConfiguration {
     SecurityFilterChain securityFilterChain(HttpSecurity http, ApiCredentialService credentials,
             TenantContext tenantContext, com.universalplatform.tenancy.TenantDirectory tenants,
             ObjectProvider<LocalTenantBootstrapService> localTenantBootstrap,
+            ObjectProvider<LocalDevelopmentSessionControl> localSessionControl,
             @Value("${platform.local-auth.enabled:false}") boolean localAuthEnabled,
             @Value("${UEP_LOCAL_AUTH_TOKEN:}") String localAuthToken,
             @Value("${UEP_LOCAL_AUTH_SESSION_ID:}") String localAuthSessionId,
@@ -83,8 +84,12 @@ class SecurityConfiguration {
                     || localAuthExpiresAt == null || localAuthExpiresAt.isBlank()) {
                 throw new IllegalStateException("Local API authentication requires a launcher-issued token, session ID and expiry.");
             }
+            LocalDevelopmentSessionControl sessionControl = localSessionControl.getIfAvailable();
+            if (sessionControl == null) {
+                throw new IllegalStateException("Local-native session revocation is unavailable in this profile.");
+            }
             LocalDevelopmentAuthenticationFilter localFilter = new LocalDevelopmentAuthenticationFilter(
-                    localAuthToken, localAuthSessionId, Instant.parse(localAuthExpiresAt), bootstrap);
+                    localAuthToken, localAuthSessionId, Instant.parse(localAuthExpiresAt), bootstrap, sessionControl);
             http.addFilterBefore(localFilter, ApiCredentialFilter.class);
         }
 

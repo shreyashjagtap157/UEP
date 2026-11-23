@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint .",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test test/LocalDemoStore.test.mjs test/backendUrl.test.mjs test/deployment-env.test.mjs test/api-client-contract.test.mjs",
+    "test": "node --experimental-strip-types --test test/LocalDemoStore.test.mjs test/backendUrl.test.mjs test/deployment-env.test.mjs test/api-client-contract.test.mjs test/workspace-navigation.test.mjs",
     "test:e2e": "playwright test",
     "build:production": "node scripts/verify-production-env.mjs && npm run build",
     "test:e2e:native": "playwright test --config playwright.native.config.ts"

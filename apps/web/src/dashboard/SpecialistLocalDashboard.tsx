@@ -71,11 +71,14 @@ const NAVIGATION: Record<DemoRole, NavigationItem[]> = {
     { id: 'messages', label: 'Inbox' },
   ],
   developer: [
-    { id: 'today', label: 'Product overview' },
-    { id: 'content', label: 'Products & publishing' },
+    { id: 'today', label: 'Platform overview' },
     { id: 'integrations', label: 'Integrations & webhooks' },
+    { id: 'operations', label: 'Client service operations' },
+  ],
+  'product-maintainer': [
+    { id: 'today', label: 'Product portfolio' },
+    { id: 'content', label: 'Products & publishing' },
     { id: 'activity', label: 'Product activity' },
-    { id: 'operations', label: 'Platform operations' },
   ],
   admin: [
     { id: 'today', label: 'Platform overview' },
@@ -112,6 +115,7 @@ const NAVIGATION: Record<DemoRole, NavigationItem[]> = {
     { id: 'submissions', label: 'Submission triage' },
     { id: 'attendance', label: 'Attendance' },
     { id: 'activity', label: 'My activity' },
+    { id: 'messages', label: 'Inbox' },
   ],
   evaluator: [
     { id: 'today', label: 'Evaluation overview' },
@@ -123,6 +127,7 @@ const NAVIGATION: Record<DemoRole, NavigationItem[]> = {
     { id: 'mentee', label: 'Mentee progress' },
     { id: 'submissions', label: 'Learning evidence' },
     { id: 'activity', label: 'Mentoring activity' },
+    { id: 'messages', label: 'Inbox' },
   ],
   support: [
     { id: 'today', label: 'Support overview' },
@@ -268,14 +273,15 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
     changeState(next, 'User invited to the organization.', fresh)
   }
 
-  function sendMessage(subject: string, body: string, recipientId: string) {
+  function sendMessage(subject: string, body: string, recipientId: string): boolean {
     const fresh = loadDemoState()
     const next = sendDemoMessage(fresh, { subject, body, recipientIds: recipientId ? [recipientId] : [] }, profile)
     if (next === fresh) {
-      setNotice('Message was not sent; choose a recipient and enter a subject and message.')
-      return
+      setNotice('Message was not sent; choose an active, authorized recipient and enter a subject and message.')
+      return false
     }
     changeState(next, 'Message sent to the selected recipient.', fresh)
+    return true
   }
 
   function addMaterial(courseId: string, title: string, summary: string) {
@@ -299,14 +305,22 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
           <p className="muted small">{profile.name}</p>
         </div>
         <nav aria-label="Primary navigation" className="nav-list">
-          {nav.map(item => <button key={item.id} className={section === item.id ? 'nav-item active' : 'nav-item'} onClick={() => openSection(item.id)}>{item.label}</button>)}
+          {nav.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              className={section === item.id ? 'nav-item active' : 'nav-item'}
+              aria-current={section === item.id ? 'page' : undefined}
+              onClick={() => openSection(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
         <div className="sidebar-footer">
           <p className="signed-in">{profile.email}</p>
           <p className="muted small">Role-scoped local session</p>
-          <div className="footer-actions">
-            <button className="primary-button" onClick={onSignOut}>Sign out</button>
-          </div>
+          <p className="muted small">Use Switch user in the workspace header to sign out and choose another account.</p>
         </div>
       </aside>
 
@@ -322,7 +336,7 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
                 <strong>{profile.name}</strong>
                 <small>{profile.label}</small>
               </span>
-              <button className="secondary-button" onClick={onSignOut} title="Sign out of your workspace">Sign out</button>
+              <button className="secondary-button" onClick={onSignOut} title="Sign out and return to the demo account selector">Switch user</button>
             </div>
           </div>
         </header>
@@ -335,6 +349,7 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
             {profile.role === 'teacher' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} onGradeExam={gradeExamAttempt} onSubmitExam={submitExamAttempt} />}
             {profile.role === 'client' && <OrganizationPanel state={state} profile={profile} onResolve={resolveOrganizationAction} />}
             {profile.role === 'developer' && <IntegrationsPanel state={state} profile={profile} />}
+            {profile.role === 'product-maintainer' && <PanelList eyebrow="Product lifecycle" title="Catalogue & release status" items={state.products.map(product => ({ title: product.title + ' · v' + product.version, detail: product.description, status: product.status }))} />}
             {profile.role === 'admin' && <OperationsPanel state={state} profile={profile} onResolve={resolveOrganizationAction} onSupportStatus={updateSupportCase} />}
             {profile.role === 'teaching-assistant' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} onGradeExam={gradeExamAttempt} onSubmitExam={submitExamAttempt} />}
             {profile.role === 'evaluator' && <SubmissionPanel state={state} profile={profile} submissions={submissions} onGrade={gradeSubmission} onSubmit={submitAssignment} onGradeExam={gradeExamAttempt} onSubmitExam={submitExamAttempt} />}
@@ -359,7 +374,7 @@ export function SpecialistLocalDashboard({ profile, onSignOut }: { profile: Demo
         {section === 'activity' && <PanelList eyebrow={profile.role === 'auditor' ? 'Compliance' : 'Scoped activity'} title={profile.role === 'auditor' ? 'Audit log' : 'Relevant recorded activity'} items={activity.map(item => ({ title: item.action, detail: `${item.at} · ${item.actor} · ${item.detail}`, status: 'Recorded' }))} />}
         {section === 'finance' && <FinanceScopePanel invoices={financeInvoices} users={state.users} />}
         {section === 'support' && <SupportScopePanel state={state} profile={profile} onStatus={updateSupportCase} />}
-        <section className="panel" aria-live="polite"><p>{notice}</p></section>
+        <section className="panel" role="status" aria-live="polite" aria-atomic="true"><p>{notice}</p></section>
       </main>
     </div>
   )
@@ -373,7 +388,8 @@ function summaryTitle(role: DemoRole) {  switch (role) {
     case 'student': return 'Student learning workspace'
     case 'teacher': return 'Teaching and assessment workspace'
     case 'client': return 'Institution overview'
-    case 'developer': return 'Product and integration control room'
+    case 'developer': return 'Platform engineering workspace'
+    case 'product-maintainer': return 'Product lifecycle workspace'
     case 'admin': return 'Platform administration'
     case 'guardian': return 'Linked learner overview'
     case 'exam-controller': return 'Examination operations'
@@ -411,9 +427,14 @@ function summaryFor(profile: DemoProfile, state: DemoState, submissions: ReturnT
     ]
   }
   if (profile.role === 'developer') return [
-    { title: 'Product drafts', status: String(state.products.filter(item => item.status !== 'Published').length), detail: 'Products requiring work or review' },
-    { title: 'Webhook failures', status: String(state.webhooks.reduce((sum, item) => sum + item.failedDeliveries, 0)), detail: 'Failed deliveries across demo integrations' },
-    { title: 'Tracked integrations', status: String(state.webhooks.length), detail: 'Integration records in the shared state' },
+    { title: 'Tracked integrations', status: String(state.webhooks.length), detail: 'Configured platform webhook connections' },
+    { title: 'Webhook failures', status: String(state.webhooks.reduce((sum, item) => sum + item.failedDeliveries, 0)), detail: 'Failed deliveries requiring technical attention' },
+    { title: 'Client service cases', status: String(state.supportCases.filter(item => item.status !== 'Resolved').length), detail: 'Open or active institution support cases' },
+  ]
+  if (profile.role === 'product-maintainer') return [
+    { title: 'Products in catalogue', status: String(state.products.length), detail: 'Educational products managed by the platform team' },
+    { title: 'Drafts to review', status: String(state.products.filter(item => item.status !== 'Published').length), detail: 'Products awaiting release approval' },
+    { title: 'Published products', status: String(state.products.filter(item => item.status === 'Published').length), detail: 'Products available to institutions' },
   ]
   if (profile.role === 'admin') return [
     { title: 'Active accounts', status: String(state.users.filter(item => item.status === 'Active').length), detail: 'Platform-wide user count' },
@@ -615,9 +636,9 @@ function AnalyticsPanel({ state, profile, submissions, attendance, schedule }: {
     ]
   } else if (profile.role === 'developer') {
     items = [
-      { title: 'Product drafts', detail: 'Products not yet published', status: String(state.products.filter(item => item.status !== 'Published').length) },
-      { title: 'Webhook failures', detail: 'Failed deliveries needing attention', status: String(state.webhooks.reduce((sum, item) => sum + item.failedDeliveries, 0)) },
-      { title: 'Integrations', detail: 'Tracked local webhook integrations', status: String(state.webhooks.length) },
+      { title: 'Tracked integrations', detail: 'Configured platform webhook connections', status: String(state.webhooks.length) },
+      { title: 'Webhook failures', detail: 'Failed deliveries needing technical attention', status: String(state.webhooks.reduce((sum, item) => sum + item.failedDeliveries, 0)) },
+      { title: 'Client service cases', detail: 'Aggregate open and active institution support cases', status: String(state.supportCases.filter(item => item.status !== 'Resolved').length) },
     ]
   } else if (profile.role === 'support') {
     items = [
@@ -642,7 +663,7 @@ function ContentPanel({ state, profile, onCreateProduct, onProductTitle, onProdu
   const [materialTitle, setMaterialTitle] = useState('')
   const [materialSummary, setMaterialSummary] = useState('')
   const materials = state.materials.filter(item => visibleCourses.some(course => course.id === item.courseId))
-  if (profile.role === 'developer') {
+  if (profile.role === 'product-maintainer') {
     return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Product authoring</p><h3>Educational products</h3></div><span className="count-badge">{state.products.length}</span></div>
       <form className="local-login-form" onSubmit={event => { event.preventDefault(); onCreateProduct() }}><label>Product title<input value={productTitle} onChange={event => onProductTitle(event.target.value)} maxLength={200} required /></label><label>Description<textarea value={productDescription} onChange={event => onProductDescription(event.target.value)} maxLength={2000} rows={3} /></label><button type="submit" className="primary-button">Create draft</button></form>
       <div className="local-module-list">{state.products.map(product => <article className="local-module" key={product.id}><div><strong>{product.title} · v{product.version}</strong><p>{product.description} · updated {new Date(product.updatedAt).toLocaleDateString()}</p></div><div><span className="chip">{product.status}</span>{product.status !== 'Published' && <button type="button" className="text-button" onClick={() => onPublishProduct(product.id)}>Publish</button>}</div></article>)}</div>
@@ -689,24 +710,32 @@ function IntegrationsPanel({ state, profile }: { state: DemoState; profile: Demo
   return <PanelList eyebrow="Integration health" title="Webhook delivery summary" items={state.webhooks.map(item => ({ title: item.name, detail: item.endpoint, status: item.status + ' · ' + item.successfulDeliveries + ' delivered · ' + item.failedDeliveries + ' failed' }))} />
 }
 
-function MessagesPanel({ state, profile, messages, onMarkRead, onSend }: { state: DemoState; profile: DemoProfile; messages: DemoState['messages']; onMarkRead: (id: string) => void; onSend: (subject: string, body: string, recipientId: string) => void }) {
+function MessagesPanel({ state, profile, messages, onMarkRead, onSend }: { state: DemoState; profile: DemoProfile; messages: DemoState['messages']; onMarkRead: (id: string) => void; onSend: (subject: string, body: string, recipientId: string) => boolean }) {
   const unread = messages.filter(message => !message.readBy.includes(profile.userId)).length
+  const activeSender = activeUserForProfile(state, profile)
   const recipients = messageRecipientsForProfile(state, profile)
   const [recipientId, setRecipientId] = useState(recipients[0]?.id ?? '')
+  useEffect(() => {
+    if (recipientId && !recipients.some(user => user.id === recipientId)) setRecipientId('')
+  }, [recipientId, recipients])
+  const selectedRecipientId = recipients.some(user => user.id === recipientId) ? recipientId : ''
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   function send() {
-    onSend(subject, body, recipientId)
+    if (!selectedRecipientId || !subject.trim() || !body.trim()) return
+    if (!onSend(subject, body, selectedRecipientId)) return
     setSubject('')
     setBody('')
   }
   return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Recipient-scoped communication</p><h3>Inbox</h3></div><span className="count-badge">{unread} unread</span></div>
-    {recipients.length > 0 && <div className="local-form" style={{ marginBottom: '1.25rem' }}>
+    {!activeSender && <p className="muted" role="status">Messaging is unavailable because this account is inactive.</p>}
+    {activeSender && recipients.length === 0 && <p className="muted" role="status">No active recipients are currently available for this account.</p>}
+    {activeSender && recipients.length > 0 && <div className="local-form" style={{ marginBottom: '1.25rem' }}>
       <p className="eyebrow" style={{ margin: 0 }}>{profile.role === 'student' ? 'Ask a teacher' : 'Send a message'}</p>
-      <label>Recipient<select value={recipientId} onChange={event => setRecipientId(event.target.value)}>{recipients.map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select></label>
+      <label>Recipient<select value={selectedRecipientId} onChange={event => setRecipientId(event.target.value)}><option value="" disabled>Select an active recipient</option>{recipients.map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select></label>
       <label>Subject<input value={subject} onChange={event => setSubject(event.target.value)} placeholder="Request a meeting or ask a question" /></label>
       <label>Message<textarea value={body} onChange={event => setBody(event.target.value)} rows={3} placeholder="Describe what you need help with" /></label>
-      <button type="button" className="primary-button" onClick={send}>{profile.role === 'student' ? 'Send request' : 'Send message'}</button>
+      <button type="button" className="primary-button" disabled={!selectedRecipientId || !subject.trim() || !body.trim()} onClick={send}>{profile.role === 'student' ? 'Send request' : 'Send message'}</button>
     </div>}
     {messages.length ? <div className="local-module-list">{messages.map(message => <article className="local-module" key={message.id}><div><strong>{message.subject}</strong><p>{message.body}</p><small className="muted">From {state.users.find(person => person.id === message.senderId)?.name ?? 'Platform'} · {new Date(message.sentAt).toLocaleString()}</small></div><div><span className="chip">{message.readBy.includes(profile.userId) ? 'Read' : 'Unread'}</span>{!message.readBy.includes(profile.userId) && <button type="button" className="text-button" onClick={() => onMarkRead(message.id)}>Mark as read</button>}</div></article>)}</div> : <p className="muted">No messages are addressed to this account.</p>}
   </section>

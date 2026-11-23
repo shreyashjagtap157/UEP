@@ -3,7 +3,7 @@
  *
  * Layer A: Local Demo Mode (VITE_LOCAL_MODE=true)
  * Tests interact with the rendered React application in a real browser,
- * exercising the local/demo workspace with 13 seeded personas.
+ * exercising the local/demo workspace with 14 seeded personas.
  *
  * Prerequisites for execution:
  * 1. npm install (or pnpm install) to install dependencies

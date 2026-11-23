@@ -16,7 +16,7 @@ function localState(): LocalBootstrapState {
   return JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, '')) as LocalBootstrapState
 }
 
-test('SQLite mode: local-authenticated Real UI, API write/readback and durable SQLite file', async ({ page, request }) => {
+test('SQLite mode: local-authenticated Real UI, API persistence and working sign-out', async ({ page, request }) => {
   const state = localState()
   test.skip(state.DatabaseProvider !== 'SQLite', 'SQLite native checks run only in SQLite qualification mode')
   expect(typeof state.SQLiteDatabasePath).toBe('string')
@@ -48,12 +48,38 @@ test('SQLite mode: local-authenticated Real UI, API write/readback and durable S
   await expect(page.locator('.app-frame')).toBeVisible()
   expect(keycloakRequests).toEqual([])
 
+  // Qualify the actual Real workspace navigation, not only the pure helper.
+  const navigation = page.getByRole('navigation', { name: 'Primary navigation' })
+  const navigationFilter = page.getByRole('searchbox', { name: 'Filter workspace sections' })
+  await expect(navigation.getByRole('heading', { name: 'My workspace' })).toBeVisible()
+  await expect(navigation.getByRole('heading', { name: 'Institution management' })).toBeVisible()
+  await expect(navigation.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-current', 'page')
+
+  await navigationFilter.fill('organi')
+  await expect(navigation.getByRole('button', { name: 'Organization', exact: true })).toBeVisible()
+  await expect(navigation.getByRole('button', { name: 'Today', exact: true })).toHaveCount(0)
+  await expect(navigation.getByRole('heading', { name: 'Institution management' })).toBeVisible()
+
+  await navigationFilter.fill('definitely-no-workspace-section')
+  await expect(navigation.getByRole('status')).toHaveText('No sections match “definitely-no-workspace-section”.')
+  await navigationFilter.press('Escape')
+  await expect(navigationFilter).toHaveValue('')
+  await expect(navigation.getByRole('button', { name: 'Today', exact: true })).toBeVisible()
+  await expect(navigation.getByRole('button', { name: 'Today', exact: true })).toHaveAttribute('aria-current', 'page')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(navigation).toHaveCSS('display', 'flex')
+  await expect(navigation).toHaveCSS('overflow-x', 'auto')
+  await expect(navigation).toHaveCSS('scroll-snap-type', 'x')
+  await page.setViewportSize({ width: 1440, height: 900 })
+
   await page.getByRole('button', { name: 'Organization', exact: true }).click()
+  await expect(navigation.getByRole('button', { name: 'Organization', exact: true })).toHaveAttribute('aria-current', 'page')
   const branchCode = 'SQLITE-E2E-' + Date.now().toString()
   const branchName = 'SQLite persistence qualification ' + branchCode
   await page.getByLabel('Code').fill(branchCode)
   await page.getByLabel('Display name').fill(branchName)
-  await page.getByLabel('Timezone').fill('Asia/Kolkata')
+  await page.getByLabel('Timezone', { exact: true }).fill('Asia/Kolkata')
   const createPromise = page.waitForResponse(response => {
     const url = new URL(response.url())
     return url.origin === frontend && url.pathname === '/api/v1/organization/branches'
@@ -99,4 +125,24 @@ test('SQLite mode: local-authenticated Real UI, API write/readback and durable S
   } finally {
     closeSync(databaseHandle)
   }
+
+  const logoutPromise = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.origin === frontend && url.pathname === '/api/v1/local/session/logout'
+      && response.request().method() === 'POST'
+  })
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click()
+  const logoutResponse = await logoutPromise
+  expect(logoutResponse.status()).toBe(204)
+  const logoutHeaders = await logoutResponse.request().allHeaders()
+  expect(logoutHeaders['x-uep-local-auth']).toBeUndefined()
+  expect(logoutHeaders.authorization).toBeUndefined()
+
+  await expect(page.getByRole('heading', { name: 'Signed out', exact: true })).toBeVisible()
+  await expect(page.locator('.app-frame')).toHaveCount(0)
+
+  // The proxy still supplies its server-side launcher credential, but the API
+  // must reject it after the UI-triggered revocation.
+  const afterLogoutIdentity = await request.get(`${frontend}/api/v1/me`)
+  expect(afterLogoutIdentity.status()).toBe(401)
 })

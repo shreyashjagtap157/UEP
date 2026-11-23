@@ -14,18 +14,21 @@ import type { CurrentIdentity, PermissionKey } from '../platform/api'
 export function AcademicOverview({ me }: { me: CurrentIdentity }) {
   const canViewAcademics = has(me, 'ACADEMICS_VIEW')
   const canViewCurriculum = has(me, 'CURRICULUM_VIEW')
+  const canViewOwnEnrollments = me.roles.includes('Student') || has(me, 'ENROLLMENTS_VIEW')
+  const teachingRoles = ['Teacher', 'Teaching Assistant', 'Mentor', 'Evaluator']
+  const canViewOwnTeaching = me.roles.some(role => teachingRoles.includes(role)) || has(me, 'TEACHING_ASSIGNMENTS_VIEW')
   const periods = useQuery({ queryKey: ['academic-periods'], queryFn: fetchAcademicPeriods, enabled: canViewAcademics })
   const programs = useQuery({ queryKey: ['programs'], queryFn: fetchPrograms, enabled: canViewAcademics })
   const courses = useQuery({ queryKey: ['courses'], queryFn: fetchCourses, enabled: canViewCurriculum })
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: fetchSubjects, enabled: canViewCurriculum })
   const modules = useQuery({ queryKey: ['curriculum-modules'], queryFn: fetchCurriculumModules, enabled: canViewCurriculum })
   const batches = useQuery({ queryKey: ['batches'], queryFn: fetchBatches, enabled: has(me, 'ENROLLMENTS_VIEW') })
-  const myEnrollments = useQuery({ queryKey: ['my-enrollments'], queryFn: fetchMyEnrollments })
-  const myTeaching = useQuery({ queryKey: ['my-teacher-assignments'], queryFn: fetchMyTeacherAssignments })
+  const myEnrollments = useQuery({ queryKey: ['my-enrollments'], queryFn: fetchMyEnrollments, enabled: canViewOwnEnrollments })
+  const myTeaching = useQuery({ queryKey: ['my-teacher-assignments'], queryFn: fetchMyTeacherAssignments, enabled: canViewOwnTeaching })
 
   const admin = has(me, 'ACADEMICS_MANAGE') || has(me, 'CURRICULUM_MANAGE') || has(me, 'ENROLLMENTS_MANAGE')
-  const learner = me.roles.includes('Student') || (myEnrollments.data?.totalElements ?? 0) > 0
-  const teacher = me.roles.some(role => ['Teacher', 'Teaching Assistant', 'Mentor', 'Evaluator'].includes(role)) || (myTeaching.data?.totalElements ?? 0) > 0
+  const learner = me.roles.includes('Student') || (canViewOwnEnrollments && (myEnrollments.data?.totalElements ?? 0) > 0)
+  const teacher = teachingRoles.some(role => me.roles.includes(role)) || (canViewOwnTeaching && (myTeaching.data?.totalElements ?? 0) > 0)
 
   return (
     <div className="content-stack">
