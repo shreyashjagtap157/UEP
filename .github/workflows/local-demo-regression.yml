@@ -41,7 +41,7 @@ jobs:
         run: 'npx playwright test --project="Layer A: Local Demo"'
       - name: Upload local-demo report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: uep-local-demo-regression-report
           path: apps/web/e2e-test-results/
