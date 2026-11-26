@@ -206,7 +206,6 @@ final class ProductionSecretGuard {
             offenders.add(label + " must be a valid absolute " + requiredScheme.toUpperCase(Locale.ROOT) + " URL");
         }
     }
-    }
 
     private static void check(List<String> offenders, Environment environment, String property,
                               String envVar, String devDefault, int minimumLength) {

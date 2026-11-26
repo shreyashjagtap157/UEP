@@ -90,6 +90,15 @@ export async function logout(): Promise<void> {
   await ensureKeycloak().logout({ redirectUri: window.location.origin })
 }
 
+/** Initiates the Keycloak forgot-password (reset-password) flow for users who cannot sign in. */
+export async function resetPassword(): Promise<void> {
+  if (localMode || localApiMode) return
+  await ensureKeycloak().login({
+    action: 'reset-password',
+    redirectUri: window.location.origin,
+  })
+}
+
 export async function openAccountManagement(): Promise<void> {
   if (localApiMode) throw new Error('Keycloak account management is unavailable in local API mode.')
   await ensureKeycloak().accountManagement()

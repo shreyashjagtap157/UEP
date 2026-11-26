@@ -10,8 +10,8 @@ import {
   reconnectLocalApiSession,
   onOidcStatus,
   openAccountManagement,
+  resetPassword,
   signIn,
-  localMode,
   localApiMode,
 } from '../auth/keycloak'
 import { AcademicOverview } from '../academic/AcademicOverview'
@@ -31,7 +31,6 @@ import { AnalyticsWorkspace } from '../analytics/AnalyticsWorkspace'
 import { AdvancedAcademicWorkspace } from '../advanced/AdvancedAcademicWorkspace'
 
 import { IntegrationWorkspace } from '../integration/IntegrationWorkspace'
-import { LocalExperience } from '../dashboard/LocalExperience'
 import {
   assignRole,
   createBranch,
@@ -87,8 +86,19 @@ export function App() {
   const [signInError, setSignInError] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const presentationLabel = import.meta.env.VITE_UEP_PRESENTATION_LABEL?.trim()
-  const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: oidcAuthenticated && !localMode })
-  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated && !localMode })
+  const [density, setDensity] = useState<'compact' | 'comfortable' | 'spacious'>(() => {
+    if (typeof localStorage !== 'undefined') {
+      return (localStorage.getItem('uep-density') as any) ?? 'comfortable'
+    }
+    return 'comfortable'
+  })
+
+  useEffect(() => {
+    document.documentElement.dataset.density = density
+    try { localStorage.setItem('uep-density', density) } catch { /* ignore */ }
+  }, [density])
+  const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: oidcAuthenticated })
+  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated })
 
   useEffect(() => onOidcStatus(setOidcAuthenticated), [])
 
@@ -144,14 +154,6 @@ export function App() {
   }
 
   function handleSignOut() {
-    // Clear the Offline Demo tab session and return to its own account selector.
-    if (localMode) {
-      queryClient.clear()
-      sessionStorage.removeItem('uep-local-account')
-      setOidcAuthenticated(false)
-      setSignInPending(false)
-      return
-    }
     // Revoke the real in-process launcher session before changing browser state.
     if (localApiMode) {
       setSignInPending(true)
@@ -186,10 +188,9 @@ export function App() {
         <section className="hero-card">
           <p className="eyebrow">Real UEP · local-native session</p>
           <h1>Signed out</h1>
-          <p>The launcher-managed Organization Owner session has been revoked by the API. To start a fresh Real UEP session, stop and restart the PowerShell launcher, then reconnect here. This local-native mode has one owner identity; use the separate Offline Demo to explore other roles.</p>
+          <p>The launcher-managed Organization Owner session has been revoked by the API. To start a fresh Real UEP session, stop and restart the PowerShell launcher, then reconnect here.</p>
           <div className="button-row">
             <button className="primary-button" onClick={() => { reconnectLocalApiSession(); window.location.reload() }}>Reconnect after restarting the launcher</button>
-            <a className="secondary-button" href="http://127.0.0.1:5174/" target="_blank" rel="noopener noreferrer">Open demo accounts</a>
           </div>
           {signInError && <p className="error-text" role="alert">{signInError}</p>}
         </section>
@@ -208,14 +209,29 @@ export function App() {
             <button className="primary-button" disabled={signInPending} onClick={handleSignIn}>
               Sign in with Keycloak
             </button>
+            <button
+              className="secondary-button"
+              disabled={signInPending}
+              onClick={() => {
+                setSignInPending(true)
+                setSignInError(null)
+                void resetPassword()
+                  .catch(error => {
+                    setSignInError(error instanceof Error ? error.message : 'Could not start password reset')
+                    setSignInPending(false)
+                  })
+                  .finally(() => setSignInPending(false))
+              }}
+              title="Start the Keycloak forgot-password flow to reset your password"
+            >
+              Forgot password?
+            </button>
           </div>
           {signInError && <p className="error-text" role="alert">{signInError}</p>}
         </section>
       </main>
     )
   }
-
-  if (localMode) return <LocalExperience />
 
   if (identity.isPending) return <CenteredStatus title="Loading your workspace" detail="Resolving tenant identity and permissions…" />
     if (identity.isError) return <CenteredStatus title="Access unavailable" detail={identity.error.message} />
@@ -278,13 +294,6 @@ export function App() {
         <div className="sidebar-footer">
           <p className="signed-in">{me.displayName}</p>
           <p className="muted small">{me.roles.join(' · ') || 'No assigned role'}</p>
-          {localMode && (
-            <div className="footer-actions">
-              <button className="secondary-button" onClick={() => setSection('overview')}>
-                Cancel
-              </button>
-            </div>
-          )}
         </div>
       </aside>
 
@@ -298,6 +307,20 @@ export function App() {
             {presentationLabel
               ? <span className="environment-badge environment-badge-real">{presentationLabel}</span>
               : <span className="version-badge">{version.data?.version ?? 'Platform'}</span>}
+            <div className="density-control">
+              <label className="sr-only" htmlFor="density-select">Content density</label>
+              <select
+                id="density-select"
+                className="nav-filter"
+                value={density}
+                onChange={event => setDensity(event.target.value as any)}
+                aria-label="Content density"
+              >
+                <option value="compact">Compact</option>
+                <option value="comfortable">Comfortable</option>
+                <option value="spacious">Spacious</option>
+              </select>
+            </div>
             <div className="session-chip">
               <span className="session-avatar" aria-hidden="true">{initials}</span>
               <span className="session-meta">
@@ -308,7 +331,6 @@ export function App() {
                 ? (<>
                     <span className="chip" title="The local owner session is managed by the PowerShell launcher">Launcher-managed session</span>
                     <button className="secondary-button" disabled={signInPending} onClick={handleSignOut} title="Revoke and sign out of this local owner session">{signInPending ? 'Signing out…' : 'Sign out'}</button>
-                    <a className="secondary-button" href="http://127.0.0.1:5174/" target="_blank" rel="noopener noreferrer" title="Open the separate Offline Demo account selector">Open demo accounts</a>
                   </>)
                 : <button className="secondary-button" onClick={handleSignOut} title="Sign out of UEP">Sign out</button>}
             </div>
@@ -762,7 +784,7 @@ function Security({ me }: { me: CurrentIdentity }) {
           <Metric label="WebAuthn evidence" value={assurance.webAuthnEvidence ? 'Present' : 'Not present'} />
         </div>
         {localApiMode
-          ? <p className="muted small">Keycloak is intentionally not started in this local-native profile. This Real UEP window uses one persisted Organization Owner identity and a launcher-managed loopback session; it does not impersonate seeded personas. Sign out revokes the current local session in the running API process; restart the PowerShell launcher before reconnecting to Real UEP. Use Open demo accounts to explore the separate role-specific demo identities. Production OIDC sessions retain the normal identity-provider Sign out flow.</p>
+          ? <p className="muted small">Keycloak is intentionally not started in this local-native profile. This Real UEP window uses one persisted Organization Owner identity and a launcher-managed loopback session. Sign out revokes the current local session in the running API process; restart the PowerShell launcher before reconnecting to Real UEP.</p>
           : <div className="button-row">
               <button className="primary-button" onClick={() => void enrollPasskey()}>Register passkey</button>
               <button className="secondary-button" onClick={() => void enrollOtp()}>Configure OTP</button>

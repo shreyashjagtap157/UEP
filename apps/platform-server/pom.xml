@@ -171,6 +171,21 @@
         <artifactId>spring-boot-maven-plugin</artifactId>
         <configuration>
           <mainClass>com.universalplatform.PlatformServerApplication</mainClass>
+          <jvmArguments>
+            <jvmArgument>--enable-preview</jvmArgument>
+          </jvmArguments>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>21</release>
+          <compilerArgs>
+            <arg>--enable-preview</arg>
+          </compilerArgs>
+          <source>21</source>
+          <target>21</target>
         </configuration>
       </plugin>
       <plugin>
