@@ -1,0 +1,268 @@
+/*
+ * UEP semantic design system
+ * Tier 1: primitive values
+ * Tier 2: intent-based semantic aliases
+ * Tier 3: component-level defaults
+ */
+
+/* Tier 1 — primitives: raw color, type, spacing, radius and motion scales. */
+:root {
+  --primitive-neutral-0: #09090B;
+  --primitive-neutral-1: #111113;
+  --primitive-neutral-2: #18181B;
+  --primitive-neutral-3: #27272A;
+  --primitive-neutral-4: #3F3F46;
+  --primitive-neutral-5: #52525B;
+  --primitive-neutral-6: #71717A;
+  --primitive-neutral-7: #A1A1AA;
+  --primitive-neutral-8: #D4D4D8;
+  --primitive-neutral-9: #E4E4E7;
+  --primitive-neutral-10: #FAFAFA;
+  --primitive-white: #FFFFFF;
+
+  --primitive-accent-50: #EFF6FF;
+  --primitive-accent-100: #DBEAFE;
+  --primitive-accent-200: #BFDBFE;
+  --primitive-accent-300: #93C5FD;
+  --primitive-accent-400: #60A5FA;
+  --primitive-accent-500: #3B82F6;
+  --primitive-accent-600: #2563EB;
+  --primitive-accent-700: #1D4ED8;
+  --primitive-accent-800: #1E40AF;
+  --primitive-accent-900: #1E3A8A;
+
+  --primitive-success-500: #16A34A;
+  --primitive-success-700: #15803D;
+  --primitive-warning-500: #EAB308;
+  --primitive-warning-700: #A16207;
+  --primitive-danger-500: #DC2626;
+  --primitive-danger-700: #B91C1C;
+
+  --primitive-success-100: #DCFCE7;
+  --primitive-warning-100: #FEF3C7;
+  --primitive-danger-100: #FEE2E2;
+
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  --font-size-2xs: 0.6875rem;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 2rem;
+  --font-size-4xl: 2.5rem;
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.05em;
+  --tracking-label: 0.12em;
+
+  /* 4px base grid. */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+
+  --motion-standard: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-fast: 100ms cubic-bezier(0.16, 1, 0.3, 1);
+  --layout-sidebar-width: 16.25rem;
+  --layout-content-max: 112rem;
+}
+
+/* Tier 2 — semantic roles. Dark-first is intentional and works before React mounts. */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --surface-canvas: var(--primitive-neutral-0);
+  --surface-elevated: var(--primitive-neutral-1);
+  --surface-raised: var(--primitive-neutral-2);
+  --surface-interactive: var(--primitive-neutral-3);
+  --surface-pressed: var(--primitive-neutral-4);
+  --surface-overlay: color-mix(in srgb, var(--primitive-neutral-1) 94%, transparent);
+
+  --border-subtle: color-mix(in srgb, var(--primitive-neutral-5) 38%, transparent);
+  --border-default: var(--primitive-neutral-3);
+  --border-strong: var(--primitive-accent-400);
+
+  --text-primary: var(--primitive-neutral-10);
+  --text-secondary: var(--primitive-neutral-8);
+  --text-muted: var(--primitive-neutral-7);
+  --text-on-accent: var(--primitive-white);
+
+  --action-primary-bg: var(--primitive-accent-500);
+  --action-primary-fg: var(--primitive-white);
+  --action-primary-hover: var(--primitive-accent-400);
+  --action-primary-soft: color-mix(in srgb, var(--primitive-accent-500) 16%, transparent);
+
+  --status-success: var(--primitive-success-500);
+  --status-success-surface: color-mix(in srgb, var(--primitive-success-500) 16%, var(--surface-elevated));
+  --status-success-text: #86EFAC;
+  --status-warning: var(--primitive-warning-500);
+  --status-warning-surface: color-mix(in srgb, var(--primitive-warning-500) 15%, var(--surface-elevated));
+  --status-warning-text: #FDE68A;
+  --status-danger: var(--primitive-danger-500);
+  --status-danger-surface: color-mix(in srgb, var(--primitive-danger-500) 16%, var(--surface-elevated));
+  --status-danger-text: #FCA5A5;
+
+  --focus-ring-shadow: 0 0 0 3px color-mix(in srgb, var(--border-strong) 25%, transparent);
+  --hero-glow: color-mix(in srgb, var(--primitive-accent-500) 22%, transparent);
+  --elev-none: none;
+  --elev-sm: 0 1px 2px 0 color-mix(in srgb, var(--primitive-neutral-0) 30%, transparent);
+  --elev-md: 0 8px 24px -12px color-mix(in srgb, var(--primitive-neutral-0) 55%, transparent);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --surface-canvas: var(--primitive-neutral-10);
+  --surface-elevated: var(--primitive-white);
+  --surface-raised: color-mix(in srgb, var(--primitive-neutral-9) 60%, var(--primitive-white));
+  --surface-interactive: color-mix(in srgb, var(--primitive-neutral-9) 72%, var(--primitive-white));
+  --surface-pressed: var(--primitive-neutral-9);
+  --surface-overlay: color-mix(in srgb, var(--primitive-white) 94%, transparent);
+
+  --border-subtle: var(--primitive-neutral-9);
+  --border-default: var(--primitive-neutral-8);
+  --border-strong: var(--primitive-accent-600);
+
+  --text-primary: var(--primitive-neutral-2);
+  --text-secondary: var(--primitive-neutral-4);
+  --text-muted: var(--primitive-neutral-6);
+  --text-on-accent: var(--primitive-white);
+
+  --action-primary-bg: var(--primitive-accent-600);
+  --action-primary-fg: var(--primitive-white);
+  --action-primary-hover: var(--primitive-accent-700);
+  --action-primary-soft: color-mix(in srgb, var(--primitive-accent-600) 9%, transparent);
+
+  --status-success: var(--primitive-success-700);
+  --status-success-surface: color-mix(in srgb, var(--primitive-success-100) 75%, var(--primitive-white));
+  --status-success-text: var(--primitive-success-700);
+  --status-warning: var(--primitive-warning-700);
+  --status-warning-surface: color-mix(in srgb, var(--primitive-warning-100) 72%, var(--primitive-white));
+  --status-warning-text: var(--primitive-warning-700);
+  --status-danger: var(--primitive-danger-700);
+  --status-danger-surface: color-mix(in srgb, var(--primitive-danger-100) 72%, var(--primitive-white));
+  --status-danger-text: var(--primitive-danger-700);
+
+  --focus-ring-shadow: 0 0 0 3px color-mix(in srgb, var(--border-strong) 18%, transparent);
+  --hero-glow: color-mix(in srgb, var(--primitive-accent-600) 10%, transparent);
+  --elev-none: none;
+  --elev-sm: 0 1px 2px 0 color-mix(in srgb, var(--primitive-neutral-0) 5%, transparent);
+  --elev-md: 0 8px 24px -12px color-mix(in srgb, var(--primitive-neutral-0) 12%, transparent);
+}
+
+/* Compatibility aliases: existing workspace components consume semantic roles. */
+:root {
+  --bg-canvas: var(--surface-canvas);
+  --bg-surface: var(--surface-elevated);
+  --bg-surface-hover: var(--surface-interactive);
+  --bg-surface-active: var(--surface-pressed);
+  --bg-surface-muted: var(--surface-raised);
+  --bg-inverse: var(--text-primary);
+
+  --border-muted: var(--border-default);
+  --border-accent: var(--border-strong);
+  --border-input: var(--border-default);
+  --text-inverse: var(--surface-canvas);
+
+  --accent: var(--action-primary-bg);
+  --accent-hover: var(--action-primary-hover);
+  --accent-soft: var(--action-primary-soft);
+  --accent-text: var(--action-primary-bg);
+  --accent-disabled: color-mix(in srgb, var(--text-muted) 35%, var(--surface-raised));
+
+  --success: var(--status-success);
+  --success-surface: var(--status-success-surface);
+  --success-text: var(--status-success-text);
+  --warning: var(--status-warning);
+  --warning-surface: var(--status-warning-surface);
+  --warning-text: var(--status-warning-text);
+  --danger: var(--status-danger);
+  --danger-soft: var(--status-danger-surface);
+  --danger-text: var(--status-danger-text);
+  --danger-border: var(--status-danger);
+  --shadow-focus-ring: var(--focus-ring-shadow);
+
+  --transition: var(--motion-standard);
+  --transition-fast: var(--motion-fast);
+  --sidebar-width: var(--layout-sidebar-width);
+  --max-width: var(--layout-content-max);
+
+  --density-pad-xs: var(--space-2);
+  --density-pad-sm: var(--space-3);
+  --density-pad-md: var(--space-4);
+  --density-pad-lg: var(--space-5);
+  --density-gap-xs: var(--space-2);
+  --density-gap-sm: var(--space-3);
+  --density-gap-md: var(--space-4);
+  --density-gap-lg: var(--space-5);
+  --density-row-h: 3.25rem;
+
+  --gap-xs: var(--density-gap-xs);
+  --gap-sm: var(--density-gap-sm);
+  --gap-md: var(--density-gap-md);
+  --gap-lg: var(--density-pad-lg);
+
+  /* Tier 3 — component-level defaults. Components can override these locally. */
+  --button-height: 2.5rem;
+  --button-padding-inline: var(--space-5);
+  --card-padding: var(--space-5);
+  --control-height: 2.5rem;
+  --component-radius: var(--radius-md);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Density controls — data-density="compact" | "comfortable" | "spacious". */
+[data-density="compact"] {
+  --density-pad-xs: var(--space-1);
+  --density-pad-sm: var(--space-2);
+  --density-pad-md: var(--space-3);
+  --density-pad-lg: var(--space-4);
+  --density-gap-xs: var(--space-1);
+  --density-gap-sm: var(--space-2);
+  --density-gap-md: var(--space-3);
+  --density-gap-lg: var(--space-4);
+  --density-row-h: 2.5rem;
+}
+[data-density="comfortable"] {
+  --density-pad-xs: var(--space-2);
+  --density-pad-sm: var(--space-3);
+  --density-pad-md: var(--space-4);
+  --density-pad-lg: var(--space-5);
+  --density-gap-xs: var(--space-2);
+  --density-gap-sm: var(--space-3);
+  --density-gap-md: var(--space-4);
+  --density-gap-lg: var(--space-5);
+  --density-row-h: 3.25rem;
+}
+[data-density="spacious"] {
+  --density-pad-xs: var(--space-3);
+  --density-pad-sm: var(--space-4);
+  --density-pad-md: var(--space-5);
+  --density-pad-lg: var(--space-6);
+  --density-gap-xs: var(--space-3);
+  --density-gap-sm: var(--space-4);
+  --density-gap-md: var(--space-5);
+  --density-gap-lg: var(--space-6);
+  --density-row-h: 4rem;
+}

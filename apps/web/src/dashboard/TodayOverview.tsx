@@ -5,18 +5,18 @@ import { fetchLocalToday, fetchToday } from '../platform/api'
 export function TodayOverview({ enabled }: { enabled: boolean }) {
   const today = useQuery({ queryKey: ['today'], queryFn: localMode ? fetchLocalToday : fetchToday, refetchInterval: localMode ? false : 60_000, enabled })
   if (!enabled) return null
-  if (today.isError) return <section className="panel"><p className="error-text" role="alert">{today.error.message}</p></section>
-  if (today.isPending || !today.data || !today.data.summary) return <section className="panel"><p className="muted">Loading today…</p></section>
+  if (today.isError) return <section className="panel today-overview"><p className="error-text" role="alert">{today.error.message}</p></section>
+  if (today.isPending || !today.data || !today.data.summary) return <section className="panel today-overview"><p className="muted">Loading today…</p></section>
   const value = today.data
   return (
-    <div className="content-stack">
-      <section className="metric-grid" aria-label="Today summary">
+    <div className="content-stack today-overview">
+      <section className="metric-grid today-summary" aria-label="Today summary">
         <Metric label="Classes today" value={String(value.summary.classes)} />
         <Metric label="Exams today" value={String(value.summary.exams)} />
         {value.mode === 'ADMINISTRATIVE' && <Metric label="Scheduled learners" value={String(value.summary.scheduledLearners)} />}
         <Metric label="Unread notifications" value={String(value.summary.unreadNotifications)} />
       </section>
-      <section className="panel">
+      <section className="panel today-schedule">
         <div className="panel-heading"><div><p className="eyebrow">Today · {value.timezone}</p><h3>{value.mode === 'ADMINISTRATIVE' ? 'Institution operations' : 'Your schedule'}</h3></div><span className="count-badge">{value.schedule.length}</span></div>
         {value.schedule.length === 0 ? <p className="muted">Nothing is scheduled for today.</p> : (
           <div className="timeline-list">

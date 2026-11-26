@@ -92,11 +92,11 @@ export function App() {
     }
     return 'comfortable'
   })
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(
-    typeof localStorage !== 'undefined'
-      ? ((localStorage.getItem('uep-theme') as any) ?? 'system')
-      : 'system'
-  )
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
+    if (typeof localStorage === 'undefined') return 'dark'
+    const stored = localStorage.getItem('uep-theme')
+    return stored === 'light' || stored === 'system' ? stored : 'dark'
+  })
 
   useEffect(() => {
     document.documentElement.dataset.density = density
@@ -106,13 +106,14 @@ export function App() {
   useEffect(() => {
     const root = document.documentElement
     const apply = (value: 'light' | 'dark') => {
-      root.classList.toggle('dark', value === 'dark')
+      root.dataset.theme = value
     }
     if (theme === 'system') {
       const mq = window.matchMedia('(prefers-color-scheme: dark)')
       const handler = () => apply(mq.matches ? 'dark' : 'light')
-      apply(mq.matches ? 'dark' : 'light')
+      handler()
       mq.addEventListener('change', handler)
+      try { localStorage.setItem('uep-theme', theme) } catch { /* ignore */ }
       return () => mq.removeEventListener('change', handler)
     }
     apply(theme)
@@ -400,20 +401,20 @@ export function App() {
 
 function Overview({ me }: { me: CurrentIdentity }) {
   return (
-    <div className="content-stack">
-      <section className="hero-card">
+    <div className="content-stack overview-layout">
+      <section className="hero-card overview-hero">
         <p className="eyebrow">Today</p>
         <h3>Welcome, {me.displayName}</h3>
         <p>Your workspace summary reflects the responsibilities and permissions assigned to your current membership.</p>
       </section>
       <TodayOverview enabled={hasScoped(me, 'SCHEDULE_VIEW') || hasScoped(me, 'SCHEDULE_MANAGE')} />
-      <section className="metric-grid" aria-label="Identity overview">
+      <section className="metric-grid overview-identity" aria-label="Identity overview">
         <Metric label="Membership" value={me.membershipStatus} />
         <Metric label="Roles" value={String(me.roles.length)} />
         <Metric label="Permissions" value={String(me.permissions.length)} />
         <Metric label="Authentication" value={me.authenticationAssurance.multiFactorEvidence ? 'MFA evidence' : 'Standard'} />
       </section>
-      <section className="panel">
+      <section className="panel overview-roles">
         <div className="panel-heading"><div><p className="eyebrow">Assigned roles</p><h3>Current responsibilities</h3></div></div>
         <div className="chip-row">
           {me.roles.length ? me.roles.map(role => <span className="chip" key={role}>{role}</span>) : <span className="muted">No roles assigned.</span>}

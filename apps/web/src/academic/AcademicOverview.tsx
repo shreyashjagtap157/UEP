@@ -31,7 +31,7 @@ export function AcademicOverview({ me }: { me: CurrentIdentity }) {
   const teacher = teachingRoles.some(role => me.roles.includes(role)) || (canViewOwnTeaching && (myTeaching.data?.totalElements ?? 0) > 0)
 
   return (
-    <div className="content-stack">
+    <div className="content-stack overview-academic">
       {admin && (
         <section className="panel">
           <div className="panel-heading"><div><p className="eyebrow">Academic administration</p><h3>Academic core</h3></div></div>
