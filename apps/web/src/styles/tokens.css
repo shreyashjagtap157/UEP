@@ -31,10 +31,13 @@
   --primitive-accent-800: #1E40AF;
   --primitive-accent-900: #1E3A8A;
 
+  --primitive-success-300: #86EFAC;
   --primitive-success-500: #16A34A;
   --primitive-success-700: #15803D;
+  --primitive-warning-200: #FDE68A;
   --primitive-warning-500: #EAB308;
   --primitive-warning-700: #A16207;
+  --primitive-danger-300: #FCA5A5;
   --primitive-danger-500: #DC2626;
   --primitive-danger-700: #B91C1C;
 
@@ -111,13 +114,13 @@
 
   --status-success: var(--primitive-success-500);
   --status-success-surface: color-mix(in srgb, var(--primitive-success-500) 16%, var(--surface-elevated));
-  --status-success-text: #86EFAC;
+  --status-success-text: var(--primitive-success-300);
   --status-warning: var(--primitive-warning-500);
   --status-warning-surface: color-mix(in srgb, var(--primitive-warning-500) 15%, var(--surface-elevated));
-  --status-warning-text: #FDE68A;
+  --status-warning-text: var(--primitive-warning-200);
   --status-danger: var(--primitive-danger-500);
   --status-danger-surface: color-mix(in srgb, var(--primitive-danger-500) 16%, var(--surface-elevated));
-  --status-danger-text: #FCA5A5;
+  --status-danger-text: var(--primitive-danger-300);
 
   --focus-ring-shadow: 0 0 0 3px color-mix(in srgb, var(--border-strong) 25%, transparent);
   --hero-glow: color-mix(in srgb, var(--primitive-accent-500) 22%, transparent);
