@@ -227,18 +227,6 @@ html, body, #root {
   --danger-border: var(--danger);
 }
 
-.nav-item:hover {
-  background: var(--bg-surface-hover);
-  color: var(--text-primary);
-  border-color: var(--border-subtle);
-}
-
-.nav-item.active {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent);
-}
-
 .nav-group-title {
   margin: 0 0 var(--density-gap-sm);
   font-size: 0.6875rem;
@@ -289,22 +277,15 @@ html, body, #root {
   grid-template-columns: var(--sidebar-width) 1fr;
   grid-template-rows: auto 1fr;
   min-height: 100vh;
-  overflow: hidden;
 }
 
 .sidebar {
-  position: sticky;
-  top: 0;
   width: var(--sidebar-width);
   display: grid;
   grid-template-rows: auto 1fr auto;
-  height: 100vh;
   padding: var(--gap-lg) var(--gap-md);
   background: var(--bg-inverse);
   color: var(--text-inverse);
-  z-index: 20;
-  overflow-y: auto;
-  border-right: 1px solid color-mix(in srgb, var(--text-inverse) 10%, transparent);
 }
 
 .product-kicker {
@@ -353,28 +334,31 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   gap: var(--gap-sm);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   padding: 0.55rem 0.75rem;
-  color: var(--text-inverse);
+  color: color-mix(in srgb, var(--text-inverse) 80%, transparent);
   background: transparent;
   cursor: pointer;
   text-align: left;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   transition: var(--transition);
 }
 
 .nav-item:hover {
-  background: color-mix(in srgb, var(--text-inverse) 12%, transparent);
-  border-color: color-mix(in srgb, var(--text-inverse) 20%, transparent);
+  border-bottom-color: var(--accent);
+  color: var(--text-inverse);
+  transform: scale(1.05);
 }
 
 .nav-item.active {
-  background: var(--accent-soft);
-  border-color: var(--border-accent);
+  border-bottom-color: var(--accent);
   color: var(--accent-text);
   box-shadow: none;
+  transform: scale(1.07);
 }
 
 .sidebar-footer {
