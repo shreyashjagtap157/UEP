@@ -103,82 +103,6 @@ html, body, #root {
 }
 
 /* ============================================================================
-   Dark theme
-   ============================================================================ */
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-
-    --bg-canvas: #020617;
-    --bg-surface: #0f172a;
-    --bg-surface-hover: #1e293b;
-    --bg-surface-active: #334155;
-    --bg-inverse: #f8fafc;
-
-    --border-subtle: #1e293b;
-    --border-muted: #334155;
-    --border-accent: #3b82f6;
-    --border-input: #475569;
-
-    --text-primary: #f8fafc;
-    --text-secondary: #cbd5e1;
-    --text-muted: #94a3b8;
-    --text-inverse: #0f172a;
-
-    --accent: #3b82f6;
-    --accent-hover: #60a5fa;
-    --accent-soft: #1e3a8a;
-    --accent-text: #93c5fd;
-
-    --success-surface: #064e3b;
-    --success-text: #6ee7b7;
-    --warning-surface: #451a03;
-    --warning-text: #fcd34d;
-    --danger-surface: #450a0a;
-    --danger-text: #fca5a5;
-
-    --elev-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
-    --elev-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
-  }
-}
-
-/* Manual dark class override */
-.dark {
-  color-scheme: dark;
-
-  --bg-canvas: #020617;
-  --bg-surface: #0f172a;
-  --bg-surface-hover: #1e293b;
-  --bg-surface-active: #334155;
-  --bg-inverse: #f8fafc;
-
-  --border-subtle: #1e293b;
-  --border-muted: #334155;
-  --border-accent: #3b82f6;
-  --border-input: #475569;
-
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --text-inverse: #0f172a;
-
-  --accent: #3b82f6;
-  --accent-hover: #60a5fa;
-  --accent-soft: #1e3a8a;
-  --accent-text: #93c5fd;
-
-  --success-surface: #064e3b;
-  --success-text: #6ee7b7;
-  --warning-surface: #451a03;
-  --warning-text: #fcd34d;
-  --danger-surface: #450a0a;
-  --danger-text: #fca5a5;
-
-  --elev-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
-  --elev-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
-}
-
-/* ============================================================================
    Density controls — data-density="compact" | "comfortable" | "spacious"
    ============================================================================ */
 [data-density='compact'] {
@@ -284,8 +208,9 @@ html, body, #root {
   display: grid;
   grid-template-rows: auto 1fr auto;
   padding: var(--gap-lg) var(--gap-md);
-  background: var(--bg-inverse);
-  color: var(--text-inverse);
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  border-right: 1px solid var(--border-subtle);
 }
 
 .product-kicker {
@@ -294,13 +219,13 @@ html, body, #root {
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--text-inverse) 70%, transparent);
+  color: var(--text-muted);
 }
 
 .product-title {
   margin: 0 0 var(--gap-md);
   font-size: clamp(1.5rem, 3vw, 1.75rem);
-  color: var(--text-inverse);
+  color: var(--text-primary);
   letter-spacing: -0.02em;
 }
 
@@ -326,7 +251,7 @@ html, body, #root {
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--text-inverse) 60%, transparent);
+  color: var(--text-muted);
 }
 
 .nav-item {
@@ -338,7 +263,7 @@ html, body, #root {
   border-bottom: 2px solid transparent;
   border-radius: 0;
   padding: 0.55rem 0.75rem;
-  color: color-mix(in srgb, var(--text-inverse) 80%, transparent);
+  color: var(--text-secondary);
   background: transparent;
   cursor: pointer;
   text-align: left;
@@ -350,7 +275,7 @@ html, body, #root {
 
 .nav-item:hover {
   border-bottom-color: var(--accent);
-  color: var(--text-inverse);
+  color: var(--text-primary);
   transform: scale(1.05);
 }
 
@@ -364,7 +289,7 @@ html, body, #root {
 .sidebar-footer {
   margin-top: auto;
   padding-top: var(--gap-md);
-  border-top: 1px solid color-mix(in srgb, var(--text-inverse) 20%, transparent);
+  border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -374,13 +299,13 @@ html, body, #root {
   margin: 0;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--text-inverse);
+  color: var(--text-primary);
 }
 
 .sidebar-footer p {
   margin: 0;
   font-size: 0.75rem;
-  color: color-mix(in srgb, var(--text-inverse) 60%, transparent);
+  color: var(--text-muted);
 }
 
 .workspace-header-actions .density-control {
