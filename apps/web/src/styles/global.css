@@ -151,6 +151,42 @@ html, body, #root {
   --danger-border: var(--danger);
 }
 
+/* Manual dark class override — applied via theme toggle */
+html.dark {
+  color-scheme: dark;
+
+  --bg-canvas: #020617;
+  --bg-surface: #0f172a;
+  --bg-surface-hover: #1e293b;
+  --bg-surface-active: #334155;
+  --bg-inverse: #f8fafc;
+
+  --border-subtle: #1e293b;
+  --border-muted: #334155;
+  --border-accent: #3b82f6;
+  --border-input: #475569;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-inverse: #0f172a;
+
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-soft: #1e3a8a;
+  --accent-text: #93c5fd;
+
+  --success-surface: #064e3b;
+  --success-text: #6ee7b7;
+  --warning-surface: #451a03;
+  --warning-text: #fcd34d;
+  --danger-surface: #450a0a;
+  --danger-text: #fca5a5;
+
+  --elev-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --elev-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+}
+
 .nav-group-title {
   margin: 0 0 var(--density-gap-sm);
   font-size: 0.6875rem;
@@ -308,7 +344,8 @@ html, body, #root {
   color: var(--text-muted);
 }
 
-.workspace-header-actions .density-control {
+.workspace-header-actions .density-control,
+.workspace-header-actions .theme-control {
   display: flex;
   align-items: center;
   gap: var(--gap-sm);

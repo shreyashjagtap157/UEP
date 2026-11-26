@@ -92,11 +92,32 @@ export function App() {
     }
     return 'comfortable'
   })
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(
+    typeof localStorage !== 'undefined'
+      ? ((localStorage.getItem('uep-theme') as any) ?? 'system')
+      : 'system'
+  )
 
   useEffect(() => {
     document.documentElement.dataset.density = density
     try { localStorage.setItem('uep-density', density) } catch { /* ignore */ }
   }, [density])
+
+  useEffect(() => {
+    const root = document.documentElement
+    const apply = (value: 'light' | 'dark') => {
+      root.classList.toggle('dark', value === 'dark')
+    }
+    if (theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      const handler = () => apply(mq.matches ? 'dark' : 'light')
+      apply(mq.matches ? 'dark' : 'light')
+      mq.addEventListener('change', handler)
+      return () => mq.removeEventListener('change', handler)
+    }
+    apply(theme)
+    try { localStorage.setItem('uep-theme', theme) } catch { /* ignore */ }
+  }, [theme])
   const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: oidcAuthenticated })
   const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated })
 
@@ -307,6 +328,20 @@ export function App() {
             {presentationLabel
               ? <span className="environment-badge environment-badge-real">{presentationLabel}</span>
               : <span className="version-badge">{version.data?.version ?? 'Platform'}</span>}
+            <div className="theme-control">
+              <label className="sr-only" htmlFor="theme-select">Theme</label>
+              <select
+                id="theme-select"
+                className="nav-filter"
+                value={theme}
+                onChange={event => setTheme(event.target.value as any)}
+                aria-label="Theme"
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="system">System</option>
+              </select>
+            </div>
             <div className="density-control">
               <label className="sr-only" htmlFor="density-select">Content density</label>
               <select
