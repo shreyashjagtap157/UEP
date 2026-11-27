@@ -83,8 +83,9 @@ class UploadFinalizationCompensationTest {
 
         when(tenants.requireTenantId()).thenReturn(tenantId);
         when(actors.requireSubject()).thenReturn(actor);
-        when(uploads.lock(tenantId, uploadId)).thenReturn(Optional.of(session));
-        when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.CLEAN);
+        // These defaults serve finalization tests; initiation and corruption paths intentionally do not use them.
+        lenient().when(uploads.lock(tenantId, uploadId)).thenReturn(Optional.of(session));
+        lenient().when(malwareScanner.scan(stagingFile)).thenReturn(ScanStatus.CLEAN);
         lenient().when(adapters.require(StorageProviderType.LOCAL)).thenReturn(adapter);
         lenient().when(adapter.put(anyString(), any(), eq((long) FILE_BYTES.length), eq("application/octet-stream")))
                 .thenReturn("remote-locator");
