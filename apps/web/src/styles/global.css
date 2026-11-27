@@ -1904,3 +1904,8 @@ pre {
   .local-record-side { width: 100%; justify-items: start; text-align: left; }
   .local-notice { align-items: flex-start; flex-direction: column; }
 }
+
+/* Offline workspace spacing variants — all dimensions come from the shared scale. */
+.local-section-spaced { margin-top: var(--space-6); }
+.local-form-spaced { margin-bottom: var(--space-5); }
+.local-form-eyebrow { margin: 0; }

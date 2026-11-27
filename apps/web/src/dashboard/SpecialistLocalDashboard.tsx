@@ -531,7 +531,7 @@ function LearningPanel({ state, profile, onProgress }: { state: DemoState; profi
       const percent = progressFor(state, learnerId, course.id)
       return <article className="local-module" key={course.id}><div><strong>{course.title}</strong><p>{course.category} · {course.lessonCount} lessons · {percent}% recorded progress</p></div><div><span className="chip">{course.status}</span>{profile.role === 'student' && percent < 100 && <button type="button" className="text-button" onClick={() => onProgress(course.id)}>Record progress +10%</button>}</div></article>
     })}</div> : <p className="muted">No courses are linked to this account.</p>}
-    <div className="panel-heading" style={{ marginTop: '1.5rem' }}><div><p className="eyebrow">Course materials</p><h3>Resources from your teachers</h3></div><span className="count-badge">{materials.length}</span></div>
+    <div className="panel-heading local-section-spaced"><div><p className="eyebrow">Course materials</p><h3>Resources from your teachers</h3></div><span className="count-badge">{materials.length}</span></div>
     {materials.length ? <div className="local-module-list">{materials.map(material => <article className="local-module" key={material.id}>
       <div><strong>{material.title}</strong><p>{material.summary}</p><small className="muted">{courses.find(course => course.id === material.courseId)?.title ?? 'Course'} · added by {material.addedBy} on {new Date(material.addedAt).toLocaleDateString()}</small></div>
     </article>)}</div> : <p className="muted">No learning materials are published for these courses yet.</p>}
@@ -572,7 +572,7 @@ function PeoplePanel({ state, profile, onUserStatus, onInvite }: { state: DemoSt
     return profile.role === 'client' && (item.role === 'Student' || item.role === 'Teacher')
   }
   return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">People & role scope</p><h3>{heading}</h3></div><span className="count-badge">{users.length}</span></div>
-    {canManage && <div className="local-form" style={{ marginBottom: '1.25rem' }}>
+    {canManage && <div className="local-form local-form-spaced">
       <label>Full name<input value={name} onChange={event => setName(event.target.value)} placeholder="New teacher or student" /></label>
       <label>Email address<input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="person@institute.edu" autoComplete="off" /></label>
       <label>Role<select value={role} onChange={event => setRole(event.target.value === 'Teacher' ? 'Teacher' : 'Student')}><option value="Student">Student</option><option value="Teacher">Teacher</option></select></label>
@@ -676,8 +676,8 @@ function ContentPanel({ state, profile, onCreateProduct, onProductTitle, onProdu
   }
   return <section className="panel">
     <div className="panel-heading"><div><p className="eyebrow">Course catalog</p><h3>{profile.role === 'admin' ? 'Manage courses' : 'Courses available in role scope'}</h3></div><span className="count-badge">{visibleCourses.length}</span></div>
-    {canAuthorMaterial && <div className="local-form" style={{ marginBottom: '1.25rem' }}>
-      <p className="eyebrow" style={{ margin: 0 }}>Add learning material</p>
+    {canAuthorMaterial && <div className="local-form local-form-spaced">
+      <p className="eyebrow local-form-eyebrow">Add learning material</p>
       <label>Course<select value={materialCourseId} onChange={event => setMaterialCourseId(event.target.value)}>{visibleCourses.map(course => <option key={course.id} value={course.id}>{course.title}</option>)}</select></label>
       <label>Material title<input value={materialTitle} onChange={event => setMaterialTitle(event.target.value)} placeholder="Week 2 · Session notes" /></label>
       <label>Summary<textarea value={materialSummary} onChange={event => setMaterialSummary(event.target.value)} rows={2} placeholder="What does this material cover?" /></label>
@@ -687,7 +687,7 @@ function ContentPanel({ state, profile, onCreateProduct, onProductTitle, onProdu
       <div><strong>{course.title}</strong><p>{course.description}</p></div>
       <div><span className="chip">{course.status}</span>{profile.role === 'admin' && course.status === 'Draft' && <button type="button" className="text-button" onClick={() => onPublishCourse(course.id)}>Publish course</button>}</div>
     </article>)}</div> : <p className="muted">No courses are available in this role's scope.</p>}
-    <div className="panel-heading" style={{ marginTop: '1.5rem' }}><div><p className="eyebrow">Teaching materials</p><h3>Shared resources</h3></div><span className="count-badge">{materials.length}</span></div>
+    <div className="panel-heading local-section-spaced"><div><p className="eyebrow">Teaching materials</p><h3>Shared resources</h3></div><span className="count-badge">{materials.length}</span></div>
     {materials.length ? <div className="local-module-list">{materials.map(material => <article className="local-module" key={material.id}>
       <div><strong>{material.title}</strong><p>{material.summary}</p><small className="muted">{visibleCourses.find(course => course.id === material.courseId)?.title ?? 'Course'} · added by {material.addedBy} on {new Date(material.addedAt).toLocaleDateString()}</small></div>
     </article>)}</div> : <p className="muted">No learning materials have been added for these courses yet.</p>}
@@ -730,8 +730,8 @@ function MessagesPanel({ state, profile, messages, onMarkRead, onSend }: { state
   return <section className="panel"><div className="panel-heading"><div><p className="eyebrow">Recipient-scoped communication</p><h3>Inbox</h3></div><span className="count-badge">{unread} unread</span></div>
     {!activeSender && <p className="muted" role="status">Messaging is unavailable because this account is inactive.</p>}
     {activeSender && recipients.length === 0 && <p className="muted" role="status">No active recipients are currently available for this account.</p>}
-    {activeSender && recipients.length > 0 && <div className="local-form" style={{ marginBottom: '1.25rem' }}>
-      <p className="eyebrow" style={{ margin: 0 }}>{profile.role === 'student' ? 'Ask a teacher' : 'Send a message'}</p>
+    {activeSender && recipients.length > 0 && <div className="local-form local-form-spaced">
+      <p className="eyebrow local-form-eyebrow">{profile.role === 'student' ? 'Ask a teacher' : 'Send a message'}</p>
       <label>Recipient<select value={selectedRecipientId} onChange={event => setRecipientId(event.target.value)}><option value="" disabled>Select an active recipient</option>{recipients.map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select></label>
       <label>Subject<input value={subject} onChange={event => setSubject(event.target.value)} placeholder="Request a meeting or ask a question" /></label>
       <label>Message<textarea value={body} onChange={event => setBody(event.target.value)} rows={3} placeholder="Describe what you need help with" /></label>
