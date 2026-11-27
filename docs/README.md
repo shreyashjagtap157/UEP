@@ -6,6 +6,7 @@ All product documentation, in reading order.
 - `../README.md` — repository overview, current milestone, build instructions.
 - `MASTER_IMPLEMENTATION_PLAN.md` — the full product/implementation specification (102 sections).
 - `IMPLEMENTATION_STATUS.md` — what is implemented per milestone.
+- `FRONTEND_DESIGN_SYSTEM.md` — three-tier web design tokens, theme behavior and component styling rules.
 - `VERSIONING.md` — release/tag discipline (`stable.major.minor.patch`).
 - `QUALIFICATION_0.15.md` — the 0.15 reliability/performance qualification gates.
 
