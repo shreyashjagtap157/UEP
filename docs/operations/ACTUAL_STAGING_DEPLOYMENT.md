@@ -1,4 +1,6 @@
-# UEP — actual remote staging deployment and qualification
+# Superseded hosted staging plan — historical reference only
+
+**STATUS: SUPERSEDED / NOT DEPLOYABLE.** The hosted Fly.io + Supabase + Keycloak staging topology described below was retired. This document is preserved as historical architecture and qualification context only. Do not follow its provider setup, secret, migration or deployment instructions. The authoritative current record is [FLY_SUPABASE_STAGING.md](FLY_SUPABASE_STAGING.md); the supported runtime is [LOCAL_NATIVE_WINDOWS.md](LOCAL_NATIVE_WINDOWS.md). No hosted product deployment is currently qualified.
 
 This is the deployment authority for the real UEP product. The older root-level
 `FREE_TIER_DEPLOYMENT.md` and `docs/CLOUDFLARE_DEMO_DEPLOY.md` described a local
