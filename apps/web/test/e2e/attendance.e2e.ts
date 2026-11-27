@@ -16,11 +16,18 @@ test.describe('Layer A: Attendance isolation', () => {
       .filter({ hasText: 'Meera Iyer' })
       .filter({ hasText: 'Late' })
     await expect(lateRecord.getByRole('button', { name: 'Mark present' })).toBeVisible()
+
+    // Seeded attendance dates are relative to the current day; assert against the
+    // exact row selected instead of a date that expires as the calendar advances.
+    const seededDate = (await lateRecord.locator('p').innerText()).match(/\\d{4}-\\d{2}-\\d{2}/)?.[0]
+    expect(seededDate).toBeDefined()
+    if (!seededDate) throw new Error('The seeded late attendance record is missing its date.')
+
     await lateRecord.getByRole('button', { name: 'Mark present' }).click()
     await expect(page.locator('section[aria-live="polite"]')).toContainText('Attendance update saved.')
     const updatedRecord = teacherPanel.locator('article.local-module')
       .filter({ hasText: 'Meera Iyer' })
-      .filter({ hasText: '2026-10-30' })
+      .filter({ hasText: seededDate })
     await expect(updatedRecord).toContainText('Present')
     await expect(updatedRecord).not.toContainText('Late')
 
