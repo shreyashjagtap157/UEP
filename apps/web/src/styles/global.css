@@ -858,8 +858,18 @@ tr td .count-badge {
 
   .nav-list {
     display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
     overflow-x: auto;
-    padding-bottom: var(--gap-xs);
+    overflow-y: hidden;
+    padding: var(--space-1) var(--space-1) var(--space-2);
+    scroll-snap-type: x;
+  }
+
+  .nav-group {
+    flex: 0 0 min(15rem, 76vw);
+    min-width: 12rem;
+    scroll-snap-align: start;
   }
 
   .nav-item {
@@ -888,6 +898,17 @@ tr td .count-badge {
     width: 100%;
     justify-content: flex-start;
     margin-top: var(--gap-md);
+  }
+}
+
+@media (max-width: 560px) {
+  .nav-list {
+    gap: var(--space-2);
+  }
+
+  .nav-group {
+    flex-basis: min(13rem, 82vw);
+    min-width: 11.5rem;
   }
 }
 
