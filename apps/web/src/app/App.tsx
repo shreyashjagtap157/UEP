@@ -12,6 +12,7 @@ import {
   openAccountManagement,
   resetPassword,
   signIn,
+  localMode,
   localApiMode,
 } from '../auth/keycloak'
 import { AcademicOverview } from '../academic/AcademicOverview'
@@ -31,6 +32,7 @@ import { AnalyticsWorkspace } from '../analytics/AnalyticsWorkspace'
 import { AdvancedAcademicWorkspace } from '../advanced/AdvancedAcademicWorkspace'
 
 import { IntegrationWorkspace } from '../integration/IntegrationWorkspace'
+import { LocalExperience } from '../dashboard/LocalExperience'
 import {
   assignRole,
   createBranch,
@@ -126,8 +128,8 @@ export function App() {
     apply(theme)
     try { localStorage.setItem('uep-theme', theme) } catch { /* ignore */ }
   }, [theme])
-  const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: oidcAuthenticated })
-  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated })
+  const identity = useQuery({ queryKey: ['me'], queryFn: fetchCurrentIdentity, enabled: oidcAuthenticated && !localMode })
+  const version = useQuery({ queryKey: ['platform-version'], queryFn: ({ signal }: { signal: AbortSignal }) => fetchPlatformVersion(signal), staleTime: 300_000, enabled: oidcAuthenticated && !localMode })
 
   useEffect(() => onOidcStatus(setOidcAuthenticated), [])
 
@@ -183,6 +185,13 @@ export function App() {
   }
 
   function handleSignOut() {
+    if (localMode) {
+      queryClient.clear()
+      try { sessionStorage.removeItem('uep-local-account') } catch { /* storage can be unavailable */ }
+      setOidcAuthenticated(false)
+      setSignInPending(false)
+      return
+    }
     // Revoke the real in-process launcher session before changing browser state.
     if (localApiMode) {
       setSignInPending(true)
@@ -226,6 +235,8 @@ export function App() {
       </main>
     )
   }
+
+  if (localMode) return <LocalExperience />
 
   if (!oidcAuthenticated) {
     return (

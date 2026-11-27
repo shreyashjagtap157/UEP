@@ -82,6 +82,17 @@ Metrics use `--font-mono` and tabular numerals. Heading tracking uses the tight 
 6. Keep ARIA labels, roles, live regions, disabled states and keyboard behavior independent of visual classes. Styling must not become an authorization or interaction mechanism.
 7. Do not alter authentication, permission filtering, API contracts, routing, query state or workspace workflows as part of a visual-only change.
 
+## Offline Demo boundary
+
+The fixture-backed **Offline Demo** remains a separate presentation experience and is not an authentication shortcut for the real platform:
+
+- VITE_LOCAL_MODE=true selects the seeded, browser-local Offline Demo with fourteen role-scoped personas.
+- VITE_LOCAL_API_MODE=true selects the real API through the native launcher-issued local session. It is not the seeded Offline Demo.
+- The Offline Demo entry point (LocalExperience) and shared fixture store (LocalDemoStore) remain isolated from authenticated identity/version queries and production API state.
+- Sign-in, persona selection, role-specific workspaces, shared fixture mutations, browser persistence warnings and account switching are product behavior—not disposable visual scaffolding.
+- Offline Demo styles live in global.css and consume the same Tier 2 semantic tokens as authenticated workspaces. Do not reintroduce a second palette or inline presentation styles.
+
+The design-system refactor must preserve both paths. A visual refresh may change presentation but must not remove a launcher mode, persona workflow, store invariant or regression test.
 ## Verification
 
 From the repository root, the frontend qualification commands are:
