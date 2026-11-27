@@ -13,6 +13,7 @@ const ACCOUNT_GROUPS: Array<{ title: string; description: string; roles: DemoRol
 
 export function LocalExperience() {
   const [account, setAccount] = useState<LocalAccount | null>(() => readSessionAccount())
+  const [sessionNotice, setSessionNotice] = useState<string>()
 
   useEffect(() => {
     if (!account) return
@@ -37,24 +38,17 @@ export function LocalExperience() {
       setSessionNotice('Browser session storage is unavailable. Enable it and try signing in again.')
       return
     }
+    setSessionNotice(undefined)
     setAccount(nextAccount)
   }
+
   function handleLogout() {
     clearStoredDemoAccount()
+    setSessionNotice(undefined)
     setAccount(null)
   }
-}
 
-function clearStoredDemoAccount() {
-  try {
-    sessionStorage.removeItem('uep-local-account')
-  } catch {
-    // The in-memory account is still revoked; a reload will fail closed in readSessionAccount.
-  }
-}
-
-if (!account) return <LocalLogin onLogin={handleLogin} />
-}
+  if (!account) return <LocalLogin onLogin={handleLogin} notice={sessionNotice} />
   return <SpecialistLocalDashboard profile={account.profile} onSignOut={handleLogout} />
 }
 
