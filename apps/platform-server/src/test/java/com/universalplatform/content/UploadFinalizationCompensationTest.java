@@ -18,6 +18,7 @@ import com.universalplatform.security.TenantContext;
 import com.universalplatform.storage.StorageAdapter;
 import com.universalplatform.storage.StorageAdapterRegistry;
 import com.universalplatform.storage.StorageProviderType;
+import com.universalplatform.storage.StorageQuotaService;
 import com.universalplatform.storage.TenantStorageBindingResolver;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -52,6 +53,7 @@ class UploadFinalizationCompensationTest {
     @Mock UploadSessionRepository uploads;
     @Mock StorageObjectRepository objects;
     @Mock StorageAdapterRegistry adapters;
+    @Mock StorageQuotaService storageQuota;
     @Mock TenantStorageBindingResolver storageBindings;
     @Mock AuditService audit;
     @Mock MalwareScanner malwareScanner;
@@ -70,9 +72,10 @@ class UploadFinalizationCompensationTest {
         session = new UploadSession(uploadId, tenantId, actor, "report.bin", "application/octet-stream",
                 FILE_BYTES.length, null, StorageProviderType.LOCAL, stagingFile.toString(), Instant.now());
         session.receivedBytes = FILE_BYTES.length;
+        session.quotaReservationId = UUID.randomUUID();
         session.status = UploadStatus.UPLOADING;
 
-        service = new UploadService(tenants, actors, auth, uploads, objects, adapters, storageBindings, audit,
+        service = new UploadService(tenants, actors, auth, uploads, objects, adapters, storageQuota, storageBindings, audit,
                 malwareScanner, cleanupOutbox, stagingCleanup, tempDir.toString(), 1024, true);
 
         when(tenants.requireTenantId()).thenReturn(tenantId);
@@ -129,7 +132,7 @@ class UploadFinalizationCompensationTest {
         completeSynchronizations(TransactionSynchronization.STATUS_ROLLED_BACK);
 
         verify(adapter).delete("remote-locator");
-        verify(cleanupOutbox, never()).enqueue(any(), any(), anyString(), anyString(), any());
+        verify(cleanupOutbox, never()).enqueue(any(), any(), anyString(), anyString(), any(), any());
         verify(stagingCleanup, never()).markCleaned(any(), any());
         assertThat(Files.exists(stagingFile)).isTrue();
     }
@@ -143,7 +146,7 @@ class UploadFinalizationCompensationTest {
 
         ArgumentCaptor<String> objectKey = ArgumentCaptor.forClass(String.class);
         verify(cleanupOutbox).enqueue(eq(tenantId), eq(StorageProviderType.LOCAL),
-                eq("remote-locator"), objectKey.capture(), any(IOException.class));
+                eq("remote-locator"), objectKey.capture(), eq(session.quotaReservationId), any(IOException.class));
         assertThat(objectKey.getValue()).contains(tenantId.toString()).contains("report.bin");
         assertThat(Files.exists(stagingFile)).isTrue();
     }
@@ -155,7 +158,7 @@ class UploadFinalizationCompensationTest {
         completeSynchronizations(TransactionSynchronization.STATUS_COMMITTED);
 
         verify(adapter, never()).delete("remote-locator");
-        verify(cleanupOutbox, never()).enqueue(any(), any(), anyString(), anyString(), any());
+        verify(cleanupOutbox, never()).enqueue(any(), any(), anyString(), anyString(), any(), any());
         verify(stagingCleanup).markCleaned(tenantId, uploadId);
         assertThat(Files.exists(stagingFile)).isFalse();
         assertThat(session.status).isEqualTo(UploadStatus.COMPLETED);

@@ -4,6 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -14,6 +18,7 @@ import com.universalplatform.security.TenantContext;
 import com.universalplatform.storage.StorageAdapter;
 import com.universalplatform.storage.StorageAdapterRegistry;
 import com.universalplatform.storage.StorageProviderType;
+import com.universalplatform.storage.StorageQuotaService;
 import com.universalplatform.storage.TenantStorageBinding;
 import com.universalplatform.storage.TenantStorageBindingResolver;
 import java.nio.file.Path;
@@ -40,6 +45,7 @@ class UploadStorageBindingTest {
     @Mock UploadSessionRepository uploads;
     @Mock StorageObjectRepository objects;
     @Mock StorageAdapterRegistry adapters;
+    @Mock StorageQuotaService quota;
     @Mock TenantStorageBindingResolver bindings;
     @Mock AuditService audit;
     @Mock MalwareScanner scanner;
@@ -90,7 +96,9 @@ class UploadStorageBindingTest {
     private UploadService service(boolean developmentMode) {
         when(tenants.requireTenantId()).thenReturn(TENANT);
         lenient().when(actors.requireSubject()).thenReturn("staging-owner");
-        return new UploadService(tenants, actors, auth, uploads, objects, adapters, bindings, audit,
+        lenient().when(quota.reserve(eq(TENANT), any(StorageProviderType.class), anyString(), isNull(), anyLong()))
+                .thenReturn(UUID.randomUUID());
+        return new UploadService(tenants, actors, auth, uploads, objects, adapters, quota, bindings, audit,
                 scanner, cleanup, stagingCleanup, staging.toString(), 1024, developmentMode);
     }
 }
