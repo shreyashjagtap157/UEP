@@ -20,6 +20,7 @@ import com.universalplatform.storage.StorageAdapterRegistry;
 import com.universalplatform.storage.StorageProviderType;
 import com.universalplatform.storage.StorageQuotaService;
 import com.universalplatform.storage.TenantStorageBindingResolver;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,8 +32,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.server.ResponseStatusException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -96,6 +99,61 @@ class UploadFinalizationCompensationTest {
             TransactionSynchronizationManager.clearSynchronization();
         }
         TransactionSynchronizationManager.setActualTransactionActive(false);
+    }
+
+    @Test
+    void initiationRollbackRemovesStagingFileCreatedBeforeDatabaseCommit() throws Exception {
+        when(storageBindings.findByTenantId(tenantId)).thenReturn(Optional.empty());
+        when(uploads.save(any(UploadSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.initiate("draft.bin", "application/octet-stream", FILE_BYTES.length, null);
+
+        ArgumentCaptor<UploadSession> created = ArgumentCaptor.forClass(UploadSession.class);
+        verify(uploads).save(created.capture());
+        Path createdStagingFile = Path.of(created.getValue().stagingPath);
+        assertThat(Files.exists(createdStagingFile)).isTrue();
+
+        completeSynchronizations(TransactionSynchronization.STATUS_ROLLED_BACK);
+
+        assertThat(Files.exists(createdStagingFile)).isFalse();
+    }
+
+    @Test
+    void truncatedStagingFileAbortsUploadReleasesQuotaAndReturnsConflict() throws Exception {
+        session.expectedBytes = FILE_BYTES.length + 1L;
+        Files.write(stagingFile, new byte[]{1, 2});
+
+        assertThatThrownBy(() -> service.append(uploadId, FILE_BYTES.length,
+                new ByteArrayInputStream(new byte[]{5}), 1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
+                        .isEqualTo(HttpStatus.CONFLICT));
+
+        assertThat(session.status).isEqualTo(UploadStatus.ABORTED);
+        assertThat(session.stagingCleanedAt).isNotNull();
+        assertThat(Files.exists(stagingFile)).isFalse();
+        verify(storageQuota).release(tenantId, session.quotaReservationId);
+        verify(audit).record(tenantId, actor, "UPLOAD_ABORTED_STAGING_CORRUPTION",
+                "upload_session", uploadId.toString());
+    }
+
+    @Test
+    void missingStagingFileAbortsUploadReleasesQuotaAndReturnsConflict() throws Exception {
+        session.expectedBytes = FILE_BYTES.length + 1L;
+        Files.delete(stagingFile);
+
+        assertThatThrownBy(() -> service.append(uploadId, FILE_BYTES.length,
+                new ByteArrayInputStream(new byte[]{5}), 1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode())
+                        .isEqualTo(HttpStatus.CONFLICT));
+
+        assertThat(session.status).isEqualTo(UploadStatus.ABORTED);
+        assertThat(session.stagingCleanedAt).isNotNull();
+        assertThat(Files.exists(stagingFile)).isFalse();
+        verify(storageQuota).release(tenantId, session.quotaReservationId);
+        verify(audit).record(tenantId, actor, "UPLOAD_ABORTED_STAGING_CORRUPTION",
+                "upload_session", uploadId.toString());
     }
 
     @Test
