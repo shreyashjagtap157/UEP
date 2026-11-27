@@ -19,7 +19,7 @@ test.describe('Layer A: Attendance isolation', () => {
 
     // Seeded attendance dates are relative to the current day; assert against the
     // exact row selected instead of a date that expires as the calendar advances.
-    const seededDate = (await lateRecord.locator('p').innerText()).match(/\\d{4}-\\d{2}-\\d{2}/)?.[0]
+    const seededDate = (await lateRecord.locator('p').innerText()).match(/\d{4}-\d{2}-\d{2}/)?.[0]
     expect(seededDate).toBeDefined()
     if (!seededDate) throw new Error('The seeded late attendance record is missing its date.')
 
