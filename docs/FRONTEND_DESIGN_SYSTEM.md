@@ -20,7 +20,7 @@ Primitive tokens represent raw values and are the only place where the neutral, 
 - Neutral palette: `--primitive-neutral-0` through `--primitive-neutral-10`, plus `--primitive-white`.
 - Accent palette: `--primitive-accent-50` through `--primitive-accent-900`.
 - Status palettes: `--primitive-success-*`, `--primitive-warning-*` and `--primitive-danger-*`.
-- Typography: `--font-sans`, `--font-mono`, `--font-size-*` and `--tracking-*`.
+- Typography: `--font-sans`, `--font-mono`, `--font-size-*`, `--font-weight-*`, `--line-height-*` and `--tracking-*`.
 - Spacing: `--space-*`, based on a 4px grid.
 - Shape and motion: `--radius-*` and `--motion-*`.
 
@@ -48,6 +48,7 @@ Component-level defaults are intended for local overrides without reaching back 
 - `--control-height`
 - `--card-padding`
 - `--component-radius`
+- `--recording-watermark-inset-inline`, `--recording-watermark-inset-block` and `--recording-watermark-inset-block-end`
 
 A component may override one of these variables at its own scope when the product interaction genuinely requires a different size. Avoid introducing a component token for a single decorative value when an existing spacing, radius or type token already expresses the need.
 
@@ -74,7 +75,7 @@ Metrics use `--font-mono` and tabular numerals. Heading tracking uses the tight 
 ## Component styling rules
 
 1. Use semantic color variables for foregrounds, backgrounds, borders, focus states and statuses. Raw hex, RGB, HSL or named palette values do not belong in component stylesheets.
-2. Use `--space-*` for padding, margin and layout gaps. Use type and radius tokens for typography and corner shape.
+2. Use `--space-*` for padding, margin and layout gaps. Use font-size, font-weight, line-height, tracking and radius tokens for typography and corner shape. Prefer named CSS variants over inline style objects for component presentation.
 3. Use the shared transition tokens for interactive controls. The standard easing is a 150ms cubic-bezier transition.
 4. Retain visible keyboard focus. The shared `:focus-visible` treatment derives from `--border-strong`; component focus rules must not erase the focus shadow.
 5. Preserve `prefers-reduced-motion`; avoid essential information that is only communicated through animation.

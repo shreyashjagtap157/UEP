@@ -39,8 +39,8 @@ export function RecordingWorkspace({ me }: { me: CurrentIdentity }) {
 function WatermarkedPlayer({ playback }: { playback: { url: string; expiresAt: string; name: string; id: string } }) {
   const [position, setPosition] = useState(0)
   useEffect(() => { const timer = window.setInterval(() => setPosition(value => (value + 1) % 4), 15000); return () => window.clearInterval(timer) }, [])
-  const positions = [{ top: '8%', left: '8%' }, { top: '8%', right: '8%' }, { bottom: '12%', left: '8%' }, { bottom: '12%', right: '8%' }] as const
-  return <div className="recording-player"><video controls preload="metadata" src={playback.url} /><div className="recording-watermark" style={positions[position]}>Authorized to {playback.name} · {playback.id}</div><p className="muted small">Playback authorization expires {new Date(playback.expiresAt).toLocaleTimeString()}; the visible identity watermark changes position every 15 seconds.</p></div>
+  const positions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const
+  return <div className="recording-player"><video controls preload="metadata" src={playback.url} /><div className={`recording-watermark recording-watermark-${positions[position] ?? "top-left"}`}>Authorized to {playback.name} · {playback.id}</div><p className="muted small">Playback authorization expires {new Date(playback.expiresAt).toLocaleTimeString()}; the visible identity watermark changes position every 15 seconds.</p></div>
 }
 
 function Metric({ label, value }: { label: string; value: string }) { return <div className="metric"><span>{label}</span><strong>{value}</strong></div> }

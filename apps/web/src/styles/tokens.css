@@ -56,6 +56,13 @@
   --font-size-2xl: 1.5rem;
   --font-size-3xl: 2rem;
   --font-size-4xl: 2.5rem;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-strong: 750;
+  --font-weight-heavy: 800;
+  --line-height-tight: 1.15;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.6;
   --tracking-tight: -0.02em;
   --tracking-normal: 0;
   --tracking-wide: 0.05em;
@@ -97,6 +104,7 @@
   --surface-interactive: var(--primitive-neutral-3);
   --surface-pressed: var(--primitive-neutral-4);
   --surface-overlay: color-mix(in srgb, var(--primitive-neutral-1) 94%, transparent);
+  --surface-scrim: color-mix(in srgb, var(--primitive-neutral-0) 76%, transparent);
 
   --border-subtle: color-mix(in srgb, var(--primitive-neutral-5) 38%, transparent);
   --border-default: var(--primitive-neutral-3);
@@ -138,6 +146,7 @@
   --surface-interactive: color-mix(in srgb, var(--primitive-neutral-9) 72%, var(--primitive-white));
   --surface-pressed: var(--primitive-neutral-9);
   --surface-overlay: color-mix(in srgb, var(--primitive-white) 94%, transparent);
+  --surface-scrim: color-mix(in srgb, var(--primitive-neutral-0) 42%, transparent);
 
   --border-subtle: var(--primitive-neutral-9);
   --border-default: var(--primitive-neutral-8);
@@ -228,6 +237,9 @@
   --card-padding: var(--space-5);
   --control-height: 2.5rem;
   --component-radius: var(--radius-md);
+  --recording-watermark-inset-inline: 8%;
+  --recording-watermark-inset-block: 8%;
+  --recording-watermark-inset-block-end: 12%;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;

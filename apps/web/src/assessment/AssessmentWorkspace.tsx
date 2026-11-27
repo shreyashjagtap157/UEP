@@ -386,7 +386,7 @@ function QuestionView({ q, choice, text, onChange }: {
   const payload = parsePayload(q.payloadJson)
   const prompt = typeof payload.prompt === 'string' ? payload.prompt : undefined
 
-  if (!choice) return <pre style={{ whiteSpace: 'pre-wrap' }}>{q.payloadJson}</pre>
+  if (!choice) return <pre className="question-payload">{q.payloadJson}</pre>
 
   switch (q.type) {
     case 'SINGLE_MCQ':
