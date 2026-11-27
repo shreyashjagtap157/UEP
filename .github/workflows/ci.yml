@@ -181,9 +181,43 @@ jobs:
           set -euo pipefail
           docker buildx build --platform linux/arm64 --load --tag uep-platform-api:arm64-ci apps/platform-server
           docker run --rm --platform linux/arm64 --entrypoint java uep-platform-api:arm64-ci -version
+      - name: Configure certificate-validated PostgreSQL TLS for production smoke
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          test -n "$POSTGRES_CONTAINER_ID"
+          openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1 \
+            -keyout "$RUNNER_TEMP/uep-ci-postgres.key" \
+            -out "$RUNNER_TEMP/uep-ci-postgres.crt" \
+            -subj "/CN=localhost" \
+            -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,digitalSignature,keyEncipherment,keyCertSign"
+          docker cp "$RUNNER_TEMP/uep-ci-postgres.crt" "$POSTGRES_CONTAINER_ID:/tmp/uep-ci-postgres.crt"
+          docker cp "$RUNNER_TEMP/uep-ci-postgres.key" "$POSTGRES_CONTAINER_ID:/tmp/uep-ci-postgres.key"
+          data_dir="$(docker exec "$POSTGRES_CONTAINER_ID" psql -U education -d postgres -Atc "SHOW data_directory" | tr -d '\r')"
+          docker exec "$POSTGRES_CONTAINER_ID" install -o postgres -g postgres -m 0644 /tmp/uep-ci-postgres.crt "$data_dir/server.crt"
+          docker exec "$POSTGRES_CONTAINER_ID" install -o postgres -g postgres -m 0600 /tmp/uep-ci-postgres.key "$data_dir/server.key"
+          docker exec "$POSTGRES_CONTAINER_ID" psql -U education -d postgres -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET ssl = 'on'" \
+            -c "ALTER SYSTEM SET ssl_cert_file = 'server.crt'" \
+            -c "ALTER SYSTEM SET ssl_key_file = 'server.key'"
+          docker restart "$POSTGRES_CONTAINER_ID" >/dev/null
+          for attempt in $(seq 1 60); do
+            if pg_isready -h localhost -p 5432 -U education -d education_platform >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          pg_isready -h localhost -p 5432 -U education -d education_platform
+          tls_enabled="$(PGPASSWORD="$UEP_CI_DB_PASSWORD" psql "postgresql://education@localhost:5432/education_platform?sslmode=verify-full&sslrootcert=$RUNNER_TEMP/uep-ci-postgres.crt" -X -Atc "SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()")"
+          test "$tls_enabled" = "t"
+          echo "PostgreSQL certificate-validated TLS is enabled for the packaged production-profile smoke."
+
       - name: Start packaged server on a fresh database and run health smoke
         env:
-          SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform_smoke
+          SUPABASE_DB_URL: jdbc:postgresql://localhost:5432/education_platform_smoke?sslmode=verify-full&sslrootcert=/run/uep/pg-root.crt
           SUPABASE_DB_USER: education
           SUPABASE_DB_PASS: ${{ env.UEP_CI_DB_PASSWORD }}
           OIDC_ISSUER_URI: https://identity.example.test/realms/education
@@ -192,6 +226,8 @@ jobs:
           PLATFORM_INTEGRATION_SECRET_KEY: "uep-ci-integration-secret-key-2026-11-01"
           LIVEKIT_API_KEY: "uep-ci-livekit-key-2026"
           LIVEKIT_API_SECRET: "uep-ci-livekit-api-secret-2026-11-01"
+          LIVEKIT_URL: wss://livekit.example.test
+          LIVEKIT_API_URL: https://livekit.example.test
           PLATFORM_DEV_MODE: "false"
           # Mirror the Fly production profile. Fly disables automatic runtime
           # migrations; CI enables Flyway only for its disposable smoke database.
@@ -213,6 +249,7 @@ jobs:
           }
           trap cleanup EXIT
           docker run --detach --name "$container" --network host \
+            --volume "$RUNNER_TEMP/uep-ci-postgres.crt:/run/uep/pg-root.crt:ro" \
             --env SUPABASE_DB_URL \
             --env SUPABASE_DB_USER \
             --env SUPABASE_DB_PASS \
@@ -222,6 +259,8 @@ jobs:
             --env PLATFORM_INTEGRATION_SECRET_KEY \
             --env LIVEKIT_API_KEY \
             --env LIVEKIT_API_SECRET \
+            --env LIVEKIT_URL \
+            --env LIVEKIT_API_URL \
             --env PLATFORM_DEV_MODE \
             --env SPRING_PROFILES_ACTIVE \
             --env SPRING_FLYWAY_ENABLED \
