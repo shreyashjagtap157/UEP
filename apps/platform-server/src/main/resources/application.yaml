@@ -5,6 +5,12 @@ server:
   error:
     include-message: never
 
+springdoc:
+  api-docs:
+    enabled: ${PLATFORM_API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${PLATFORM_API_DOCS_ENABLED:false}
+
 spring:
   application:
     name: universal-education-platform

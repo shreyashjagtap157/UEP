@@ -77,6 +77,17 @@ class ProductionSecretGuardTest {
     }
 
     @Test
+    void localNativeProfileCannotBeCombinedWithProductionProfiles() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("local-native", "production");
+        ProductionSecretGuard guard = new ProductionSecretGuard(environment);
+
+        assertThatThrownBy(guard::rejectDevelopmentDefaults)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("local-native profile cannot be combined with the prod/production Spring profile");
+    }
+
+    @Test
     void acceptsStrongSecretsAndSecureProductionConnectionSettings() {
         MockEnvironment environment = validProductionEnvironment();
 
