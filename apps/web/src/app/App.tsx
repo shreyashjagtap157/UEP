@@ -87,15 +87,22 @@ export function App() {
   const queryClient = useQueryClient()
   const presentationLabel = import.meta.env.VITE_UEP_PRESENTATION_LABEL?.trim()
   const [density, setDensity] = useState<'compact' | 'comfortable' | 'spacious'>(() => {
-    if (typeof localStorage !== 'undefined') {
-      return (localStorage.getItem('uep-density') as any) ?? 'comfortable'
+    if (typeof localStorage === 'undefined') return 'comfortable'
+    try {
+      const stored = localStorage.getItem('uep-density')
+      return stored === 'compact' || stored === 'spacious' ? stored : 'comfortable'
+    } catch {
+      return 'comfortable'
     }
-    return 'comfortable'
   })
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
     if (typeof localStorage === 'undefined') return 'dark'
-    const stored = localStorage.getItem('uep-theme')
-    return stored === 'light' || stored === 'system' ? stored : 'dark'
+    try {
+      const stored = localStorage.getItem('uep-theme')
+      return stored === 'light' || stored === 'system' ? stored : 'dark'
+    } catch {
+      return 'dark'
+    }
   })
 
   useEffect(() => {
