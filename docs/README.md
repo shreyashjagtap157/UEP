@@ -27,7 +27,7 @@ Tenancy and security → `TENANCY_AND_SECURITY.md` · Identity/organization → 
 - `IDENTITY_BOOTSTRAP.md` — first-owner bootstrap and session incident response.
 - `LOCAL_NATIVE_WINDOWS.md` — supported native Windows runtime and launcher operations.
 - `ACTUAL_STAGING_DEPLOYMENT.md` and `OCI_CLOUDFLARE_STAGING.md` — superseded hosted topology/verification history only; do not deploy.
-- `../CLOUDFLARE_DEMO_DEPLOY.md` — frontend-only offline presentation deployment; no backend, identity provider or database.
+- `CLOUDFLARE_DEMO_DEPLOY.md` — frontend-only offline presentation deployment; no backend, identity provider or database.
 
 ## API
 - `api/openapi.yaml` — OpenAPI 3.1 contract (server base `/api/v1`).
