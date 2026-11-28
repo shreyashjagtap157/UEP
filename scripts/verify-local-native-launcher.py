@@ -165,8 +165,16 @@ checks = {
     "temporary database passwords are not committed to the repository": (
         ".uep-local/" in (ROOT / ".gitignore").read_text(encoding="utf-8")
     ),
-    "legacy root launcher delegates to the native launcher": (
-        "scripts\\Start-UEP.ps1" in wrapper and "C:\\Users\\siddh" not in wrapper
+    "root launcher delegates all supported options to the canonical launcher": (
+        "scripts\\Start-UEP.ps1" in wrapper
+        and "& $launcher -Mode $Mode -Database $Database -NoBrowser:$NoBrowser -SkipAccountSeeding:$SkipAccountSeeding" in wrapper
+        and "C:\\Users\\siddh" not in wrapper
+    ),
+    "root launcher cannot start retired Keycloak services or inject default admin credentials": all(
+        marker not in wrapper for marker in (
+            "WithKeycloak", "KEYCLOAK_ADMIN", "KEYCLOAK_ADMIN_PASSWORD",
+            "kc.bat", "start-dev", "127.0.0.1', 8081", "education-realm.json"
+        )
     ),
     "backend Maven command retains explicit application main class": (
         "<mainClass>com.universalplatform.PlatformServerApplication</mainClass>" in pom
