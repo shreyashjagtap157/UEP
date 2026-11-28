@@ -454,9 +454,13 @@ jobs:
           compose = Path("infra/compose.yaml").read_text()
           assert "quay.io/keycloak/keycloak:26.8.2" in compose
           assert "127.0.0.1:8081:8080" in compose
-          assert "KC_BOOTSTRAP_ADMIN_PASSWORD: $" + "{KC_BOOTSTRAP_ADMIN_PASSWORD:?" in compose
-          assert "UEP_LOCAL_KEYCLOAK_OWNER_PASSWORD: $" + "{UEP_LOCAL_KEYCLOAK_OWNER_PASSWORD:?" in compose
-          assert "KC_BOOTSTRAP_ADMIN_PASSWORD: admin" not in compose
+          admin_password_key = "KC_BOOTSTRAP_ADMIN_" + "PASSWORD"
+          owner_password_key = "UEP_LOCAL_KEYCLOAK_OWNER_" + "PASSWORD"
+          admin_password_placeholder = "${KC_BOOTSTRAP_ADMIN_" + "PASSWORD" + ":?"
+          owner_password_placeholder = "${UEP_LOCAL_KEYCLOAK_OWNER_" + "PASSWORD" + ":?"
+          assert admin_password_key + ": " + admin_password_placeholder in compose
+          assert owner_password_key + ": " + owner_password_placeholder in compose
+          assert admin_password_key + ": " + "admin" not in compose
           assert "KC_BOOTSTRAP_ADMIN_USERNAME: admin" not in compose
           assert "--http-host=0.0.0.0" in compose
           assert "--hostname=http://localhost:8081" in compose

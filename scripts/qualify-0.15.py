@@ -132,6 +132,12 @@ for required in [
 launcher = text('scripts/Start-UEP.ps1')
 if 'keycloak-26.8.2.zip' not in launcher or '321ffee62ec28fab18fe885d8cd62cc814edce72a35cd062dc81b504c1a406b3' not in launcher:
     errors.append('local Keycloak installer must pin and verify the official 26.8.2 archive SHA-256')
+for required in [
+    'Add-Member -NotePropertyName KeycloakAdminPassword',
+    'Add-Member -NotePropertyName KeycloakOwnerPassword',
+]:
+    if required not in launcher:
+        errors.append(f'Keycloak first-run state migration must add missing credential properties safely: {required}')
 
 # The destructive restore drill must protect its source and require explicit disposable-target consent.
 restore_script = text('scripts/backup-restore-drill.sh')

@@ -9,6 +9,7 @@
 ### Added
 - added an isolated local Keycloak 26.8.2 realm with one PKCE-only public client, environment-substituted owner password, fixed tenant claim, native Windows startup and local credential helper;
 - added the mutually exclusive `local-keycloak` backend profile, database-backed owner/role bootstrap, OIDC browser test and CI acceptance path;
+- corrected first-run Keycloak state migration to add missing credential properties safely under PowerShell strict mode;
 
 ### Documentation and traceability
 - reconciled implementation status with merged PR #38, dark-first semantic tokens, Offline Demo persona/session boundaries, SQLite-default local topology and current CI;

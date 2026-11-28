@@ -124,6 +124,8 @@ checks = {
     "local Keycloak credentials are kept in the protected per-user state and exposed only by the explicit helper": (
         "KeycloakAdminPassword" in launcher
         and "KeycloakOwnerPassword" in launcher
+        and "Add-Member -NotePropertyName KeycloakAdminPassword" in launcher
+        and "Add-Member -NotePropertyName KeycloakOwnerPassword" in launcher
         and "Protect-File $StateFile" in launcher
         and "scripts\\Show-UEP-LocalKeycloakCredentials.ps1" in launcher
         and "Write-Host ('  Password:" not in launcher

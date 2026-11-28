@@ -311,12 +311,14 @@ function Initialize-KeycloakState {
     if (-not ($State.PSObject.Properties.Name -contains 'KeycloakAdminUsername')) {
         $State | Add-Member -NotePropertyName KeycloakAdminUsername -NotePropertyValue 'uep-local-admin' -Force
     }
-    if (-not ($State.PSObject.Properties.Name -contains 'KeycloakAdminPassword') -or
-            [string]::IsNullOrWhiteSpace([string]$State.KeycloakAdminPassword)) {
+    if (-not ($State.PSObject.Properties.Name -contains 'KeycloakAdminPassword')) {
+        $State | Add-Member -NotePropertyName KeycloakAdminPassword -NotePropertyValue (New-RandomSecret -Bytes 36) -Force
+    } elseif ([string]::IsNullOrWhiteSpace([string]$State.KeycloakAdminPassword)) {
         $State.KeycloakAdminPassword = New-RandomSecret -Bytes 36
     }
-    if (-not ($State.PSObject.Properties.Name -contains 'KeycloakOwnerPassword') -or
-            [string]::IsNullOrWhiteSpace([string]$State.KeycloakOwnerPassword)) {
+    if (-not ($State.PSObject.Properties.Name -contains 'KeycloakOwnerPassword')) {
+        $State | Add-Member -NotePropertyName KeycloakOwnerPassword -NotePropertyValue (New-RandomSecret -Bytes 36) -Force
+    } elseif ([string]::IsNullOrWhiteSpace([string]$State.KeycloakOwnerPassword)) {
         $State.KeycloakOwnerPassword = New-RandomSecret -Bytes 36
     }
     Save-State
