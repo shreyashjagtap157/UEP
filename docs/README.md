@@ -9,6 +9,7 @@ All product documentation, in reading order.
 - `FRONTEND_DESIGN_SYSTEM.md` — three-tier web design tokens, theme behavior and component styling rules.
 - `VERSIONING.md` — release/tag discipline (`stable.major.minor.patch`).
 - `QUALIFICATION_0.15.md` — the 0.15 reliability/performance qualification gates.
+- `audits/IMPLEMENTATION_TRACEABILITY_2026-11-28.md` — messaging source-to-spec traceability and the next qualification milestone.
 
 ## Architecture domain notes (`architecture/`)
 Tenancy and security → `TENANCY_AND_SECURITY.md` · Identity/organization → `IDENTITY_AND_ORGANIZATION.md` · Academic core → `ACADEMIC_CORE.md` · Scheduling/communication → `SCHEDULING_AND_COMMUNICATION.md` · Assessment → `ASSESSMENT_CORE.md` · Grading/review → `GRADING_AND_ACADEMIC_REVIEW.md` · Assignments/gradebook → `ASSIGNMENTS_AND_GRADEBOOK.md` · Learning content → `LEARNING_CONTENT.md` · Live learning → `LIVE_LEARNING.md` · Recording → `RECORDING_PLATFORM.md` · Analytics/operations → `ANALYTICS_AND_OPERATIONS.md` · Advanced academic → `ADVANCED_ACADEMIC_PLATFORM.md` · Integration → `INTEGRATION_PLATFORM.md` · Finance → `FINANCE_AND_COMMERCIALIZATION.md` · Client strategy → `NATIVE_CLIENT_SCOPE.md` · Foundation status → `FOUNDATION_STATUS.md`.

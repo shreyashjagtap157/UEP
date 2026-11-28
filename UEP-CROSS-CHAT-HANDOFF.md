@@ -1,5 +1,8 @@
 # Universal Education Platform (UEP) — Cross-Chat Handoff
 
+> **Archived recovery handoff — 2026-09-08.** This describes an earlier bundle/recovery state and its `e806e4d` baseline. It is not the current source repository or continuation point. Do not use its bundle HEAD as current facts. Refresh live GitHub `main` and current CI before work.
+
+
 ## 1. Purpose
 
 This document is the authoritative continuation handoff for the UEP project as of 2026-09-08.

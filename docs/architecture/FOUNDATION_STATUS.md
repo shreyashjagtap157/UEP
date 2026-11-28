@@ -1,6 +1,9 @@
 # Platform Foundation Status
 
-## Implemented through 0.5.0.0-SNAPSHOT
+> **Historical status snapshot:** this document records the 0.5.0.0-SNAPSHOT foundation state and release gate from an earlier milestone. It is not the current repository inventory, toolchain or release status. Use [`IMPLEMENTATION_STATUS.md`](../IMPLEMENTATION_STATUS.md), [`QUALIFICATION_0.15.md`](../QUALIFICATION_0.15.md) and live source/CI for current facts.
+
+
+## Historical implementation through 0.5.0.0-SNAPSHOT
 
 The engineering foundation now includes the tenant, identity, academic, scheduling, and communication primitives required by later learning, assessment, media, attendance, and finance modules:
 
@@ -21,6 +24,6 @@ The engineering foundation now includes the tenant, identity, academic, scheduli
 - reference Keycloak/PostgreSQL/optional Valkey deployment;
 - CI, security scanning, repository policy, and proprietary commercial licensing controls.
 
-## Release-gate state
+## Historical release-gate state — 0.5 snapshot
 
 The repository remains a snapshot until JDK 25 + Maven + PostgreSQL 18 and the web dependency toolchain execute all integration, build, migration, lint, vulnerability, and policy gates successfully. Do not create `v0.5.0.0` merely from static inspection.

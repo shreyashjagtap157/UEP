@@ -138,7 +138,7 @@ Limitations to state when relevant:
 
 ## Before presenting
 
-- Sync the product branch being demonstrated; for this workstream use `feat/product-ui-role-navigation-auth-session` until it is merged.
+- Sync `main` and confirm its exact HEAD before presenting. PR #38 merged on 23 November 2026; do not use the old feature branch as the current demonstration branch. Review current CI and run the target-workstation preflight.
 - Run the launcher once in Presentation mode and confirm both windows display their correct environment labels.
 - Open Real UEP and complete the local-authenticated branch create/reload/readback smoke.
 - Exercise Real **Sign out** as the final Real action, verify the signed-out screen, and restart the launcher if the Real session is needed again. The GitHub Windows CI run does not replace this workstation-specific preflight.

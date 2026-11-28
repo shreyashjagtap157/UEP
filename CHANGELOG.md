@@ -1,9 +1,24 @@
 # Changelog
 
-## Unreleased — 2026-11-02
+## Unreleased — 2026-11-28
+
+### Fixed
+- made root `startuep.ps1` a thin compatibility wrapper; removed retired Keycloak development-server startup, realm import and default local admin credentials;
+- strengthened native-launcher static verification to assert option forwarding and reject legacy Keycloak startup/credential markers.
+
+### Documentation and traceability
+- reconciled implementation status with merged PR #38, dark-first semantic tokens, Offline Demo persona/session boundaries, SQLite-default local topology and current CI;
+- corrected retired hosted-deployment records and added a messaging source-to-spec traceability audit.
+
+### Verification
+- [UEP CI #1385](https://github.com/shreyashjagtap157/UEP/actions/runs/46112848647) completed **7/7 jobs successfully** on source commit [`b5d7034`](https://github.com/shreyashjagtap157/UEP/commit/b5d7034f13d83022115121c4b21848e68ed91a54). The docs-only commit containing this entry has its own subsequent CI run.
+
+
+
+## Historical unreleased work — 2026-11-02 (superseded deployment proposal)
 
 ### Deployment preparation
-- establish Cloudflare Pages + Fly.io (Spring Boot API and Keycloak) + Supabase PostgreSQL as the active staging target, with a gated provider runbook;
+- the original proposal was to establish Cloudflare Pages + Fly.io (Spring Boot API and Keycloak) + Supabase PostgreSQL as a staging target. This proposal was subsequently retired; it is not the current deployment architecture and must not be followed;
 - switch the one-shot Flyway migration workflow and static trust-boundary verifier to the dedicated supabase-database-migrations GitHub Environment;
 - prepare Singapore Fly app configuration with Flyway disabled in the API runtime, HTTPS health checks, and upload/live-media features disabled until their external dependencies and cost boundaries are qualified.
 

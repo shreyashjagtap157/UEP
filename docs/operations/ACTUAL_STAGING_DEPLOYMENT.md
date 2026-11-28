@@ -2,11 +2,9 @@
 
 **STATUS: SUPERSEDED / NOT DEPLOYABLE.** The hosted Fly.io + Supabase + Keycloak staging topology described below was retired. This document is preserved as historical architecture and qualification context only. Do not follow its provider setup, secret, migration or deployment instructions. The authoritative current record is [FLY_SUPABASE_STAGING.md](FLY_SUPABASE_STAGING.md); the supported runtime is [LOCAL_NATIVE_WINDOWS.md](LOCAL_NATIVE_WINDOWS.md). No hosted product deployment is currently qualified.
 
-This is the deployment authority for the real UEP product. The older root-level
-`FREE_TIER_DEPLOYMENT.md` and `docs/CLOUDFLARE_DEMO_DEPLOY.md` described a local
-presentation build and are not evidence of a functioning multi-tenant deployment.
+This file is a historical hosted-staging proposal only. It is not a deployment authority and none of the topology or provider commands below should be used. The supported local runtime is documented in `LOCAL_NATIVE_WINDOWS.md`; a future hosted deployment requires a separately approved architecture and provider qualification.
 
-## Required architecture
+## Historical proposed architecture (not deployable)
 
 ```
 Browser
@@ -31,7 +29,7 @@ product identity/data path. The backend must connect to PostgreSQL through
 `/api/v1/me` endpoint must resolve the authenticated Keycloak subject to an
 active tenant membership and roles in that database.
 
-## Current verified boundaries
+## Historical boundary claims in the retired proposal
 
 - The repository CI workflow verifies backend Maven tests, a packaged-server
   startup/health smoke against a fresh PostgreSQL database, frontend lint/unit
@@ -73,7 +71,7 @@ active tenant membership and roles in that database.
   deployment was established by repository CI. A successful build is not a
   deployment, and a pages.dev URL alone is not proof of connected identity/API/DB.
 
-## Provider configuration required before staging deployment
+## Historical provider-configuration draft (not deployable)
 
 ### Fly.io — backend app
 

@@ -6,6 +6,6 @@ The account owner requires no additional charges. No OCI VM, managed PostgreSQL 
 
 The currently known hosted status is recorded in FLY_SUPABASE_STAGING.md: the Fly backend machine is stopped and has not been deleted; the Keycloak Fly app does not exist; the Supabase UEP Free project was paused and is INACTIVE but has not been permanently deleted. No UEP migrations were applied to that hosted database.
 
-The supported replacement is LOCAL_NATIVE_WINDOWS.md, using the native PowerShell launcher at scripts/Start-UEP.ps1. It runs PostgreSQL, Keycloak, Spring Boot and Vite directly on Windows without Docker/Podman or hosted infrastructure. Use LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md for complete browser/API/database integration qualification.
+The supported replacement is `LOCAL_NATIVE_WINDOWS.md`, using root wrapper `startuep.ps1` and canonical launcher `scripts/Start-UEP.ps1`. It runs the Real React/Vite frontend and Spring Boot locally, with SQLite by default and PostgreSQL as an explicit qualification option. Local-native authentication uses a launcher-issued session through the Vite proxy; Keycloak is not started or contacted. The separate Offline Demo uses browser-local fixtures. Use `LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md` for browser/API/database qualification.
 
 Do not reactivate or copy commands from this historical proposal. Any future hosted deployment would require a new architecture and cost review, and explicit owner authorization.

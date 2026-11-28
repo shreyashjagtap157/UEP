@@ -1,5 +1,23 @@
 # 0.15.0.0 Reliability and Performance Qualification
 
+## Current evidence boundary — 2026-11-28
+
+Source baseline: [`b5d7034`](https://github.com/shreyashjagtap157/UEP/commit/b5d7034f13d83022115121c4b21848e68ed91a54); version `0.15.0.0-SNAPSHOT`. PR #38 merged on 23 November 2026.
+
+[UEP CI run #1385](https://github.com/shreyashjagtap157/UEP/actions/runs/46112848647) completed **7/7 jobs successfully** on this exact source commit. Jobs: `web`, `vulnerability-scan`, `backend (17.11)`, `backend (18.4)`, `keycloak-staging-container`, `repository-policy`, `windows-local-presentation-smoke`.
+
+Verified by the run:
+- Web dependency install, lint, unit/workflow tests, Playwright native test discovery and production-contract build.
+- Windows Real + Offline Demo SQLite startup, API/proxy/Swagger/OpenAPI endpoint smoke, native local-auth-to-SQLite browser test and full Offline Demo role/workflow browser regression.
+- PostgreSQL 17.11 and 18.4 Maven verification, UUIDv7 migration callback, least-privilege runtime grants/function ACLs, native and OCI ARM64 API image build/smoke, certificate-validated PostgreSQL TLS, fresh-database packaged-server startup and health smoke.
+- Keycloak staging-container OCI/ARM64 image build/smoke, repository policy, local deployment/launcher boundary checks, backup/restore safety, load-smoke guards, 0.15 qualification, SBOM generation and OSV scan.
+
+This is exact-commit CI evidence on GitHub-hosted runners. It does not establish provider deployment, workstation acceptance, production capacity/SLOs, a completed production recovery drill, WCAG 2.2 AA, independent penetration testing or Production Web GA. `main` was observed unprotected; successful workflow execution does not imply required-check rules.
+
+## Historical evidence boundary — 2026-11-02 (superseded)
+
+
+
 This milestone is a hardening release; it does not introduce a major business feature.
 
 ## Evidence boundary — 2 November 2026
@@ -18,8 +36,8 @@ Announcement retry/dead-letter work and fixture corrections were covered by [gre
 - `python3 scripts/qualify-0.15.py` — reliability configuration, tenant-isolation, and Flyway migration-version uniqueness checks.
 - `python3 scripts/load-smoke.py URL REQUESTS CONCURRENCY` — dependency-free HTTP smoke/load probe.
 - Backend CI starts the packaged server against a fresh PostgreSQL database and runs 30 concurrent health requests with conservative p95/p99 smoke bounds. This validates startup/migration/runtime wiring; it is not the production load target.
-- Most recent verified CI observation (run #297): 118 backend tests passed with zero failures/errors; Flyway validated all 32 migrations; the packaged server booted against a fresh database; and 30/30 concurrent health requests passed at 6-worker concurrency with p95 18.1 ms and p99 20.0 ms. Web lint passed with 2 warnings and 0 errors, all 21 web demo tests and the production build passed, and repository policy/qualification plus dependency scanning passed. These measurements describe the GitHub runner/container only and must not be used as production SLO evidence.
-- Earlier verified CI observation (run #298): 123 backend tests passed with zero failures/errors; Flyway validated and applied all 32 migrations on the fresh database; the packaged server became healthy and 30/30 concurrent health requests passed at 6-worker concurrency with p95 57.5 ms and p99 61.2 ms. Web lint, all 26 web demo tests, and the production build passed; repository-policy qualification and the vulnerability scan passed. The packaged-server probe required startup retries before health became available, which is expected during migration/application startup and remains bounded by the 120-second readiness guard. These measurements describe the GitHub runner/container only and must not be used as production SLO evidence.
+- Historical CI observation (run #297): 118 backend tests passed with zero failures/errors; Flyway validated all 32 migrations; the packaged server booted against a fresh database; and 30/30 concurrent health requests passed at 6-worker concurrency with p95 18.1 ms and p99 20.0 ms. Web lint passed with 2 warnings and 0 errors, all 21 web demo tests and the production build passed, and repository policy/qualification plus dependency scanning passed. These measurements describe the GitHub runner/container only and must not be used as production SLO evidence.
+- Historical CI observation (run #298): 123 backend tests passed with zero failures/errors; Flyway validated and applied all 32 migrations on the fresh database; the packaged server became healthy and 30/30 concurrent health requests passed at 6-worker concurrency with p95 57.5 ms and p99 61.2 ms. Web lint, all 26 web demo tests, and the production build passed; repository-policy qualification and the vulnerability scan passed. The packaged-server probe required startup retries before health became available, which is expected during migration/application startup and remains bounded by the 120-second readiness guard. These measurements describe the GitHub runner/container only and must not be used as production SLO evidence.
 - Historical CI observation (run #380, commit `341b6cfc970f52dff75f7c2c0a9a974885f7fe47`): 131 backend tests passed with zero failures/errors; Flyway validated and applied all 36 migrations; the packaged server started against a fresh PostgreSQL database; and 30/30 concurrent health requests passed at 6-worker concurrency (p95 39.3 ms, p99 39.7 ms). Web lint/tests/build, repository-policy qualification, backup/restore safety checks, load-smoke checks, static qualification, and the vulnerability scan passed. The messaging database-integrity suite covered cross-tenant creator/participant references, sender-participant membership, and the valid write path. Measurements are CI-runner observations, not production SLO evidence.
 - `k6 run scripts/load-smoke.k6.js` — repeatable service-level load profile when k6 is installed.
 - `scripts/backup-restore-drill.sh` — custom-format PostgreSQL backup/restore verification.

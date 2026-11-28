@@ -6,7 +6,9 @@
 **Branch:** `main`  
 **Observed repository head during preparation:** `651b09ae49371e001690e6a734883ff6662741dd`  
 **Product version:** `0.15.0.0-SNAPSHOT`  
-**Current release posture:** substantial implementation exists and current-main CI passed, but UEP is **not yet qualified for Production Web GA / 1.0**.
+**Release posture at snapshot time:** substantial implementation existed and the reviewed CI had passed, but UEP was **not qualified for Production Web GA / 1.0**.
+
+> **Dated specification snapshot — 2026-10-28.** The observed HEAD and evidence statements below are historical. This is a consolidated companion, not the live runtime inventory. For current code use `main`; for current status use `docs/IMPLEMENTATION_STATUS.md`; for canonical requirements and decisions use `docs/MASTER_IMPLEMENTATION_PLAN.md`, `docs/adr/`, `docs/architecture/` and `docs/api/openapi.yaml`.
 
 This document consolidates the product requirements and implementation contract found in the live repository. It is an implementation companion, not a replacement for the canonical source files linked below. If this document and a canonical source disagree, use the precedence rules in §1 and resolve the discrepancy with a recorded decision rather than silently guessing.
 

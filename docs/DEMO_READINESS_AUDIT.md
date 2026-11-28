@@ -1,6 +1,9 @@
 # UEP product UI and demo readiness audit
 
-Date: 2026-11-03
+> **Historical pre-merge audit — 2026-11-03.** This records the feature-branch state before PR #38 merged on 23 November. Its branch status, CI and warm-ivory/slate/copper design direction are not current mainline facts. See [`FRONTEND_DESIGN_SYSTEM.md`](FRONTEND_DESIGN_SYSTEM.md) for current visual rules and [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for current status.
+
+
+Historical audit date: 2026-11-03
 Baseline: `main` at `992ea2f7ef95748f500865e306ec82b2062af847`
 Work branch: `feat/product-ui-role-navigation-auth-session`
 
@@ -52,7 +55,7 @@ Platform Developer and Product Maintainer are platform-team responsibilities sho
 - Real UEP filters navigation by permissions and the backend continues to enforce authorization. The local-native Organization Owner is expected to see broad tenant administration; it is not the Developer persona.
 - Local-native Sign out revokes only the current launcher-issued session ID in the active Spring process; the token remains server-side in the Vite proxy. The same session cannot authenticate again until the launcher restarts and creates a new session.
 
-## Product design direction
+## Historical product design direction (pre-merge)
 
 The updated interface uses a warm ivory workspace, deep slate navigation, restrained copper accents, editorial serif headings, clearer account grouping, consistent session controls, and responsive persona cards. These are presentation-layer changes; they do not weaken backend permission checks.
 

@@ -1,6 +1,63 @@
 # Implementation Status
 
-## Current verified state — 2026-11-04
+## Current verified state — 2026-11-28
+
+### Repository and evidence boundary
+
+- Repository: https://github.com/shreyashjagtap157/UEP; default branch: `main`.
+- Source baseline: [`b5d7034`](https://github.com/shreyashjagtap157/UEP/commit/b5d7034f13d83022115121c4b21848e68ed91a54). This refresh adds a separate documentation-only commit.
+- Version: `0.15.0.0-SNAPSHOT`, not a stable release.
+- PR [#38](https://github.com/shreyashjagtap157/UEP/pull/38) merged on 23 November 2026; merge commit [`6b4dc16`](https://github.com/shreyashjagtap157/UEP/commit/6b4dc16f125e1693371a5e170eb51e07a736bdfe). Its product UI, Offline Demo personas, navigation, messaging and session work are on `main`; the PR is not open or draft.
+- Exact-head [UEP CI #1385](https://github.com/shreyashjagtap157/UEP/actions/runs/46112848647) completed **7/7 jobs successfully** on `b5d7034`.
+- GitHub reported `main` as unprotected during this refresh. Do not infer branch protection or required checks from CI execution.
+- The target Windows workstation was not exercised in this session. GitHub-hosted Windows CI is not workstation acceptance.
+
+### Real local and Offline Demo topology
+
+- `.\startuep.ps1` defaults to paired Presentation mode with SQLite. Supported modes: `Demo`, `Real`, `Both`, `Presentation`. PostgreSQL is an explicit qualification option.
+- **Real UEP** is React/Vite connected to Spring Boot and the selected local database through the same-origin Vite proxy. The launcher-issued credential is kept in protected process/Node state and injected server-side by the Vite proxy; it is not exposed through a `VITE_` variable or browser request.
+- **Offline Demo** is a separate seeded browser-local fixture application. It does not use Spring Boot, SQLite or PostgreSQL and is not a production identity or authorization boundary.
+- Offline Demo has **14 synthetic personas** across Platform team, Client & institution management and Institution teaching & learning, with role-specific workspaces and account switching.
+- Local-native Real does **not** start or contact Keycloak. Production OIDC remains a distinct integration.
+
+### Launcher security correction
+
+- [Commit `b5d7034`](https://github.com/shreyashjagtap157/UEP/commit/b5d7034f13d83022115121c4b21848e68ed91a54) makes root `startuep.ps1` a thin wrapper forwarding supported options to `scripts/Start-UEP.ps1`.
+- Removed the wrapper's retired Keycloak startup, realm import and default `admin/admin` bootstrap credentials. The static launcher verifier checks full option forwarding and rejects those legacy startup/credential markers.
+- CI #1385 repository-policy passed. The Windows job successfully launched Real + Demo SQLite through the root wrapper, passed native local-auth-to-SQLite browser coverage and the Offline Demo role/workflow browser regression.
+
+### Design and application status
+
+- Current visual rules are in [`FRONTEND_DESIGN_SYSTEM.md`](FRONTEND_DESIGN_SYSTEM.md): dark-first three-tier semantic tokens (primitives, semantic roles, component defaults), Dark/Light/System preferences and content-density preferences.
+- The current overview uses responsive Bento composition. The previous warm-ivory/deep-slate/copper direction in the 3 November audit is historical.
+- Frontend navigation visibility is not an authorization boundary; backend authorization and tenant checks remain authoritative.
+
+### Backend, storage and CI evidence
+
+- Storage regression coverage includes failed upload initiation cleanup/rollback, truncated/missing staging files, quota release, recovery limited to uncommitted trailing bytes and rejection of files shorter than committed offsets.
+- CI #1385 verified PostgreSQL **17.11 and 18.4**: Maven verification, UUIDv7 migration callback, least-privilege runtime grants/function ACLs, native and OCI ARM64 API image build/smoke, certificate-validated PostgreSQL TLS, and packaged-server startup/health against a fresh database.
+- Springdoc/Swagger remain disabled by default and explicitly enabled only in the local-native profile; protected API operations remain protected.
+- Hosted backend/database manifests and remote staging workflows remain retired. Cloudflare Pages is documented as a frontend-only fixture demo; no hosted product deployment is qualified.
+- CI #1385 jobs: `web`, `vulnerability-scan`, `backend (17.11)`, `backend (18.4)`, `keycloak-staging-container`, `repository-policy`, `windows-local-presentation-smoke`. The Keycloak job validates a CI image; it does not put Keycloak into the local-native path.
+
+### Source-to-specification audit
+
+- Product scope is described by `docs/MASTER_IMPLEMENTATION_PLAN.md` (102 sections), `docs/adr/`, `docs/architecture/`, `docs/api/openapi.yaml`, source, migrations and tests. There is no top-level `spec/` directory in the reviewed tree.
+- [`audits/IMPLEMENTATION_TRACEABILITY_2026-11-28.md`](audits/IMPLEMENTATION_TRACEABILITY_2026-11-28.md) is a focused messaging audit, not a claim that the entire roadmap has been audited.
+
+### Remaining requirements and release posture
+
+- Messaging still needs independent-node quota/retention concurrency, wider cross-tenant/permission fuzzing, real email/push provider delivery/retry/dead-letter qualification, legal-hold/retention policy review and a decision on realtime transport/SLOs.
+- Other roadmap gaps include advanced academic adjudication/regrading, device/offline attendance integrations, configurable workflow, tenant-safe search, finance reconciliation/provider qualification, federation lifecycle, full interoperability, portable credentials, white-labeling, live-class recovery, recording worker recovery/distribution, longitudinal analytics, PWA/push/offline sync and native clients.
+- UEP is **not qualified for Production Web GA / production release**. Independent penetration/abuse testing, production p50/p95/p99 capacity, WCAG 2.2 AA, PostgreSQL PITR/full restore and object-storage recovery, measured RPO/RTO, failure injection/provider failover, migration rollback, privacy/legal review and operational readiness remain release gates.
+- Green CI establishes only the contracts exercised on GitHub runners. It does not establish target-workstation acceptance, hosted deployment, production SLOs or complete product readiness.
+
+
+## Historical status snapshot — 2026-11-04 (superseded)
+
+> This section records the pre-merge state described on 4 November. PR #38 merged on 23 November; branch, draft-PR and warm-ivory design statements below are historical, not current mainline facts.
+
+### Historical status snapshot — 2026-11-04
 
 ### Repository and evidence boundary
 
@@ -49,7 +106,7 @@ That is Presentation mode with SQLite. The separately selectable modes remain:
 - The root `startuep.ps1` remains a compatibility wrapper around `scripts/Start-UEP.ps1`; both default to paired Presentation mode. The data files and protected local state are retained during normal stop/failure cleanup.
 
 
-### Product UI, persona and session milestone — draft PR #38 (not merged to main)
+### Historical product UI, persona and session milestone — draft PR #38 (pre-merge snapshot)
 
 The implementation and its exact-head CI qualification are complete for this milestone on `feat/product-ui-role-navigation-auth-session`. The work remains outside `main` until PR #38 is reviewed and merged.
 
@@ -80,13 +137,13 @@ The local-native logout integration test asserts a successful logout response fo
 - **Resolved qualification defects:** run #1320 identified a stale static source matcher that still expected the old inline Demo subscription callback. Commit `94e7ce8` updated the qualification script to inspect the named storage-safe session-revocation callback, cleanup, UI revocation and initial subscription check; #1321 and #1322 then passed repository policy. Run #1312 exposed the Teaching Assistant/Mentor Inbox visibility and missing suspended-sender sign-in notice; both were fixed and the current Windows E2E suite passed.
 - **Historical runs:** earlier runs #1309–#1311 were superseded under the per-PR/ref concurrency policy; run #1317 was superseded by the later source/test commits. Earlier diagnostic failures remain historical and are not counted as passes for the current head.
 - These are feature-branch repository-CI results. They do not mean PR #38 has merged, do not establish production release readiness, and do not substitute for a target-workstation preflight.
-### Current source-level implementation coverage
+### Source-level implementation coverage recorded in the 2026-11-04 snapshot
 
 The repository contains substantial source implementations across multi-tenancy, identity/RBAC, branches and organization settings; academic structure, enrollment and teaching assignments; scheduling; announcements and notifications; learning resources and storage; question banks and assessments; assignments, submissions, grading and gradebook; attendance, live classrooms and recordings; finance; analytics; integrations/federation/interoperability foundations; and operations/security qualification tooling. The Offline Demo separately contains role-based simulated education workflows.
 
 This inventory describes source implementation, not full end-to-end acceptance of every domain in the local Real app. The Windows CI presentation job executes the native SQLite browser path for local owner identity, branch creation/readback, and local-native sign-out revocation. The separate PostgreSQL-native Playwright variant additionally targets analytics/CSV, branch persistence, role CRUD, membership/role assignments and restricted database-role boundaries; that browser variant is not part of the Windows presentation job. PostgreSQL backend integration, migration, grants, API images and packaged-server health checks were executed in the current CI matrix.
 
-### CI status
+### CI status recorded in the 2026-11-04 snapshot
 
 As of 2026-11-04, GitHub Actions run [#1322](https://github.com/shreyashjagtap157/UEP/actions/runs/41788027111) completed **7/7 jobs successfully** for application/test head `5ef96155779a5c64dffabf588a2b4efe5e3930fd`. The feature branch is 94 commits ahead and 0 behind `main` at that source/test head; PR #38 remains open and draft. `main` remains at `51c4dd7ced6f79cb6c9dda63d3974bc7a44c3b99`; no implementation changes from PR #38 have been merged into it. This branch's status documentation is updated separately from `main`.
 
@@ -123,7 +180,7 @@ The following section records the earlier state and historical CI evidence as it
 
 The following section records the earlier state and historical CI evidence as it stood on 28 October 2026. It is retained for traceability and must not be read as the current repository head or current CI status.
 
-## Current verified state — 2026-10-28
+## Historical verified-state snapshot — 2026-10-28
 
 `0.15.0.0-SNAPSHOT` remains the development version. The latest dependency merges are PR #25 (`@types/node` 26.6.5) and PR #22 (`livekit-client` 2.23.0); PR #22 merged as `8290fc16f9d18d3f3350f22934be5b1ee33a8ccc`. The latest confirmed full CI run is GitHub Actions run `40701828392` on main commit `8af6a2580cb8e43194238088e02cbf2582e008ff`. All four jobs passed: backend verification, web lint/workflow tests/build, repository-policy qualification, and vulnerability scanning. This green run includes the assessment catalog, Student/Guardian permissions, V044 role migration, question-bank authorization, assignment draft/list scoping with database pagination, academic-review decision scoping, gradebook viewer authorization, and the associated regression tests.
 
@@ -182,7 +239,7 @@ UEP is the Universal Education Platform and does **not** contain swarm-agent fun
 
 Swarm-agent orchestration, specialist agents, swarm providers, agent playgrounds, and related APIs/configuration belong to other projects and must not be reintroduced into UEP.
 
-## Current 0.15 Reliability and Performance Qualification
+## Historical 0.15 Reliability and Performance Qualification snapshot
 
 Implemented/qualified repository-local foundations include:
 

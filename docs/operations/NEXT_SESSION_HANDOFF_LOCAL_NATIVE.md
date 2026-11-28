@@ -2,8 +2,14 @@
 
 Repository: https://github.com/shreyashjagtap157/UEP
 
-Last reviewed: 3 November 2026  
+Current verified overlay: 28 November 2026  
+Source baseline: [`b5d7034`](https://github.com/shreyashjagtap157/UEP/commit/b5d7034f13d83022115121c4b21848e68ed91a54)  
+Latest exact-head CI: [UEP CI #1385 — 7/7 passed](https://github.com/shreyashjagtap157/UEP/actions/runs/46112848647)  
 Release: `0.15.0.0-SNAPSHOT`  
+
+PR #38 merged on 23 November 2026 (merge commit `6b4dc16f125e1693371a5e170eb51e07a736bdfe`). Root `startuep.ps1` now only forwards to `scripts/Start-UEP.ps1`; the retired Keycloak startup/default-admin path was removed and the Windows CI smoke passed through this wrapper. SQLite is the default; PostgreSQL is opt-in. Local-native Real does not start or contact Keycloak. Offline Demo remains a separate fixture-backed frontend. The target Windows workstation was not exercised by CI.
+
+The detailed runbook below was last reviewed on 3 November 2026 and is retained as operating context. Refresh live `main`, implementation status and CI before acting on it.  
 Local launcher: `scripts/Start-UEP.ps1`  
 Root entry point: `startuep.ps1`
 

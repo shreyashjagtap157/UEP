@@ -1,6 +1,6 @@
 # Cloudflare demo deployment
 
-The local client-demo build is a static React/Vite application and can be deployed to a separate Cloudflare Pages project on the Free plan. This is a presentation/demo deployment, not the authenticated multi-tenant UEP product. Keep it separate from the real staging project so a local-mode build cannot overwrite the authenticated product frontend.
+The local client-demo build is a static React/Vite application intended for a separate Cloudflare Pages project. This is a presentation/demo deployment, not the authenticated multi-tenant UEP product. Hosted backend/database staging has been retired; this guide does not describe or authorize a connected product deployment.
 
 ## Pages settings
 
@@ -19,13 +19,13 @@ The build is intentionally local/demo mode for the client presentation. It does 
 
 ## Cloudflare account step
 
-The repository connection alone cannot authorize deployment into a Cloudflare account. In Cloudflare Dashboard, use Workers & Pages → Create application → Pages → Connect to Git, select this repository, create the distinct project `uep-frontend-demo`, and enter the settings above. Cloudflare's Git integration then builds and deploys pushes to `main` and provides preview deployments for eligible branches. Do not point this local-mode project at the `uep-frontend-testing` project used by the real product staging runbook.
+The repository connection alone cannot authorize deployment into a Cloudflare account. In Cloudflare Dashboard, use Workers & Pages → Create application → Pages → Connect to Git, select this repository, create the distinct project `uep-frontend-demo`, and enter the settings above. Cloudflare's Git integration can build and deploy pushes to `main` and provide preview deployments for eligible branches. Treat the project as a static Offline Demo only; it is not connected to an API, identity provider or database. Do not reuse it to represent a future authenticated product frontend.
 
 The build command uses `npm ci --ignore-scripts` so the deployed bundle is built from the committed lockfile without executing dependency lifecycle scripts. The repository CI web job uses the same install mode. Cloudflare Pages supports pinning the build Node.js version through a `.node-version` file; this repository commits that version alongside the web package.
 
 ## Important production boundary
 
-This deployment is only the presentation/local experience. It must not be described as the production multi-tenant backend deployment. The real product deployment and qualification procedure is `docs/operations/ACTUAL_STAGING_DEPLOYMENT.md` and requires the separately deployed backend, PostgreSQL database, Keycloak identity provider, storage provider, notifications, and authorization services to be configured and verified.
+This deployment is only the presentation/local experience. It must not be described as a production multi-tenant backend deployment. `docs/operations/ACTUAL_STAGING_DEPLOYMENT.md` is a superseded hosted-staging proposal preserved for history, not an active deployment procedure. The supported local integrated runtime is documented in `docs/operations/LOCAL_NATIVE_WINDOWS.md`; no hosted product deployment is currently qualified.
 # Cloudflare Pages — offline frontend demo only
 
 This guide applies only to the static React/Vite presentation frontend. It does not deploy or provision the Spring Boot API, Keycloak or PostgreSQL.
@@ -46,9 +46,9 @@ The existing Cloudflare Pages projects are separate from the local Real mode. Do
 
 For an integrated real-data test, do not use this offline Pages build. Run:
 
-    .\scripts\Start-UEP.ps1 -Mode Real
+    .\startuep.ps1 -Mode Real -Database SQLite
 
-This starts the React client, Spring Boot API, Keycloak and PostgreSQL locally. See [LOCAL_NATIVE_WINDOWS.md](operations/LOCAL_NATIVE_WINDOWS.md) and [LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md](operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md).
+This starts the React client and Spring Boot API with the local-native launcher-issued session and SQLite by default; it does not start or contact Keycloak. Select `-Database PostgreSQL` only for explicit local PostgreSQL migration/runtime-role qualification. See [LOCAL_NATIVE_WINDOWS.md](operations/LOCAL_NATIVE_WINDOWS.md) and [LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md](operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md).
 
 ## Deployment boundary
 

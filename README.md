@@ -1,5 +1,21 @@
 # Universal Education, Training and Learning Operations Platform
 
+## Current repository status — 2026-11-28
+
+> **Release gate: NOT QUALIFIED FOR PRODUCTION.** Source baseline [`b5d7034`](https://github.com/shreyashjagtap157/UEP/commit/b5d7034f13d83022115121c4b21848e68ed91a54), version `0.15.0.0-SNAPSHOT`. PR #38 merged on 23 November 2026 (merge commit `6b4dc16f125e1693371a5e170eb51e07a736bdfe`).
+>
+> **Exact-head CI:** [UEP CI #1385](https://github.com/shreyashjagtap157/UEP/actions/runs/46112848647) completed **7/7 jobs successfully**. This includes Windows Real + Offline Demo browser acceptance, PostgreSQL 17.11/18.4 validation, ARM64 API image smoke, certificate-validated TLS and packaged-server health smoke. These are GitHub-runner results, not target-workstation acceptance or production deployment.
+>
+> **Local topology:** `.\startuep.ps1` launches Real plus the separate fixture-backed Offline Demo by default. SQLite is the default; PostgreSQL is opt-in. Local-native Real does not start or contact Keycloak. Launcher credentials remain server-side in the Vite Node proxy.
+>
+> **UI:** current design is dark-first, semantic-token based, with Dark/Light/System preferences. See [`docs/FRONTEND_DESIGN_SYSTEM.md`](docs/FRONTEND_DESIGN_SYSTEM.md).
+>
+> **Hosted boundary:** hosted backend/database staging is retired; Cloudflare Pages documentation covers a static fixture demo only. `main` was observed unprotected; do not assume required checks exist.
+
+## Historical repository status snapshot — 2026-11-03 (superseded)
+
+
+
 ## Current repository status — 3 November 2026
 
 > **Release gate: NOT QUALIFIED FOR PRODUCTION.** UEP is being qualified locally because its hosted backend and database staging path has been retired. A green source/build CI run is not a connected production deployment.
@@ -54,7 +70,7 @@ The current hardening milestone is implemented in source and intentionally remai
 
 ## Repository layout
 
-- `apps/platform-server` — Java 25 / Spring Boot control plane and domain platform.
+- `apps/platform-server` — Java 21 bytecode target / Spring Boot 4.1.x control plane and domain platform.
 - `apps/web` — React + TypeScript web client.
 - `infra` — local/deployment infrastructure definitions.
 - `docs` — architecture, API, commercial/licensing, ADRs, and master plan.
@@ -74,7 +90,7 @@ The current hardening milestone is implemented in source and intentionally remai
 
 ## Required production toolchain
 
-- JDK 21+ (CI currently verifies on JDK 25; Maven compiles to Java 21 bytecode)
+- JDK 21+ (CI uses JDK 21; Maven compiles to Java 21 bytecode). Java 25 remains a forward-looking target in the master plan, not the current build baseline.
 - Maven 3.9+
 - Node.js 22.22.0+
 - PostgreSQL 18

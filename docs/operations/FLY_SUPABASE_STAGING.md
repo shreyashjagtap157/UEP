@@ -40,11 +40,11 @@ CI still performs source, unit, integration, database compatibility and build qu
 
 ## Supported local replacement
 
-- scripts/Start-UEP.ps1 — Demo, Real and Both modes.
-- LOCAL_NATIVE_WINDOWS.md — requirements, local URLs, database ownership and operations.
+- `startuep.ps1` — compatibility wrapper; `scripts/Start-UEP.ps1` — Demo, Real, Both and Presentation modes (Presentation is the default).
+- `LOCAL_NATIVE_WINDOWS.md` — requirements, local URLs, database ownership and operations.
 - LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md — full browser/API/PostgreSQL acceptance prompt.
 
-Real mode uses native PostgreSQL, Keycloak and Spring Boot processes. The real browser uses the Vite /api proxy, Spring Boot connects to PostgreSQL using uep_local_runtime, and schema changes are applied separately through the local DatabaseMigrationRunner as uep_local_migrator. Demo mode is intentionally offline and fixture-backed.
+Real mode uses the native React/Vite frontend, Spring Boot and a launcher-issued local API session. SQLite is the default; PostgreSQL is selected explicitly for migration/runtime-role qualification, where `DatabaseMigrationRunner` applies schema changes as `uep_local_migrator` and the API connects as `uep_local_runtime`. The Vite `/api` proxy injects the launcher credential server-side. The local-native path does not start or contact Keycloak. Demo mode is separate, offline and fixture-backed.
 
 ## Completion boundary
 

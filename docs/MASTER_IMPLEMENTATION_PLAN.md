@@ -206,6 +206,8 @@ Gradle or Maven
 
 Spring Boot 4.1 currently supports Java versions up through Java 26.
 
+**Current repository build baseline (verified 2026-11-28):** the application POM sets `java.version=21` and `maven.compiler.release=21`; the CI workflow configures JDK 21. Java 25 above is a forward-looking recommendation, not the currently compiled or CI-tested bytecode baseline. A Java 25 migration requires an explicit toolchain decision, dependency review, launcher/runtime updates and CI evidence.
+
 ## Database
 
 ```
