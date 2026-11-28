@@ -13,6 +13,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "notification_delivery")
 class NotificationDelivery {
+    static final int MAX_ATTEMPTS = 8;
     @Id private UUID id;
     @Column(nullable = false) private UUID tenantId;
     @Column(nullable = false) private UUID notificationId;
@@ -46,11 +47,12 @@ class NotificationDelivery {
     String destination() { return destination; }
     NotificationDeliveryStatus status() { return status; }
     int attemptCount() { return attemptCount; }
+    Instant nextAttemptAt() { return nextAttemptAt; }
     String lastError() { return lastError; }
     void sent(Instant now) { this.status = NotificationDeliveryStatus.SENT; this.sentAt = now; this.lastError = null; }
     void failed(String error, Instant failedAt, Instant retryAt) {
         this.attemptCount++;
-        this.status = this.attemptCount >= 8 ? NotificationDeliveryStatus.DEAD_LETTERED : NotificationDeliveryStatus.FAILED;
+        this.status = this.attemptCount >= MAX_ATTEMPTS ? NotificationDeliveryStatus.DEAD_LETTERED : NotificationDeliveryStatus.FAILED;
         this.nextAttemptAt = this.status == NotificationDeliveryStatus.DEAD_LETTERED ? failedAt : retryAt;
         this.lastError = safeFailureType(error);
     }

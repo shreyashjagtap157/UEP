@@ -26,6 +26,7 @@ The reviewed repository tree contained 522 production Java files, 83 Java test f
 | Active same-tenant participant integrity | Membership resolution in service; V035/V036 tenant/member integrity | Foreign-tenant participant non-disclosure 404; inactive participant 403; creator/participant persistence constraints | Implemented; negative paths covered |
 | Conversation and message pagination | Controller GET paths and service page methods; OpenAPI page schemas | API boundary workflows and contract build | Implemented; pagination extremes/scale remain |
 | Message send and notification intent | Send persists message/delivery and recipient notification intent transactionally; sender excluded and blocks considered | Test asserts non-sender intent, no sender intent and no message body in notification payload | Implemented; transaction path tested |
+| Optional SMTP email delivery | Notification outbox materializes per-recipient email deliveries; `NotificationEmailWorker` invokes `JavaMailSender`, records SENT/FAILED/DEAD_LETTERED and applies persisted exponential retry (dead-letter after 8 attempts) when enabled | `NotificationIntegrationTest` covers outbox deduplication/materialization and disabled-email SKIPPED behavior; existing privacy tests cover error redaction; new `NotificationEmailWorkerIntegrationTest` exercises SMTP success, retry persistence and dead-letter with a mocked SMTP transport | Implemented behind configuration; end-to-end provider and crash recovery unqualified |
 | Recipient delivery/read receipts | `MessageDelivery` and repository implement `PENDING → DELIVERED → READ`; service enforces receipt visibility | Group receipt and recipient privacy tests | Implemented; application semantics only |
 | Blocking | Block/unblock service and API paths | `blockingPreventsDirectMessagesUntilTheBlockIsRemoved` | Implemented; tested |
 | Reporting/moderation | Report evidence snapshots, moderator queue, resolve/redaction actions | `reportCanBeSubmittedAndModeratorActionRedactsTheReportedMessage` | Implemented; core flow tested |
@@ -66,6 +67,7 @@ V033/V034 introduce messaging persistence/permissions; V035/V036 strengthen tena
 - `MessagingApiBoundaryIntegrationTest` covers foreign-tenant rejection without identity leakage, sender-excluded notification intent, group receipt privacy, blocks, reports/moderation/redaction, policy restrictions/disablement, message and report quotas, retention of reported evidence, default policy creation, optimistic versioning and inactive membership rejection.
 - `MessagingPersistenceIntegrityIntegrationTest` covers same-tenant creator/participants, sender participation and a valid tenant-scoped write.
 - `MessagingRateLimitConcurrencyIntegrationTest` covers concurrent message quotas, concurrent report quotas and isolation for one identity using memberships in two tenants.
+- `NotificationEmailWorkerIntegrationTest` exercises the real outbox-to-delivery flow and worker with a mocked `JavaMailSender`, including successful SMTP submission, persisted retry/backoff state, redacted failure state and dead-letter after eight attempts. It does not establish delivery to a real mailbox/provider.
 
 The parallel quota tests execute against one application deployment and shared PostgreSQL database. They do not demonstrate coordination across independently running application nodes.
 
@@ -89,7 +91,7 @@ The parallel quota tests execute against one application deployment and shared P
 
 ### Not implemented or not established
 
-- Real email/push/SMS messaging provider delivery, provider retries/idempotency/backoff, dead-letter inspection/replay and transport delivery evidence.
+- SMTP email worker implementation exists but is not provider/end-to-end qualified. The worker records SENT after `JavaMailSender.send` returns, which establishes SMTP transport acceptance only, not recipient mailbox delivery. The database idempotency key prevents duplicate delivery rows, not duplicate SMTP submissions. Since SMTP send occurs before the database transaction commits, an ambiguous commit failure after provider acceptance can cause a retry and duplicate email; current semantics are at-least-once. Provider sandbox behavior, crash/commit ambiguity, operational dead-letter inspection/replay and provider-specific failover still need qualification. Push/SMS adapters are absent (`NotificationChannel` currently contains only `EMAIL`).
 - WebSocket/SSE/push transport, reconnect/ordering/offline behavior and its SLO.
 - Legal hold/litigation freeze, institution-specific preservation overrides, export and defensible deletion lifecycle.
 - Production-scale abuse/fuzz testing beyond existing quota/block/report coverage.
@@ -98,7 +100,7 @@ The parallel quota tests execute against one application deployment and shared P
 
 1. **Multi-node quotas:** run bursts through two independent Spring instances with separate pools against one PostgreSQL database.
 2. **Retention/legal hold:** current retention preserves reported messages until the longer report period; it is not legal hold. Define authority, freeze/unfreeze permission, audit, export, expiry and tenant-policy precedence before implementing.
-3. **Provider delivery:** decide provider classes and define retry/idempotency, provider acceptance vs recipient delivery, PII retention/redaction and operator controls.
+3. **Provider delivery:** qualify the existing SMTP worker with provider-sandbox tests, including accepted-send/database-commit failure ambiguity, retry/dead-letter behavior and operational replay. Preserve the distinction between SMTP acceptance and mailbox delivery; the current DB idempotency key does not make SMTP exactly-once. Add other channels only after explicit provider/idempotency decisions.
 4. **Realtime:** decide polling, WebSocket, SSE or push; define ordering, reconnect and unread consistency. Do not conflate message receipts with provider delivery.
 5. **Institutional audit:** define retention, supervisor access and audit policy for teacher/student, administrator/user and support/tenant communications.
 
@@ -109,9 +111,9 @@ Acceptance criteria:
 - Synchronize message/report bursts through two separately running service instances against one PostgreSQL database. Enforce tenant/membership quota ceilings and assert rejected requests create no message, delivery, report or notification intent.
 - Race edit/delete/report/read/resolve and verify optimistic locking, evidence snapshots, receipt consistency and audit.
 - Exercise retention worker restart/retry for reported/unreported records and tenant cutoffs. Do not invent legal-hold semantics before requirements are decided.
-- Record provider and realtime transport choices as explicit architecture decisions before building adapters.
+- Keep the SMTP worker integration suite covering success, transient failure, retry, dead-letter and error redaction; add failure-injection coverage for SMTP-accepted/database-commit-ambiguous outcomes and document at-least-once semantics. Decide push/realtime transport and provider choices in ADRs before building adapters.
 - Run targeted checks on PostgreSQL 17.11 and 18.4; preserve Windows Real/Demo, security/privacy and policy gates.
 
 ## 7. Conclusion
 
-Messaging is substantially implemented and has meaningful tenant-boundary, persistence, authorization, moderation, concurrency-quota and retention coverage. CI verifies the covered tests and PostgreSQL migration/privilege contracts on GitHub runners. It does not yet prove multi-node coordination, external delivery, legal-hold behavior, realtime transport, broad abuse resistance or production operations. The next high-value work is focused qualification at these boundaries, not cosmetic refactoring.
+Messaging is substantially implemented and has meaningful tenant-boundary, persistence, authorization, moderation, concurrency-quota, retention and configurable SMTP worker coverage. SMTP transport is at-least-once and still lacks provider-backed/crash-ambiguity qualification; push/SMS adapters are absent. CI verifies the covered tests and PostgreSQL migration/privilege contracts on GitHub runners. It does not yet prove multi-node coordination, mailbox delivery, legal-hold behavior, realtime transport, broad abuse resistance or production operations. The next high-value work is focused qualification at these boundaries, not cosmetic refactoring.

@@ -65,8 +65,17 @@ class NotificationEmailWorker {
 
     private void sendWithinTransaction(UUID id) {
         NotificationDelivery delivery = deliveries.lockById(id).orElse(null);
-        if (delivery == null || delivery.status() == NotificationDeliveryStatus.SENT || delivery.status() == NotificationDeliveryStatus.SKIPPED) return;
         Instant now = clock.instant();
+        // The due-ID query runs before this row lock. Another poller may have sent,
+        // failed, or dead-lettered the delivery while this worker waited for the lock.
+        // Revalidate all eligibility conditions against the freshly locked row so a
+        // stale candidate cannot bypass retry backoff or resurrect a dead letter.
+        if (delivery == null
+                || delivery.status() == NotificationDeliveryStatus.SENT
+                || delivery.status() == NotificationDeliveryStatus.SKIPPED
+                || delivery.status() == NotificationDeliveryStatus.DEAD_LETTERED
+                || delivery.attemptCount() >= NotificationDelivery.MAX_ATTEMPTS
+                || delivery.nextAttemptAt().isAfter(now)) return;
         try {
             PlatformNotification notification = notifications.findById(delivery.notificationId())
                     .orElseThrow(() -> new IllegalStateException("Notification delivery source no longer exists"));

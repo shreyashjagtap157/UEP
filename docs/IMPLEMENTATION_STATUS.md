@@ -47,7 +47,7 @@
 
 ### Remaining requirements and release posture
 
-- Messaging still needs independent-node quota/retention concurrency, wider cross-tenant/permission fuzzing, real email/push provider delivery/retry/dead-letter qualification, legal-hold/retention policy review and a decision on realtime transport/SLOs.
+- Messaging still needs independent-node quota/retention concurrency and wider cross-tenant/permission fuzzing. A configurable generic SMTP worker already has persisted retry/backoff/dead-letter states; its worker-level/provider-backed behavior and ambiguous SMTP-send/database-commit recovery still need qualification. Push/SMS transport and realtime delivery are not implemented/established. Legal-hold/retention policy and realtime/SLO decisions remain open.
 - Other roadmap gaps include advanced academic adjudication/regrading, device/offline attendance integrations, configurable workflow, tenant-safe search, finance reconciliation/provider qualification, federation lifecycle, full interoperability, portable credentials, white-labeling, live-class recovery, recording worker recovery/distribution, longitudinal analytics, PWA/push/offline sync and native clients.
 - UEP is **not qualified for Production Web GA / production release**. Independent penetration/abuse testing, production p50/p95/p99 capacity, WCAG 2.2 AA, PostgreSQL PITR/full restore and object-storage recovery, measured RPO/RTO, failure injection/provider failover, migration rollback, privacy/legal review and operational readiness remain release gates.
 - Green CI establishes only the contracts exercised on GitHub runners. It does not establish target-workstation acceptance, hosted deployment, production SLOs or complete product readiness.

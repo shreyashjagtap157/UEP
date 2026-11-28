@@ -8,7 +8,8 @@
 
 ### Documentation and traceability
 - reconciled implementation status with merged PR #38, dark-first semantic tokens, Offline Demo persona/session boundaries, SQLite-default local topology and current CI;
-- corrected retired hosted-deployment records and added a messaging source-to-spec traceability audit.
+- corrected retired hosted-deployment records and added a messaging source-to-spec traceability audit;
+- added SMTP email-worker integration coverage for successful submission, persisted retry/backoff, redacted errors and dead-lettering.
 
 ### Verification
 - [UEP CI #1385](https://github.com/shreyashjagtap157/UEP/actions/runs/46112848647) completed **7/7 jobs successfully** on source commit [`b5d7034`](https://github.com/shreyashjagtap157/UEP/commit/b5d7034f13d83022115121c4b21848e68ed91a54). The docs-only commit containing this entry has its own subsequent CI run.

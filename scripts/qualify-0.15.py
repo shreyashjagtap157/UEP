@@ -609,6 +609,26 @@ for required in [
 if 'invalidOutboxEventPersistsRetryBackoffOutsideFailedProcessingTransaction' not in notification_outbox_test:
     errors.append('missing notification outbox poisoned-event retry persistence regression')
 
+# SMTP delivery must exercise outbox -> delivery -> worker state transitions and stale poller safety.
+notification_email_worker_test = text('apps/platform-server/src/test/java/com/universalplatform/notification/NotificationEmailWorkerIntegrationTest.java')
+for required_test in [
+    'sendsEmailAndPersistsSmtpAcceptance',
+    'persistsRetryBackoffAndDeadLettersAfterEightFailedAttempts',
+    'The post-lock check must preserve the new backoff',
+    'must not resurrect the delivery',
+]:
+    if required_test not in notification_email_worker_test:
+        errors.append(f'missing notification SMTP worker integration regression: {required_test}')
+
+notification_email_worker = text('apps/platform-server/src/main/java/com/universalplatform/notification/NotificationEmailWorker.java')
+for required_guard in [
+    'delivery.status() == NotificationDeliveryStatus.DEAD_LETTERED',
+    'delivery.attemptCount() >= NotificationDelivery.MAX_ATTEMPTS',
+    'delivery.nextAttemptAt().isAfter(now)',
+]:
+    if required_guard not in notification_email_worker:
+        errors.append(f'notification SMTP worker is missing post-lock eligibility check: {required_guard}')
+
 # Scheduled announcement workers must isolate per-record failures so one bad row cannot stop the batch.
 announcement_worker = text('apps/platform-server/src/main/java/com/universalplatform/communication/AnnouncementPublishingWorker.java')
 announcement_worker_test = text('apps/platform-server/src/test/java/com/universalplatform/communication/AnnouncementPublishingWorkerTest.java')
