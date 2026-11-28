@@ -64,6 +64,75 @@ for required in required_guard_contract:
 if not (ROOT / 'apps/platform-server/src/test/java/com/universalplatform/security/ProductionSecretGuardTest.java').exists():
     errors.append('missing ProductionSecretGuard regression tests')
 
+# Local OIDC development is a distinct, explicit profile; it must not leak into local-native or prod.
+local_keycloak_profile = text('apps/platform-server/src/main/resources/application-local-keycloak.yaml')
+for required in [
+    'address: 127.0.0.1',
+    'OIDC_ISSUER_URI:http://localhost:8081/realms/education',
+    'OIDC_JWK_SET_URI:http://localhost:8081/realms/education/protocol/openid-connect/certs',
+    'platform.background-workers:',
+]:
+    if required not in local_keycloak_profile:
+        errors.append(f'local Keycloak profile is missing its loopback OIDC contract: {required}')
+for required in [
+    'local-native and local-keycloak are mutually exclusive identity profiles',
+    'a local identity profile cannot be combined with the prod/production Spring profile',
+]:
+    if required not in guard:
+        errors.append(f'ProductionSecretGuard does not protect local identity profiles: {required}')
+local_keycloak_identity = text('apps/platform-server/src/main/java/com/universalplatform/identity/LocalKeycloakIdentityBootstrapper.java')
+local_keycloak_tenant = text('apps/platform-server/src/main/java/com/universalplatform/tenancy/LocalKeycloakTenantBootstrapService.java')
+for required in [
+    '@Profile("local-keycloak")',
+    'SystemRoleKey.ORGANIZATION_OWNER',
+    'OWNER_SUBJECT',
+    'OWNER_ASSIGNED_BY',
+]:
+    if required not in local_keycloak_identity:
+        errors.append(f'local Keycloak identity bootstrap is incomplete: {required}')
+if 'TENANT_ID' not in local_keycloak_tenant or 'refusing to remap OIDC claims' not in local_keycloak_tenant:
+    errors.append('local Keycloak tenant bootstrap must pin and validate the mapped tenant ID')
+local_keycloak_test = text('apps/platform-server/src/test/java/com/universalplatform/identity/LocalKeycloakIdentityBootstrapperIntegrationTest.java')
+for required in [
+    'localKeycloakProfileBootstrapsTheRealmOwnerIntoTheSameTenantAndRoleModel',
+    'keycloakProfileDoesNotBootstrapTheLocalNativeOwner',
+]:
+    if required not in local_keycloak_test:
+        errors.append(f'missing local Keycloak bootstrap integration test: {required}')
+local_realm = __import__('json').loads(text('infra/keycloak/education-realm.json'))
+local_client = next((client for client in local_realm.get('clients', []) if client.get('clientId') == 'platform-web'), None)
+if local_realm.get('realm') != 'education' or local_client is None:
+    errors.append('local Keycloak realm/client configuration is missing')
+else:
+    if len(local_realm.get('clients', [])) != 1:
+        errors.append('local realm must not expose unused direct-grant bootstrap clients')
+    if local_client.get('publicClient') is not True or local_client.get('standardFlowEnabled') is not True:
+        errors.append('local Keycloak platform-web client must be public Authorization Code')
+    if local_client.get('implicitFlowEnabled') is not False or local_client.get('directAccessGrantsEnabled') is not False:
+        errors.append('local Keycloak platform-web must not enable implicit or password grants')
+    if local_client.get('attributes', {}).get('pkce.code.challenge.method') != 'S256':
+        errors.append('local Keycloak client must require PKCE S256')
+    if local_client.get('attributes', {}).get('post.logout.redirect.uris') != '+':
+        errors.append('local Keycloak client must allow its validated post-logout redirect URIs')
+    owner = next((user for user in local_realm.get('users', []) if user.get('username') == 'uep-owner'), None)
+    if owner is None or owner.get('credentials', [{}])[0].get('value') != '$' + '{UEP_LOCAL_KEYCLOAK_OWNER_PASSWORD}':
+        errors.append('local Keycloak owner must use the generated environment-substituted password')
+    if owner is None or owner.get('attributes', {}).get('tenant_id') != ['b1b2789e-9b87-4c9d-a6f7-6f5d7e8a1d44']:
+        errors.append('local Keycloak owner tenant claim does not match the local backend bootstrap')
+
+local_keycloak_browser_test = text('apps/web/test/native/real-keycloak.native.spec.ts')
+for required in [
+    "code_challenge_method')).toBe('S256')",
+    "code_challenge')).toMatch(",
+    "response_type')).toBe('code')",
+    'Organization Owner',
+]:
+    if required not in local_keycloak_browser_test:
+        errors.append(f'missing Keycloak OIDC browser acceptance assertion: {required}')
+launcher = text('scripts/Start-UEP.ps1')
+if 'keycloak-26.8.2.zip' not in launcher or '321ffee62ec28fab18fe885d8cd62cc814edce72a35cd062dc81b504c1a406b3' not in launcher:
+    errors.append('local Keycloak installer must pin and verify the official 26.8.2 archive SHA-256')
+
 # The destructive restore drill must protect its source and require explicit disposable-target consent.
 restore_script = text('scripts/backup-restore-drill.sh')
 required_restore_contract = [

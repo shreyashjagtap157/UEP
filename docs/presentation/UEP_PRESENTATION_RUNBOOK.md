@@ -4,7 +4,7 @@
 
 Present two honest views of the same project:
 
-1. **Real UEP — local integrated build:** the current React application with a launcher-managed loopback session, Spring Boot API, separate backend Swagger UI and a selected local SQLite or PostgreSQL qualification database (SQLite is the default). Keycloak is not started in this local walkthrough.
+1. **Real UEP — local integrated build:** the current React application, Spring Boot API, separate backend Swagger UI and a selected local SQLite or PostgreSQL qualification database (SQLite is the default). The default `LocalNative` identity uses a launcher-managed loopback session; a separate `-IdentityProvider Keycloak` option runs the local OIDC realm.
 2. **Offline presentation demo:** the curated role-specific seeded workspaces used for the concise academic workflow walkthrough.
 
 These are two independent environments. The Offline Demo is not connected to the Real application and does not use its API session or SQLite database. The Real application is not a production deployment, and the SQLite profile is narrower than PostgreSQL production/CI qualification.
@@ -34,7 +34,7 @@ The Offline Demo presents three groups so the audience can understand how respon
 - **Student:** sees their enrolled learning, assignments, results, schedule and attendance.
 - **Parent / Guardian:** sees only progress and records for the learner linked to that guardian.
 
-The Offline Demo includes 14 seeded personas across those groups. Use **Switch user** in an authenticated Demo workspace to sign out and return to the grouped account selector. The Real local-native app deliberately has one persisted Organization Owner, not 14 simulated backend users. Its **Sign out** button revokes the active launcher session in the Spring process; restart the PowerShell launcher before reconnecting to Real UEP. The separate Offline Demo remains available for role exploration. Production OIDC users have the normal identity-provider Sign out flow.
+The Offline Demo includes 14 seeded personas across those groups. Use **Switch user** in an authenticated Demo workspace to sign out and return to the grouped account selector. Real UEP has one persisted local Organization Owner in either local identity mode, not 14 simulated backend users. In `LocalNative`, **Sign out** revokes the active launcher session in the Spring process; restart the PowerShell launcher before reconnecting. In `Keycloak` mode, sign-out uses the normal identity-provider flow. The separate Offline Demo remains available for role exploration.
 
 ## One-command launch
 
@@ -46,14 +46,15 @@ From the repository root on Windows, the default command starts both Real UEP an
 
 The equivalent explicit SQLite command is `.\startuep.ps1 -Mode Presentation -Database SQLite`.
 
-In every Real local-native mode, the launcher creates or reuses only the persisted local API owner account, active tenant membership and Organization Owner role in the selected database (SQLite or PostgreSQL). It does not create OIDC test accounts or start Keycloak. The Offline Demo has its own independent browser-seeded personas; they are synthetic and are not backend users.
+In the default `LocalNative` mode, the launcher creates or reuses the persisted local API owner account, active tenant membership and Organization Owner role in the selected database (SQLite or PostgreSQL), without starting Keycloak. To demonstrate real OIDC instead, start with `-IdentityProvider Keycloak`; this uses the separate local `education` realm and a database-backed local owner. The Offline Demo always has its own independent browser-seeded personas; they are synthetic and are not backend users.
 
 Expected endpoints:
 
 | Environment | URL | What it is |
 |---|---|---|
-| Real UEP | http://localhost:5173 | Local-authenticated React UI; API requests go through Vite to Spring Boot |
+| Real UEP | http://localhost:5173 | React UI; default LocalNative or optional Keycloak OIDC; API requests go through Vite to Spring Boot |
 | Offline Demo | http://localhost:5174 | Seeded personas, simulated sign-in and browser-local sample state |
+| Optional Keycloak | http://localhost:8081 | Local `education` realm, separate file-based dev store |
 | Swagger UI | http://127.0.0.1:8080/swagger-ui.html | Separate backend API reference (anonymous docs are local-native only; protected API operations still enforce auth) |
 | Spring Boot API | http://127.0.0.1:8080 | Local backend; generated OpenAPI JSON at `/v3/api-docs` |
 | SQLite file | `.uep-local\uep-local.sqlite` | Local qualification data for Real UEP |
@@ -87,21 +88,21 @@ Use the established four-slide speaker guide:
 
 1. Why UEP started — learner experience and the problem being addressed.
 2. What UEP brings together — role-specific education and institutional workflows.
-3. Technologies and architecture — React/TypeScript/Vite, Java/Spring Boot modular monolith, PostgreSQL/Flyway target, and the limited local SQLite qualification profile. External OIDC/Keycloak integration is not started for this local demonstration.
+3. Technologies and architecture — React/TypeScript/Vite, Java/Spring Boot modular monolith, PostgreSQL/Flyway target, and the limited local SQLite qualification profile. The default walkthrough uses LocalNative; Keycloak OIDC is an optional separate local path.
 4. What will be demonstrated — the current real integration slice and then the separate seeded offline demo.
 
 Keep the distinction explicit: source capability, demo behavior and runtime-verified behavior are three different things.
 
 ### Real implementation preview — Real UEP
 
-Say: “This is the actual UEP application path. The frontend calls the Spring Boot API through the local launcher session, and the API persists the supported workflow in SQLite. The backend API reference is available separately in Swagger UI. This is a local qualification environment, not a production deployment.”
+Say: “This is the actual UEP application path. The frontend calls the Spring Boot API through the selected local identity session, and the API persists the supported workflow in SQLite. The backend API reference is available separately in Swagger UI when using LocalNative. This is a local qualification environment, not a production deployment.”
 
-1. Open Real UEP. It loads the persisted local owner identity from the database through `/api/v1/me`; this local path does not use Keycloak.
+1. Open Real UEP. With `LocalNative`, it loads the persisted local owner identity through `/api/v1/me` without Keycloak. With `Keycloak`, it redirects to the local `education` realm, completes PKCE sign-in and then loads the database-backed owner identity through `/api/v1/me`.
 2. Show the authenticated user, tenant identifier and assigned roles in the workspace.
-3. Explain the request path: Browser (no credential header) → same-origin Vite proxy (adds the launcher token server-side) → Spring Boot → selected local database. The browser never connects directly to the database.
+3. Explain the request path: with `LocalNative`, the browser sends no credential and the same-origin Vite proxy injects the launcher token server-side; with `Keycloak`, the browser sends its OIDC bearer token through the same-origin Vite proxy. In both cases Spring Boot remains authoritative for tenant membership/role checks and the browser never connects directly to the database.
 4. Open Organization and, after the local SQLite native smoke has passed, create a uniquely named branch. Reload the page and show that it is returned by the backend again.
 5. Optionally show role/permission or security surfaces only after rehearsing those exact operations in this SQLite runtime. Do not use visible navigation or source-code presence as proof that every module works end to end.
-6. As the final Real interaction, click **Sign out**. Expect the signed-out screen; this revokes the running local-native launcher session. Restart the launcher before reconnecting. Do not sign out while further Real workflow steps are still needed.
+6. As the final Real interaction, click **Sign out**. In `LocalNative`, this revokes the running launcher session and requires a launcher restart before reconnecting. In `Keycloak` mode, this follows the Keycloak OIDC logout flow. Do not sign out while further Real workflow steps are still needed.
 
 The branch create/readback and local sign-out steps are covered by the current Windows CI browser qualification. Verify them once on the actual presentation workstation before relying on them in a live presentation. If the native Windows smoke test has not been run successfully, do not claim that step as verified; show the screen as an implementation preview and call the live workflow unqualified.
 

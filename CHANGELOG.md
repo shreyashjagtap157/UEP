@@ -3,8 +3,12 @@
 ## Unreleased — 2026-11-28
 
 ### Fixed
-- made root `startuep.ps1` a thin compatibility wrapper; removed retired Keycloak development-server startup, realm import and default local admin credentials;
+- made root `startuep.ps1` a thin compatibility wrapper; retained `LocalNative` as the default and replaced retired implicit Keycloak startup/default credentials with an explicit generated-credential `-IdentityProvider Keycloak` workflow;
 - strengthened native-launcher static verification to assert option forwarding and reject legacy Keycloak startup/credential markers.
+
+### Added
+- added an isolated local Keycloak 26.8.2 realm with one PKCE-only public client, environment-substituted owner password, fixed tenant claim, native Windows startup and local credential helper;
+- added the mutually exclusive `local-keycloak` backend profile, database-backed owner/role bootstrap, OIDC browser test and CI acceptance path;
 
 ### Documentation and traceability
 - reconciled implementation status with merged PR #38, dark-first semantic tokens, Offline Demo persona/session boundaries, SQLite-default local topology and current CI;

@@ -416,9 +416,51 @@ jobs:
               assert required in migration_runner
 
           keycloak_dockerfile = Path("infra/keycloak/Dockerfile").read_text()
-          assert "quay.io/keycloak/keycloak:26.7.0" in keycloak_dockerfile
+          assert "quay.io/keycloak/keycloak:26.8.2" in keycloak_dockerfile
           assert 'CMD ["start", "--optimized", "--import-realm"]' in keycloak_dockerfile
-          print("Keycloak realm and OCI container contract passed.")
+
+          local_realm = json.loads(Path("infra/keycloak/education-realm.json").read_text())
+          local_client = next(item for item in local_realm["clients"] if item["clientId"] == "platform-web")
+          assert local_realm["realm"] == "education"
+          assert local_client["publicClient"] is True
+          assert local_client["standardFlowEnabled"] is True
+          assert local_client["implicitFlowEnabled"] is False
+          assert local_client["directAccessGrantsEnabled"] is False
+          assert local_client["attributes"]["pkce.code.challenge.method"] == "S256"
+          assert local_client["attributes"]["post.logout.redirect.uris"] == "+"
+          assert len(local_realm["clients"]) == 1
+          assert set(local_client["redirectUris"]) == {"http://localhost:5173/*", "http://127.0.0.1:5173/*"}
+          assert set(local_client["webOrigins"]) == {"http://localhost:5173", "http://127.0.0.1:5173"}
+          owner = next(user for user in local_realm["users"] if user["username"] == "uep-owner")
+          assert owner["enabled"] is True
+          assert owner["id"] == "47bcafc8-b3ee-4c84-920f-0c21f4468c55"
+          assert owner["attributes"]["tenant_id"] == ["b1b2789e-9b87-4c9d-a6f7-6f5d7e8a1d44"]
+          assert owner["credentials"][0]["value"] == "$" + "{UEP_LOCAL_KEYCLOAK_OWNER_PASSWORD}"
+          assert owner["credentials"][0]["temporary"] is False
+          assert len(local_realm["users"]) == 1
+          assert "KC_BOOTSTRAP_ADMIN_PASSWORD" not in json.dumps(local_realm)
+
+          local_keycloak_identity = Path("apps/platform-server/src/main/java/com/universalplatform/identity/LocalKeycloakIdentityBootstrapper.java").read_text()
+          local_keycloak_tenant = Path("apps/platform-server/src/main/java/com/universalplatform/tenancy/LocalKeycloakTenantBootstrapService.java").read_text()
+          assert '@Profile("local-keycloak")' in local_keycloak_identity
+          assert 'SystemRoleKey.ORGANIZATION_OWNER' in local_keycloak_identity
+          assert "TENANT_ID" in local_keycloak_tenant
+          assert "LocalKeycloakIdentityBootstrapperIntegrationTest" in str(Path("apps/platform-server/src/test/java/com/universalplatform/identity/LocalKeycloakIdentityBootstrapperIntegrationTest.java"))
+          browser_test = Path("apps/web/test/native/real-keycloak.native.spec.ts").read_text()
+          assert "code_challenge_method')).toBe('S256')" in browser_test
+          assert "code_challenge')).toMatch(" in browser_test
+          assert "Bearer " in browser_test
+
+          compose = Path("infra/compose.yaml").read_text()
+          assert "quay.io/keycloak/keycloak:26.8.2" in compose
+          assert "127.0.0.1:8081:8080" in compose
+          assert "KC_BOOTSTRAP_ADMIN_PASSWORD: $" + "{KC_BOOTSTRAP_ADMIN_PASSWORD:?" in compose
+          assert "UEP_LOCAL_KEYCLOAK_OWNER_PASSWORD: $" + "{UEP_LOCAL_KEYCLOAK_OWNER_PASSWORD:?" in compose
+          assert "KC_BOOTSTRAP_ADMIN_PASSWORD: admin" not in compose
+          assert "KC_BOOTSTRAP_ADMIN_USERNAME: admin" not in compose
+          assert "--http-host=0.0.0.0" in compose
+          assert "--hostname=http://localhost:8081" in compose
+          print("Local OIDC realm, opt-in credentials, Keycloak 26.8.2 image and deployment boundary passed.")
           PY
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
@@ -433,7 +475,7 @@ jobs:
 
   windows-local-presentation-smoke:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
 
@@ -567,3 +609,75 @@ jobs:
           $env:VITE_LOCAL_MODE = 'true'
           npm --prefix apps/web run test:e2e -- --project="Layer A: Local Demo" --workers=1
           if ($LASTEXITCODE -ne 0) { throw "Offline Demo browser regression failed with exit code $LASTEXITCODE." }
+
+      - uses: actions/setup-java@v6
+        if: success()
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Start native Keycloak and qualify local OIDC authorization-code PKCE
+        if: success()
+        shell: pwsh
+        run: |
+          $scriptPath = (Resolve-Path '.\startuep.ps1').Path
+          $stdout = Join-Path $env:RUNNER_TEMP 'uep-keycloak-launcher.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'uep-keycloak-launcher.stderr.log'
+          $arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $scriptPath + '" -Mode Real -Database SQLite -IdentityProvider Keycloak -NoBrowser'
+          $launcher = Start-Process -FilePath 'pwsh' -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+
+          try {
+            $checks = @(
+              @{ Name = 'Keycloak OIDC discovery'; Url = 'http://localhost:8081/realms/education/.well-known/openid-configuration' },
+              @{ Name = 'Spring Boot actuator'; Url = 'http://127.0.0.1:8080/actuator/health' },
+              @{ Name = 'Real frontend'; Url = 'http://127.0.0.1:5173' },
+              @{ Name = 'Vite API reverse proxy'; Url = 'http://127.0.0.1:5173/api/v1/platform/version' }
+            )
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 360; $attempt++) {
+              if ($launcher.HasExited) { throw "Keycloak launcher exited early with code $($launcher.ExitCode)." }
+              $ready = $true
+              foreach ($check in $checks) {
+                try {
+                  $response = Invoke-WebRequest -Uri $check.Url -UseBasicParsing -TimeoutSec 5
+                  if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300) { $ready = $false; break }
+                } catch { $ready = $false; break }
+              }
+              if ($ready) { break }
+              Start-Sleep -Seconds 5
+            }
+            if (-not $ready) { throw 'Local Keycloak, the backend, the frontend or the API proxy did not become healthy within 30 minutes.' }
+
+            $discovery = Invoke-RestMethod -Uri 'http://localhost:8081/realms/education/.well-known/openid-configuration' -TimeoutSec 15
+            if ($discovery.issuer -ne 'http://localhost:8081/realms/education') { throw 'Keycloak returned an unexpected local OIDC issuer.' }
+
+            Write-Host 'Installing Playwright Chromium before the OIDC browser test...'
+            npm --prefix apps/web exec -- playwright install chromium
+            if ($LASTEXITCODE -ne 0) { throw "Playwright Chromium installation failed with exit code $LASTEXITCODE." }
+
+            Write-Host 'Running browser sign-in through Keycloak Authorization Code + PKCE and checking the backend tenant/role...'
+            npm --prefix apps/web run test:e2e:native -- test/native/real-keycloak.native.spec.ts
+            if ($LASTEXITCODE -ne 0) { throw "Local Keycloak OIDC browser qualification failed with exit code $LASTEXITCODE." }
+          }
+          catch {
+            Write-Host '---- Keycloak launcher stdout (tail) ----'
+            if (Test-Path $stdout) { Get-Content -LiteralPath $stdout -Tail 200 }
+            Write-Host '---- Keycloak launcher stderr (tail) ----'
+            if (Test-Path $stderr) { Get-Content -LiteralPath $stderr -Tail 200 }
+            $logs = Join-Path $PWD '.uep-local\logs'
+            if (Test-Path $logs) {
+              Get-ChildItem -LiteralPath $logs -File | ForEach-Object {
+                Write-Host "---- $($_.Name) (tail) ----"
+                Get-Content -LiteralPath $_.FullName -Tail 120
+              }
+            }
+            throw
+          }
+          finally {
+            if ($launcher -and -not $launcher.HasExited) {
+              & taskkill.exe /PID $launcher.Id /T /F *> $null
+              Start-Sleep -Seconds 3
+            }
+            $global:LASTEXITCODE = 0
+          }

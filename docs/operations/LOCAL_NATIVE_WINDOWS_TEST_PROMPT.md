@@ -4,7 +4,7 @@ You are the principal QA automation engineer, full-stack integration tester, dat
 
 ## Objective
 
-Qualify the **actual Real application**, not the offline Demo fixtures. The Real browser UI, Spring Boot API, local Swagger UI and selected local database must operate as one connected system without starting or contacting Keycloak. Select SQLite for workstation qualification when PostgreSQL is unavailable; select PostgreSQL only when explicitly testing the PostgreSQL migration and privilege boundary.
+Qualify the **actual Real application**, not the offline Demo fixtures. This acceptance prompt is specifically for the default `LocalNative` identity mode: the Real browser UI, Spring Boot API, local Swagger UI and selected local database must operate as one connected system without starting or contacting Keycloak. Select SQLite for workstation qualification when PostgreSQL is unavailable; select PostgreSQL only when explicitly testing the PostgreSQL migration and privilege boundary. The separate OIDC path is covered by `apps/web/test/native/real-keycloak.native.spec.ts` and is started with `-IdentityProvider Keycloak`.
 
 The system is started natively on Windows by:
 
@@ -19,7 +19,7 @@ Expected local endpoints:
 - OpenAPI JSON: http://127.0.0.1:8080/v3/api-docs
 - SQLite (default): .uep-local/uep-local.sqlite. PostgreSQL is an optional separate mode.
 
-In SQLite mode, the backend uses the `local-sqlite,local-native` Spring profiles and Hibernate entity schema generation; PostgreSQL Flyway migrations and database roles are not used. In PostgreSQL mode, the backend connects as `uep_local_runtime` and Flyway is run by `DatabaseMigrationRunner` as `uep_local_migrator`. The local-native profile binds the backend to `127.0.0.1`, enables launcher-issued local API authentication and exposes Swagger only on this workstation. No identity-provider process is started or contacted by the Real UI in either local database mode.
+In SQLite mode, the backend uses the `local-sqlite,local-native` Spring profiles and Hibernate entity schema generation; PostgreSQL Flyway migrations and database roles are not used. In PostgreSQL mode, the backend connects as `uep_local_runtime` and Flyway is run by `DatabaseMigrationRunner` as `uep_local_migrator`. The local-native profile binds the backend to `127.0.0.1`, enables launcher-issued local API authentication and exposes Swagger only on this workstation. No identity-provider process is started or contacted by the Real UI in either local database mode when using the `LocalNative` profile selected by this acceptance prompt.
 
 ## Non-negotiable safety and truth requirements
 
@@ -54,7 +54,7 @@ Verify the data flow contract from source:
 - Frontend does not compile in a remote API URL; the API base remains same-origin/relative.
 - Vite proxies /api to 127.0.0.1:8080.
 - Frontend API helper uses same-origin `fetch` for data requests and supports GET, POST, PUT, PATCH and DELETE. The browser sends no local-auth header and no bearer token; the Node-side Vite `/api` proxy injects the launcher-issued `X-UEP-Local-Auth` header before forwarding.
-- SQLite mode: backend uses `local-sqlite,local-native`, Flyway is disabled, Hibernate creates the local entity schema, background workers are disabled and no identity-provider process is started.
+- SQLite LocalNative mode: backend uses `local-sqlite,local-native`, Flyway is disabled, Hibernate creates the local entity schema, background workers are disabled and no identity-provider process is started.
 - PostgreSQL mode: backend uses the local PostgreSQL datasource and `uep_local_runtime`; Flyway migration history is present and validated; The local-native path does not start or contact Keycloak. Do not test or modify identity-provider schemas in this task.
 
 Inspect browser and build artifacts for leaked secrets. No database username/password, PostgreSQL migration credential or launcher token may appear in frontend bundles, browser request headers, logs, screenshots or browser storage. The launcher token is supplied only to the Node-side Real Vite process as `UEP_LOCAL_AUTH_TOKEN` (not a `VITE_` variable) and held in ACL-protected local process/command state. The proxy adds the header upstream; the browser never receives the secret.

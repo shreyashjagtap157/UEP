@@ -4,6 +4,8 @@ param(
     [string]$Mode = 'Presentation',
     [ValidateSet('SQLite', 'PostgreSQL')]
     [string]$Database = 'SQLite',
+    [ValidateSet('LocalNative', 'Keycloak')]
+    [string]$IdentityProvider = 'LocalNative',
     [switch]$NoBrowser,
     [switch]$SkipAccountSeeding
 )
@@ -15,6 +17,6 @@ if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) {
 }
 
 # This entry point is deliberately a thin compatibility wrapper. All process,
-# database and local-authentication lifecycle behavior belongs to the canonical
-# launcher so retired Keycloak startup code cannot run on this path.
-& $launcher -Mode $Mode -Database $Database -NoBrowser:$NoBrowser -SkipAccountSeeding:$SkipAccountSeeding
+# database and identity-provider lifecycle behavior—including the opt-in local
+# Keycloak service—belongs to the canonical launcher.
+& $launcher -Mode $Mode -Database $Database -IdentityProvider $IdentityProvider -NoBrowser:$NoBrowser -SkipAccountSeeding:$SkipAccountSeeding

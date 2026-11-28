@@ -27,6 +27,7 @@ Tenancy and security → `TENANCY_AND_SECURITY.md` · Identity/organization → 
 - `FLY_SUPABASE_STAGING.md` — retired hosted backend/database decommission record; not deployable.
 - `IDENTITY_BOOTSTRAP.md` — first-owner bootstrap and session incident response.
 - `LOCAL_NATIVE_WINDOWS.md` — supported native Windows runtime and launcher operations.
+- `../infra/keycloak/README.md` — optional local Keycloak OIDC realm, credentials, and Compose setup.
 - `ACTUAL_STAGING_DEPLOYMENT.md` and `OCI_CLOUDFLARE_STAGING.md` — superseded hosted topology/verification history only; do not deploy.
 - `CLOUDFLARE_DEMO_DEPLOY.md` — frontend-only offline presentation deployment; no backend, identity provider or database.
 

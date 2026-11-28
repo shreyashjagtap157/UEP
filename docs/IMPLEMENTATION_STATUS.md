@@ -5,26 +5,35 @@
 ### Repository and evidence boundary
 
 - Repository: https://github.com/shreyashjagtap157/UEP; default branch: `main`.
-- Source baseline: [`b5d7034`](https://github.com/shreyashjagtap157/UEP/commit/b5d7034f13d83022115121c4b21848e68ed91a54). This refresh adds a separate documentation-only commit.
+- Continuation baseline: [`1470cf5`](https://github.com/shreyashjagtap157/UEP/commit/1470cf5ddcf5b6847c6c514683b8bcccd16db24c). This source update adds an opt-in local Keycloak OIDC path without changing the default LocalNative startup.
 - Version: `0.15.0.0-SNAPSHOT`, not a stable release.
 - PR [#38](https://github.com/shreyashjagtap157/UEP/pull/38) merged on 23 November 2026; merge commit [`6b4dc16`](https://github.com/shreyashjagtap157/UEP/commit/6b4dc16f125e1693371a5e170eb51e07a736bdfe). Its product UI, Offline Demo personas, navigation, messaging and session work are on `main`; the PR is not open or draft.
-- Exact-head [UEP CI #1385](https://github.com/shreyashjagtap157/UEP/actions/runs/46112848647) completed **7/7 jobs successfully** on `b5d7034`.
+- Exact-head [UEP CI #1387](https://github.com/shreyashjagtap157/UEP/actions/runs/46114640663) completed **7/7 jobs successfully** on `1470cf5`. This is the pre-Keycloak-change baseline; the new local OIDC source and browser test remain pending exact-head CI after this source update.
 - GitHub reported `main` as unprotected during this refresh. Do not infer branch protection or required checks from CI execution.
 - The target Windows workstation was not exercised in this session. GitHub-hosted Windows CI is not workstation acceptance.
 
 ### Real local and Offline Demo topology
 
 - `.\startuep.ps1` defaults to paired Presentation mode with SQLite. Supported modes: `Demo`, `Real`, `Both`, `Presentation`. PostgreSQL is an explicit qualification option.
-- **Real UEP** is React/Vite connected to Spring Boot and the selected local database through the same-origin Vite proxy. The launcher-issued credential is kept in protected process/Node state and injected server-side by the Vite proxy; it is not exposed through a `VITE_` variable or browser request.
+- **Real UEP** is React/Vite connected to Spring Boot and the selected local database through the same-origin Vite proxy. Identity is `LocalNative` by default (launcher-issued loopback session) or the explicit `-IdentityProvider Keycloak` local OIDC mode. The LocalNative credential is kept in protected process/Node state and injected server-side by the Vite proxy; it is not exposed through a `VITE_` variable or browser request.
 - **Offline Demo** is a separate seeded browser-local fixture application. It does not use Spring Boot, SQLite or PostgreSQL and is not a production identity or authorization boundary.
 - Offline Demo has **14 synthetic personas** across Platform team, Client & institution management and Institution teaching & learning, with role-specific workspaces and account switching.
-- Local-native Real does **not** start or contact Keycloak. Production OIDC remains a distinct integration.
+- The default LocalNative Real path does **not** start or contact Keycloak. The opt-in local OIDC path starts Keycloak 26.8.2 on loopback port 8081 and uses the mutually exclusive `local-keycloak` Spring profile.
 
 ### Launcher security correction
 
 - [Commit `b5d7034`](https://github.com/shreyashjagtap157/UEP/commit/b5d7034f13d83022115121c4b21848e68ed91a54) makes root `startuep.ps1` a thin wrapper forwarding supported options to `scripts/Start-UEP.ps1`.
-- Removed the wrapper's retired Keycloak startup, realm import and default `admin/admin` bootstrap credentials. The static launcher verifier checks full option forwarding and rejects those legacy startup/credential markers.
-- CI #1385 repository-policy passed. The Windows job successfully launched Real + Demo SQLite through the root wrapper, passed native local-auth-to-SQLite browser coverage and the Offline Demo role/workflow browser regression.
+- Removed the wrapper's unconditional/retired Keycloak startup and committed `admin/admin` bootstrap credentials. The root launcher now forwards the explicit identity-provider choice; `LocalNative` remains the default. Only the canonical launcher can start the optional local Keycloak process, and its administrator/owner passwords are generated into the ACL-protected per-user state.
+- CI #1387 repository-policy passed. Its Windows job successfully launched Real + Demo SQLite through the root wrapper, passed native local-auth-to-SQLite browser coverage and the Offline Demo role/workflow browser regression. The new OIDC startup/browser workflow is a separate acceptance step introduced by this update and is not yet verified.
+
+### Optional local Keycloak OIDC implementation — acceptance pending
+
+- `-IdentityProvider Keycloak` is an opt-in native Windows path; `LocalNative` remains the default. The two Spring identity profiles are mutually exclusive, and both are rejected under `prod` / `production`.
+- The launcher downloads the official Keycloak 26.8.2 distribution, verifies the pinned archive SHA-256, and runs it on `127.0.0.1:8081` with a separate JDK 25+ runtime. Spring Boot remains on the Java 21 bytecode baseline.
+- The local `education` realm has one public `platform-web` client using Authorization Code + PKCE S256; implicit/password grants are disabled. A generated local `uep-owner` account carries the fixed `tenant_id` claim that the backend bootstrap resolves to the reserved local tenant and Organization Owner membership.
+- Administrator and owner passwords are generated locally and saved in the ACL-protected `%LOCALAPPDATA%\UEP\local-native\state.json`; that file is not DPAPI-encrypted. The explicit `scripts/Show-UEP-LocalKeycloakCredentials.ps1` helper displays them on demand. Keycloak uses a separate dev-file store; it never shares the UEP SQLite or PostgreSQL database.
+- `infra/compose.yaml` also exposes an optional Keycloak 26.8.2 service, requires externally supplied credentials, and binds its host port to loopback. `infra/keycloak/README.md` documents native and Compose operation, import semantics and reset boundaries.
+- New backend bootstrap integration and Windows Playwright OIDC tests are present. **The new Keycloak run path is not yet considered verified** until the exact-head CI run completes its local Keycloak startup, PKCE browser login and backend tenant/role assertions. Target-workstation acceptance remains outstanding.
 
 ### Design and application status
 
@@ -35,10 +44,10 @@
 ### Backend, storage and CI evidence
 
 - Storage regression coverage includes failed upload initiation cleanup/rollback, truncated/missing staging files, quota release, recovery limited to uncommitted trailing bytes and rejection of files shorter than committed offsets.
-- CI #1385 verified PostgreSQL **17.11 and 18.4**: Maven verification, UUIDv7 migration callback, least-privilege runtime grants/function ACLs, native and OCI ARM64 API image build/smoke, certificate-validated PostgreSQL TLS, and packaged-server startup/health against a fresh database.
+- CI #1387 verified PostgreSQL **17.11 and 18.4**: Maven verification, UUIDv7 migration callback, least-privilege runtime grants/function ACLs, native and OCI ARM64 API image build/smoke, certificate-validated PostgreSQL TLS, and packaged-server startup/health against a fresh database.
 - Springdoc/Swagger remain disabled by default and explicitly enabled only in the local-native profile; protected API operations remain protected.
 - Hosted backend/database manifests and remote staging workflows remain retired. Cloudflare Pages is documented as a frontend-only fixture demo; no hosted product deployment is qualified.
-- CI #1385 jobs: `web`, `vulnerability-scan`, `backend (17.11)`, `backend (18.4)`, `keycloak-staging-container`, `repository-policy`, `windows-local-presentation-smoke`. The Keycloak job validates a CI image; it does not put Keycloak into the local-native path.
+- CI #1387 jobs: `web`, `vulnerability-scan`, `backend (17.11)`, `backend (18.4)`, `keycloak-staging-container`, `repository-policy`, `windows-local-presentation-smoke`. The Keycloak job validated the staging OCI image, not a running local OIDC login.
 
 ### Source-to-specification audit
 

@@ -6,11 +6,11 @@
 >
 > **Exact-head CI:** [UEP CI #1385](https://github.com/shreyashjagtap157/UEP/actions/runs/46112848647) completed **7/7 jobs successfully**. This includes Windows Real + Offline Demo browser acceptance, PostgreSQL 17.11/18.4 validation, ARM64 API image smoke, certificate-validated TLS and packaged-server health smoke. These are GitHub-runner results, not target-workstation acceptance or production deployment.
 >
-> **Local topology:** `.\startuep.ps1` launches Real plus the separate fixture-backed Offline Demo by default. SQLite is the default; PostgreSQL is opt-in. Local-native Real does not start or contact Keycloak. Launcher credentials remain server-side in the Vite Node proxy.
+> **Local topology:** `.\startuep.ps1` launches Real plus the separate fixture-backed Offline Demo by default. SQLite is the default; PostgreSQL is opt-in. `LocalNative` is the default identity and does not start Keycloak. The opt-in `-IdentityProvider Keycloak` path runs a local Keycloak 26.8.2 OIDC realm for the Real app; Offline Demo remains independent.
 >
 > **UI:** current design is dark-first, semantic-token based, with Dark/Light/System preferences. See [`docs/FRONTEND_DESIGN_SYSTEM.md`](docs/FRONTEND_DESIGN_SYSTEM.md).
 >
-> **Hosted boundary:** hosted backend/database staging is retired; Cloudflare Pages documentation covers a static fixture demo only. `main` was observed unprotected; do not assume required checks exist.
+> **Hosted boundary:** hosted backend/database staging is retired; Cloudflare Pages documentation covers a static fixture demo only. The optional local Keycloak path is not a hosted deployment or production identity service. `main` was observed unprotected; do not assume required checks exist.
 
 ## Historical repository status snapshot — 2026-11-03 (superseded)
 
@@ -24,7 +24,7 @@
 
 > **Remote deployment controls retired in Git:** Fly app manifests and the hosted database-migration workflow have been removed from main. The Cloudflare Pages frontend projects remain separate; the last inspected testing bundle was stale and must not be treated as a connected product. No remote API or OIDC service is currently qualified.
 
-> **Supported local path:** from the repository root, run `.\startuep.ps1` (Presentation mode is the default). It starts the actual Real React/Vite frontend + Spring Boot API + local SQLite database and the separate browser-fixture Demo side by side. Use `-Mode Real`, `-Mode Demo`, or `-Database PostgreSQL` to select another path. Keycloak is not installed, started or contacted by the local launcher. A random launcher credential stays in the protected Node/Vite process and is injected into upstream `/api` proxy requests; the browser bundle and browser request headers do not receive it. The current Windows runtime still requires acceptance testing on the target workstation.
+> **Supported local path:** from the repository root, run `.\startuep.ps1` (Presentation mode is the default). It starts the actual Real React/Vite frontend + Spring Boot API + local SQLite database and the separate browser-fixture Demo side by side. Use `-Mode Real`, `-Mode Demo`, or `-Database PostgreSQL` to select another path. Keycloak is not started or contacted by the default LocalNative path; use `-IdentityProvider Keycloak` to start the optional local Keycloak 26.8.2 OIDC realm for Real UEP. A random launcher credential stays in the protected Node/Vite process and is injected into upstream `/api` proxy requests; the browser bundle and browser request headers do not receive it. The current Windows runtime still requires acceptance testing on the target workstation.
 
 > The current 0.15.0.0-SNAPSHOT source contains tenant-scoped RBAC, academic workflows, assessments, assignments, grading, communication, storage, live-learning and operational modules. **Feature completeness is not equivalent to local acceptance:** run the test plan in [LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) and record actual browser, API, database and isolation evidence before making product-readiness claims.
 
@@ -94,7 +94,7 @@ The current hardening milestone is implemented in source and intentionally remai
 - Maven 3.9+
 - Node.js 22.22.0+
 - PostgreSQL 18
-- Keycloak 26.7.x for the reference identity deployment
+- Keycloak 26.8.2 for the optional local OIDC development profile; production identity deployment remains a separate release gate
 - Valkey 9.1.x optional
 - Docker/Podman for the reference development environment
 
@@ -109,7 +109,7 @@ npm --prefix apps/web run build
 
 ## Native Windows local development
 
-The launcher inventories local requirements before startup. It can install Node.js LTS and Eclipse Temurin JDK 21 through WinGet, downloads a SHA-512-verified Maven 3.10.0 into the ignored `.uep-local/tools` directory, installs locked frontend dependencies with `npm ci`, and resolves backend dependencies with Maven. The local Real launcher does not install, start or contact Keycloak. Its launcher-issued API token is injected by the Node-side Vite proxy; it is not embedded in browser JavaScript or sent in browser request headers. Use a full JDK (including `javac.exe`), not a JRE. When WinGet is unavailable, use the manual installer links in [the Windows setup guide](docs/operations/LOCAL_NATIVE_WINDOWS.md).
+The launcher inventories local requirements before startup. It can install Node.js LTS and Eclipse Temurin JDK 21 through WinGet, downloads a SHA-512-verified Maven 3.10.0 into the ignored `.uep-local/tools` directory, installs locked frontend dependencies with `npm ci`, and resolves backend dependencies with Maven. The default `LocalNative` Real launcher does not install, start or contact Keycloak. The optional `-IdentityProvider Keycloak` mode installs/uses a separate JDK 25+ and downloads the official Keycloak 26.8.2 archive with SHA-256 verification. LocalNative's launcher-issued API token is injected by the Node-side Vite proxy; it is not embedded in browser JavaScript or sent in browser request headers. Use full JDKs (including `javac.exe`), not JREs. When WinGet is unavailable, use the manual installer links in [the Windows setup guide](docs/operations/LOCAL_NATIVE_WINDOWS.md).
 
 No container runtime is required. The launcher checks prerequisites and starts Spring Boot and Vite as native Windows processes. SQLite is the default local qualification database and does not require PostgreSQL or Flyway; select `-Database PostgreSQL` only when explicitly qualifying the PostgreSQL migration/runtime-role path, which runs Flyway separately with the local migrator role before the API starts with the restricted runtime role.
 
@@ -122,6 +122,10 @@ No container runtime is required. The launcher checks prerequisites and starts S
 .\startuep.ps1 -Mode Real -Database SQLite
 .\startuep.ps1 -Mode Demo
 
+# Optional local Keycloak OIDC (JDK 25+; LocalNative remains the default)
+.\startuep.ps1 -Mode Real -Database SQLite -IdentityProvider Keycloak
+.\startuep.ps1 -Mode Presentation -Database SQLite -IdentityProvider Keycloak
+
 # Explicit PostgreSQL migration/runtime-role qualification (requires local PostgreSQL 17/18)
 .\startuep.ps1 -Mode Real -Database PostgreSQL
 ```
@@ -133,7 +137,7 @@ Local backend API reference (available only while Real runs with the local-nativ
 
 See [Native Windows local development](docs/operations/LOCAL_NATIVE_WINDOWS.md) for requirements, URLs, local authentication, Swagger UI, SQLite/PostgreSQL boundaries, startup/stop behavior and local state. See [the UEP presentation runbook](docs/presentation/UEP_PRESENTATION_RUNBOOK.md) for the paired Real + Demo presentation. See [the local integration acceptance prompt](docs/operations/LOCAL_NATIVE_WINDOWS_TEST_PROMPT.md) for browser-to-API-to-database qualification.
 
-For **all Real-mode launches**, whether SQLite or PostgreSQL, the backend provisions only the persisted local API owner, active membership and Organization Owner role. The no-Keycloak local-native launcher does not create OIDC test personas or Keycloak database roles. The Offline Demo has its own separate seeded browser personas; those synthetic personas are not backend accounts.
+For **LocalNative Real-mode launches**, whether SQLite or PostgreSQL, the backend provisions only the persisted local API owner, active membership and Organization Owner role. The no-Keycloak path does not create OIDC test personas or Keycloak database roles. With `-IdentityProvider Keycloak`, the separate `local-keycloak` profile seeds the distinct local OIDC owner/tenant and does not activate LocalNative authentication. The Offline Demo has its own separate seeded browser personas; those synthetic personas are not backend accounts.
 
 The launcher uses `PLATFORM_DEV_MODE=true` only for local non-production execution. Never enable this setting with a production Spring profile.
 

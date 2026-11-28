@@ -37,9 +37,15 @@ final class ProductionSecretGuard {
                 .anyMatch(profile -> profile.equalsIgnoreCase("prod") || profile.equalsIgnoreCase("production"));
         boolean localNativeProfile = java.util.Arrays.stream(environment.getActiveProfiles())
                 .anyMatch(profile -> profile.equalsIgnoreCase("local-native"));
-        if (localNativeProfile && productionProfile) {
+        boolean localKeycloakProfile = java.util.Arrays.stream(environment.getActiveProfiles())
+                .anyMatch(profile -> profile.equalsIgnoreCase("local-keycloak"));
+        if (localNativeProfile && localKeycloakProfile) {
             throw new IllegalStateException(
-                    "Refusing to start: the local-native profile cannot be combined with the prod/production Spring profile");
+                    "Refusing to start: local-native and local-keycloak are mutually exclusive identity profiles");
+        }
+        if ((localNativeProfile || localKeycloakProfile) && productionProfile) {
+            throw new IllegalStateException(
+                    "Refusing to start: a local identity profile cannot be combined with the prod/production Spring profile");
         }
         if (developmentMode && productionProfile) {
             throw new IllegalStateException(

@@ -58,13 +58,16 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "http://localhost:5173/*"
+        "http://localhost:5173/*",
+        "http://127.0.0.1:5173/*"
       ],
       "webOrigins": [
-        "http://localhost:5173"
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
       ],
       "attributes": {
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
       },
       "protocolMappers": [
         {
@@ -82,33 +85,27 @@
           }
         }
       ]
-    },
+    }
+  ],
+  "users": [
     {
-      "clientId": "uep-local-bootstrap",
-      "name": "Local-only UEP bootstrap helper",
+      "id": "47bcafc8-b3ee-4c84-920f-0c21f4468c55",
+      "username": "uep-owner",
       "enabled": true,
-      "publicClient": true,
-      "standardFlowEnabled": false,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": true,
-      "serviceAccountsEnabled": false,
-      "protocol": "openid-connect",
-      "protocolMappers": [
+      "emailVerified": true,
+      "firstName": "UEP Local Keycloak",
+      "lastName": "Owner",
+      "email": "owner@local.uep",
+      "attributes": {
+        "tenant_id": [
+          "b1b2789e-9b87-4c9d-a6f7-6f5d7e8a1d44"
+        ]
+      },
+      "credentials": [
         {
-          "name": "tenant-id",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "user.attribute": "tenant_id",
-            "claim.name": "tenant_id",
-            "jsonType.label": "String",
-            "multivalued": "false",
-            "aggregate.attrs": "false",
-            "id.token.claim": "true",
-            "access.token.claim": "true",
-            "userinfo.token.claim": "true"
-          }
+          "type": "password",
+          "value": "${UEP_LOCAL_KEYCLOAK_OWNER_PASSWORD}",
+          "temporary": false
         }
       ]
     }

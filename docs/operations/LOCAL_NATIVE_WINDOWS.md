@@ -8,7 +8,7 @@ The implementation entry point is `scripts/Start-UEP.ps1`, with the root `startu
 
 The two experiences are intentionally separate:
 
-- **Real UEP**: React/Vite → launcher-issued loopback session → Spring Boot API → selected local database. API requests use the same-origin Vite proxy. Keycloak is not started or contacted by this local presentation path; normal OIDC support remains a separate integration.
+- **Real UEP**: React/Vite → Spring Boot API → selected local database. Identity is selected explicitly: `LocalNative` (the default, launcher-issued loopback session) or `Keycloak` (a separate local OIDC provider). Both use the same-origin Vite API proxy.
 - **Offline Demo**: seeded role personas and browser-local sample state. It does not call Spring Boot, Keycloak, PostgreSQL or SQLite.
 
 Never present a demo fixture update as a server/database write. Never describe the current Real local SQLite profile as full PostgreSQL or production qualification.
@@ -20,9 +20,9 @@ The root-level `startuep.ps1` is a compatibility wrapper for `scripts/Start-UEP.
 | Mode | Frontend | Backend | Identity | Database | Data boundary |
 |---|---|---|---|---|---|
 | `Demo` | Demo: `http://localhost:5173` | Not started | Simulated persona selection | Not started | Seeded browser-side data only |
-| `Real` | Real: `http://localhost:5173` | `http://127.0.0.1:8080` | Launcher-managed local API session | SQLite by default; PostgreSQL optional | Authenticated API and local persistence |
-| `Both` | Real: `http://localhost:5173`; Demo: `http://localhost:5174` | `http://127.0.0.1:8080` | Launcher-managed local API session | SQLite by default; PostgreSQL optional | Separate Real and offline Demo apps |
-| `Presentation` | Real: `http://localhost:5173`; Demo: `http://localhost:5174` | `http://127.0.0.1:8080` | Launcher-managed local API session | SQLite by default; PostgreSQL optional | Presentation-labelled paired apps |
+| `Real` | Real: `http://localhost:5173` | `http://127.0.0.1:8080` | `LocalNative` default; `Keycloak` opt-in | SQLite by default; PostgreSQL optional | Authenticated API and local persistence |
+| `Both` | Real: `http://localhost:5173`; Demo: `http://localhost:5174` | `http://127.0.0.1:8080` | `LocalNative` default; `Keycloak` opt-in for Real only | SQLite by default; PostgreSQL optional | Separate Real and offline Demo apps |
+| `Presentation` | Real: `http://localhost:5173`; Demo: `http://localhost:5174` | `http://127.0.0.1:8080` | `LocalNative` default; `Keycloak` opt-in for Real only | SQLite by default; PostgreSQL optional | Presentation-labelled paired apps |
 
 `Presentation` is the recommended command for a walkthrough. It starts two separate Vite processes and opens the Real and Demo URLs independently. Browser storage and sign-in state are origin-scoped; Real and Demo do not share sessions or records.
 
@@ -40,12 +40,14 @@ For `Real`, `Both` or `Presentation`:
 - Maven 3.9+.
 - SQLite mode is the default and does not require PostgreSQL, psql, a PostgreSQL service, containers or a cloud database.
 - PostgreSQL 17 or 18 is optional and selected explicitly with `-Database PostgreSQL`.
-- Internet access for first-time Maven and npm dependency resolution.
+- The default `LocalNative` identity path needs no identity-provider process. Optional `-IdentityProvider Keycloak` downloads Keycloak 26.8.2 and uses a full JDK 25+ for the identity provider; Spring Boot remains on the project's Java 21 baseline.
+- The Keycloak mode needs Internet access for its first download and port 8081 free in addition to the application ports.
+- Internet access is also required for first-time Maven and npm dependency resolution.
 - Ports 5173, 5174 and 8080 must be free before startup. The launcher runs `npm ci`, so it deliberately refuses to start if either Vite port is occupied by another UEP process. Demo-only also checks both Vite ports before installing shared frontend dependencies.
 
 ### First-run dependency installation
 
-The launcher can install missing Node.js LTS and Eclipse Temurin JDK 21 through WinGet. It downloads Maven 3.10.0 into the ignored `.uep-local/tools` folder and verifies its SHA-512 checksum. It runs `npm ci` from the checked-in lockfile, and Maven downloads the backend dependencies from configured Maven repositories.
+The launcher can install missing Node.js LTS and Eclipse Temurin JDK 21 through WinGet. When `-IdentityProvider Keycloak` is selected, it also provisions a separate Eclipse Temurin JDK 25+ and downloads the official Keycloak 26.8.2 Windows ZIP into the ignored `.uep-local/tools` folder, verifying its official SHA-256 before extraction. Maven 3.10.0 is downloaded into the same ignored tools folder and its SHA-512 is verified. The launcher runs `npm ci` from the checked-in lockfile, and Maven downloads backend dependencies from configured repositories.
 
 If Node.js is installed but older than 22.22.0, the launcher attempts a WinGet upgrade and checks the installed version again. If a system Maven is older than 3.9, the launcher uses the verified local Maven distribution instead. Java discovery requires a JDK, not only a `java.exe` runtime.
 
@@ -54,10 +56,11 @@ If WinGet is unavailable, install Microsoft App Installer from https://aka.ms/ge
 - Node.js 22.22.0 or later: https://nodejs.org/en/download
 - Eclipse Temurin JDK 21: https://adoptium.net/temurin/releases/?version=21
 - Apache Maven 3.9 or later: https://maven.apache.org/download.cgi
+- Eclipse Temurin JDK 25 (only for the optional Keycloak identity mode): https://adoptium.net/temurin/releases/?version=25
 
 After manual installation, close and reopen PowerShell so the updated PATH and `JAVA_HOME` are visible, then rerun the launcher. Do not paste passwords, access tokens or `.env` content into logs or chat.
 
-SQLite is provided by the backend's Xerial JDBC dependency; it does not require a separate SQLite server installation. No identity-provider process is required for the local Real path.
+SQLite is provided by the backend's Xerial JDBC dependency; it does not require a separate SQLite server installation. The default `LocalNative` Real path starts no identity provider. The optional Keycloak path starts a native loopback process on port 8081 and keeps its dev-file store under `.uep-local/tools/keycloak-26.8.2/data`; this is separate from the UEP SQLite or PostgreSQL database.
 
 ## Start the paired presentation
 
@@ -83,7 +86,11 @@ This opens:
 
 The Real UI displays `REAL UEP - LOCAL SQLITE`. The Demo UI displays `OFFLINE DEMO - SEEDED BROWSER DATA`. Keep the two windows separate during the presentation.
 
-For every Real-mode launch, the backend creates or reuses a real `uep-local` tenant, a local owner account, an active membership and an `Organization Owner` role assignment in the selected database. The launcher generates a fresh 12-hour random local API credential. The protected Real Vite process receives it as the non-`VITE_` environment variable `UEP_LOCAL_AUTH_TOKEN`; Vite injects `X-UEP-Local-Auth` into proxied `/api` requests server-side. The credential is never compiled into browser JavaScript, stored in browser storage or sent as a browser request header. Direct calls to the backend without the Vite proxy remain unauthorized (HTTP 401). In `Both` and `Presentation`, the Offline Demo supplies its own browser-only seeded personas. The Real backend provisions only one persisted local owner for both SQLite and PostgreSQL; no Keycloak or OIDC test-persona bootstrap runs.
+**LocalNative (default):** the backend creates or reuses the `uep-local` tenant, persisted local owner, active membership and `Organization Owner` role assignment. A fresh 12-hour random API credential is supplied only to the protected Real Vite Node process as `UEP_LOCAL_AUTH_TOKEN`; the Vite proxy injects `X-UEP-Local-Auth` upstream. The credential is not compiled into browser JavaScript, stored in browser storage or sent as a browser request header. Direct calls to the backend without the proxy remain unauthorized (HTTP 401). This path starts and contacts no Keycloak service.
+
+**Keycloak (opt-in):** `-IdentityProvider Keycloak` starts Keycloak 26.8.2 on `127.0.0.1:8081`, imports the local `education` realm, and starts Spring Boot with the mutually exclusive `local-keycloak` profile. Browser sign-in uses OIDC Authorization Code + PKCE (S256); the backend validates the JWT and resolves its `tenant_id` claim against a separately seeded local tenant and database-backed `Organization Owner` membership. Keycloak's file-based dev store remains separate from the UEP SQLite/PostgreSQL database. The local realm has one public `platform-web` client, disables implicit/password grants and is not a production identity service.
+
+The launcher generates separate Keycloak administrator and owner passwords and stores them in the ACL-protected per-user state file at `%LOCALAPPDATA%\UEP\local-native\state.json`. This state file is ACL-restricted to the current Windows account but is not DPAPI-encrypted. To display the generated credentials intentionally, run `scripts\Show-UEP-LocalKeycloakCredentials.ps1` in a separate PowerShell window. Do not paste these credentials into source control, logs or chat. The Offline Demo remains a separate browser-local fixture application in either identity mode.
 
 Other supported commands:
 
@@ -94,7 +101,17 @@ Other supported commands:
 .\startuep.ps1 -Mode Presentation -Database SQLite -NoBrowser
 ```
 
-Use PostgreSQL only when it is installed and intentionally selected. The PostgreSQL mode retains the primary Flyway migration and separate migration/runtime database-role design; the launcher provisions only `uep_local_migrator` and `uep_local_runtime`. It does not create, alter or drop any Keycloak role/schema. Existing legacy database objects are left untouched. The local Real startup does not start or contact Keycloak.
+
+**Optional Keycloak commands:**
+
+```powershell
+.\startuep.ps1 -Mode Real -Database SQLite -IdentityProvider Keycloak
+.\startuep.ps1 -Mode Presentation -Database SQLite -IdentityProvider Keycloak
+```
+
+The second command leaves Offline Demo as its independent fixture application; Keycloak applies only to Real UEP.
+
+Use PostgreSQL only when it is installed and intentionally selected. The PostgreSQL mode retains the primary Flyway migration and separate migration/runtime database-role design; the launcher provisions only `uep_local_migrator` and `uep_local_runtime`. It does not create, alter or drop any Keycloak role/schema. Existing legacy database objects are left untouched. With default `LocalNative` identity, local Real does not start or contact Keycloak; select `-IdentityProvider Keycloak` to opt into the separate local OIDC path.
 
 ### Java bytecode/runtime consistency
 
@@ -121,9 +138,9 @@ It does **not** run the 50 PostgreSQL Flyway migrations, create PostgreSQL roles
 
 ## Real UEP presentation walkthrough
 
-The Real window is the application with a launcher-managed local API session and API-backed pages. Browser requests to same-origin `/api` are proxied by Vite to the Spring Boot API at `http://127.0.0.1:8080`; the browser never connects directly to SQLite or PostgreSQL. It is not the fixture-based LocalExperience. Recommended sequence:
+The Real window is the API-backed application, using either the default LocalNative session or the opt-in Keycloak OIDC session. Browser requests to same-origin `/api` are proxied by Vite to Spring Boot at `http://127.0.0.1:8080`; the browser never connects directly to SQLite or PostgreSQL. It is not the fixture-based LocalExperience. Recommended sequence:
 
-1. Open Real UEP. It automatically requests `/api/v1/me` and loads the persisted local owner identity from the actual backend/database; this local presentation path does not use Keycloak.
+1. Open Real UEP. In `LocalNative` mode it loads the persisted local owner through `/api/v1/me` without Keycloak. In `Keycloak` mode it redirects to the local `education` realm, authenticates `uep-owner` with PKCE, then loads that user's tenant/role identity through the backend API.
 2. Show the signed-in identity, tenant context and role-specific navigation. Explain that the browser calls the Spring API through Vite's same-origin `/api` proxy.
 3. Open **Organization** and demonstrate a branch create/readback only after the SQLite native smoke test has passed on this machine.
 4. Show the current identity, role/permission and security surfaces that are available to this account. Only demonstrate actions that you have rehearsed against this SQLite runtime and have seen succeed through the API.

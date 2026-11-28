@@ -1,0 +1,16 @@
+# Explicit local OIDC profile. Backend and Keycloak run on loopback only.
+# Never combine this profile with local-native or prod/production.
+server:
+  address: 127.0.0.1
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081/realms/education}
+          jwk-set-uri: ${OIDC_JWK_SET_URI:http://localhost:8081/realms/education/protocol/openid-connect/certs}
+
+platform:
+  background-workers:
+    enabled: ${PLATFORM_BACKGROUND_WORKERS_ENABLED:false}

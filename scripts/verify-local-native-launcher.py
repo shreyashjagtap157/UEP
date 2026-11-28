@@ -98,13 +98,38 @@ checks = {
         "PostgreSQL 18.4" in launcher and "pg_isready.exe" in launcher
         and not re.search(r"\b(?:docker|podman)\s+(?:run|compose|build)\b", launcher, re.I)
     ),
-    "Local-native launcher has no Keycloak installer, user bootstrap, endpoints or database role provisioning": (
-        all(marker not in launcher for marker in (
-            "function Ensure-Keycloak", "function Ensure-RealIdentity",
-            "function Get-KeycloakAdminToken", "function Ensure-LocalTestAccounts",
-            "http://127.0.0.1:8081", "uep_local_keycloak", "__KEYCLOAK_USER__"
-        ))
-        and "Keycloak is not started" in launcher
+    "LocalNative remains the default and does not invoke the Keycloak process": (
+        "[string]$IdentityProvider = 'LocalNative'" in launcher
+        and "if ($IdentityProvider -eq 'Keycloak') {\n            Initialize-KeycloakState" in launcher
+        and "Start-LocalKeycloak" in launcher
+        and "VITE_LOCAL_API_MODE=true" in launcher
+        and "set SPRING_PROFILES_ACTIVE=local-sqlite,local-native" in launcher
+        and "set SPRING_PROFILES_ACTIVE=local-sqlite,local-keycloak" in launcher
+        and "issuer-uri:" not in local_native_profile
+        and "jwk-set-uri:" not in local_native_profile
+        and "Test-PortAvailable 8081" in launcher
+    ),
+    "opt-in Keycloak installs a checksum-verified official release and runs loopback-only": (
+        "keycloak-26.8.2.zip" in launcher
+        and "321ffee62ec28fab18fe885d8cd62cc814edce72a35cd062dc81b504c1a406b3" in launcher
+        and "Get-FileHash -LiteralPath $zip -Algorithm SHA256" in launcher
+        and "Find-JavaAtLeast 25" in launcher
+        and "EclipseAdoptium.Temurin.25.JDK" in launcher
+        and "--http-host=127.0.0.1" in launcher
+        and "--http-port=8081" in launcher
+        and "http://localhost:8081/realms/education" in launcher
+        and "UEP_LOCAL_KEYCLOAK_OWNER_PASSWORD" in launcher
+        and "KeycloakOwnerPassword" in launcher
+    ),
+    "local Keycloak credentials are kept in the protected per-user state and exposed only by the explicit helper": (
+        "KeycloakAdminPassword" in launcher
+        and "KeycloakOwnerPassword" in launcher
+        and "Protect-File $StateFile" in launcher
+        and "scripts\\Show-UEP-LocalKeycloakCredentials.ps1" in launcher
+        and "Write-Host ('  Password:" not in launcher
+        and "KeycloakAdminPassword" in (ROOT / "scripts" / "Show-UEP-LocalKeycloakCredentials.ps1").read_text(encoding="utf-8")
+        and "KeycloakOwnerPassword" in (ROOT / "scripts" / "Show-UEP-LocalKeycloakCredentials.ps1").read_text(encoding="utf-8")
+        and "Get-Content -LiteralPath $stateFile" in (ROOT / "scripts" / "Show-UEP-LocalKeycloakCredentials.ps1").read_text(encoding="utf-8")
     ),
     "Maven installation verifies the downloaded SHA-512": (
         "apache-maven-3.10.0-bin.zip" in launcher and "Get-FileHash" in launcher
@@ -167,7 +192,7 @@ checks = {
     ),
     "root launcher delegates all supported options to the canonical launcher": (
         "scripts\\Start-UEP.ps1" in wrapper
-        and "& $launcher -Mode $Mode -Database $Database -NoBrowser:$NoBrowser -SkipAccountSeeding:$SkipAccountSeeding" in wrapper
+        and "& $launcher -Mode $Mode -Database $Database -IdentityProvider $IdentityProvider -NoBrowser:$NoBrowser -SkipAccountSeeding:$SkipAccountSeeding" in wrapper
         and "C:\\Users\\siddh" not in wrapper
     ),
     "root launcher cannot start retired Keycloak services or inject default admin credentials": all(
@@ -230,11 +255,24 @@ checks.update({
         "@Profile(\"local-native\")" in (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalNativeJwtDecoderConfiguration.java").read_text(encoding="utf-8")
         and "OIDC bearer tokens are disabled" in (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "LocalNativeJwtDecoderConfiguration.java").read_text(encoding="utf-8")
     ),
-    "local-native profile cannot be combined with prod or production": (
-        "local-native profile cannot be combined with the prod/production Spring profile" in
+    "local identity profiles are mutually exclusive and forbidden under production": (
+        "local-native and local-keycloak are mutually exclusive identity profiles" in
         (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "ProductionSecretGuard.java").read_text(encoding="utf-8")
-        and "localNativeProfileCannotBeCombinedWithProductionProfiles" in
+        and "a local identity profile cannot be combined with the prod/production Spring profile" in
+        (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "security" / "ProductionSecretGuard.java").read_text(encoding="utf-8")
+        and "localIdentityProfilesCannotBeCombined" in
         (ROOT / "apps" / "platform-server" / "src" / "test" / "java" / "com" / "universalplatform" / "security" / "ProductionSecretGuardTest.java").read_text(encoding="utf-8")
+        and "localKeycloakProfileCannotBeCombinedWithProductionProfiles" in
+        (ROOT / "apps" / "platform-server" / "src" / "test" / "java" / "com" / "universalplatform" / "security" / "ProductionSecretGuardTest.java").read_text(encoding="utf-8")
+    ),
+    "Keycloak profile has loopback OIDC issuer/JWKS configuration and its own SQLite identity bootstrap": (
+        "address: 127.0.0.1" in (ROOT / "apps" / "platform-server" / "src" / "main" / "resources" / "application-local-keycloak.yaml").read_text(encoding="utf-8")
+        and "OIDC_ISSUER_URI:http://localhost:8081/realms/education" in
+        (ROOT / "apps" / "platform-server" / "src" / "main" / "resources" / "application-local-keycloak.yaml").read_text(encoding="utf-8")
+        and '@Profile("local-keycloak")' in
+        (ROOT / "apps" / "platform-server" / "src" / "main" / "java" / "com" / "universalplatform" / "identity" / "LocalKeycloakIdentityBootstrapper.java").read_text(encoding="utf-8")
+        and "localKeycloakProfileBootstrapsTheRealmOwnerIntoTheSameTenantAndRoleModel" in
+        (ROOT / "apps" / "platform-server" / "src" / "test" / "java" / "com" / "universalplatform" / "identity" / "LocalKeycloakIdentityBootstrapperIntegrationTest.java").read_text(encoding="utf-8")
     ),
     "Real launcher verifies server-side proxy authentication, backend auth boundary and persisted identity": (
         "set SPRING_PROFILES_ACTIVE=local-sqlite,local-native" in launcher

@@ -4,6 +4,8 @@ param(
     [string]$Mode = 'Presentation',
     [ValidateSet('SQLite', 'PostgreSQL')]
     [string]$Database = 'SQLite',
+    [ValidateSet('LocalNative', 'Keycloak')]
+    [string]$IdentityProvider = 'LocalNative',
     [switch]$NoBrowser,
     [switch]$SkipAccountSeeding
 )
@@ -26,6 +28,9 @@ $PostgresClientMajor = $null
 $Psql = $null
 $PgIsReady = $null
 $MavenCmd = $null
+$KeycloakJavaHome = $null
+$KeycloakHome = $null
+$KeycloakBat = $null
 $LocalAuthToken = $null
 $LocalAuthSessionId = $null
 $LocalAuthExpiresAt = $null
@@ -77,7 +82,11 @@ function Show-RequirementInventory {
         }
         Write-Status 'JDK 21+' $(if ($java) { 'PRESENT' } else { 'MISSING — installer will be offered' }) $(if ($java) { 'Green' } else { 'Yellow' })
         Write-Status 'Maven 3.9+' $(if ($maven -or (Test-Path (Join-Path $ToolDir 'apache-maven-3.10.0\bin\mvn.cmd'))) { 'PRESENT' } else { 'MISSING — download will be offered' }) $(if ($maven -or (Test-Path (Join-Path $ToolDir 'apache-maven-3.10.0\bin\mvn.cmd'))) { 'Green' } else { 'Yellow' })
-        Write-Status 'Identity' 'Local launcher-issued API session; Keycloak is not started' Green
+        if ($IdentityProvider -eq 'Keycloak') {
+            Write-Status 'Identity' 'Local Keycloak 26.8.2 OIDC; JDK 25+ required' Yellow
+        } else {
+            Write-Status 'Identity' 'Local launcher-issued API session; Keycloak is not started' Green
+        }
         Write-Status 'Local state' $(if (Test-Path $StateFile) { 'PRESENT — existing local credentials/database identity will be reused' } else { 'NOT INITIALIZED — first-run bootstrap required' }) $(if (Test-Path $StateFile) { 'Green' } else { 'Yellow' })
         Write-Status 'Frontend node_modules' $(if (Test-Path (Join-Path $WebDir 'node_modules')) { 'PRESENT — npm ci will still verify lockfile' } else { 'MISSING — npm ci will install it' }) $(if (Test-Path (Join-Path $WebDir 'node_modules')) { 'Green' } else { 'Yellow' })
     }
@@ -194,6 +203,161 @@ function Ensure-Java {
     $env:JAVA_HOME = $script:JavaHome
     $env:Path = (Join-Path $script:JavaHome 'bin') + ';' + $env:Path
     Write-Status 'Java' 'OK — full JDK 21+ (java and javac)' Green
+}
+function Find-JavaAtLeast([int]$MinimumMajor) {
+    $candidates = @()
+    $command = Get-Command 'java.exe' -ErrorAction SilentlyContinue
+    if ($command) { $candidates += $command.Source }
+    if ($env:JAVA_HOME) {
+        $candidate = Join-Path $env:JAVA_HOME 'bin\java.exe'
+        if (Test-Path $candidate) { $candidates += $candidate }
+    }
+    foreach ($root in @('C:\Program Files\Eclipse Adoptium', 'C:\Program Files\Microsoft', 'C:\Program Files\Java')) {
+        if (Test-Path $root) {
+            foreach ($directory in Get-ChildItem $root -Directory -ErrorAction SilentlyContinue) {
+                $candidate = Join-Path $directory.FullName 'bin\java.exe'
+                if (Test-Path $candidate) { $candidates += $candidate }
+            }
+        }
+    }
+    $compatible = @()
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        $bin = Split-Path $candidate -Parent
+        $javac = Join-Path $bin 'javac.exe'
+        if (-not (Test-Path $javac)) { continue }
+        $javaText = (& $candidate -version 2>&1 | Out-String)
+        $javacText = (& $javac -version 2>&1 | Out-String)
+        $javaMatch = [regex]::Match($javaText, 'version "?(?<major>\d+)')
+        if (-not $javaMatch.Success) { $javaMatch = [regex]::Match($javaText, 'openjdk (?<major>\d+)') }
+        $compilerMatch = [regex]::Match($javacText, 'javac (?<major>\d+)')
+        if (-not $javaMatch.Success -or -not $compilerMatch.Success) { continue }
+        $major = [int]$javaMatch.Groups['major'].Value
+        if ($major -ge $MinimumMajor -and $major -eq [int]$compilerMatch.Groups['major'].Value) {
+            $compatible += [pscustomobject]@{ Path = $candidate; Major = $major }
+        }
+    }
+    return $compatible | Sort-Object Major | Select-Object -First 1
+}
+function Ensure-KeycloakJava {
+    $selected = Find-JavaAtLeast 25
+    if (-not $selected) {
+        Invoke-WingetInstall 'EclipseAdoptium.Temurin.25.JDK' 'Eclipse Temurin JDK 25 (Keycloak runtime)'
+        Refresh-Path
+        $selected = Find-JavaAtLeast 25
+    }
+    if (-not $selected) {
+        throw 'Keycloak 26.8.2 requires a full JDK 25 or later. Install Eclipse Temurin JDK 25, reopen PowerShell and rerun this launcher.'
+    }
+    $script:KeycloakJavaHome = Split-Path (Split-Path $selected.Path -Parent) -Parent
+    $runtime = (& $selected.Path -version 2>&1 | Out-String)
+    Write-Status 'Keycloak Java' (($runtime -split '\r?\n' | Select-Object -First 1).Trim()) Green
+}
+function Ensure-Keycloak {
+    Ensure-KeycloakJava
+    Protect-Directory $ToolDir
+    $version = '26.8.2'
+    $distribution = Join-Path $ToolDir ('keycloak-' + $version)
+    $script:KeycloakHome = $distribution
+    $script:KeycloakBat = Join-Path $distribution 'bin\kc.bat'
+    if (-not (Test-Path -LiteralPath $script:KeycloakBat -PathType Leaf)) {
+        $zip = Join-Path $ToolDir ('keycloak-' + $version + '.zip')
+        $url = 'https://github.com/keycloak/keycloak/releases/download/26.8.2/keycloak-26.8.2.zip'
+        $expected = '321ffee62ec28fab18fe885d8cd62cc814edce72a35cd062dc81b504c1a406b3'
+        Write-Host 'Downloading the official Keycloak 26.8.2 Windows distribution...' -ForegroundColor Yellow
+        $previousSecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol
+        try {
+            [System.Net.ServicePointManager]::SecurityProtocol =
+                $previousSecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+        } finally {
+            [System.Net.ServicePointManager]::SecurityProtocol = $previousSecurityProtocol
+        }
+        $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actual -ne $expected) {
+            Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+            throw 'Keycloak 26.8.2 SHA-256 verification failed; the archive was removed.'
+        }
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $ToolDir)
+        if (-not (Test-Path -LiteralPath $script:KeycloakBat -PathType Leaf)) {
+            throw 'The verified Keycloak archive did not contain the expected bin\kc.bat entry point.'
+        }
+    }
+    $previousJavaHome = [Environment]::GetEnvironmentVariable('JAVA_HOME', 'Process')
+    $previousPath = [Environment]::GetEnvironmentVariable('PATH', 'Process')
+    try {
+        [Environment]::SetEnvironmentVariable('JAVA_HOME', $script:KeycloakJavaHome, 'Process')
+        [Environment]::SetEnvironmentVariable('PATH', (Join-Path $script:KeycloakJavaHome 'bin') + ';' + $previousPath, 'Process')
+        $versionOutput = (& $script:KeycloakBat --version 2>&1 | Out-String)
+        if ($LASTEXITCODE -ne 0 -or $versionOutput -notmatch '26\.8\.2') {
+            throw 'The installed Keycloak distribution did not report the expected version 26.8.2.'
+        }
+    } finally {
+        [Environment]::SetEnvironmentVariable('JAVA_HOME', $previousJavaHome, 'Process')
+        [Environment]::SetEnvironmentVariable('PATH', $previousPath, 'Process')
+    }
+    $importDirectory = Join-Path $script:KeycloakHome 'data\import'
+    Protect-Directory $importDirectory
+    $realmSource = Join-Path $RepoRoot 'infra\keycloak\education-realm.json'
+    if (-not (Test-Path -LiteralPath $realmSource -PathType Leaf)) {
+        throw "The local Keycloak realm export is missing: $realmSource"
+    }
+    $realmDestination = Join-Path $importDirectory 'education-realm.json'
+    Copy-Item -LiteralPath $realmSource -Destination $realmDestination -Force
+    Protect-File $realmDestination
+    Write-Status 'Keycloak' '26.8.2 installed and local realm import prepared (checksum verified)' Green
+}
+function Initialize-KeycloakState {
+    if (-not ($State.PSObject.Properties.Name -contains 'KeycloakAdminUsername')) {
+        $State | Add-Member -NotePropertyName KeycloakAdminUsername -NotePropertyValue 'uep-local-admin' -Force
+    }
+    if (-not ($State.PSObject.Properties.Name -contains 'KeycloakAdminPassword') -or
+            [string]::IsNullOrWhiteSpace([string]$State.KeycloakAdminPassword)) {
+        $State.KeycloakAdminPassword = New-RandomSecret -Bytes 36
+    }
+    if (-not ($State.PSObject.Properties.Name -contains 'KeycloakOwnerPassword') -or
+            [string]::IsNullOrWhiteSpace([string]$State.KeycloakOwnerPassword)) {
+        $State.KeycloakOwnerPassword = New-RandomSecret -Bytes 36
+    }
+    Save-State
+}
+function Start-LocalKeycloak {
+    $script:KeycloakBat = Join-Path $script:KeycloakHome 'bin\kc.bat'
+    $commandLines = @(
+        '@echo off',
+        ('set "JAVA_HOME=' + $script:KeycloakJavaHome + '"'),
+        ('set "PATH=' + (Join-Path $script:KeycloakJavaHome 'bin') + ';%PATH%"'),
+        ('cd /d "' + $script:KeycloakHome + '"'),
+        ('call "' + $script:KeycloakBat + '" start-dev --http-host=127.0.0.1 --http-port=8081 --hostname=http://localhost:8081 --import-realm')
+    )
+    $commandFile = Write-CommandFile 'run-keycloak' $commandLines
+    $names = @('KC_BOOTSTRAP_ADMIN_USERNAME', 'KC_BOOTSTRAP_ADMIN_PASSWORD', 'UEP_LOCAL_KEYCLOAK_OWNER_PASSWORD')
+    $values = @{
+        KC_BOOTSTRAP_ADMIN_USERNAME = [string]$State.KeycloakAdminUsername
+        KC_BOOTSTRAP_ADMIN_PASSWORD = [string]$State.KeycloakAdminPassword
+        UEP_LOCAL_KEYCLOAK_OWNER_PASSWORD = [string]$State.KeycloakOwnerPassword
+    }
+    $previous = @{}
+    foreach ($name in $names) {
+        $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+        [Environment]::SetEnvironmentVariable($name, $values[$name], 'Process')
+    }
+    try {
+        Start-ManagedProcess 'Keycloak' $commandFile $script:KeycloakHome | Out-Null
+    } finally {
+        foreach ($name in $names) {
+            [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process')
+        }
+    }
+    $discoveryUrl = 'http://localhost:8081/realms/education/.well-known/openid-configuration'
+    if (-not (Wait-ForHttp $discoveryUrl 240 'Keycloak OIDC discovery' 'Keycloak')) {
+        throw 'Keycloak did not import the education realm and become ready. Inspect .uep-local\logs\Keycloak.log.'
+    }
+    $discovery = Invoke-RestMethod -Uri $discoveryUrl -TimeoutSec 15
+    if ([string]$discovery.issuer -ne 'http://localhost:8081/realms/education') {
+        throw "Keycloak published an unexpected OIDC issuer '$($discovery.issuer)'; refusing to start UEP against it."
+    }
+    Write-Status 'Keycloak OIDC' 'PASS — education realm imported and issuer verified' Green
 }
 function Ensure-Node {
     $node = Get-Command 'node.exe' -ErrorAction SilentlyContinue
@@ -416,6 +580,10 @@ function Initialize-LocalState {
             $State.TenantId = ''
             $State.LocalAdminUserId = ''
         }
+        if (-not ($State.PSObject.Properties.Name -contains 'IdentityProvider')) {
+            $State | Add-Member -NotePropertyName IdentityProvider -NotePropertyValue 'LocalNative' -Force
+        }
+        $State.IdentityProvider = $IdentityProvider
         $State.DatabaseProvider = $Database
         if ($Database -eq 'SQLite') { $State.SQLiteDatabasePath = $sqlitePath }
         Save-State
@@ -423,6 +591,7 @@ function Initialize-LocalState {
     }
     $script:State = [pscustomobject]@{
         DatabaseProvider = $Database
+        IdentityProvider = $IdentityProvider
         SQLiteDatabasePath = $(if ($Database -eq 'SQLite') { Join-Path $LocalDir 'uep-local.sqlite' } else { '' })
         DatabaseName = 'uep_local_native'
         MigrationUser = 'uep_local_migrator'
@@ -625,12 +794,37 @@ function Test-LocalApiProxy {
 }
 function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$DemoPort = 5174) {
     if ($RunReal) {
-        if ($Database -eq 'SQLite') {
-            $sqliteJdbcPath = $State.SQLiteDatabasePath.Replace('\', '/')
-            $backendLines = @(
-                '@echo off',
+        $backendLines = @('@echo off')
+        if ($IdentityProvider -eq 'Keycloak') {
+            if ($Database -eq 'SQLite') {
+                $backendLines += @(
+                    'set SPRING_PROFILES_ACTIVE=local-sqlite,local-keycloak',
+                    ('set UEP_SQLITE_JDBC_URL=jdbc:sqlite:' + $State.SQLiteDatabasePath.Replace('\', '/'))
+                )
+            } else {
+                $backendLines += @(
+                    ('set SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:5432/' + $State.DatabaseName + '?sslmode=disable'),
+                    ('set SPRING_DATASOURCE_USERNAME=' + $State.RuntimeUser),
+                    ('set SPRING_DATASOURCE_PASSWORD=' + $State.RuntimePassword),
+                    'set SPRING_FLYWAY_ENABLED=false',
+                    'set SPRING_PROFILES_ACTIVE=local-keycloak'
+                )
+            }
+            $backendLines += @(
+                'set PLATFORM_DEV_MODE=true',
+                'set OIDC_ISSUER_URI=http://localhost:8081/realms/education',
+                'set OIDC_JWK_SET_URI=http://localhost:8081/realms/education/protocol/openid-connect/certs',
+                'set PLATFORM_LIVEKIT_ENABLED=false',
+                'set PLATFORM_CLAMAV_ENABLED=false',
+                'set PLATFORM_BACKGROUND_WORKERS_ENABLED=false',
+                'set PLATFORM_UPLOAD_STAGING_ENABLED=false',
+                'set DATABASE_POOL_SIZE=1',
+                'set PORT=8080'
+            )
+        } elseif ($Database -eq 'SQLite') {
+            $backendLines += @(
                 'set SPRING_PROFILES_ACTIVE=local-sqlite,local-native',
-                ('set UEP_SQLITE_JDBC_URL=jdbc:sqlite:' + $sqliteJdbcPath),
+                ('set UEP_SQLITE_JDBC_URL=jdbc:sqlite:' + $State.SQLiteDatabasePath.Replace('\', '/')),
                 'set PLATFORM_DEV_MODE=true',
                 'set PLATFORM_LOCAL_AUTH_ENABLED=true',
                 ('set UEP_LOCAL_TENANT_ID=' + $State.TenantId),
@@ -642,17 +836,10 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
                 'set PLATFORM_BACKGROUND_WORKERS_ENABLED=false',
                 'set PLATFORM_UPLOAD_STAGING_ENABLED=false',
                 'set DATABASE_POOL_SIZE=1',
-                'set PORT=8080',
-                ('cd /d "' + $ApiDir + '"'),
-                ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 clean compile'),
-                'if errorlevel 1 exit /b %errorlevel%',
-                ('powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $RepoRoot 'scripts\verify-java-class-version.ps1') + '" -ClassRoot "' + (Join-Path $ApiDir 'target\classes') + '" -ExpectedMajor 65 -RequiredClass "com\universalplatform\grading\package-info.class"'),
-                'if errorlevel 1 exit /b %errorlevel%',
-                ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 spring-boot:run -Dspring-boot.run.arguments=--platform.background-workers.enabled=false')
+                'set PORT=8080'
             )
         } else {
-            $backendLines = @(
-                '@echo off',
+            $backendLines += @(
                 ('set SPRING_DATASOURCE_URL=jdbc:postgresql://127.0.0.1:5432/' + $State.DatabaseName + '?sslmode=disable'),
                 ('set SPRING_DATASOURCE_USERNAME=' + $State.RuntimeUser),
                 ('set SPRING_DATASOURCE_PASSWORD=' + $State.RuntimePassword),
@@ -669,21 +856,21 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
                 'set PLATFORM_BACKGROUND_WORKERS_ENABLED=true',
                 'set PLATFORM_UPLOAD_STAGING_ENABLED=true',
                 'set DATABASE_POOL_SIZE=10',
-                'set PORT=8080',
-                ('cd /d "' + $ApiDir + '"'),
-                ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 clean compile'),
-                'if errorlevel 1 exit /b %errorlevel%',
-                ('powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $RepoRoot 'scripts\verify-java-class-version.ps1') + '" -ClassRoot "' + (Join-Path $ApiDir 'target\classes') + '" -ExpectedMajor 65 -RequiredClass "com\universalplatform\grading\package-info.class"'),
-                'if errorlevel 1 exit /b %errorlevel%',
-                ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 spring-boot:run')
+                'set PORT=8080'
             )
         }
-        # Pin the runtime and compiler to the exact JDK discovered by Ensure-Java.
-        # Maven's forked Spring Boot process inherits this JAVA_HOME and PATH.
+        $backendLines += @(
+            ('cd /d "' + $ApiDir + '"'),
+            ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 clean compile'),
+            'if errorlevel 1 exit /b %errorlevel%',
+            ('powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $RepoRoot 'scripts\verify-java-class-version.ps1') + '" -ClassRoot "' + (Join-Path $ApiDir 'target\classes') + '" -ExpectedMajor 65 -RequiredClass "com\universalplatform\grading\package-info.class"'),
+            'if errorlevel 1 exit /b %errorlevel%',
+            ('call "' + $MavenCmd + '" -B -Dmaven.compiler.release=21 spring-boot:run')
+        )
+        # The API always uses the verified JDK 21+ selected by Ensure-Java.
         $javaBin = Join-Path $script:JavaHome 'bin'
-        $commandHeader = $backendLines[0]
         $backendLines = @(
-            $commandHeader,
+            $backendLines[0],
             ('set "JAVA_HOME=' + $script:JavaHome + '"'),
             ('set "PATH=' + $javaBin + ';%PATH%"'),
             'echo === Selected Java runtime ===',
@@ -691,11 +878,13 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
             'echo === Selected Java compiler ===',
             'javac -version',
             'echo === Selected Maven runtime ===',
-            ('call "' + $MavenCmd + '" ' + '-version')
+            ('call "' + $MavenCmd + '" -version')
         ) + @($backendLines | Select-Object -Skip 1)
         $apiFile = Write-CommandFile 'run-api' $backendLines
         Start-ManagedProcess 'Backend' $apiFile $ApiDir
-        if (-not (Wait-ForHttp 'http://127.0.0.1:8080/actuator/health' 180 'Backend')) { throw 'Backend did not become healthy. Inspect .uep-local\logs\Backend.log.' }
+        if (-not (Wait-ForHttp 'http://127.0.0.1:8080/actuator/health' 180 'Backend')) {
+            throw 'Backend did not become healthy. Inspect .uep-local\logs\Backend.log.'
+        }
         Write-Status 'Backend' 'OK — actuator health returned HTTP 200' Green
     }
 
@@ -707,29 +896,63 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
     } finally { Pop-Location }
 
     if ($RunReal) {
-        $frontLines = @(
-            '@echo off',
-            'set VITE_LOCAL_MODE=false',
-            'set VITE_LOCAL_API_MODE=true',
-            ('set UEP_LOCAL_AUTH_TOKEN=' + $script:LocalAuthToken),
-            'set VITE_BACKEND_URL=',
-            ('set VITE_UEP_PRESENTATION_LABEL=REAL UEP - LOCAL ' + $Database.ToUpperInvariant()),
-            'set VITE_KEYCLOAK_URL=',
-            'set VITE_KEYCLOAK_REALM=',
-            'set VITE_KEYCLOAK_CLIENT_ID=',
-            ('cd /d "' + $WebDir + '"'),
-            ('call "' + $NpmCmd + '" run dev -- --host 127.0.0.1 --port 5173 --strictPort')
-        )
+        if ($IdentityProvider -eq 'Keycloak') {
+            $frontLines = @(
+                '@echo off',
+                'set VITE_LOCAL_MODE=false',
+                'set VITE_LOCAL_API_MODE=false',
+                'set VITE_BACKEND_URL=',
+                'set VITE_UEP_PRESENTATION_LABEL=REAL UEP - LOCAL KEYCLOAK OIDC',
+                'set VITE_KEYCLOAK_URL=http://localhost:8081',
+                'set VITE_KEYCLOAK_REALM=education',
+                'set VITE_KEYCLOAK_CLIENT_ID=platform-web',
+                ('cd /d "' + $WebDir + '"'),
+                ('call "' + $NpmCmd + '" run dev -- --host 127.0.0.1 --port 5173 --strictPort')
+            )
+        } else {
+            $frontLines = @(
+                '@echo off',
+                'set VITE_LOCAL_MODE=false',
+                'set VITE_LOCAL_API_MODE=true',
+                ('set UEP_LOCAL_AUTH_TOKEN=' + $script:LocalAuthToken),
+                'set VITE_BACKEND_URL=',
+                ('set VITE_UEP_PRESENTATION_LABEL=REAL UEP - LOCAL ' + $Database.ToUpperInvariant()),
+                'set VITE_KEYCLOAK_URL=',
+                'set VITE_KEYCLOAK_REALM=',
+                'set VITE_KEYCLOAK_CLIENT_ID=',
+                ('cd /d "' + $WebDir + '"'),
+                ('call "' + $NpmCmd + '" run dev -- --host 127.0.0.1 --port 5173 --strictPort')
+            )
+        }
         $frontFile = Write-CommandFile 'run-real-frontend' $frontLines
         Start-ManagedProcess 'Real frontend' $frontFile $WebDir
-        if (-not (Wait-ForHttp 'http://127.0.0.1:5173' 90 'Real frontend')) { throw 'Real frontend did not become ready. Inspect .uep-local\logs\Real frontend.log.' }
-        if (-not (Wait-ForHttp 'http://127.0.0.1:5173/api/v1/platform/version' 90 'Vite API proxy' 'Real frontend')) { throw 'Real frontend is reachable, but /api/v1/platform/version did not pass through the Vite proxy as HTTP 2xx. Inspect Vite and Backend logs.' }
-        if (-not (Wait-ForHttp 'http://127.0.0.1:8080/swagger-ui/index.html' 60 'Backend Swagger UI' 'Backend')) { throw 'The backend is healthy but its local Swagger UI did not become available at /swagger-ui/index.html. Inspect Backend.log.' }
-        if (-not (Wait-ForHttp 'http://127.0.0.1:8080/v3/api-docs' 60 'Backend OpenAPI document' 'Backend')) { throw 'The backend Swagger UI is present but its OpenAPI document is unavailable at /v3/api-docs.' }
-        $openApi = Invoke-RestMethod -Uri 'http://127.0.0.1:8080/v3/api-docs' -TimeoutSec 15
-        if ($openApi.info.title -ne 'Universal Education Platform API') { throw 'The OpenAPI document did not contain the expected Universal Education Platform API title.' }
-        Write-Status 'OpenAPI' 'PASS — UEP API title verified' Green
-        Test-LocalApiProxy
+        if (-not (Wait-ForHttp 'http://127.0.0.1:5173' 90 'Real frontend' 'Real frontend')) {
+            throw 'Real frontend did not become ready. Inspect .uep-local\logs\Real frontend.log.'
+        }
+        if (-not (Wait-ForHttp 'http://127.0.0.1:5173/api/v1/platform/version' 90 'Vite API proxy' 'Real frontend')) {
+            throw 'Real frontend is reachable, but /api/v1/platform/version did not pass through the Vite proxy as HTTP 2xx. Inspect Vite and Backend logs.'
+        }
+        if ($IdentityProvider -eq 'Keycloak') {
+            $discoveryUrl = 'http://localhost:8081/realms/education/.well-known/openid-configuration'
+            $discovery = Invoke-RestMethod -Uri $discoveryUrl -TimeoutSec 15
+            if ([string]$discovery.issuer -ne 'http://localhost:8081/realms/education') {
+                throw 'Keycloak and Spring Boot OIDC issuer configuration do not match.'
+            }
+            Write-Status 'OIDC' 'PASS — Vite configured for authorization-code + PKCE against the local education realm' Green
+        } else {
+            if (-not (Wait-ForHttp 'http://127.0.0.1:8080/swagger-ui/index.html' 60 'Backend Swagger UI' 'Backend')) {
+                throw 'The backend is healthy but its local Swagger UI did not become available. Inspect Backend.log.'
+            }
+            if (-not (Wait-ForHttp 'http://127.0.0.1:8080/v3/api-docs' 60 'Backend OpenAPI document' 'Backend')) {
+                throw 'The local Swagger UI is present but its OpenAPI document is unavailable.'
+            }
+            $openApi = Invoke-RestMethod -Uri 'http://127.0.0.1:8080/v3/api-docs' -TimeoutSec 15
+            if ($openApi.info.title -ne 'Universal Education Platform API') {
+                throw 'The OpenAPI document did not contain the expected Universal Education Platform API title.'
+            }
+            Write-Status 'OpenAPI' 'PASS — UEP API title verified' Green
+            Test-LocalApiProxy
+        }
     }
     if ($RunDemo) {
         $frontLines = @(
@@ -742,11 +965,15 @@ function Write-RuntimeCommandFiles([switch]$RunReal, [switch]$RunDemo, [int]$Dem
         )
         $frontFile = Write-CommandFile 'run-demo-frontend' $frontLines
         Start-ManagedProcess 'Demo frontend' $frontFile $WebDir
-        if (-not (Wait-ForHttp ("http://127.0.0.1:" + $DemoPort) 90 'Demo frontend')) { throw 'Demo frontend did not become ready. Inspect .uep-local\logs\Demo frontend.log.' }
+        if (-not (Wait-ForHttp ("http://127.0.0.1:" + $DemoPort) 90 'Demo frontend')) {
+            throw 'Demo frontend did not become ready. Inspect .uep-local\logs\Demo frontend.log.'
+        }
     }
 }
-
 try {
+    if ($IdentityProvider -eq 'Keycloak' -and $Mode -eq 'Demo') {
+        throw 'Keycloak identity is only applicable to Real, Both or Presentation mode; Demo remains an independent fixture application.'
+    }
     Protect-Directory $LocalDir
     Protect-Directory $LogDir
     Write-Section ('UEP Native Windows Launcher — ' + $Mode + ' mode')
@@ -755,7 +982,11 @@ try {
     Write-Host ('Mode: ' + $Mode)
     if ($Mode -eq 'Presentation') {
         Write-Host 'PRESENTATION MODE — Real UEP and the offline seeded demo run as separate applications.' -ForegroundColor Cyan
-        Write-Host 'Real UEP uses Spring Boot, the selected local database and a launcher-issued loopback session; Keycloak is not started.'
+        if ($IdentityProvider -eq 'Keycloak') {
+            Write-Host 'Real UEP uses Spring Boot, the selected local database and the opt-in loopback Keycloak OIDC realm.'
+        } else {
+            Write-Host 'Real UEP uses Spring Boot, the selected local database and a launcher-issued loopback session; Keycloak is not started.'
+        }
         Write-Host 'Offline Demo uses simulated personas and browser-local sample state; it does not call the API.'
     }
     Show-RequirementInventory
@@ -768,20 +999,28 @@ try {
         Test-PortAvailable 8080
         Test-PortAvailable 5173
         Test-PortAvailable 5174
+        if ($IdentityProvider -eq 'Keycloak') { Test-PortAvailable 8081 }
         Initialize-LocalState
         if ($Database -eq 'SQLite') {
             Initialize-LocalSqliteDatabase
         } else {
             Initialize-LocalDatabase
         }
-        $script:LocalAuthToken = New-RandomSecret -Bytes 48
-        $script:LocalAuthSessionId = [guid]::NewGuid().ToString()
-        $script:LocalAuthExpiresAt = [DateTime]::UtcNow.AddHours(12).ToString("yyyy-MM-ddTHH:mm:ss'Z'")
-        Write-Status 'Identity' 'Created a new 12-hour loopback-only local API session' Green
-        if ($SkipAccountSeeding) {
-            Write-Status 'Test identities' 'SkipAccountSeeding is retained for compatibility; local-native provisions only the persisted owner' Yellow
+        if ($IdentityProvider -eq 'Keycloak') {
+            Initialize-KeycloakState
+            Ensure-Keycloak
+            Start-LocalKeycloak
+            Write-Status 'Identity' 'Local Keycloak 26.8.2 education realm is ready; browser sign-in uses OIDC authorization code + PKCE' Green
         } else {
-            Write-Status 'Test identities' 'No Keycloak/OIDC test users are created by the no-Keycloak local-native launcher' Yellow
+            $script:LocalAuthToken = New-RandomSecret -Bytes 48
+            $script:LocalAuthSessionId = [guid]::NewGuid().ToString()
+            $script:LocalAuthExpiresAt = [DateTime]::UtcNow.AddHours(12).ToString("yyyy-MM-ddTHH:mm:ss'Z'")
+            Write-Status 'Identity' 'Created a new 12-hour loopback-only local API session' Green
+            if ($SkipAccountSeeding) {
+                Write-Status 'Test identities' 'SkipAccountSeeding is retained for compatibility; local-native provisions only the persisted owner' Yellow
+            } else {
+                Write-Status 'Test identities' 'No Keycloak/OIDC test users are created by the no-Keycloak local-native launcher' Yellow
+            }
         }
         Write-RuntimeCommandFiles -RunReal -RunDemo:($Mode -in @('Both', 'Presentation'))
     } else {
@@ -795,9 +1034,14 @@ try {
         Write-Host 'REAL UEP — LOCAL INTEGRATED APPLICATION' -ForegroundColor Green
         Write-Host '  Frontend:  http://localhost:5173'
         Write-Host '  Backend:   http://127.0.0.1:8080'
-        Write-Host '  Swagger:   http://127.0.0.1:8080/swagger-ui.html'
-        Write-Host '  OpenAPI:   http://127.0.0.1:8080/v3/api-docs'
-        Write-Host '  Identity:  launcher-managed local API session (Keycloak not started)'
+        if ($IdentityProvider -eq 'Keycloak') {
+            Write-Host '  Swagger:   available only after authenticated access; API docs are not anonymous in this profile'
+            Write-Host '  Identity:  Keycloak OIDC / http://localhost:8081/realms/education'
+        } else {
+            Write-Host '  Swagger:   http://127.0.0.1:8080/swagger-ui.html'
+            Write-Host '  OpenAPI:   http://127.0.0.1:8080/v3/api-docs'
+            Write-Host '  Identity:  launcher-managed local API session (Keycloak not started)'
+        }
         Write-Host ('  Database:  ' + $(if ($Database -eq 'SQLite') { 'SQLite / .uep-local/uep-local.sqlite' } else { 'PostgreSQL / uep_local_native / localhost:5432' }))
         Write-Host 'OFFLINE PRESENTATION DEMO (seeded browser data; no API/Keycloak/database)' -ForegroundColor Yellow
         Write-Host '  Frontend:  http://localhost:5174'
@@ -807,9 +1051,15 @@ try {
         Write-Host 'REAL UEP — LOCAL INTEGRATED APPLICATION' -ForegroundColor Green
         Write-Host '  Frontend:  http://localhost:5173'
         Write-Host '  Backend:   http://127.0.0.1:8080'
-        Write-Host '  Swagger:   http://127.0.0.1:8080/swagger-ui.html'
-        Write-Host '  OpenAPI:   http://127.0.0.1:8080/v3/api-docs'
-        Write-Host '  Identity:  launcher-managed local API session (Keycloak not started)'
+        if ($IdentityProvider -eq 'Keycloak') {
+            Write-Host '  Swagger:   protected by normal OIDC authentication'
+            Write-Host '  Identity:  Keycloak OIDC / http://localhost:8081/realms/education'
+            Write-Host '  Admin:     http://localhost:8081/admin/'
+        } else {
+            Write-Host '  Swagger:   http://127.0.0.1:8080/swagger-ui.html'
+            Write-Host '  OpenAPI:   http://127.0.0.1:8080/v3/api-docs'
+            Write-Host '  Identity:  launcher-managed local API session (Keycloak not started)'
+        }
         Write-Host ('  Database:  ' + $(if ($Database -eq 'SQLite') { 'SQLite / .uep-local/uep-local.sqlite' } else { 'PostgreSQL / uep_local_native / localhost:5432' }))
     } else {
         Write-Host ''
@@ -821,9 +1071,17 @@ try {
 
     if ($Mode -ne 'Demo') {
         Write-Host ''
-        Write-Host 'LOCAL REAL-APP IDENTITY' -ForegroundColor Cyan
-        Write-Host '  UEP Local Development Owner — persisted in the selected local database.'
-        Write-Host '  No password or Keycloak login is required for this local loopback demonstration.'
+        if ($IdentityProvider -eq 'Keycloak') {
+            Write-Host 'LOCAL KEYCLOAK OIDC IDENTITY' -ForegroundColor Cyan
+            Write-Host '  Realm:   education'
+            Write-Host '  User:    uep-owner'
+            Write-Host '  Credentials: run scripts\Show-UEP-LocalKeycloakCredentials.ps1 in a separate PowerShell window.'
+            Write-Host '  Local admin console: http://localhost:8081/admin/'
+        } else {
+            Write-Host 'LOCAL REAL-APP IDENTITY' -ForegroundColor Cyan
+            Write-Host '  UEP Local Development Owner — persisted in the selected local database.'
+            Write-Host '  No password or Keycloak login is required for this local loopback demonstration.'
+        }
     }
     if (-not $NoBrowser) {
         if ($Mode -in @('Both', 'Presentation')) { Start-Process 'http://localhost:5173'; Start-Process 'http://localhost:5174' }
@@ -834,23 +1092,34 @@ try {
     Write-Host 'Press Ctrl+C to stop application processes. PostgreSQL is stopped only when this script started its Windows service.'
     while ($true) {
         if ($Mode -ne 'Demo') {
-            $db = 'DOWN — authenticated application read failed'
-            $identityStatus = 'DOWN — persisted identity could not be read'
-            try {
-                $identity = Invoke-RestMethod -Uri 'http://127.0.0.1:5173/api/v1/me' -TimeoutSec 4
-                if ([string]$identity.oidcSubject -eq 'uep-local-demo-owner' -and
-                    [string]$identity.membershipStatus -eq 'ACTIVE' -and
-                    (@($identity.roles) -contains 'Organization Owner') -and
-                    -not [string]::IsNullOrWhiteSpace([string]$identity.tenantId)) {
-                    $db = 'UP — persisted owner/tenant identity read through the API'
-                    $identityStatus = 'UP — active local owner and Organization Owner role'
-                }
-            } catch {}
             $api = 'DOWN'
             try { $health = Invoke-RestMethod -Uri 'http://127.0.0.1:8080/actuator/health' -TimeoutSec 3; $api = [string]$health.status } catch {}
-            Write-Status 'Database/API read' $db $(if ($db -like 'UP*') { 'Green' } else { 'Red' })
-            Write-Status 'Identity' $identityStatus $(if ($identityStatus -like 'UP*') { 'Green' } else { 'Red' })
             Write-Status 'Backend' $api $(if ($api -eq 'UP') { 'Green' } else { 'Red' })
+            if ($IdentityProvider -eq 'Keycloak') {
+                $identityStatus = 'DOWN — OIDC discovery unavailable'
+                try {
+                    $discovery = Invoke-RestMethod -Uri 'http://localhost:8081/realms/education/.well-known/openid-configuration' -TimeoutSec 4
+                    if ([string]$discovery.issuer -eq 'http://localhost:8081/realms/education') {
+                        $identityStatus = 'UP — local Keycloak education realm; browser sign-in required'
+                    }
+                } catch {}
+                Write-Status 'Identity' $identityStatus $(if ($identityStatus -like 'UP*') { 'Green' } else { 'Red' })
+            } else {
+                $db = 'DOWN — authenticated application read failed'
+                $identityStatus = 'DOWN — persisted identity could not be read'
+                try {
+                    $identity = Invoke-RestMethod -Uri 'http://127.0.0.1:5173/api/v1/me' -TimeoutSec 4
+                    if ([string]$identity.oidcSubject -eq 'uep-local-demo-owner' -and
+                        [string]$identity.membershipStatus -eq 'ACTIVE' -and
+                        (@($identity.roles) -contains 'Organization Owner') -and
+                        -not [string]::IsNullOrWhiteSpace([string]$identity.tenantId)) {
+                        $db = 'UP — persisted owner/tenant identity read through the API'
+                        $identityStatus = 'UP — active local owner and Organization Owner role'
+                    }
+                } catch {}
+                Write-Status 'Database/API read' $db $(if ($db -like 'UP*') { 'Green' } else { 'Red' })
+                Write-Status 'Identity' $identityStatus $(if ($identityStatus -like 'UP*') { 'Green' } else { 'Red' })
+            }
         } else {
             Write-Status 'Database' 'NOT STARTED — offline Demo' Yellow
             Write-Status 'Backend' 'NOT STARTED — offline Demo' Yellow

@@ -4,7 +4,9 @@
 
 ## Current implementation
 
-- Spring profile: `local-sqlite`.
+- Database profile: `local-sqlite`.
+- Default identity profile: `local-native` (`local-sqlite,local-native`).
+- Optional identity profile: `local-keycloak` (`local-sqlite,local-keycloak`), selected only with `-IdentityProvider Keycloak`.
 - Driver: Xerial SQLite JDBC.
 - Dialect: Hibernate community `SQLiteDialect`.
 - Schema: Hibernate `ddl-auto=update` from JPA entity mappings.
@@ -14,7 +16,7 @@
 - Connection pool: one connection for the local process.
 - Foreign keys: enabled through SQLite connection initialization.
 - Background workers: disabled in this profile.
-- Keycloak: separate `dev-file` local development store; never shares the UEP SQLite file.
+- Keycloak: optional separate `dev-file` local development store under `.uep-local/tools/keycloak-26.8.2/data`; never shares the UEP SQLite file. It is used only by the `local-keycloak` profile.
 - Production and CI database: PostgreSQL remains unchanged.
 
 ## SQLite schema metadata scaling
@@ -37,15 +39,18 @@ This is backend integration-test evidence. It is not a Windows launcher/browser 
 
 ## First native SQLite workflow
 
-The dedicated native Playwright test is designed to verify:
+The default LocalNative SQLite browser test (`apps/web/test/native/real-sqlite.native.spec.ts`) verifies:
 
-1. Local Keycloak OIDC Authorization Code + PKCE login.
-2. Authenticated `GET /api/v1/me`.
+1. LocalNative-authenticated `GET /api/v1/me` and the persisted owner/tenant role.
+2. The browser sends neither a local-auth header nor a bearer token; the Vite Node proxy injects the launcher credential server-side.
 3. Branch creation through the authenticated browser/API path.
 4. Browser reload and branch readback through the API.
 5. SQLite file existence, size and 16-byte SQLite signature.
+6. LocalNative sign-out and rejection of the revoked launcher session.
 
-The test must be run on the same Windows user profile that initialized the protected UEP state. It reads credentials from that protected state in process memory and never prints them.
+The separate Keycloak OIDC test (`apps/web/test/native/real-keycloak.native.spec.ts`) is selected explicitly with `-IdentityProvider Keycloak`. It validates discovery, Authorization Code + PKCE (S256), the authenticated bearer request to `/api/v1/me`, and the database-backed local owner tenant and role. Both tests use the same UEP SQLite compatibility boundary, but only one identity profile is active for a backend process.
+
+The tests must be run on the same Windows user profile that initialized the protected UEP state. They read generated credentials only inside the test process and never print them.
 
 ## Not yet qualified on SQLite
 
@@ -65,10 +70,16 @@ The list is a qualification boundary, not a claim that every listed endpoint def
 
 ## Operating commands
 
-SQLite (default local qualification):
+SQLite (default local qualification, LocalNative identity):
 
 ```powershell
 .\startuep.ps1 -Mode Real -Database SQLite
+```
+
+SQLite with real Keycloak OIDC:
+
+```powershell
+.\startuep.ps1 -Mode Real -Database SQLite -IdentityProvider Keycloak
 ```
 
 PostgreSQL (full database-specific qualification when PostgreSQL is available):
@@ -84,7 +95,7 @@ Set-Location apps\web
 npm run test:e2e:native
 ```
 
-The native Playwright suite skips PostgreSQL-only grant checks in SQLite mode and skips SQLite-only checks in PostgreSQL mode.
+The native LocalNative browser test is the default SQLite workflow. The Keycloak OIDC browser test is run separately after starting with `-IdentityProvider Keycloak`. Both modes use a separate Keycloak dev-file store; neither makes SQLite equivalent to PostgreSQL. The native Playwright suite skips PostgreSQL-only grant checks in SQLite mode and skips SQLite-only checks in PostgreSQL mode.
 
 ## Safety and data separation
 

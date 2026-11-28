@@ -84,7 +84,29 @@ class ProductionSecretGuardTest {
 
         assertThatThrownBy(guard::rejectDevelopmentDefaults)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("local-native profile cannot be combined with the prod/production Spring profile");
+                .hasMessageContaining("a local identity profile cannot be combined with the prod/production Spring profile");
+    }
+
+    @Test
+    void localIdentityProfilesCannotBeCombined() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("local-native", "local-keycloak");
+        ProductionSecretGuard guard = new ProductionSecretGuard(environment);
+
+        assertThatThrownBy(guard::rejectDevelopmentDefaults)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("local-native and local-keycloak are mutually exclusive");
+    }
+
+    @Test
+    void localKeycloakProfileCannotBeCombinedWithProductionProfiles() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("local-keycloak", "production");
+        ProductionSecretGuard guard = new ProductionSecretGuard(environment);
+
+        assertThatThrownBy(guard::rejectDevelopmentDefaults)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("a local identity profile cannot be combined with the prod/production Spring profile");
     }
 
     @Test
